@@ -30,7 +30,7 @@ export default function LoginPage() {
     const { error } = await signIn(email, password);
 
     if (error) {
-      setError("Email o contraseña incorrectos");
+      setError(error);
       setSubmitting(false);
       return;
     }
