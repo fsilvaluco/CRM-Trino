@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import { useAuth } from "@/lib/auth-context";
 
 export interface ProjectOption {
   id: string;
@@ -21,6 +22,7 @@ const ProjectContext = createContext<ProjectContextValue | null>(null);
 const STORAGE_KEY = "crm_active_project";
 
 export function ProjectProvider({ children }: { children: ReactNode }) {
+  const { user, loading: authLoading } = useAuth();
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [activeProject, setActiveProjectState] = useState<ProjectOption | null>(null);
 
@@ -48,10 +50,15 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       .catch((err) => console.error("[ProjectProvider] fetch failed", err));
   }, []);
 
-  // Cargar proyectos al montar
+  // Cargar proyectos solo cuando el usuario esté autenticado
   useEffect(() => {
-    reloadProjects();
-  }, [reloadProjects]);
+    if (!authLoading && user) {
+      reloadProjects();
+    }
+    if (!authLoading && !user) {
+      setProjects([]);
+    }
+  }, [authLoading, user, reloadProjects]);
 
   // Restaurar proyecto activo desde localStorage
   useEffect(() => {
