@@ -18,7 +18,7 @@ function mapProject(row: any) {
 }
 
 export async function GET(request: NextRequest) {
-  const { supabase, error } = await requireAuth();
+  const { supabase, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
@@ -32,6 +32,11 @@ export async function GET(request: NextRequest) {
 
   if (companyId) query = query.eq("company_id", companyId);
   if (status) query = query.eq("status", status);
+  // Filtrar por proyectos accesibles si el usuario es member
+  if (allowedProjectIds !== null) {
+    if (allowedProjectIds.length === 0) return NextResponse.json([]);
+    query = query.in("id", allowedProjectIds);
+  }
 
   const { data, error: dbError } = await query;
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });

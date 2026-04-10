@@ -18,9 +18,12 @@ export async function createSupabaseServer() {
   );
 }
 
+export type UserRole = "owner" | "admin" | "member";
+
 /**
- * Obtiene el usuario autenticado y su organization_id.
- * Si no hay sesión, devuelve un error 401 listo para retornar.
+ * Obtiene el usuario autenticado, su organization_id, rol y proyectos accesibles.
+ * - isAdmin: true si el rol es owner/admin → acceso total
+ * - allowedProjectIds: null si isAdmin (ve todo), o array de IDs si es member
  */
 export async function requireAuth() {
   const supabase = await createSupabaseServer();
@@ -31,6 +34,9 @@ export async function requireAuth() {
       supabase,
       user: null,
       orgId: null,
+      role: null as UserRole | null,
+      isAdmin: false,
+      allowedProjectIds: null as string[] | null,
       error: NextResponse.json({ error: "No autenticado" }, { status: 401 }),
     };
   }
@@ -42,9 +48,35 @@ export async function requireAuth() {
       supabase,
       user,
       orgId: null,
+      role: null as UserRole | null,
+      isAdmin: false,
+      allowedProjectIds: null as string[] | null,
       error: NextResponse.json({ error: "Sin organización asignada" }, { status: 403 }),
     };
   }
 
-  return { supabase, user, orgId: orgId as string, error: null };
+  // Obtener rol del usuario en la organización
+  const { data: memberRow } = await supabase
+    .from("org_members")
+    .select("role")
+    .eq("user_id", user.id)
+    .eq("organization_id", orgId)
+    .single();
+
+  const role: UserRole = (memberRow?.role as UserRole) ?? "member";
+  const isAdmin = role === "owner" || role === "admin";
+
+  // Si es member, obtener solo sus proyectos asignados
+  let allowedProjectIds: string[] | null = null;
+  if (!isAdmin) {
+    const { data: memberships } = await supabase
+      .from("project_members")
+      .select("project_id")
+      .eq("user_id", user.id)
+      .eq("organization_id", orgId);
+
+    allowedProjectIds = (memberships ?? []).map((m) => m.project_id);
+  }
+
+  return { supabase, user, orgId: orgId as string, role, isAdmin, allowedProjectIds, error: null };
 }
