@@ -91,12 +91,16 @@ export function ProjectForm({ open, onClose, initialData }: ProjectFormProps) {
         }),
       });
 
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || `HTTP ${res.status}`);
+      }
       toast.success(isEdit ? "Proyecto actualizado" : "Proyecto creado");
       reset();
       onClose();
-    } catch {
-      toast.error("Error al guardar el proyecto");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Error desconocido";
+      toast.error(`Error al guardar el proyecto: ${msg}`);
     }
   };
 
