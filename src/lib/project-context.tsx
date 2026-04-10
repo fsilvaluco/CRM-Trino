@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { supabase } from "@/lib/supabase";
 
 export interface ProjectOption {
   id: string;
@@ -26,28 +27,31 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [activeProject, setActiveProjectState] = useState<ProjectOption | null>(null);
 
-  const reloadProjects = useCallback(() => {
-    fetch("/api/projects")
-      .then(async (r) => {
-        if (!r.ok) {
-          const err = await r.text();
-          console.error("[ProjectProvider] /api/projects error", r.status, err);
-          return;
-        }
-        const data = await r.json();
-        const list: ProjectOption[] = Array.isArray(data)
-          ? data.map((p: { id: string; name: string }) => ({ id: p.id, name: p.name }))
-          : [];
-        setProjects(list);
-        // Si solo hay 1 proyecto, seleccionarlo automáticamente
-        if (list.length === 1) {
-          setActiveProjectState((prev) => prev ?? list[0]);
-          if (!localStorage.getItem(STORAGE_KEY)) {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(list[0]));
-          }
-        }
-      })
-      .catch((err) => console.error("[ProjectProvider] fetch failed", err));
+  const reloadProjects = useCallback(async () => {
+    // Consultar Supabase directamente (cliente browser) — evita problemas de cookies SSR
+    const { data, error } = await supabase
+      .from("projects")
+      .select("id, name")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("[ProjectProvider] error cargando proyectos:", error.message);
+      return;
+    }
+
+    const list: ProjectOption[] = (data ?? []).map((p: { id: string; name: string }) => ({
+      id: p.id,
+      name: p.name,
+    }));
+
+    setProjects(list);
+
+    if (list.length === 1) {
+      setActiveProjectState((prev) => prev ?? list[0]);
+      if (!localStorage.getItem(STORAGE_KEY)) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(list[0]));
+      }
+    }
   }, []);
 
   // Cargar proyectos solo cuando el usuario esté autenticado
