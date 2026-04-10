@@ -12,7 +12,8 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const { supabase, user, orgId } = await requireAuth();
 
-  if (!user || !orgId) redirect("/login");
+  if (!user) redirect("/login");
+  if (!orgId) redirect("/sin-acceso");
 
   const [
     { data: allContacts },
