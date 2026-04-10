@@ -123,13 +123,11 @@ export function OrgMembersPanel() {
                   <Badge variant="default" className="shrink-0">{ROLE_LABELS[m.role]}</Badge>
                 ) : (
                   <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm" className="h-7 gap-1 text-xs shrink-0">
-                        <Badge variant={ROLE_COLORS[m.role] ?? "outline"} className="text-xs px-1.5 py-0">
-                          {ROLE_LABELS[m.role] ?? m.role}
-                        </Badge>
-                        <ChevronDown className="h-3 w-3" />
-                      </Button>
+                    <DropdownMenuTrigger className="flex items-center gap-1 h-7 px-2 rounded border border-input bg-background text-xs hover:bg-accent cursor-pointer shrink-0">
+                      <Badge variant={ROLE_COLORS[m.role] ?? "outline"} className="text-xs px-1.5 py-0">
+                        {ROLE_LABELS[m.role] ?? m.role}
+                      </Badge>
+                      <ChevronDown className="h-3 w-3" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       {["admin", "member"].map((r) => (
@@ -174,11 +172,9 @@ export function OrgMembersPanel() {
             required
           />
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" type="button" className="shrink-0 gap-1">
-                {ROLE_LABELS[inviteRole]}
-                <ChevronDown className="h-3.5 w-3.5" />
-              </Button>
+            <DropdownMenuTrigger className="flex items-center gap-1 h-9 px-3 rounded border border-input bg-background text-sm hover:bg-accent cursor-pointer shrink-0">
+              {ROLE_LABELS[inviteRole]}
+              <ChevronDown className="h-3.5 w-3.5" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {["admin", "member"].map((r) => (
