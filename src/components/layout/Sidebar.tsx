@@ -10,7 +10,7 @@ import {
   Briefcase,
   CheckSquare,
   Building2,
-  FolderKanban,
+  Megaphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -19,7 +19,7 @@ const navItems = [
   { href: "/crm", label: "Tratos", icon: Briefcase },
   { href: "/contacts", label: "Contactos", icon: Users },
   { href: "/companies", label: "Empresas", icon: Building2 },
-  { href: "/projects", label: "Proyectos", icon: FolderKanban },
+  { href: "/campanas", label: "Campañas", icon: Megaphone },
   { href: "/tasks", label: "Tareas", icon: CheckSquare },
   { href: "/activities", label: "Actividades", icon: Activity },
   { href: "/settings", label: "Configuracion", icon: Settings },
