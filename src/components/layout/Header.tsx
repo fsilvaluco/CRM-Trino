@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { MobileNav } from "./MobileNav";
 import { UserMenu } from "./UserMenu";
+import { ProjectSelector } from "./ProjectSelector";
 
 export function Header() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -23,6 +24,8 @@ export function Header() {
           <MobileNav />
         </SheetContent>
       </Sheet>
+
+      <ProjectSelector />
 
       <div className="flex-1 flex items-center gap-4">
         <div className="relative w-full max-w-md">

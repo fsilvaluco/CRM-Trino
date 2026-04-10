@@ -27,22 +27,17 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get("search");
   const temperature = searchParams.get("temperature");
   const source = searchParams.get("source");
+  const projectId = searchParams.get("projectId");
 
-  // RLS filtra automáticamente por org_id del usuario
   let query = supabase
     .from("contacts")
     .select("*")
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
-  if (temperature) {
-    query = query.eq("temperature", temperature);
-  }
-
-  if (source) {
-    query = query.eq("source", source);
-  }
-
+  if (projectId) query = query.eq("project_id", projectId);
+  if (temperature) query = query.eq("temperature", temperature);
+  if (source) query = query.eq("source", source);
   if (search) {
     query = query.or(
       `name.ilike.%${search}%,email.ilike.%${search}%,company.ilike.%${search}%`
@@ -69,7 +64,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
   }
 
-  const { name, email, phone, company, companyId, source, temperature, score, notes } =
+  const { name, email, phone, company, companyId, source, temperature, score, notes, projectId } =
     body;
 
   if (!name) {
@@ -93,6 +88,7 @@ export async function POST(request: NextRequest) {
       notes: notes || null,
       organization_id: orgId,
       created_by: user!.id,
+      project_id: projectId || null,
     })
     .select()
     .single();

@@ -24,6 +24,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useLocale } from "@/lib/locale-context";
+import { useProject } from "@/lib/project-context";
 
 const contactSchema = z.object({
   name: z.string().min(1, "El nombre es requerido"),
@@ -65,6 +66,7 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
   const router = useRouter();
   const isEditing = !!initialData?.id;
   const { settings } = useLocale();
+  const { activeProject } = useProject();
   const [companiesList, setCompanies] = useState<CompanyOption[]>([]);
 
   useEffect(() => {
@@ -137,6 +139,7 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
           source: data.source,
           temperature: data.temperature,
           notes: data.notes || null,
+          projectId: activeProject?.id ?? null,
         }),
       });
 

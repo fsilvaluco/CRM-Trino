@@ -15,6 +15,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import type { Company } from "@/types";
+import { useProject } from "@/lib/project-context";
 
 const companySchema = z.object({
   name: z.string().min(1, "El nombre es requerido"),
@@ -36,6 +37,7 @@ interface CompanyFormProps {
 
 export function CompanyForm({ open, onClose, initialData }: CompanyFormProps) {
   const isEdit = Boolean(initialData?.id);
+  const { activeProject } = useProject();
 
   const {
     register,
@@ -71,6 +73,7 @@ export function CompanyForm({ open, onClose, initialData }: CompanyFormProps) {
           phone: data.phone || null,
           address: data.address || null,
           notes: data.notes || null,
+          projectId: activeProject?.id ?? null,
         }),
       });
 

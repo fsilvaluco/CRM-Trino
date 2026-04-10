@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useProject } from "@/lib/project-context";
 import {
   Table,
   TableBody,
@@ -132,6 +133,7 @@ function SortableHead({
 // ── Page ─────────────────────────────────────────────────────────────────────
 export default function CompaniesPage() {
   const router = useRouter();
+  const { activeProject } = useProject();
   const [companiesList, setCompanies] = useState<CompanyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -141,19 +143,23 @@ export default function CompaniesPage() {
   const [colWidths, setColWidths] = useState<Record<ColKey, number>>(DEFAULT_WIDTHS);
   const resizingRef = useRef<{ col: ColKey; startX: number; startWidth: number } | null>(null);
 
-  const loadCompanies = (q = "") => {
-    const params = q ? `?search=${encodeURIComponent(q)}` : "";
+  const loadCompanies = (q = "", projectId?: string | null) => {
+    const sp = new URLSearchParams();
+    if (q) sp.set("search", q);
+    if (projectId) sp.set("projectId", projectId);
+    const params = sp.toString() ? `?${sp.toString()}` : "";
     fetch(`/api/companies${params}`)
       .then((r) => r.json())
       .then((data) => { setCompanies(data); setLoading(false); })
       .catch(() => setLoading(false));
   };
 
-  useEffect(() => { loadCompanies(); }, []);
+  useEffect(() => { loadCompanies("", activeProject?.id); }, [activeProject]);
 
   useEffect(() => {
-    const timer = setTimeout(() => loadCompanies(search), 300);
+    const timer = setTimeout(() => loadCompanies(search, activeProject?.id), 300);
     return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
   const handleSort = (field: SortField) => {

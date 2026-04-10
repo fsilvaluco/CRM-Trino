@@ -20,6 +20,7 @@ import {
 import { formatRelativeDate, formatDate } from "@/lib/constants";
 import { ACTIVITY_TYPE_CONFIG } from "@/lib/constants";
 import type { ActivityType } from "@/types";
+import { useProject } from "@/lib/project-context";
 
 const typeIcons: Record<string, typeof Phone> = {
   call: Phone,
@@ -52,10 +53,12 @@ export default function ActivitiesPage() {
   const [followUps, setFollowUps] = useState<FollowUps | null>(null);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const { activeProject } = useProject();
 
   const loadData = () => {
+    const params = activeProject ? `?projectId=${activeProject.id}` : "";
     Promise.all([
-      fetch("/api/activities").then((r) => r.json()),
+      fetch(`/api/activities${params}`).then((r) => r.json()),
       fetch("/api/followups").then((r) => r.json()),
     ]).then(([acts, fups]) => {
       setActivities(Array.isArray(acts) ? acts : []);
@@ -70,7 +73,8 @@ export default function ActivitiesPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProject]);
 
   if (loading) {
     return (

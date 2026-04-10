@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const contactId = searchParams.get("contactId");
   const dealId = searchParams.get("dealId");
+  const projectId = searchParams.get("projectId");
 
   let query = supabase
     .from("activities")
@@ -32,6 +33,7 @@ export async function GET(request: NextRequest) {
 
   if (contactId) query = query.eq("contact_id", contactId);
   if (dealId) query = query.eq("deal_id", dealId);
+  if (projectId) query = query.eq("project_id", projectId);
 
   const { data, error: dbError } = await query;
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
@@ -50,7 +52,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
   }
 
-  const { type, description, contactId, dealId, scheduledAt } = body;
+  const { type, description, contactId, dealId, scheduledAt, projectId } = body;
 
   if (!type || !description || !contactId) {
     return NextResponse.json(
@@ -70,6 +72,7 @@ export async function POST(request: NextRequest) {
       completed_at: null,
       organization_id: orgId,
       created_by: user!.id,
+      project_id: projectId || null,
     })
     .select()
     .single();

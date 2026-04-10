@@ -6,14 +6,17 @@ import { ContactForm } from "@/components/contacts/ContactForm";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import type { Contact } from "@/types";
+import { useProject } from "@/lib/project-context";
 
 export default function ContactsPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
+  const { activeProject } = useProject();
 
   const loadContacts = () => {
-    fetch("/api/contacts")
+    const params = activeProject ? `?projectId=${activeProject.id}` : "";
+    fetch(`/api/contacts${params}`)
       .then((res) => res.json())
       .then((data) => {
         setContacts(Array.isArray(data) ? data : []);
@@ -24,7 +27,8 @@ export default function ContactsPage() {
 
   useEffect(() => {
     loadContacts();
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProject]);
 
   const handleCloseForm = () => {
     setShowForm(false);

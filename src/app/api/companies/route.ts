@@ -25,17 +25,16 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search");
+  const projectId = searchParams.get("projectId");
 
-  // RLS filtra automáticamente por org_id del usuario
   let query = supabase
     .from("companies")
     .select("*, contacts(count), deals(count)")
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
-  if (search) {
-    query = query.ilike("name", `%${search}%`);
-  }
+  if (projectId) query = query.eq("project_id", projectId);
+  if (search) query = query.ilike("name", `%${search}%`);
 
   const { data, error: dbError } = await query;
 
@@ -57,7 +56,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
   }
 
-  const { name, industry, website, email, phone, address, notes } = body;
+  const { name, industry, website, email, phone, address, notes, projectId } = body;
 
   if (!name || name.trim() === "") {
     return NextResponse.json({ error: "El nombre es requerido" }, { status: 400 });
@@ -75,6 +74,7 @@ export async function POST(request: NextRequest) {
       notes: notes || null,
       organization_id: orgId,
       created_by: user!.id,
+      project_id: projectId || null,
     })
     .select()
     .single();

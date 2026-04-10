@@ -57,7 +57,7 @@ export async function requireAuth() {
 
   // Obtener rol del usuario en la organización
   const { data: memberRow } = await supabase
-    .from("org_members")
+    .from("organization_members")
     .select("role")
     .eq("user_id", user.id)
     .eq("organization_id", orgId)

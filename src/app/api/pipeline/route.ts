@@ -30,9 +30,19 @@ function mapStage(stage: any, deals: any[]) {
   };
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const { supabase, error } = await requireAuth();
   if (error) return error;
+
+  const { searchParams } = new URL(request.url);
+  const projectId = searchParams.get("projectId");
+
+  let dealsQuery = supabase
+    .from("deals")
+    .select("*, contacts ( name, temperature )")
+    .is("deleted_at", null);
+
+  if (projectId) dealsQuery = dealsQuery.eq("project_id", projectId);
 
   const [{ data: stages, error: stagesErr }, { data: allDeals, error: dealsErr }] =
     await Promise.all([
@@ -40,10 +50,7 @@ export async function GET() {
         .from("pipeline_stages")
         .select("*")
         .order("order", { ascending: true }),
-      supabase
-        .from("deals")
-        .select("*, contacts ( name, temperature )")
-        .is("deleted_at", null),
+      dealsQuery,
     ]);
 
   if (stagesErr) return NextResponse.json({ error: stagesErr.message }, { status: 500 });

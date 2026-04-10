@@ -9,7 +9,7 @@ export async function GET() {
   if (!isAdmin) return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
 
   const { data, error: dbError } = await supabase
-    .from("org_members")
+    .from("organization_members")
     .select("user_id, role, joined_at, profiles ( full_name, email, avatar_url )")
     .eq("organization_id", orgId)
     .order("joined_at");
@@ -39,9 +39,9 @@ export async function POST(request: NextRequest) {
 
   if (inviteError) return NextResponse.json({ error: inviteError.message }, { status: 500 });
 
-  // Registrar en org_members
+  // Registrar en organization_members
   const { error: memberError } = await admin
-    .from("org_members")
+    .from("organization_members")
     .upsert(
       { user_id: inviteData.user.id, organization_id: orgId, role },
       { onConflict: "user_id,organization_id" }
@@ -63,7 +63,7 @@ export async function PATCH(request: NextRequest) {
   if (!userId || !role) return NextResponse.json({ error: "userId y role requeridos" }, { status: 400 });
 
   const { error: dbError } = await supabase
-    .from("org_members")
+    .from("organization_members")
     .update({ role })
     .eq("user_id", userId)
     .eq("organization_id", orgId);
@@ -84,7 +84,7 @@ export async function DELETE(request: NextRequest) {
   if (!userId) return NextResponse.json({ error: "userId requerido" }, { status: 400 });
 
   const { error: dbError } = await supabase
-    .from("org_members")
+    .from("organization_members")
     .delete()
     .eq("user_id", userId)
     .eq("organization_id", orgId);

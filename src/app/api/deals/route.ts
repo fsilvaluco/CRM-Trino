@@ -27,11 +27,14 @@ function mapDeal(row: any) {
   };
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const { supabase, error } = await requireAuth();
   if (error) return error;
 
-  const { data, error: dbError } = await supabase
+  const { searchParams } = new URL(request.url);
+  const projectId = searchParams.get("projectId");
+
+  let query = supabase
     .from("deals")
     .select(`
       *,
@@ -41,6 +44,10 @@ export async function GET() {
     `)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
+
+  if (projectId) query = query.eq("project_id", projectId);
+
+  const { data, error: dbError } = await query;
 
   if (dbError) {
     return NextResponse.json({ error: dbError.message }, { status: 500 });
@@ -60,7 +67,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
   }
 
-  const { title, value, stageId, contactId, companyId, expectedClose, probability, notes } = body;
+  const { title, value, stageId, contactId, companyId, expectedClose, probability, notes, projectId } = body;
 
   if (!title || !contactId) {
     return NextResponse.json(
@@ -101,6 +108,7 @@ export async function POST(request: NextRequest) {
       notes: notes || null,
       organization_id: orgId,
       created_by: user!.id,
+      project_id: projectId || null,
     })
     .select()
     .single();

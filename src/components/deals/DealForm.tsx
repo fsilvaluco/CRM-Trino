@@ -24,6 +24,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useLocale } from "@/lib/locale-context";
+import { useProject } from "@/lib/project-context";
 
 const dealSchema = z.object({
   title: z.string().min(1, "El titulo es requerido"),
@@ -46,6 +47,7 @@ interface DealFormProps {
 export function DealForm({ open, onClose, initialStageId }: DealFormProps) {
   const router = useRouter();
   const { settings } = useLocale();
+  const { activeProject } = useProject();
   const [contactsList, setContacts] = useState<Array<{ id: string; name: string }>>([]);
   const [stagesList, setStages] = useState<Array<{ id: string; name: string }>>([]);
 
@@ -92,6 +94,7 @@ export function DealForm({ open, onClose, initialStageId }: DealFormProps) {
           ...data,
           value: Math.round(parseFloat(data.value || "0") * 100),
           probability: parseInt(data.probability || "0"),
+          projectId: activeProject?.id ?? null,
         }),
       });
 

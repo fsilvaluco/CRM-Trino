@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { useProject } from "@/lib/project-context";
 
 const activitySchema = z.object({
   type: z.enum(["call", "email", "meeting", "note", "follow_up"]),
@@ -48,6 +49,7 @@ export function ActivityForm({
   preselectedDealId,
 }: ActivityFormProps) {
   const router = useRouter();
+  const { activeProject } = useProject();
   const [contactsList, setContacts] = useState<Array<{ id: string; name: string }>>([]);
 
   useEffect(() => {
@@ -88,6 +90,7 @@ export function ActivityForm({
           contactId: data.contactId,
           dealId: data.dealId || null,
           scheduledAt: data.scheduledAt || null,
+          projectId: activeProject?.id ?? null,
         }),
       });
 

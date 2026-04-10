@@ -6,6 +6,7 @@ import { Plus, Download } from "lucide-react";
 import { DealForm } from "@/components/deals/DealForm";
 import { CrmTabs } from "@/components/crm/CrmTabs";
 import type { PipelineColumn } from "@/types";
+import { useProject } from "@/lib/project-context";
 
 // Shape returned by /api/pipeline per stage
 interface StageDeal {
@@ -53,6 +54,7 @@ export default function CrmPageClient() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [addToStageId, setAddToStageId] = useState<string | undefined>();
+  const { activeProject } = useProject();
 
   const handleAddDeal = (stageId: string) => {
     setAddToStageId(stageId);
@@ -60,7 +62,8 @@ export default function CrmPageClient() {
   };
 
   const loadData = useCallback(() => {
-    fetch("/api/pipeline")
+    const params = activeProject ? `?projectId=${activeProject.id}` : "";
+    fetch(`/api/pipeline${params}`)
       .then((r) => r.json())
       .then((pipeline: PipelineStageRaw[]) => {
         // Build Kanban columns
@@ -107,7 +110,7 @@ export default function CrmPageClient() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, []);
+  }, [activeProject]);
 
   useEffect(() => {
     loadData();
