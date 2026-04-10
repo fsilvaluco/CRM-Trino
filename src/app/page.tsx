@@ -1,7 +1,6 @@
 import { requireAuth } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
 import { KPICards } from "@/components/dashboard/KPICards";
 import { PipelineChart } from "@/components/dashboard/PipelineChart";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
