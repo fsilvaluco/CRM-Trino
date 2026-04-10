@@ -8,6 +8,8 @@ import { ThemeInitializer } from "@/components/layout/ThemeInitializer";
 import { AuthProvider } from "@/lib/auth-context";
 import { AppShell } from "@/components/layout/AppShell";
 
+export const dynamic = "force-dynamic";
+
 const inter = Inter({
   variable: "--font-sans",
   subsets: ["latin"],
