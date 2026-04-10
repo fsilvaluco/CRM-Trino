@@ -67,6 +67,7 @@ export default async function ContactDetailPage({
     name: contact.name,
     email: contact.email,
     phone: contact.phone,
+    company: contact.company ?? null,
     companyId: contact.company_id,
     source: contact.source,
     temperature: contact.temperature,
