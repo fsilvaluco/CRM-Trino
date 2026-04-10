@@ -1,14 +1,11 @@
 import { createBrowserClient } from "@supabase/ssr";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 // createBrowserClient guarda la sesión en cookies (no localStorage)
 // para que el servidor con @supabase/ssr pueda leerla en SSR/middleware
-export const supabase = createBrowserClient(
-  supabaseUrl || "https://placeholder.supabase.co",
-  supabaseAnonKey || "placeholder"
-);
+export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
 
 // Tipos de los roles de organización
 export type OrgRole = "owner" | "admin" | "member";

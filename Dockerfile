@@ -20,12 +20,6 @@ RUN npm run build
 # Create data directory
 RUN mkdir -p data
 
-# Initialize database
-RUN npx tsx scripts/init.ts
-
-# Expose port
-EXPOSE 3000
-
 ENV NODE_ENV=production
 ENV HOSTNAME="0.0.0.0"
 ENV PORT=3000
