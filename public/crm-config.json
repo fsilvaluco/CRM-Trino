@@ -1,0 +1,65 @@
+{
+  "business": {
+    "type": "agency",
+    "industry": "general",
+    "teamSize": "2-5"
+  },
+  "pipeline": {
+    "stages": [
+      {
+        "name": "Prospecto",
+        "order": 1,
+        "color": "#64748b",
+        "isWon": false,
+        "isLost": false
+      },
+      {
+        "name": "Contactado",
+        "order": 2,
+        "color": "#2563eb",
+        "isWon": false,
+        "isLost": false
+      },
+      {
+        "name": "Propuesta",
+        "order": 3,
+        "color": "#8b5cf6",
+        "isWon": false,
+        "isLost": false
+      },
+      {
+        "name": "Negociacion",
+        "order": 4,
+        "color": "#ea580c",
+        "isWon": false,
+        "isLost": false
+      },
+      {
+        "name": "Cerrado Ganado",
+        "order": 5,
+        "color": "#16a34a",
+        "isWon": true,
+        "isLost": false
+      },
+      {
+        "name": "Cerrado Perdido",
+        "order": 6,
+        "color": "#dc2626",
+        "isWon": false,
+        "isLost": true
+      }
+    ]
+  },
+  "leadSources": [
+    "whatsapp",
+    "redes_sociales",
+    "referido",
+    "website",
+    "formulario",
+    "otro"
+  ],
+  "preferences": {
+    "language": "es",
+    "theme": "auto"
+  }
+}
