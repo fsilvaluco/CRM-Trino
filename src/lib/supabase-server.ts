@@ -41,7 +41,20 @@ export async function requireAuth() {
     };
   }
 
-  const { data: orgId } = await supabase.rpc("get_user_org_id");
+  // Obtener orgId: intentar RPC primero, si falla usar query directa
+  let orgId: string | null = null;
+  const { data: rpcOrgId, error: rpcError } = await supabase.rpc("get_user_org_id");
+  if (!rpcError && rpcOrgId) {
+    orgId = rpcOrgId as string;
+  } else {
+    // Fallback: consulta directa a organization_members
+    const { data: memberData } = await supabase
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .single();
+    orgId = memberData?.organization_id ?? null;
+  }
 
   if (!orgId) {
     return {

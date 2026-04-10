@@ -18,15 +18,24 @@ export function ProjectSelector() {
 
   const reloadProjects = () => {
     fetch("/api/projects")
-      .then((r) => r.json())
-      .then((data) => {
+      .then(async (r) => {
+        const data = await r.json();
+        if (!r.ok) {
+          console.error("[ProjectSelector] API error:", data);
+          return;
+        }
         const list = Array.isArray(data)
-          ? data.map((p) => ({ id: p.id, name: p.name }))
+          ? data.map((p: { id: string; name: string }) => ({ id: p.id, name: p.name }))
           : [];
         setProjects(list);
-        if (list.length === 1) setActiveProject(list[0]);
+        // Auto-seleccionar si hay exactamente 1, o si aún no hay ninguno seleccionado
+        if (list.length === 1) {
+          setActiveProject(list[0]);
+        } else if (list.length > 1 && !activeProject) {
+          // No forzar selección — el usuario elige
+        }
       })
-      .catch(() => {});
+      .catch((err) => console.error("[ProjectSelector] fetch error:", err));
   };
 
   useEffect(() => {
