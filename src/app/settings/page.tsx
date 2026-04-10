@@ -13,6 +13,7 @@ import {
   Copy,
   Globe,
   ShieldCheck,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { NotificationToggle } from "@/components/shared/NotificationToggle";
@@ -20,6 +21,7 @@ import { PipelineStagesEditor } from "@/components/settings/PipelineStagesEditor
 import { LocaleSettingsPanel } from "@/components/settings/LocaleSettingsPanel";
 import { BusinessSettingsPanel } from "@/components/settings/BusinessSettingsPanel";
 import { ProjectAccessPanel } from "@/components/settings/ProjectAccessPanel";
+import { OrgMembersPanel } from "@/components/settings/OrgMembersPanel";
 
 export default function SettingsPage() {
   const commands = [
@@ -95,6 +97,19 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent>
             <PipelineStagesEditor />
+          </CardContent>
+        </Card>
+
+        {/* Usuarios de la organización */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Usuarios
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <OrgMembersPanel />
           </CardContent>
         </Card>
 
