@@ -67,7 +67,12 @@ export function OrgMembersPanel() {
     if (error) {
       toast.error("Error cargando usuarios: " + error.message);
     } else {
-      setMembers((data ?? []) as Member[]);
+      // Supabase devuelve profiles como array en joins; normalizamos a objeto
+      const normalized = (data ?? []).map((m) => ({
+        ...m,
+        profiles: Array.isArray(m.profiles) ? (m.profiles[0] ?? null) : m.profiles,
+      })) as Member[];
+      setMembers(normalized);
     }
     setLoading(false);
   }, [orgId]);
