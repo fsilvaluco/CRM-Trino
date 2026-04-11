@@ -13,6 +13,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth-context";
 
 interface Member {
   user_id: string;
@@ -34,17 +36,41 @@ const ROLE_COLORS: Record<string, "default" | "secondary" | "outline"> = {
 };
 
 export function OrgMembersPanel() {
+  const { user } = useAuth();
+  const [orgId, setOrgId] = useState<string | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("member");
   const [inviting, setInviting] = useState(false);
 
+  // Obtener orgId del usuario actual
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .single()
+      .then(({ data }) => setOrgId(data?.organization_id ?? null));
+  }, [user]);
+
   const loadMembers = useCallback(async () => {
-    const data = await fetch("/api/org-members").then((r) => r.json());
-    setMembers(Array.isArray(data) ? data : []);
+    if (!orgId) return;
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("organization_members")
+      .select("user_id, role, joined_at, profiles ( full_name, email, avatar_url )")
+      .eq("organization_id", orgId)
+      .order("joined_at");
+
+    if (error) {
+      toast.error("Error cargando usuarios: " + error.message);
+    } else {
+      setMembers((data ?? []) as Member[]);
+    }
     setLoading(false);
-  }, []);
+  }, [orgId]);
 
   useEffect(() => { loadMembers(); }, [loadMembers]);
 
@@ -69,24 +95,26 @@ export function OrgMembersPanel() {
   };
 
   const handleRoleChange = async (userId: string, role: string) => {
-    const res = await fetch("/api/org-members", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, role }),
-    });
-    if (!res.ok) { toast.error("Error al cambiar rol"); return; }
+    if (!orgId) return;
+    const { error } = await supabase
+      .from("organization_members")
+      .update({ role })
+      .eq("user_id", userId)
+      .eq("organization_id", orgId);
+    if (error) { toast.error("Error al cambiar rol: " + error.message); return; }
     toast.success("Rol actualizado");
     await loadMembers();
   };
 
   const handleRemove = async (userId: string, name: string) => {
+    if (!orgId) return;
     if (!confirm(`¿Eliminar a ${name} de la organización?`)) return;
-    const res = await fetch("/api/org-members", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId }),
-    });
-    if (!res.ok) { toast.error("Error al eliminar"); return; }
+    const { error } = await supabase
+      .from("organization_members")
+      .delete()
+      .eq("user_id", userId)
+      .eq("organization_id", orgId);
+    if (error) { toast.error("Error al eliminar: " + error.message); return; }
     toast.success("Usuario eliminado");
     await loadMembers();
   };
