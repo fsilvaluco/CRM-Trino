@@ -206,11 +206,7 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = 
       );
     }
     if (task.projectId && task.projectName) {
-      setProjects((prev) =>
-        prev.some((p) => p.id === task.projectId)
-          ? prev
-          : [{ id: task.projectId!, name: task.projectName! }, ...prev]
-      );
+      // projects state removed — projectName shown directly from task
     }
     if (task.subprojectId && task.subprojectName) {
       setSubprojects((prev) =>
