@@ -11,6 +11,7 @@ import {
   CheckSquare,
   Building2,
   Megaphone,
+  Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +23,7 @@ const navItems = [
   { href: "/campanas", label: "Campañas", icon: Megaphone },
   { href: "/tasks", label: "Tareas", icon: CheckSquare },
   { href: "/activities", label: "Actividades", icon: Activity },
+  { href: "/finances", label: "Finanzas", icon: Wallet },
   { href: "/settings", label: "Configuracion", icon: Settings },
 ];
 
