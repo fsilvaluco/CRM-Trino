@@ -13,11 +13,11 @@ export interface CountryPreset extends LocaleSettings {
 }
 
 export const DEFAULT_LOCALE: LocaleSettings = {
-  country: "MX",
-  currency: "MXN",
-  currencyLocale: "es-MX",
-  timezone: "America/Mexico_City",
-  phonePrefix: "+52",
+  country: "CL",
+  currency: "CLP",
+  currencyLocale: "es-CL",
+  timezone: "America/Santiago",
+  phonePrefix: "+56",
 };
 
 // ── Country presets ────────────────────────────────────────────────────────────
