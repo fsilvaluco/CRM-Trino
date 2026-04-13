@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -24,12 +24,13 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import type { Project } from "@/types";
 
+const PROJECT_TYPES = ["Teatro", "Música", "Personal", "Otro"] as const;
+
 const projectSchema = z.object({
   name: z.string().min(1, "El nombre es requerido"),
   type: z.string(),
   status: z.enum(["active", "paused", "completed", "archived"]),
   description: z.string(),
-  companyId: z.string(),
   notes: z.string(),
 });
 
@@ -43,16 +44,6 @@ interface ProjectFormProps {
 
 export function ProjectForm({ open, onClose, initialData }: ProjectFormProps) {
   const isEdit = Boolean(initialData?.id);
-  const [companiesList, setCompanies] = useState<Array<{ id: string; name: string }>>([]);
-
-  useEffect(() => {
-    if (open) {
-      fetch("/api/companies")
-        .then((r) => r.json())
-        .then((d) => setCompanies(Array.isArray(d) ? d : []))
-        .catch(() => {});
-    }
-  }, [open]);
 
   const {
     register,
@@ -68,7 +59,6 @@ export function ProjectForm({ open, onClose, initialData }: ProjectFormProps) {
       type: initialData?.type || "",
       status: initialData?.status || "active",
       description: initialData?.description || "",
-      companyId: initialData?.companyId || "",
       notes: initialData?.notes || "",
     },
   });
@@ -86,7 +76,6 @@ export function ProjectForm({ open, onClose, initialData }: ProjectFormProps) {
           type: data.type || null,
           status: data.status,
           description: data.description || null,
-          companyId: data.companyId || null,
           notes: data.notes || null,
         }),
       });
@@ -123,7 +112,19 @@ export function ProjectForm({ open, onClose, initialData }: ProjectFormProps) {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Tipo</Label>
-              <Input {...register("type")} placeholder="ej. Campaña, Produccion" />
+              <Select
+                value={watch("type") || ""}
+                onValueChange={(v) => v && setValue("type", v)}
+              >
+                <SelectTrigger className="cursor-pointer">
+                  <SelectValue placeholder="Seleccionar tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PROJECT_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>Estado</Label>
@@ -143,29 +144,6 @@ export function ProjectForm({ open, onClose, initialData }: ProjectFormProps) {
               </Select>
             </div>
           </div>
-
-          {companiesList.length > 0 && (
-            <div className="space-y-2">
-              <Label>Empresa (opcional)</Label>
-              <Select
-                value={watch("companyId") || ""}
-                onValueChange={(v) => v && setValue("companyId", v)}
-              >
-                <SelectTrigger className="cursor-pointer">
-                  <span className={watch("companyId") ? "" : "text-muted-foreground"}>
-                    {companiesList.find((c) => c.id === watch("companyId"))?.name ?? "Sin empresa"}
-                  </span>
-                </SelectTrigger>
-                <SelectContent>
-                  {companiesList.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
 
           <div className="space-y-2">
             <Label>Descripcion</Label>
