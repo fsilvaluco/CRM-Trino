@@ -143,7 +143,6 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = 
   const [contacts, setContacts] = useState<Relation[]>([]);
   const [companies, setCompanies] = useState<Relation[]>([]);
   const [deals, setDeals] = useState<Relation[]>([]);
-  const [projects, setProjects] = useState<Relation[]>([]);
   const [subprojects, setSubprojects] = useState<Relation[]>([]);
 
   // Description auto-save
@@ -163,22 +162,23 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = 
   }, [taskId]);
 
   useEffect(() => {
-    if (open && taskId) {
-      loadTask();
-      // Load relation options in parallel
-      Promise.all([
-        fetch("/api/contacts").then((r) => r.json()),
-        fetch("/api/companies").then((r) => r.json()),
-        fetch("/api/deals").then((r) => r.json()),
-        fetch("/api/projects").then((r) => r.json()),
-      ]).then(([c, co, d, p]) => {
-        setContacts((c as Array<{ id: string; name: string }>).map((x) => ({ id: x.id, name: x.name })));
-        setCompanies((co as Array<{ id: string; name: string }>).map((x) => ({ id: x.id, name: x.name })));
-        setDeals((d as Array<{ id: string; title: string }>).map((x) => ({ id: x.id, name: x.title })));
-        setProjects((p as Array<{ id: string; name: string }>).map((x) => ({ id: x.id, name: x.name })));
-      }).catch(() => {});
-    }
+    if (open && taskId) loadTask();
   }, [open, taskId, loadTask]);
+
+  // Cargar contactos/empresas/deals filtrados por el proyecto de la tarea
+  useEffect(() => {
+    if (!task?.projectId) return;
+    const pid = task.projectId;
+    Promise.all([
+      fetch(`/api/contacts?projectId=${pid}`).then((r) => r.json()),
+      fetch(`/api/companies?projectId=${pid}`).then((r) => r.json()),
+      fetch(`/api/deals?projectId=${pid}`).then((r) => r.json()),
+    ]).then(([c, co, d]) => {
+      setContacts((c as Array<{ id: string; name: string }>).map((x) => ({ id: x.id, name: x.name })));
+      setCompanies((co as Array<{ id: string; name: string }>).map((x) => ({ id: x.id, name: x.name })));
+      setDeals((d as Array<{ id: string; title: string }>).map((x) => ({ id: x.id, name: x.title })));
+    }).catch(() => {});
+  }, [task?.projectId]);
 
   // Pre-seed relation arrays with the task's current relation names so the
   // Select shows a readable label immediately (before the full list loads)
@@ -449,52 +449,24 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = 
                   </Select>
                 </FieldRow>
 
-                <FieldRow label="Proyecto">
+                <FieldRow label="Campaña">
                   <Select
-                    value={task.projectId ?? "__none__"}
-                    onValueChange={(v) => {
-                      const newProjectId = v === "__none__" ? null : v;
-                      const newProjectName = newProjectId ? (projects.find((p) => p.id === newProjectId)?.name ?? null) : null;
-                      patch({ projectId: newProjectId, subprojectId: null });
-                      setTask((prev) =>
-                        prev ? { ...prev, projectId: newProjectId, projectName: newProjectName, subprojectId: null, subprojectName: null } : prev
-                      );
-                    }}
+                    value={task.subprojectId ?? "__none__"}
+                    onValueChange={(v) => patch({ subprojectId: v === "__none__" ? null : v })}
                   >
                     <SelectTrigger className="h-8 text-sm">
-                      {task.projectId
-                        ? <span>{projects.find((p) => p.id === task.projectId)?.name ?? task.projectName ?? task.projectId}</span>
-                        : <span className="text-muted-foreground">Sin proyecto</span>}
+                      {task.subprojectId
+                        ? <span>{subprojects.find((s) => s.id === task.subprojectId)?.name ?? task.subprojectName ?? task.subprojectId}</span>
+                        : <span className="text-muted-foreground">Sin campaña</span>}
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="__none__">Sin proyecto</SelectItem>
-                      {projects.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      <SelectItem value="__none__">Sin campaña</SelectItem>
+                      {subprojects.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </FieldRow>
-
-                {task.projectId && subprojects.length > 0 && (
-                  <FieldRow label="Subproyecto">
-                    <Select
-                      value={task.subprojectId ?? "__none__"}
-                      onValueChange={(v) => patch({ subprojectId: v === "__none__" ? null : v })}
-                    >
-                      <SelectTrigger className="h-8 text-sm">
-                        {task.subprojectId
-                          ? <span>{subprojects.find((s) => s.id === task.subprojectId)?.name ?? task.subprojectName ?? task.subprojectId}</span>
-                          : <span className="text-muted-foreground">Sin subproyecto</span>}
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">Sin subproyecto</SelectItem>
-                        {subprojects.map((s) => (
-                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </FieldRow>
-                )}
               </div>
 
               {/* Description */}
