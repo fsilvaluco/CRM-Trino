@@ -52,6 +52,7 @@ export function TransactionForm({ open, onClose, onCreated, members }: Transacti
   const { activeProject } = useProject();
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  // fileUrl used as a storage path (not a public URL) — signed URL generated server-side
 
   const {
     register,
@@ -84,18 +85,18 @@ export function TransactionForm({ open, onClose, onCreated, members }: Transacti
       // Subir archivo a Supabase Storage si existe
       if (file && user) {
         const ext = file.name.split(".").pop();
-        const path = `receipts/${user.id}/${Date.now()}.${ext}`;
+        const storagePath = `receipts/${user.id}/${Date.now()}.${ext}`;
         const { error: uploadError } = await supabase.storage
           .from("finances")
-          .upload(path, file, { upsert: false });
+          .upload(storagePath, file, { upsert: false });
 
         if (uploadError) {
           toast.error("Error subiendo comprobante: " + uploadError.message);
           return;
         }
 
-        const { data: urlData } = supabase.storage.from("finances").getPublicUrl(path);
-        fileUrl = urlData.publicUrl;
+        // Guardamos el path, no la URL pública
+        fileUrl = storagePath;
         fileName = file.name;
       }
 
@@ -108,7 +109,7 @@ export function TransactionForm({ open, onClose, onCreated, members }: Transacti
           description: data.description,
           category: data.category,
           responsibleName: data.responsibleName || null,
-          fileUrl,
+          filePath: fileUrl,   // storage path
           fileName,
           projectId: activeProject?.id ?? null,
         }),
