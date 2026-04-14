@@ -31,25 +31,38 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
 
-  // Invitar al usuario — Supabase envía el email de invitación
+  let userId: string;
+
+  // Intentar invitar. Si el usuario ya existe, buscarlo por email
   const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
     data: { invited_to_org: orgId },
     redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/`,
   });
 
-  if (inviteError) return NextResponse.json({ error: inviteError.message }, { status: 500 });
+  if (inviteError) {
+    // Usuario ya registrado → buscar su ID por email
+    const { data: listData, error: listError } = await admin.auth.admin.listUsers();
+    if (listError) return NextResponse.json({ error: listError.message }, { status: 500 });
+
+    const existing = listData.users.find((u) => u.email === email);
+    if (!existing) return NextResponse.json({ error: inviteError.message }, { status: 500 });
+
+    userId = existing.id;
+  } else {
+    userId = inviteData.user.id;
+  }
 
   // Registrar en organization_members
   const { error: memberError } = await admin
     .from("organization_members")
     .upsert(
-      { user_id: inviteData.user.id, organization_id: orgId, role },
+      { user_id: userId, organization_id: orgId, role },
       { onConflict: "user_id,organization_id" }
     );
 
   if (memberError) return NextResponse.json({ error: memberError.message }, { status: 500 });
 
-  return NextResponse.json({ ok: true, userId: inviteData.user.id });
+  return NextResponse.json({ ok: true, userId });
 }
 
 // PATCH /api/org-members → { userId, role } → cambiar rol
