@@ -6,16 +6,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { ShieldCheck, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useProject } from "@/lib/project-context";
 
 interface OrgMember {
   user_id: string;
   role: string;
   profiles: { full_name: string | null; email: string | null; avatar_url: string | null } | null;
-}
-
-interface Project {
-  id: string;
-  name: string;
 }
 
 // Full matrix row returned by GET /api/project-members (no projectId)
@@ -30,7 +26,8 @@ function initials(name: string | null, email: string | null): string {
 }
 
 export function ProjectAccessPanel() {
-  const [projects, setProjects] = useState<Project[]>([]);
+  // Use the same projects source as the ProjectSelector — avoids RLS gaps in /api/projects
+  const { projects } = useProject();
   const [orgMembers, setOrgMembers] = useState<OrgMember[]>([]);
   // Key: `${userId}:${projectId}` — tracks current granted assignments
   const [granted, setGranted] = useState<Set<string>>(new Set());
@@ -41,12 +38,10 @@ export function ProjectAccessPanel() {
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/projects").then((r) => r.json()),
       fetch("/api/org-members").then((r) => r.json()),
       fetch("/api/project-members").then((r) => r.json()),
     ])
-      .then(([projs, members, memberships]) => {
-        setProjects(Array.isArray(projs) ? projs : []);
+      .then(([members, memberships]) => {
         setOrgMembers(Array.isArray(members) ? members : []);
 
         const rows: ProjectMemberRow[] = Array.isArray(memberships) ? memberships : [];

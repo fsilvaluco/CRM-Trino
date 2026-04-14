@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useProject } from "@/lib/project-context";
 import {
   Plus,
   Trash2,
@@ -27,14 +28,16 @@ interface Stage {
 let newCounter = 0;
 
 export function PipelineStagesEditor() {
+  const { activeProject } = useProject();
   const [stages, setStages] = useState<Stage[]>([]);
   const [deletedIds, setDeletedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const colorRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  const load = () => {
-    fetch("/api/pipeline")
+  const load = (projectId: string | undefined) => {
+    const url = projectId ? `/api/pipeline?projectId=${projectId}` : "/api/pipeline";
+    fetch(url)
       .then((r) => r.json())
       .then((data: Stage[]) => {
         setStages(
@@ -46,7 +49,7 @@ export function PipelineStagesEditor() {
       .catch(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(activeProject?.id); }, [activeProject]);
 
   // ── Local mutations ──────────────────────────────────────────────────────
   const update = (id: string, patch: Partial<Stage>) => {
@@ -162,7 +165,7 @@ export function PipelineStagesEditor() {
       }
 
       toast.success("Etapas guardadas");
-      load();
+      load(activeProject?.id);
     } catch {
       toast.error("Error guardando cambios");
     } finally {

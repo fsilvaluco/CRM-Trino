@@ -31,7 +31,7 @@ const commands = [
 
 export default function ProjectSettingsPage() {
   const router = useRouter();
-  const { isAdmin, orgRole } = useProject();
+  const { isAdmin, orgRole, activeProject } = useProject();
 
   // Redirect non-admins once role is resolved
   useEffect(() => {
@@ -43,11 +43,12 @@ export default function ProjectSettingsPage() {
   if (orgRole === null) return null; // loading
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" key={activeProject?.id ?? "all"}>
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Configuración del Proyecto</h1>
         <p className="text-muted-foreground">
-          Pipeline, integraciones, región y preferencias del proyecto activo.
+          Pipeline, integraciones, región y preferencias
+          {activeProject ? ` — ${activeProject.name}` : ""}.
         </p>
       </div>
 
