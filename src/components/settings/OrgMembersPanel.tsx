@@ -39,7 +39,7 @@ export function OrgMembersPanel() {
   const { user } = useAuth();
   const [orgId, setOrgId] = useState<string | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("member");
   const [inviting, setInviting] = useState(false);
@@ -83,6 +83,7 @@ export function OrgMembersPanel() {
       profiles: profileMap.get(m.user_id) ?? null,
     }));
     setMembers(normalized);
+    setLoading(false);
   }, [orgId]);
 
   useEffect(() => { loadMembers(); }, [loadMembers]);
