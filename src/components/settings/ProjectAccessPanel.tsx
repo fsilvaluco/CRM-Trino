@@ -221,10 +221,6 @@ export function ProjectAccessPanel() {
     </div>
   );
 }
-
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [orgMembers, setOrgMembers] = useState<OrgMember[]>([]);
-  const [projectMembers, setProjectMembers] = useState<Record<string, ProjectMember[]>>({});
   const [expanded, setExpanded] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
