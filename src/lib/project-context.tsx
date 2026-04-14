@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { supabase } from "@/lib/supabase";
 
 export interface ProjectOption {
   id: string;
@@ -27,17 +28,47 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [activeProject, setActiveProjectState] = useState<ProjectOption | null>(null);
 
   const reloadProjects = useCallback(async () => {
-    // Usar API route (con requireAuth) para que filtre por allowedProjectIds según rol
-    const res = await fetch("/api/projects");
-    if (!res.ok) {
-      console.error("[ProjectProvider] error cargando proyectos:", res.statusText);
-      return;
+    if (!user) return;
+
+    // 1. Verificar rol del usuario en la organización
+    const { data: memberRow } = await supabase
+      .from("organization_members")
+      .select("role, organization_id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (!memberRow) return;
+
+    const isAdmin = memberRow.role === "owner" || memberRow.role === "admin";
+
+    let list: ProjectOption[] = [];
+
+    if (isAdmin) {
+      // Owner/admin: ve todos los proyectos de la organización
+      const { data } = await supabase
+        .from("projects")
+        .select("id, name")
+        .eq("organization_id", memberRow.organization_id)
+        .order("created_at", { ascending: false });
+      list = (data ?? []).map((p: { id: string; name: string }) => ({ id: p.id, name: p.name }));
+    } else {
+      // Member: solo los proyectos asignados en project_members
+      const { data: memberships } = await supabase
+        .from("project_members")
+        .select("project_id")
+        .eq("user_id", user.id)
+        .eq("organization_id", memberRow.organization_id);
+
+      const projectIds = (memberships ?? []).map((m: { project_id: string }) => m.project_id);
+      if (projectIds.length === 0) { setProjects([]); return; }
+
+      const { data } = await supabase
+        .from("projects")
+        .select("id, name")
+        .in("id", projectIds)
+        .order("created_at", { ascending: false });
+      list = (data ?? []).map((p: { id: string; name: string }) => ({ id: p.id, name: p.name }));
     }
-    const data = await res.json();
-    const list: ProjectOption[] = (Array.isArray(data) ? data : []).map((p: { id: string; name: string }) => ({
-      id: p.id,
-      name: p.name,
-    }));
 
     setProjects(list);
 
@@ -47,7 +78,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(list[0]));
       }
     }
-  }, []);
+  }, [user]);
 
   // Cargar proyectos solo cuando el usuario esté autenticado
   useEffect(() => {
