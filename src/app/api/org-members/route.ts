@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
 
   let userId: string;
+  let alreadyExists = false;
 
   // Intentar invitar. Si el usuario ya existe, buscarlo por email
   const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
@@ -48,6 +49,7 @@ export async function POST(request: NextRequest) {
     if (!existing) return NextResponse.json({ error: inviteError.message }, { status: 500 });
 
     userId = existing.id;
+    alreadyExists = true;
   } else {
     userId = inviteData.user.id;
   }
@@ -62,7 +64,46 @@ export async function POST(request: NextRequest) {
 
   if (memberError) return NextResponse.json({ error: memberError.message }, { status: 500 });
 
-  return NextResponse.json({ ok: true, userId });
+  // Si el usuario ya estaba registrado, enviar email de notificación (no llega el de Supabase)
+  if (alreadyExists) {
+    const apiKey = process.env.RESEND_API_KEY;
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+    const from = process.env.DIGEST_FROM || "CRM Trino <onboarding@resend.dev>";
+
+    if (apiKey) {
+      const html = `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 20px;">
+          <h1 style="color: #1e293b; font-size: 22px; margin-bottom: 4px;">Has sido añadido al CRM</h1>
+          <p style="color: #64748b; margin-top: 0; font-size: 15px;">
+            Un administrador te ha añadido como <strong>${role}</strong> a la organización.
+          </p>
+          <p style="color: #475569; font-size: 14px;">
+            Ya puedes acceder con tu cuenta existente:
+          </p>
+          <div style="text-align: center; margin: 28px 0;">
+            <a href="${siteUrl}/"
+               style="background: #2563eb; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 15px; font-weight: 600; display: inline-block;">
+              Acceder al CRM
+            </a>
+          </div>
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+          <p style="color: #94a3b8; font-size: 12px; text-align: center;">CRM Trino</p>
+        </div>
+      `;
+
+      await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({ from, to: [email], subject: "Te han añadido al CRM", html }),
+      });
+    }
+    // Si no hay RESEND_API_KEY, se añade igual pero sin email (no es bloqueante)
+  }
+
+  return NextResponse.json({ ok: true, userId, notified: alreadyExists });
 }
 
 // PATCH /api/org-members → { userId, role } → cambiar rol
