@@ -177,7 +177,7 @@ export function TransactionForm({ open, onClose, onCreated, members }: Transacti
           {/* Categoría */}
           <div className="space-y-1.5">
             <Label>Categoría *</Label>
-            <Select value={watch("category")} onValueChange={(v) => setValue("category", v)}>
+            <Select value={watch("category")} onValueChange={(v) => v && setValue("category", v)}>
               <SelectTrigger className="cursor-pointer">
                 <SelectValue placeholder="Seleccionar categoría" />
               </SelectTrigger>
