@@ -13,7 +13,7 @@ export function Header() {
   const [searchQuery, setSearchQuery] = useState("");
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-card px-4 md:px-6">
+    <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-4 border-b bg-card px-4 md:px-6 min-w-0 overflow-hidden">
       <Sheet>
         <SheetTrigger
           render={<Button variant="ghost" size="icon" className="md:hidden cursor-pointer" />}
@@ -27,7 +27,7 @@ export function Header() {
 
       <ProjectSelector />
 
-      <div className="flex-1 flex items-center gap-4">
+      <div className="flex-1 min-w-0 flex items-center gap-4">
         <div className="relative w-full max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input

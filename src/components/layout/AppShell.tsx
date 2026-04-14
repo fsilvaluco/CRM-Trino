@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
@@ -14,6 +14,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const isPublic = PUBLIC_PATHS.includes(pathname);
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Read persisted collapsed state after mount to avoid SSR mismatch
+  useEffect(() => {
+    const stored = localStorage.getItem("sidebar-collapsed");
+    if (stored !== null) setSidebarCollapsed(stored === "true");
+  }, []);
+
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("sidebar-collapsed", String(next));
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (!loading && !user && !isPublic) {
@@ -41,17 +57,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // No autenticado: no renderiza nada (el useEffect redirige)
   if (!user) return null;
 
-  // Autenticado: layout completo
+  // Autenticado: layout completo con sidebar fijo y contenido aislado
   return (
-    <>
-      <Sidebar />
-      <div className="flex-1 flex flex-col min-h-screen">
+    <div className="flex h-screen w-screen overflow-hidden">
+      <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Header />
-        <main className="flex-1 p-4 md:p-6 bg-background overflow-auto">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-background">
           {children}
         </main>
       </div>
       <NotificationChecker />
-    </>
+    </div>
   );
 }
