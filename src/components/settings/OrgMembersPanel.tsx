@@ -58,23 +58,31 @@ export function OrgMembersPanel() {
   const loadMembers = useCallback(async () => {
     if (!orgId) return;
     setLoading(true);
-    const { data, error } = await supabase
+
+    // Dos queries separadas para evitar ambigüedad de FK entre organization_members y profiles
+    const { data: membersData, error: membersError } = await supabase
       .from("organization_members")
-      .select("user_id, role, joined_at, profiles ( full_name, email, avatar_url )")
+      .select("user_id, role, joined_at")
       .eq("organization_id", orgId)
       .order("joined_at");
 
-    if (error) {
-      toast.error("Error cargando usuarios: " + error.message);
-    } else {
-      // Supabase devuelve profiles como array en joins; normalizamos a objeto
-      const normalized = (data ?? []).map((m) => ({
-        ...m,
-        profiles: Array.isArray(m.profiles) ? (m.profiles[0] ?? null) : m.profiles,
-      })) as Member[];
-      setMembers(normalized);
+    if (membersError) {
+      toast.error("Error cargando usuarios: " + membersError.message);
+      setLoading(false);
+      return;
     }
-    setLoading(false);
+
+    const userIds = (membersData ?? []).map((m) => m.user_id);
+    const { data: profilesData } = userIds.length > 0
+      ? await supabase.from("profiles").select("id, full_name, email, avatar_url").in("id", userIds)
+      : { data: [] };
+
+    const profileMap = new Map((profilesData ?? []).map((p) => [p.id, p]));
+    const normalized: Member[] = (membersData ?? []).map((m) => ({
+      ...m,
+      profiles: profileMap.get(m.user_id) ?? null,
+    }));
+    setMembers(normalized);
   }, [orgId]);
 
   useEffect(() => { loadMembers(); }, [loadMembers]);
