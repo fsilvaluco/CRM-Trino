@@ -236,7 +236,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               <button
                 onClick={onToggle}
                 aria-label={collapsed ? "Expandir sidebar" : "Colapsar sidebar"}
-                className="rounded-lg p-1.5 text-[var(--sidebar-foreground)]/50 hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-accent-foreground)] transition-colors cursor-pointer"
+                className="rounded-lg p-2 border border-[var(--sidebar-border)] bg-[var(--sidebar-accent)]/40 text-[var(--sidebar-foreground)]/70 hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-accent-foreground)] hover:border-[var(--sidebar-primary)]/40 transition-colors cursor-pointer shadow-sm"
               />
             }
           >
