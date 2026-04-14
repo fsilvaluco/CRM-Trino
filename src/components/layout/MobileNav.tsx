@@ -2,33 +2,68 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  Users,
-  Activity,
-  Settings,
-  Briefcase,
-  CheckSquare,
-  Building2,
-  Megaphone,
-  Wallet,
-} from "lucide-react";
+import { useState } from "react";
+import { ChevronDown, Briefcase } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useProject } from "@/lib/project-context";
+import { navConfig, settingsConfig, type NavLeaf, type NavGroup } from "./nav-config";
 
-const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/crm", label: "Tratos", icon: Briefcase },
-  { href: "/contacts", label: "Contactos", icon: Users },
-  { href: "/companies", label: "Empresas", icon: Building2 },
-  { href: "/campanas", label: "Campañas", icon: Megaphone },
-  { href: "/tasks", label: "Tareas", icon: CheckSquare },
-  { href: "/activities", label: "Actividades", icon: Activity },
-  { href: "/finances", label: "Finanzas", icon: Wallet },
-  { href: "/settings", label: "Configuracion", icon: Settings },
-];
+function isLeafActive(href: string, pathname: string) {
+  return pathname === href || (href !== "/" && pathname.startsWith(href));
+}
+
+function LeafLink({ item, pathname, indent = false }: { item: NavLeaf; pathname: string; indent?: boolean }) {
+  const active = isLeafActive(item.href, pathname);
+  return (
+    <Link
+      href={item.href}
+      className={cn(
+        "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer",
+        indent && "pl-8",
+        active
+          ? "bg-[var(--sidebar-accent)] text-[var(--sidebar-accent-foreground)]"
+          : "text-[var(--sidebar-foreground)]/70 hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-accent-foreground)]"
+      )}
+    >
+      <item.icon className="h-5 w-5 shrink-0" />
+      {item.label}
+    </Link>
+  );
+}
+
+function GroupNav({ item, pathname }: { item: NavGroup; pathname: string }) {
+  const groupActive = item.children.some((c) => isLeafActive(c.href, pathname));
+  const [open, setOpen] = useState(groupActive);
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className={cn(
+          "w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer",
+          groupActive
+            ? "bg-[var(--sidebar-accent)] text-[var(--sidebar-accent-foreground)]"
+            : "text-[var(--sidebar-foreground)]/70 hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-accent-foreground)]"
+        )}
+      >
+        <item.icon className="h-5 w-5 shrink-0" />
+        <span className="flex-1 text-left">{item.label}</span>
+        <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", open && "rotate-180")} />
+      </button>
+      {open && (
+        <div className="mt-0.5 space-y-0.5">
+          {item.children.map((child) => (
+            <LeafLink key={child.href} item={child} pathname={pathname} indent />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function MobileNav() {
   const pathname = usePathname();
+  const { isAdmin } = useProject();
 
   return (
     <div className="flex flex-col h-full bg-[var(--sidebar)] text-[var(--sidebar-foreground)]">
@@ -38,27 +73,28 @@ export function MobileNav() {
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {navItems.map((item) => {
-          const isActive =
-            pathname === item.href ||
-            (item.href !== "/" && pathname.startsWith(item.href));
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer",
-                isActive
-                  ? "bg-[var(--sidebar-accent)] text-[var(--sidebar-accent-foreground)]"
-                  : "text-[var(--sidebar-foreground)]/70 hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-accent-foreground)]"
-              )}
-            >
-              <item.icon className="h-5 w-5 shrink-0" />
-              {item.label}
-            </Link>
-          );
-        })}
+        {navConfig.map((item) =>
+          item.type === "group" ? (
+            <GroupNav key={item.label} item={item} pathname={pathname} />
+          ) : (
+            <LeafLink key={item.href} item={item} pathname={pathname} />
+          )
+        )}
+
+        {isAdmin && (
+          <>
+            <div className="pt-3 pb-1 px-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--sidebar-foreground)]/40">
+                Admin
+              </p>
+            </div>
+            {settingsConfig.map((item) => (
+              <LeafLink key={item.href} item={item} pathname={pathname} />
+            ))}
+          </>
+        )}
       </nav>
     </div>
   );
 }
+

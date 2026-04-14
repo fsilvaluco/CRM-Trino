@@ -9,6 +9,8 @@ export interface ProjectOption {
   name: string;
 }
 
+export type OrgRole = "owner" | "admin" | "member";
+
 interface ProjectContextValue {
   activeProject: ProjectOption | null; // null = "Todos los proyectos" (solo admin)
   setActiveProject: (p: ProjectOption | null) => void;
@@ -16,6 +18,8 @@ interface ProjectContextValue {
   setProjects: (p: ProjectOption[]) => void;
   reloadProjects: () => void;
   isAllProjects: boolean;
+  isAdmin: boolean;
+  orgRole: OrgRole | null;
 }
 
 const ProjectContext = createContext<ProjectContextValue | null>(null);
@@ -26,6 +30,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [activeProject, setActiveProjectState] = useState<ProjectOption | null>(null);
+  const [orgRole, setOrgRole] = useState<OrgRole | null>(null);
 
   const reloadProjects = useCallback(async () => {
     if (!user) return;
@@ -39,7 +44,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
     if (!memberRow) return;
 
-    const isAdmin = memberRow.role === "owner" || memberRow.role === "admin";
+    const role = memberRow.role as OrgRole;
+    setOrgRole(role);
+    const isAdmin = role === "owner" || role === "admin";
 
     let list: ProjectOption[] = [];
 
@@ -111,6 +118,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const isAdmin = orgRole === "owner" || orgRole === "admin";
+
   return (
     <ProjectContext.Provider value={{
       activeProject,
@@ -119,6 +128,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       setProjects,
       reloadProjects,
       isAllProjects: activeProject === null,
+      isAdmin,
+      orgRole,
     }}>
       {children}
     </ProjectContext.Provider>
