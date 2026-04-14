@@ -1,22 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 
-// GET /api/project-members?projectId=xxx → lista miembros del proyecto
-// POST /api/project-members → { projectId, userId } → agrega miembro
+// GET /api/project-members?projectId=xxx → miembros de ese proyecto
+// GET /api/project-members                → todos los project_members de la org (admin only, para matrix)
 export async function GET(request: NextRequest) {
   const { supabase, orgId, isAdmin, error } = await requireAuth();
   if (error) return error;
   if (!isAdmin) return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
 
   const projectId = new URL(request.url).searchParams.get("projectId");
-  if (!projectId) return NextResponse.json({ error: "projectId requerido" }, { status: 400 });
 
-  const { data, error: dbError } = await supabase
+  let query = supabase
     .from("project_members")
-    .select("id, user_id, created_at, profiles ( full_name, email, avatar_url )")
-    .eq("project_id", projectId)
+    .select("id, user_id, project_id, created_at, profiles ( full_name, email, avatar_url )")
     .eq("organization_id", orgId);
 
+  if (projectId) {
+    query = query.eq("project_id", projectId);
+  }
+
+  const { data, error: dbError } = await query;
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
 
   return NextResponse.json(data ?? []);
