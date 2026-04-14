@@ -194,7 +194,7 @@ export function TransactionForm({ open, onClose, onCreated, members }: Transacti
           {watchedType === "expense" && (
             <div className="space-y-1.5">
               <Label>Responsable del gasto</Label>
-              <Select value={watch("responsibleName") || "__none__"} onValueChange={(v) => setValue("responsibleName", v === "__none__" ? "" : v)}>
+              <Select value={watch("responsibleName") || "__none__"} onValueChange={(v) => setValue("responsibleName", !v || v === "__none__" ? "" : v)}>
                 <SelectTrigger className="cursor-pointer">
                   <SelectValue placeholder="¿Quién pagó?" />
                 </SelectTrigger>
