@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase-admin";
 
 export async function createSupabaseServer() {
   const cookieStore = await cookies();
@@ -79,10 +80,11 @@ export async function requireAuth() {
   const role: UserRole = (memberRow?.role as UserRole) ?? "member";
   const isAdmin = role === "owner" || role === "admin";
 
-  // Si es member, obtener solo sus proyectos asignados
+  // Si es member, obtener solo sus proyectos asignados (admin client para evitar bloqueo por RLS)
   let allowedProjectIds: string[] | null = null;
   if (!isAdmin) {
-    const { data: memberships } = await supabase
+    const admin = createAdminClient();
+    const { data: memberships } = await admin
       .from("project_members")
       .select("project_id")
       .eq("user_id", user.id)
