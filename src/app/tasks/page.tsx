@@ -24,6 +24,7 @@ import {
 import { formatDate } from "@/lib/constants";
 import { toast } from "sonner";
 import type { TaskStatus, TaskPriority } from "@/types";
+import { useProject } from "@/lib/project-context";
 
 const PRIORITY_CONFIG: Record<TaskPriority, { label: string; className: string }> = {
   low:    { label: "Baja",  className: "bg-slate-100 text-slate-600" },
@@ -130,6 +131,7 @@ function applyFilters(tasks: TaskItem[], f: TaskFilters): TaskItem[] {
 // ─── Page component ───────────────────────────────────────────────────────────
 
 export default function TasksPage() {
+  const { activeProject } = useProject();
   const [taskList, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -225,11 +227,12 @@ export default function TasksPage() {
   // ── Data loading ─────────────────────────────────────────────────────────
 
   const loadTasks = useCallback(() => {
-    fetch("/api/tasks")
+    const url = activeProject ? `/api/tasks?projectId=${activeProject.id}` : "/api/tasks";
+    fetch(url)
       .then((r) => r.json())
       .then((data) => { setTasks(Array.isArray(data) ? data : []); setLoading(false); })
       .catch(() => setLoading(false));
-  }, []);
+  }, [activeProject]);
 
   useEffect(() => { loadTasks(); }, [loadTasks]);
 

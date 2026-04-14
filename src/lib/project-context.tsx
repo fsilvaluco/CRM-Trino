@@ -2,7 +2,6 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { supabase } from "@/lib/supabase";
 
 export interface ProjectOption {
   id: string;
@@ -28,18 +27,14 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [activeProject, setActiveProjectState] = useState<ProjectOption | null>(null);
 
   const reloadProjects = useCallback(async () => {
-    // Consultar Supabase directamente (cliente browser) — evita problemas de cookies SSR
-    const { data, error } = await supabase
-      .from("projects")
-      .select("id, name")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("[ProjectProvider] error cargando proyectos:", error.message);
+    // Usar API route (con requireAuth) para que filtre por allowedProjectIds según rol
+    const res = await fetch("/api/projects");
+    if (!res.ok) {
+      console.error("[ProjectProvider] error cargando proyectos:", res.statusText);
       return;
     }
-
-    const list: ProjectOption[] = (data ?? []).map((p: { id: string; name: string }) => ({
+    const data = await res.json();
+    const list: ProjectOption[] = (Array.isArray(data) ? data : []).map((p: { id: string; name: string }) => ({
       id: p.id,
       name: p.name,
     }));
