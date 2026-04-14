@@ -222,25 +222,6 @@ export function ProjectAccessPanel() {
   );
 }
 
-
-interface OrgMember {
-  user_id: string;
-  role: string;
-  profiles: { full_name: string | null; email: string | null } | null;
-}
-
-interface ProjectMember {
-  id: string;
-  user_id: string;
-  profiles: { full_name: string | null; email: string | null } | null;
-}
-
-interface Project {
-  id: string;
-  name: string;
-}
-
-export function ProjectAccessPanel() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [orgMembers, setOrgMembers] = useState<OrgMember[]>([]);
   const [projectMembers, setProjectMembers] = useState<Record<string, ProjectMember[]>>({});
