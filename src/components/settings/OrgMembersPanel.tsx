@@ -58,32 +58,20 @@ export function OrgMembersPanel() {
   const loadMembers = useCallback(async () => {
     if (!orgId) return;
     setLoading(true);
-
-    // Dos queries separadas para evitar ambigüedad de FK entre organization_members y profiles
-    const { data: membersData, error: membersError } = await supabase
-      .from("organization_members")
-      .select("user_id, role, joined_at")
-      .eq("organization_id", orgId)
-      .order("joined_at");
-
-    if (membersError) {
-      toast.error("Error cargando usuarios: " + membersError.message);
+    try {
+      const res = await fetch("/api/org-members");
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error("Error cargando usuarios: " + (data.error ?? res.statusText));
+        return;
+      }
+      const data: Member[] = await res.json();
+      setMembers(data);
+    } catch {
+      toast.error("Error cargando usuarios");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const userIds = (membersData ?? []).map((m) => m.user_id);
-    const { data: profilesData } = userIds.length > 0
-      ? await supabase.from("profiles").select("id, full_name, email, avatar_url").in("id", userIds)
-      : { data: [] };
-
-    const profileMap = new Map((profilesData ?? []).map((p) => [p.id, p]));
-    const normalized: Member[] = (membersData ?? []).map((m) => ({
-      ...m,
-      profiles: profileMap.get(m.user_id) ?? null,
-    }));
-    setMembers(normalized);
-    setLoading(false);
   }, [orgId]);
 
   useEffect(() => { loadMembers(); }, [loadMembers]);
@@ -145,8 +133,8 @@ export function OrgMembersPanel() {
           <p className="text-sm text-muted-foreground">No hay usuarios en la organización.</p>
         ) : (
           members.map((m) => {
-            const name = m.profiles?.full_name ?? m.profiles?.email ?? m.user_id;
-            const initials = name.slice(0, 2).toUpperCase();
+            const name = m.profiles?.full_name ?? m.profiles?.email ?? "Usuario pendiente";
+            const initials = (m.profiles?.full_name ?? m.profiles?.email ?? "?").slice(0, 2).toUpperCase();
             return (
               <div key={m.user_id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/40">
                 <Avatar className="h-8 w-8 shrink-0">

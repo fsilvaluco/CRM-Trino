@@ -8,15 +8,50 @@ export async function GET() {
   if (error) return error;
   if (!isAdmin) return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
 
-  const { data, error: dbError } = await supabase
+  const admin = createAdminClient();
+
+  // 1. Obtener miembros
+  const { data: membersData, error: membersError } = await supabase
     .from("organization_members")
-    .select("user_id, role, joined_at, profiles ( full_name, email, avatar_url )")
+    .select("user_id, role, joined_at")
     .eq("organization_id", orgId)
     .order("joined_at");
 
-  if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
+  if (membersError) return NextResponse.json({ error: membersError.message }, { status: 500 });
 
-  return NextResponse.json(data ?? []);
+  const userIds = (membersData ?? []).map((m) => m.user_id);
+  if (userIds.length === 0) return NextResponse.json([]);
+
+  // 2. Obtener perfiles
+  const { data: profilesData } = await supabase
+    .from("profiles")
+    .select("id, full_name, email, avatar_url")
+    .in("id", userIds);
+
+  const profileMap = new Map((profilesData ?? []).map((p) => [p.id, p]));
+
+  // 3. Para usuarios sin perfil, obtener email desde auth.admin
+  const missingIds = userIds.filter((id) => !profileMap.has(id));
+  const authEmailMap = new Map<string, string>();
+  if (missingIds.length > 0) {
+    const { data: authUsers } = await admin.auth.admin.listUsers({ perPage: 1000 });
+    for (const u of authUsers?.users ?? []) {
+      if (missingIds.includes(u.id) && u.email) {
+        authEmailMap.set(u.id, u.email);
+      }
+    }
+  }
+
+  const result = (membersData ?? []).map((m) => ({
+    ...m,
+    profiles: profileMap.get(m.user_id) ?? {
+      full_name: null,
+      email: authEmailMap.get(m.user_id) ?? null,
+      avatar_url: null,
+    },
+  }));
+
+  return NextResponse.json(result);
 }
 
 // POST /api/org-members → { email, role } → invitar usuario nuevo
