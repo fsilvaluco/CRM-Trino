@@ -13,12 +13,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ProfileEditSheet } from "./ProfileEditSheet";
-import { LogOut, UserCircle } from "lucide-react";
+import { PreferencesSheet } from "./PreferencesSheet";
+import { LogOut, UserCircle, Settings2 } from "lucide-react";
 
 export function UserMenu() {
   const { user, signOut } = useAuth();
   const router = useRouter();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [prefsOpen, setPrefsOpen] = useState(false);
 
   const fullName =
     user?.user_metadata?.full_name ||
@@ -72,6 +74,14 @@ export function UserMenu() {
             Editar perfil
           </DropdownMenuItem>
 
+          <DropdownMenuItem
+            className="cursor-pointer"
+            onClick={() => setPrefsOpen(true)}
+          >
+            <Settings2 className="h-4 w-4 mr-2" />
+            Preferencias
+          </DropdownMenuItem>
+
           <div className="h-px bg-border my-1" />
 
           <DropdownMenuItem
@@ -88,6 +98,7 @@ export function UserMenu() {
         open={profileOpen}
         onClose={() => setProfileOpen(false)}
       />
+      <PreferencesSheet open={prefsOpen} onClose={() => setPrefsOpen(false)} />
     </>
   );
 }
