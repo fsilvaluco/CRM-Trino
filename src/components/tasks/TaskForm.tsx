@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { useProject } from "@/lib/project-context";
 
 const taskSchema = z.object({
   title: z.string().min(1, "El titulo es requerido"),
@@ -56,6 +57,7 @@ export function TaskForm({
   preselectedProjectId,
   preselectedSubprojectId,
 }: TaskFormProps) {
+  const { activeProject } = useProject();
   const [contactsList, setContacts] = useState<Array<{ id: string; name: string }>>([]);
   const [dealsList, setDeals] = useState<Array<{ id: string; title: string }>>([]);
   const [companiesList, setCompanies] = useState<Array<{ id: string; name: string }>>([]);
@@ -79,7 +81,7 @@ export function TaskForm({
       contactId: preselectedContactId || "",
       companyId: preselectedCompanyId || "",
       dealId: preselectedDealId || "",
-      projectId: preselectedProjectId || "",
+      projectId: preselectedProjectId || activeProject?.id || "",
       subprojectId: preselectedSubprojectId || "",
     },
   });
@@ -88,19 +90,20 @@ export function TaskForm({
 
   useEffect(() => {
     if (!open) return;
+    const projectParam = activeProject ? `?projectId=${activeProject.id}` : "";
     if (!preselectedContactId) {
-      fetch("/api/contacts").then((r) => r.json()).then((d) => setContacts(Array.isArray(d) ? d : [])).catch(() => {});
+      fetch(`/api/contacts${projectParam}`).then((r) => r.json()).then((d) => setContacts(Array.isArray(d) ? d : [])).catch(() => {});
     }
     if (!preselectedDealId) {
-      fetch("/api/deals").then((r) => r.json()).then((d) => setDeals(Array.isArray(d) ? d : [])).catch(() => {});
+      fetch(`/api/deals${projectParam}`).then((r) => r.json()).then((d) => setDeals(Array.isArray(d) ? d : [])).catch(() => {});
     }
     if (!preselectedCompanyId) {
-      fetch("/api/companies").then((r) => r.json()).then((d) => setCompanies(Array.isArray(d) ? d : [])).catch(() => {});
+      fetch(`/api/companies${projectParam}`).then((r) => r.json()).then((d) => setCompanies(Array.isArray(d) ? d : [])).catch(() => {});
     }
     if (!preselectedProjectId) {
       fetch("/api/projects").then((r) => r.json()).then((d) => setProjects(Array.isArray(d) ? d : [])).catch(() => {});
     }
-  }, [open, preselectedContactId, preselectedDealId, preselectedCompanyId, preselectedProjectId]);
+  }, [open, activeProject, preselectedContactId, preselectedDealId, preselectedCompanyId, preselectedProjectId]);
 
   // Cargar subproyectos cuando cambia el proyecto seleccionado
   useEffect(() => {

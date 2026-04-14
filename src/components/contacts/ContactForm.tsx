@@ -71,12 +71,13 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
 
   useEffect(() => {
     if (open) {
-      fetch("/api/companies")
+      const params = activeProject ? `?projectId=${activeProject.id}` : "";
+      fetch(`/api/companies${params}`)
         .then((r) => r.json())
         .then((d) => setCompanies(Array.isArray(d) ? d : []))
         .catch(() => {});
     }
-  }, [open]);
+  }, [open, activeProject]);
 
   const {
     register,
@@ -112,7 +113,10 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
         const res = await fetch("/api/companies", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: data.newCompanyName.trim() }),
+          body: JSON.stringify({
+            name: data.newCompanyName.trim(),
+            projectId: activeProject?.id ?? null,
+          }),
         });
         if (res.ok) {
           const company = await res.json();

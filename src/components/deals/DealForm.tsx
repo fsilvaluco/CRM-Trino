@@ -72,11 +72,12 @@ export function DealForm({ open, onClose, initialStageId }: DealFormProps) {
   });
 
   useEffect(() => {
-    fetch("/api/contacts").then((r) => r.json()).then((d) => setContacts(Array.isArray(d) ? d : []));
-    fetch("/api/pipeline")
+    const params = activeProject ? `?projectId=${activeProject.id}` : "";
+    fetch(`/api/contacts${params}`).then((r) => r.json()).then((d) => setContacts(Array.isArray(d) ? d : []));
+    fetch(`/api/pipeline${params}`)
       .then((r) => r.json())
       .then((d) => setStages(Array.isArray(d) ? d : []));
-  }, []);
+  }, [activeProject]);
 
   // Pre-select stage AFTER stagesList is populated
   useEffect(() => {

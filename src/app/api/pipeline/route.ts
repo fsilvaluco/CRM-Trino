@@ -31,7 +31,7 @@ function mapStage(stage: any, deals: any[]) {
 }
 
 export async function GET(request: NextRequest) {
-  const { supabase, error } = await requireAuth();
+  const { supabase, orgId, error } = await requireAuth();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
@@ -44,14 +44,15 @@ export async function GET(request: NextRequest) {
 
   if (projectId) dealsQuery = dealsQuery.eq("project_id", projectId);
 
+  let stagesQuery = supabase
+    .from("pipeline_stages")
+    .select("*")
+    .order("order", { ascending: true });
+
+  if (orgId) stagesQuery = stagesQuery.eq("organization_id", orgId);
+
   const [{ data: stages, error: stagesErr }, { data: allDeals, error: dealsErr }] =
-    await Promise.all([
-      supabase
-        .from("pipeline_stages")
-        .select("*")
-        .order("order", { ascending: true }),
-      dealsQuery,
-    ]);
+    await Promise.all([stagesQuery, dealsQuery]);
 
   if (stagesErr) return NextResponse.json({ error: stagesErr.message }, { status: 500 });
   if (dealsErr) return NextResponse.json({ error: dealsErr.message }, { status: 500 });
@@ -119,8 +120,8 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Eliminar etapas existentes e insertar nuevas
-    await supabase.from("pipeline_stages").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    // Eliminar etapas existentes del org actual e insertar nuevas
+    await supabase.from("pipeline_stages").delete().eq("organization_id", orgId);
 
     const newStages = body.stages.map(
       (stage: { name: string; order: number; color?: string; isWon?: boolean; isLost?: boolean }, idx: number) => ({

@@ -10,14 +10,13 @@ export default async function ContactDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { supabase, user, orgId } = await requireAuth();
-  if (!user || !orgId) redirect("/login");
+  const { supabase, user } = await requireAuth();
+  if (!user) redirect("/login");
 
   const { data: contact } = await supabase
     .from("contacts")
     .select("*")
     .eq("id", id)
-    .eq("organization_id", orgId)
     .is("deleted_at", null)
     .single();
 
@@ -28,13 +27,11 @@ export default async function ContactDetailPage({
       .from("deals")
       .select("id, title, value, stage_id, probability, created_at, pipeline_stages ( name, color )")
       .eq("contact_id", id)
-      .eq("organization_id", orgId)
       .is("deleted_at", null),
     supabase
       .from("activities")
       .select("*")
       .eq("contact_id", id)
-      .eq("organization_id", orgId)
       .order("created_at", { ascending: false }),
   ]);
 

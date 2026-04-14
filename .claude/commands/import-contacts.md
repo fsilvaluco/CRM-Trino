@@ -20,20 +20,26 @@ head -20 <ruta_del_archivo>
    - temperature (cold/warm/hot)
    - notes
 
-4. Muestra al usuario el mapeo propuesto y pide confirmacion.
+4. Obtén el `projectId` del proyecto activo del usuario:
+```bash
+curl -s http://localhost:3000/api/projects | jq '.[0].id'
+```
+Si hay varios proyectos, muéstralos al usuario y pide que elija.
 
-5. Para cada fila, crea el contacto via API:
+5. Muestra al usuario el mapeo propuesto y pide confirmacion.
+
+6. Para cada fila, crea el contacto via API:
 ```bash
 curl -s -X POST http://localhost:3000/api/contacts \
   -H "Content-Type: application/json" \
-  -d '{"name":"...","email":"...","phone":"...","company":"...","source":"...","temperature":"cold","notes":"..."}'
+  -d '{"name":"...","email":"...","phone":"...","company":"...","source":"...","temperature":"cold","notes":"...","projectId":"<PROJECT_ID>"}'
 ```
 
-Alternativamente, usa el endpoint de importacion masiva:
+Alternativamente, usa el endpoint de importacion masiva (requiere `projectId`):
 ```bash
 curl -s -X POST http://localhost:3000/api/import \
   -H "Content-Type: application/json" \
-  -d '{"contacts": [...]}'
+  -d '{"projectId": "<PROJECT_ID>", "contacts": [...]}'
 ```
 
 6. Reporta resultados:

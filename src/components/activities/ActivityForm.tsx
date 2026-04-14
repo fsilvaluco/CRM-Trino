@@ -54,12 +54,13 @@ export function ActivityForm({
 
   useEffect(() => {
     if (open && !preselectedContactId) {
-      fetch("/api/contacts")
+      const params = activeProject ? `?projectId=${activeProject.id}` : "";
+      fetch(`/api/contacts${params}`)
         .then((r) => r.json())
         .then((d) => setContacts(Array.isArray(d) ? d : []))
         .catch(() => {});
     }
-  }, [open, preselectedContactId]);
+  }, [open, preselectedContactId, activeProject]);
 
   const {
     register,

@@ -19,14 +19,13 @@ export default async function DealDetailPage({
 }) {
   const { id } = await params;
   const locale = getLocaleSettings();
-  const { supabase, user, orgId } = await requireAuth();
-  if (!user || !orgId) redirect("/login");
+  const { supabase, user } = await requireAuth();
+  if (!user) redirect("/login");
 
   const { data: deal } = await supabase
     .from("deals")
     .select("*")
     .eq("id", id)
-    .eq("organization_id", orgId)
     .is("deleted_at", null)
     .single();
 
@@ -39,7 +38,6 @@ export default async function DealDetailPage({
       .from("activities")
       .select("*")
       .eq("deal_id", id)
-      .eq("organization_id", orgId)
       .order("created_at", { ascending: false }),
   ]);
 

@@ -59,7 +59,7 @@ export default function ActivitiesPage() {
     const params = activeProject ? `?projectId=${activeProject.id}` : "";
     Promise.all([
       fetch(`/api/activities${params}`).then((r) => r.json()),
-      fetch("/api/followups").then((r) => r.json()),
+      fetch(`/api/followups${params}`).then((r) => r.json()),
     ]).then(([acts, fups]) => {
       setActivities(Array.isArray(acts) ? acts : []);
       setFollowUps(fups?.overdue ? fups : { overdue: [], today: [], upcoming: [], unscheduled: [] });

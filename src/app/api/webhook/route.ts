@@ -74,7 +74,7 @@ function extractFields(
 }
 
 export async function POST(request: NextRequest) {
-  const { supabase, user, orgId, error: authError } = await requireAuth();
+  const { supabase, user, orgId, isAdmin, allowedProjectIds, error: authError } = await requireAuth();
   if (authError) return authError;
 
   // Auth check: if a webhook secret is stored, require it in the header
@@ -93,6 +93,49 @@ export async function POST(request: NextRequest) {
     payload = await request.json();
   } catch {
     return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
+  }
+
+  // Resolve project_id: prefer payload > crm_settings fallback
+  let resolvedProjectId: string | null = null;
+
+  const payloadProjectId = typeof payload.project_id === "string" ? payload.project_id : null;
+  if (payloadProjectId) {
+    // Validate that it belongs to the org before accepting
+    const { data: proj } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("id", payloadProjectId)
+      .eq("organization_id", orgId)
+      .single();
+    if (proj) resolvedProjectId = proj.id;
+  }
+
+  if (!resolvedProjectId) {
+    // Fall back to the stored webhook default project
+    const { data: settingRow } = await supabase
+      .from("crm_settings")
+      .select("value")
+      .eq("key", "webhook_default_project_id")
+      .single();
+    if (settingRow?.value) resolvedProjectId = settingRow.value;
+  }
+
+  if (!resolvedProjectId) {
+    return NextResponse.json(
+      {
+        error: "No se pudo determinar el proyecto para este webhook.",
+        hint: "Configura 'webhook_default_project_id' en crm_settings o incluye 'project_id' en el payload del webhook.",
+      },
+      { status: 422 }
+    );
+  }
+
+  // Members can only write into projects they explicitly belong to
+  if (!isAdmin && !allowedProjectIds?.includes(resolvedProjectId)) {
+    return NextResponse.json(
+      { error: "Sin acceso al proyecto especificado para este webhook" },
+      { status: 403 }
+    );
   }
 
   const fields = extractFields(payload);
@@ -121,6 +164,7 @@ export async function POST(request: NextRequest) {
         score: 0,
         notes: fields.notes || null,
         organization_id: orgId,
+        project_id: resolvedProjectId,
         created_by: user!.id,
       })
       .select().single();
@@ -134,6 +178,7 @@ export async function POST(request: NextRequest) {
       description: `Lead recibido via webhook${fields.company ? ` (${fields.company})` : ""}`,
       contact_id: contact.id,
       organization_id: orgId,
+      project_id: resolvedProjectId,
       created_by: user!.id,
     });
 

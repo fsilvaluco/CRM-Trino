@@ -1,19 +1,25 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const { supabase, error } = await requireAuth();
   if (error) return error;
 
-  const { data, error: dbError } = await supabase
+  const { searchParams } = new URL(request.url);
+  const projectId = searchParams.get("projectId");
+
+  let query = supabase
     .from("activities")
     .select("*, contacts ( name, company )")
     .is("completed_at", null)
     .order("scheduled_at", { ascending: true });
 
+  if (projectId) query = query.eq("project_id", projectId);
+
+  const { data, error: dbError } = await query;
+
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
 
-  const now = Date.now();
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
   const endOfToday = new Date();
