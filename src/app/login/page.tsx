@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,6 +74,12 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
             />
+          </div>
+
+          <div className="text-right">
+            <Link href="/forgot-password" className="text-xs text-muted-foreground hover:text-foreground">
+              ¿Olvidaste tu contraseña?
+            </Link>
           </div>
 
           {error && (

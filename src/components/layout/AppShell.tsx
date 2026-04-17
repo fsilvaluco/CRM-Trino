@@ -7,21 +7,20 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { NotificationChecker } from "@/components/shared/NotificationChecker";
 
-const PUBLIC_PATHS = ["/login"];
+const PUBLIC_PATHS = ["/login", "/auth/activate", "/forgot-password", "/reset-password"];
+const GUEST_ONLY_PATHS = ["/login", "/forgot-password"];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const isPublic = PUBLIC_PATHS.includes(pathname);
+  const isGuestOnly = GUEST_ONLY_PATHS.includes(pathname);
 
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
-  // Read persisted collapsed state after mount to avoid SSR mismatch
-  useEffect(() => {
-    const stored = localStorage.getItem("sidebar-collapsed");
-    if (stored !== null) setSidebarCollapsed(stored === "true");
-  }, []);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("sidebar-collapsed") === "true";
+  });
 
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed((prev) => {
@@ -35,10 +34,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (!loading && !user && !isPublic) {
       router.replace("/login");
     }
-    if (!loading && user && isPublic) {
+    if (!loading && user && isGuestOnly) {
       router.replace("/");
     }
-  }, [user, loading, isPublic, router]);
+  }, [user, loading, isPublic, isGuestOnly, router]);
 
   // Página pública (login): solo renderiza el children sin chrome
   if (isPublic) {

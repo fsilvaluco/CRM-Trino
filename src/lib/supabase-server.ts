@@ -3,6 +3,12 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
 
+function isMissingStatusColumn(message: string | undefined): boolean {
+  if (!message) return false;
+  const msg = message.toLowerCase();
+  return msg.includes("status") && (msg.includes("column") || msg.includes("schema cache"));
+}
+
 export async function createSupabaseServer() {
   const cookieStore = await cookies();
 
@@ -70,12 +76,50 @@ export async function requireAuth() {
   }
 
   // Obtener rol del usuario en la organización
-  const { data: memberRow } = await supabase
+  const withStatus = await supabase
     .from("organization_members")
-    .select("role")
+    .select("role, status")
     .eq("user_id", user.id)
     .eq("organization_id", orgId)
     .single();
+
+  let memberRow = withStatus.data as { role?: string; status?: "pending" | "active" } | null;
+  let memberError = withStatus.error;
+
+  if (memberError && isMissingStatusColumn(memberError.message)) {
+    const fallback = await supabase
+      .from("organization_members")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("organization_id", orgId)
+      .single();
+    memberRow = fallback.data ? { role: fallback.data.role, status: "active" } : null;
+    memberError = fallback.error;
+  }
+
+  if (memberError) {
+    return {
+      supabase,
+      user,
+      orgId: orgId as string,
+      role: null as UserRole | null,
+      isAdmin: false,
+      allowedProjectIds: null as string[] | null,
+      error: NextResponse.json({ error: memberError.message }, { status: 500 }),
+    };
+  }
+
+  if (memberRow?.status === "pending") {
+    return {
+      supabase,
+      user,
+      orgId: orgId as string,
+      role: null as UserRole | null,
+      isAdmin: false,
+      allowedProjectIds: null as string[] | null,
+      error: NextResponse.json({ error: "Cuenta pendiente de activación" }, { status: 403 }),
+    };
+  }
 
   const role: UserRole = (memberRow?.role as UserRole) ?? "member";
   const isAdmin = role === "owner" || role === "admin";

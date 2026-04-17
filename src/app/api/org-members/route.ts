@@ -2,6 +2,32 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
 
+type MemberStatus = "pending" | "active";
+
+function isMissingStatusColumn(message: string | undefined): boolean {
+  if (!message) return false;
+  const msg = message.toLowerCase();
+  return msg.includes("status") && (msg.includes("column") || msg.includes("schema cache"));
+}
+
+async function findAuthUserByEmail(admin: ReturnType<typeof createAdminClient>, email: string) {
+  const normalized = email.toLowerCase();
+  const perPage = 1000;
+
+  for (let page = 1; page <= 20; page += 1) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
+    if (error) return { user: null, error: error.message };
+
+    const users = data.users ?? [];
+    const match = users.find((u) => (u.email ?? "").toLowerCase() === normalized);
+    if (match) return { user: match, error: null as string | null };
+
+    if (users.length < perPage) break;
+  }
+
+  return { user: null, error: null as string | null };
+}
+
 // GET /api/org-members → lista todos los usuarios de la organización
 export async function GET() {
   const { supabase, orgId, isAdmin, error } = await requireAuth();
@@ -11,11 +37,24 @@ export async function GET() {
   const admin = createAdminClient();
 
   // 1. Obtener miembros
-  const { data: membersData, error: membersError } = await supabase
+  const withStatus = await supabase
     .from("organization_members")
-    .select("user_id, role, joined_at")
+    .select("user_id, role, joined_at, status")
     .eq("organization_id", orgId)
     .order("joined_at");
+
+  let membersData = withStatus.data;
+  let membersError = withStatus.error;
+
+  if (membersError && isMissingStatusColumn(membersError.message)) {
+    const fallback = await supabase
+      .from("organization_members")
+      .select("user_id, role, joined_at")
+      .eq("organization_id", orgId)
+      .order("joined_at");
+    membersData = fallback.data?.map((row) => ({ ...row, status: "active" })) ?? null;
+    membersError = fallback.error;
+  }
 
   if (membersError) return NextResponse.json({ error: membersError.message }, { status: 500 });
 
@@ -44,6 +83,7 @@ export async function GET() {
 
   const result = (membersData ?? []).map((m) => ({
     ...m,
+    status: (m.status ?? "active") as MemberStatus,
     profiles: profileMap.get(m.user_id) ?? {
       full_name: null,
       email: authEmailMap.get(m.user_id) ?? null,
@@ -62,25 +102,90 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json();
   const { email, role = "member" } = body as { email: string; role?: string };
-  if (!email) return NextResponse.json({ error: "Email requerido" }, { status: 400 });
+  const normalizedEmail = email?.trim().toLowerCase();
+  const allowedRoles = new Set(["admin", "member"]);
+  if (!normalizedEmail) return NextResponse.json({ error: "Email requerido" }, { status: 400 });
+  if (!allowedRoles.has(role)) return NextResponse.json({ error: "Rol inválido" }, { status: 400 });
 
   const admin = createAdminClient();
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin;
+  const redirectTo = `${siteUrl}/auth/activate`;
+
+  const { user: existingUser, error: existingLookupError } = await findAuthUserByEmail(admin, normalizedEmail);
+  if (existingLookupError) return NextResponse.json({ error: existingLookupError }, { status: 500 });
+
+  if (existingUser) {
+    const withStatus = await admin
+      .from("organization_members")
+      .select("user_id, status")
+      .eq("organization_id", orgId)
+      .eq("user_id", existingUser.id)
+      .maybeSingle();
+
+    let existingMember = withStatus.data as { user_id: string; status?: MemberStatus } | null;
+    let existingMemberError = withStatus.error;
+
+    if (existingMemberError && isMissingStatusColumn(existingMemberError.message)) {
+      const fallback = await admin
+        .from("organization_members")
+        .select("user_id")
+        .eq("organization_id", orgId)
+        .eq("user_id", existingUser.id)
+        .maybeSingle();
+      existingMember = fallback.data ? { user_id: fallback.data.user_id, status: "active" } : null;
+      existingMemberError = fallback.error;
+    }
+
+    if (existingMemberError) {
+      return NextResponse.json({ error: existingMemberError.message }, { status: 500 });
+    }
+
+    if (existingMember?.status === "active") {
+      return NextResponse.json({ ok: true, userId: existingUser.id, state: "already_active" });
+    }
+
+    if (existingMember?.status === "pending") {
+      await admin.auth.admin.inviteUserByEmail(normalizedEmail, {
+        data: { invited_to_org: orgId },
+        redirectTo,
+      });
+
+      const upsertPending = await admin
+        .from("organization_members")
+        .upsert(
+          { user_id: existingUser.id, organization_id: orgId, role, status: "pending" },
+          { onConflict: "user_id,organization_id" }
+        );
+
+      if (upsertPending.error && isMissingStatusColumn(upsertPending.error.message)) {
+        const fallback = await admin
+          .from("organization_members")
+          .upsert(
+            { user_id: existingUser.id, organization_id: orgId, role },
+            { onConflict: "user_id,organization_id" }
+          );
+        if (fallback.error) return NextResponse.json({ error: fallback.error.message }, { status: 500 });
+      } else if (upsertPending.error) {
+        return NextResponse.json({ error: upsertPending.error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ ok: true, userId: existingUser.id, state: "already_invited" });
+    }
+  }
 
   let userId: string;
   let alreadyExists = false;
 
   // Intentar invitar. Si el usuario ya existe, buscarlo por email
-  const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
+  const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(normalizedEmail, {
     data: { invited_to_org: orgId },
-    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/`,
+    redirectTo,
   });
 
   if (inviteError) {
     // Usuario ya registrado → buscar su ID por email
-    const { data: listData, error: listError } = await admin.auth.admin.listUsers();
-    if (listError) return NextResponse.json({ error: listError.message }, { status: 500 });
-
-    const existing = listData.users.find((u) => u.email === email);
+    const { user: existing, error: retryLookupError } = await findAuthUserByEmail(admin, normalizedEmail);
+    if (retryLookupError) return NextResponse.json({ error: retryLookupError }, { status: 500 });
     if (!existing) return NextResponse.json({ error: inviteError.message }, { status: 500 });
 
     userId = existing.id;
@@ -90,19 +195,29 @@ export async function POST(request: NextRequest) {
   }
 
   // Registrar en organization_members
-  const { error: memberError } = await admin
+  const membershipStatus: MemberStatus = alreadyExists ? "active" : "pending";
+  const upsertWithStatus = await admin
     .from("organization_members")
     .upsert(
-      { user_id: userId, organization_id: orgId, role },
+      { user_id: userId, organization_id: orgId, role, status: membershipStatus },
       { onConflict: "user_id,organization_id" }
     );
 
-  if (memberError) return NextResponse.json({ error: memberError.message }, { status: 500 });
+  if (upsertWithStatus.error && isMissingStatusColumn(upsertWithStatus.error.message)) {
+    const fallback = await admin
+      .from("organization_members")
+      .upsert(
+        { user_id: userId, organization_id: orgId, role },
+        { onConflict: "user_id,organization_id" }
+      );
+    if (fallback.error) return NextResponse.json({ error: fallback.error.message }, { status: 500 });
+  } else if (upsertWithStatus.error) {
+    return NextResponse.json({ error: upsertWithStatus.error.message }, { status: 500 });
+  }
 
   // Si el usuario ya estaba registrado, enviar email de notificación (no llega el de Supabase)
   if (alreadyExists) {
     const apiKey = process.env.RESEND_API_KEY;
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
     const from = process.env.DIGEST_FROM || "CRM Trino <onboarding@resend.dev>";
 
     if (apiKey) {
@@ -138,7 +253,12 @@ export async function POST(request: NextRequest) {
     // Si no hay RESEND_API_KEY, se añade igual pero sin email (no es bloqueante)
   }
 
-  return NextResponse.json({ ok: true, userId, notified: alreadyExists });
+  return NextResponse.json({
+    ok: true,
+    userId,
+    notified: alreadyExists,
+    state: alreadyExists ? "already_active" : "invited",
+  });
 }
 
 // PATCH /api/org-members → { userId, role } → cambiar rol

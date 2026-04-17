@@ -20,6 +20,7 @@ interface Member {
   user_id: string;
   role: string;
   joined_at: string;
+  status: "pending" | "active";
   profiles: { full_name: string | null; email: string | null; avatar_url: string | null } | null;
 }
 
@@ -33,6 +34,11 @@ const ROLE_COLORS: Record<string, "default" | "secondary" | "outline"> = {
   owner: "default",
   admin: "secondary",
   member: "outline",
+};
+
+const STATUS_LABELS: Record<Member["status"], string> = {
+  pending: "Pendiente",
+  active: "Activo",
 };
 
 export function OrgMembersPanel() {
@@ -88,7 +94,15 @@ export function OrgMembersPanel() {
       });
       const data = await res.json();
       if (!res.ok) { toast.error(data.error ?? "Error al invitar"); return; }
-      toast.success(`Invitación enviada a ${inviteEmail}`);
+
+      if (data.state === "already_active") {
+        toast.info("El usuario ya está activo en la organización");
+      } else if (data.state === "already_invited") {
+        toast.success("Usuario ya invitado. Se volvió a intentar el envío de invitación.");
+      } else {
+        toast.success(`Invitación enviada a ${inviteEmail}`);
+      }
+
       setInviteEmail("");
       await loadMembers();
     } finally {
@@ -133,7 +147,7 @@ export function OrgMembersPanel() {
           <p className="text-sm text-muted-foreground">No hay usuarios en la organización.</p>
         ) : (
           members.map((m) => {
-            const name = m.profiles?.full_name ?? m.profiles?.email ?? "Usuario pendiente";
+            const name = m.profiles?.full_name ?? m.profiles?.email ?? "Usuario";
             const initials = (m.profiles?.full_name ?? m.profiles?.email ?? "?").slice(0, 2).toUpperCase();
             return (
               <div key={m.user_id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/40">
@@ -147,6 +161,10 @@ export function OrgMembersPanel() {
                     <p className="text-xs text-muted-foreground truncate">{m.profiles.email}</p>
                   )}
                 </div>
+
+                <Badge variant={m.status === "pending" ? "secondary" : "outline"} className="shrink-0">
+                  {STATUS_LABELS[m.status]}
+                </Badge>
 
                 {/* Rol con dropdown para cambiar */}
                 {m.role === "owner" ? (

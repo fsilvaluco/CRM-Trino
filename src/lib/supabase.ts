@@ -24,6 +24,7 @@ export interface OrgMember {
   organization_id: string;
   user_id: string;
   role: OrgRole;
+  status: "pending" | "active";
   joined_at: string;
   profile?: UserProfile;
 }
