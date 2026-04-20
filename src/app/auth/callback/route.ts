@@ -10,8 +10,17 @@ function normalizeNextPath(raw: string | null): string {
   return raw;
 }
 
+function getCanonicalOrigin(requestUrl: URL): string {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (configured && configured.length > 0) {
+    return configured.endsWith("/") ? configured.slice(0, -1) : configured;
+  }
+  return requestUrl.origin;
+}
+
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
+  const canonicalOrigin = getCanonicalOrigin(requestUrl);
   const code = requestUrl.searchParams.get("code");
   const flow = requestUrl.searchParams.get("flow");
   const nextPath = normalizeNextPath(requestUrl.searchParams.get("next"));
@@ -22,7 +31,7 @@ export async function GET(request: NextRequest) {
     finalPath = `${finalPath}${separator}flow=${encodeURIComponent(flow)}`;
   }
 
-  let response = NextResponse.redirect(new URL(finalPath, requestUrl.origin));
+  let response = NextResponse.redirect(new URL(finalPath, canonicalOrigin));
 
   const cookieStore = await cookies();
   const supabase = createServerClient(
@@ -45,7 +54,7 @@ export async function GET(request: NextRequest) {
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) {
-      response = NextResponse.redirect(new URL("/login?auth=expired", requestUrl.origin));
+      response = NextResponse.redirect(new URL("/login?auth=expired", canonicalOrigin));
     }
   }
 
