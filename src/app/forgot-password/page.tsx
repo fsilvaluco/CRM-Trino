@@ -19,7 +19,10 @@ export default function ForgotPasswordPage() {
     setMessage(null);
     setSubmitting(true);
 
-    const redirectTo = `${window.location.origin}/auth/callback?next=/reset-password&flow=recovery`;
+    const configuredUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+    const origin = configuredUrl && configuredUrl.length > 0 ? configuredUrl : window.location.origin;
+    const baseUrl = origin.endsWith("/") ? origin.slice(0, -1) : origin;
+    const redirectTo = `${baseUrl}/auth/callback?next=/reset-password&flow=recovery`;
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo,
     });
