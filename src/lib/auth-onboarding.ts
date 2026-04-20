@@ -23,8 +23,17 @@ export async function establishSessionFromUrl(
   options: SessionFromUrlOptions
 ): Promise<SessionFromUrlResult> {
   const search = new URLSearchParams(window.location.search);
+  const code = search.get("code");
   const rawType = search.get("type");
   const tokenHash = search.get("token_hash");
+
+  if (code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) {
+      return { ok: false, type: null, error: error.message };
+    }
+    return { ok: true, type: null, error: null };
+  }
 
   if (rawType && tokenHash) {
     const type = rawType as EmailOtpType;

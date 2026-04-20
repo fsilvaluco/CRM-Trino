@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { establishSessionFromUrl } from "@/lib/auth-onboarding";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [validating, setValidating] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [tokenError, setTokenError] = useState<string | null>(null);
@@ -22,11 +23,37 @@ export default function ResetPasswordPage() {
     let mounted = true;
 
     async function init() {
+      const flow = searchParams.get("flow");
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!mounted) return;
+
+      // Primary path: callback exchange already created the session for a recovery flow.
+      if (flow === "recovery" && user) {
+        setValidating(false);
+        return;
+      }
+
+      // Legacy fallback for direct token/hash links.
       const token = await establishSessionFromUrl({ allowedTypes: ["recovery"] });
       if (!mounted) return;
 
       if (!token.ok) {
         setTokenError(token.error ?? "No se pudo validar el enlace de recuperación.");
+        setValidating(false);
+        return;
+      }
+
+      const {
+        data: { user: afterTokenUser },
+      } = await supabase.auth.getUser();
+
+      if (!mounted) return;
+
+      if (!afterTokenUser) {
+        setTokenError("No se pudo iniciar una sesión de recuperación. Solicita un nuevo enlace.");
       }
 
       setValidating(false);
@@ -37,7 +64,7 @@ export default function ResetPasswordPage() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [searchParams]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();

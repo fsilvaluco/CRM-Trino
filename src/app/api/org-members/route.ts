@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin;
-  const redirectTo = `${siteUrl}/auth/activate`;
+  const redirectTo = `${siteUrl}/auth/callback?next=/auth/activate&flow=invite`;
 
   const { user: existingUser, error: existingLookupError } = await findAuthUserByEmail(admin, normalizedEmail);
   if (existingLookupError) return NextResponse.json({ error: existingLookupError }, { status: 500 });

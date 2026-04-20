@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { supabase } from "@/lib/supabase";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { NotificationChecker } from "@/components/shared/NotificationChecker";
@@ -33,11 +34,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!loading && !user && !isPublic) {
       router.replace("/login");
+      return;
     }
+
     if (!loading && user && isGuestOnly) {
       router.replace("/");
+      return;
     }
-  }, [user, loading, isPublic, isGuestOnly, router]);
+
+    if (!loading && user && !isPublic && pathname !== "/auth/activate") {
+      void (async () => {
+        const { data: memberships } = await supabase
+          .from("organization_members")
+          .select("status")
+          .eq("user_id", user.id)
+          .limit(1);
+
+        const hasPending = (memberships ?? []).some((m) => m.status === "pending");
+        if (hasPending) {
+          router.replace("/auth/activate");
+        }
+      })();
+    }
+  }, [user, loading, isPublic, isGuestOnly, pathname, router]);
 
   // Página pública (login): solo renderiza el children sin chrome
   if (isPublic) {

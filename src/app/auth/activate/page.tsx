@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { establishSessionFromUrl } from "@/lib/auth-onboarding";
 
 export default function ActivatePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [validating, setValidating] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [tokenError, setTokenError] = useState<string | null>(null);
@@ -23,6 +24,61 @@ export default function ActivatePage() {
     let mounted = true;
 
     async function init() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      const flow = searchParams.get("flow");
+
+      // Primary path: callback already exchanged the code and produced a session.
+      if (flow === "invite" && user) {
+        const { data: memberships, error: membershipError } = await supabase
+          .from("organization_members")
+          .select("status")
+          .eq("user_id", user.id)
+          .limit(1);
+
+        if (!mounted) return;
+
+        if (membershipError) {
+          setTokenError("No pudimos validar tu estado de activación.");
+          setValidating(false);
+          return;
+        }
+
+        const hasPending = (memberships ?? []).some((m) => m.status === "pending");
+        if (!hasPending) {
+          router.replace("/");
+          return;
+        }
+
+        setFullName((user.user_metadata?.full_name as string | undefined) ?? "");
+        setValidating(false);
+        return;
+      }
+
+      // Secondary path: user is already signed in and still pending (e.g., redirected by guard).
+      if (user) {
+        const { data: memberships } = await supabase
+          .from("organization_members")
+          .select("status")
+          .eq("user_id", user.id)
+          .limit(1);
+
+        if (!mounted) return;
+
+        const hasPending = (memberships ?? []).some((m) => m.status === "pending");
+        if (hasPending) {
+          setFullName((user.user_metadata?.full_name as string | undefined) ?? "");
+          setValidating(false);
+          return;
+        }
+
+        router.replace("/");
+        return;
+      }
+
+      // Legacy path: direct token/hash links without callback.
       const token = await establishSessionFromUrl({ allowedTypes: ["invite"] });
       if (!mounted) return;
 
@@ -33,18 +89,18 @@ export default function ActivatePage() {
       }
 
       const {
-        data: { user },
+        data: { user: afterTokenUser },
       } = await supabase.auth.getUser();
 
       if (!mounted) return;
 
-      if (!user) {
+      if (!afterTokenUser) {
         setTokenError("No se pudo iniciar tu sesión para activar la cuenta.");
         setValidating(false);
         return;
       }
 
-      setFullName((user.user_metadata?.full_name as string | undefined) ?? "");
+      setFullName((afterTokenUser.user_metadata?.full_name as string | undefined) ?? "");
       setValidating(false);
     }
 
@@ -53,7 +109,7 @@ export default function ActivatePage() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [router, searchParams]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();

@@ -1,6 +1,15 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 
+const PUBLIC_PATHS = new Set([
+  "/login",
+  "/forgot-password",
+  "/reset-password",
+  "/auth/activate",
+  "/auth/callback",
+  "/sin-acceso",
+]);
+
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next({ request });
 
@@ -25,6 +34,30 @@ export async function middleware(request: NextRequest) {
 
   // Refresca el token si está por vencer (no hace redirect)
   await supabase.auth.getSession();
+
+  const pathname = request.nextUrl.pathname;
+  const isApiRoute = pathname.startsWith("/api");
+  const isPublicRoute = PUBLIC_PATHS.has(pathname);
+
+  // Pending users must complete activation before entering app pages.
+  if (!isApiRoute && !isPublicRoute) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user) {
+      const { data: memberships } = await supabase
+        .from("organization_members")
+        .select("status")
+        .eq("user_id", user.id)
+        .limit(1);
+
+      const hasPending = (memberships ?? []).some((m) => m.status === "pending");
+      if (hasPending) {
+        return NextResponse.redirect(new URL("/auth/activate", request.url));
+      }
+    }
+  }
 
   return response;
 }
