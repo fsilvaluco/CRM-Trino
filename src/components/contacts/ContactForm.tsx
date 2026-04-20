@@ -54,6 +54,7 @@ interface ContactFormProps {
     phone?: string;
     company?: string;   // legacy text
     companyId?: string; // FK
+    score?: number;
     source?: string;
     temperature?: string;
     notes?: string;
@@ -106,8 +107,6 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
   const onSubmit = async (data: ContactFormData) => {
     try {
       let finalCompanyId = data.companyId === NEW_COMPANY_VALUE ? null : data.companyId || null;
-      let finalCompanyName = "";
-
       // Create new company on the fly if selected
       if (data.companyId === NEW_COMPANY_VALUE && data.newCompanyName.trim()) {
         const res = await fetch("/api/companies", {
@@ -121,11 +120,7 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
         if (res.ok) {
           const company = await res.json();
           finalCompanyId = company.id;
-          finalCompanyName = company.name;
         }
-      } else if (finalCompanyId) {
-        const found = companiesList.find((c) => c.id === finalCompanyId);
-        finalCompanyName = found?.name || "";
       }
 
       const url = isEditing ? `/api/contacts/${initialData!.id}` : "/api/contacts";
@@ -138,23 +133,37 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
           name: data.name,
           email: data.email || null,
           phone: data.phone || null,
-          company: finalCompanyName || null,
           companyId: finalCompanyId,
           source: data.source,
           temperature: data.temperature,
+          score: initialData?.score ?? 0,
           notes: data.notes || null,
           projectId: activeProject?.id ?? null,
         }),
       });
 
-      if (!res.ok) throw new Error("Error al guardar");
+      if (!res.ok) {
+        let message = "Error al guardar el contacto";
+        try {
+          const payload = await res.json();
+          if (payload?.error?.message) {
+            message = payload.error.message;
+          } else if (typeof payload?.error === "string") {
+            message = payload.error;
+          }
+        } catch {
+          // Keep default message when response body is not JSON.
+        }
+        throw new Error(message);
+      }
 
       toast.success(isEditing ? "Contacto actualizado" : "Contacto creado");
       reset();
       onClose();
       router.refresh();
-    } catch {
-      toast.error("Error al guardar el contacto");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Error al guardar el contacto";
+      toast.error(message);
     }
   };
 

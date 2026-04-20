@@ -370,6 +370,7 @@ export function ContactDetailClient({
           phone: contact.phone || "",
           company: contact.company || "",
           companyId: contact.companyId || "",
+          score: contact.score,
           source: contact.source,
           temperature: contact.temperature as "cold" | "warm" | "hot",
           notes: contact.notes || "",

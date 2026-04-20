@@ -3,12 +3,16 @@ import { requireAuth } from "@/lib/supabase-server";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapContact(row: any) {
+  const joinedCompanyName = Array.isArray(row.companies)
+    ? row.companies[0]?.name ?? null
+    : row.companies?.name ?? null;
+
   return {
     id: row.id,
     name: row.name,
     email: row.email ?? null,
     phone: row.phone ?? null,
-    company: row.company ?? null,
+    company: joinedCompanyName,
     companyId: row.company_id ?? null,
     source: row.source,
     temperature: row.temperature,
@@ -61,7 +65,7 @@ export async function GET(
 
   const { data: contact, error: contactErr } = await supabase
     .from("contacts")
-    .select("*")
+    .select("*, companies(name)")
     .eq("id", id)
     .is("deleted_at", null)
     .single();
@@ -118,7 +122,6 @@ export async function PUT(
   if (body.name !== undefined) updates.name = body.name;
   if (body.email !== undefined) updates.email = body.email;
   if (body.phone !== undefined) updates.phone = body.phone;
-  if (body.company !== undefined) updates.company = body.company;
   if (body.companyId !== undefined) updates.company_id = body.companyId || null;
   if (body.source !== undefined) updates.source = body.source;
   if (body.temperature !== undefined) updates.temperature = body.temperature;
