@@ -116,7 +116,7 @@ export function ContactsTable({ contacts }: ContactsTableProps) {
                   </div>
                 </TableCell>
                 <TableCell className="hidden sm:table-cell">
-                  {contact.company || "-"}
+                  {contact.company || (contact.companyId ? "Empresa vinculada" : "-")}
                 </TableCell>
                 <TableCell className="hidden md:table-cell text-sm">
                   {SOURCE_LABELS[contact.source as LeadSource] || contact.source}

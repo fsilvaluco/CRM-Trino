@@ -228,7 +228,7 @@ export function ContactDetailClient({
                 </div>
               </div>
             )}
-            {contact.company && (
+            {(contact.company || contact.companyId) && (
               <div className="flex items-center gap-2 text-sm">
                 <Building2 className="h-4 w-4 text-muted-foreground" />
                 {contact.companyId ? (
@@ -237,7 +237,7 @@ export function ContactDetailClient({
                     className="text-primary hover:underline"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    {contact.company}
+                    {contact.company || "Empresa vinculada"}
                   </a>
                 ) : (
                   <span>{contact.company}</span>

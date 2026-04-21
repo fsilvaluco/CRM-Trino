@@ -12,6 +12,8 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -30,7 +32,7 @@ const contactSchema = z.object({
   name: z.string().min(1, "El nombre es requerido"),
   email: z.string().email("Email invalido").or(z.literal("")),
   phone: z.string(),
-  companyId: z.string(), // FK to companies table
+  companyId: z.string().min(1, "Selecciona una empresa"), // FK to companies table
   newCompanyName: z.string(), // for creating a new company on the fly
   source: z.string(),
   temperature: z.enum(["cold", "warm", "hot"]),
@@ -103,6 +105,10 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
 
   const watchedCompanyId = watch("companyId");
   const showNewCompanyInput = watchedCompanyId === NEW_COMPANY_VALUE;
+  const selectedCompanyMissing =
+    !!watchedCompanyId &&
+    watchedCompanyId !== NEW_COMPANY_VALUE &&
+    !companiesList.some((company) => company.id === watchedCompanyId);
 
   const onSubmit = async (data: ContactFormData) => {
     try {
@@ -203,15 +209,25 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
               onValueChange={(v) => v && setValue("companyId", v)}
             >
               <SelectTrigger className="cursor-pointer">
-                <SelectValue placeholder="Sin empresa" />
+                <SelectValue placeholder="Selecciona una empresa" />
               </SelectTrigger>
               <SelectContent>
+                <SelectLabel>Empresas</SelectLabel>
                 {companiesList.map((c) => (
                   <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                 ))}
+                {selectedCompanyMissing && (
+                  <SelectItem value={watchedCompanyId}>
+                    {initialData?.company || "Empresa seleccionada"}
+                  </SelectItem>
+                )}
+                <SelectSeparator />
                 <SelectItem value={NEW_COMPANY_VALUE}>+ Nueva empresa...</SelectItem>
               </SelectContent>
             </Select>
+            {errors.companyId && (
+              <p className="text-xs text-destructive">{errors.companyId.message}</p>
+            )}
           </div>
 
           {showNewCompanyInput && (

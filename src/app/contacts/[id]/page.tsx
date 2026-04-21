@@ -15,7 +15,7 @@ export default async function ContactDetailPage({
 
   const { data: contact } = await supabase
     .from("contacts")
-    .select("*")
+    .select("*, companies(name)")
     .eq("id", id)
     .is("deleted_at", null)
     .single();
@@ -64,7 +64,9 @@ export default async function ContactDetailPage({
     name: contact.name,
     email: contact.email,
     phone: contact.phone,
-    company: contact.company ?? null,
+    company: Array.isArray(contact.companies)
+      ? contact.companies[0]?.name ?? null
+      : contact.companies?.name ?? null,
     companyId: contact.company_id,
     source: contact.source,
     temperature: contact.temperature,

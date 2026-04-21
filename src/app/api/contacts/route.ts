@@ -15,12 +15,16 @@ function errorResponse(message: string, status: number, details?: unknown) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapContact(row: any) {
+  const joinedCompanyName = Array.isArray(row.companies)
+    ? row.companies[0]?.name ?? null
+    : row.companies?.name ?? null;
+
   return {
     id: row.id,
     name: row.name,
     email: row.email ?? null,
     phone: row.phone ?? null,
-    company: null,
+    company: joinedCompanyName,
     companyId: row.company_id ?? null,
     source: row.source,
     temperature: row.temperature,
@@ -43,7 +47,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from("contacts")
-    .select("*")
+    .select("*, companies(name)")
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
