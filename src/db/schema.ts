@@ -119,6 +119,8 @@ export const subprojects = sqliteTable("subprojects", {
   projectId: text("project_id")
     .notNull()
     .references(() => projects.id),
+  companyId: text("company_id"),
+  contactId: text("contact_id"),
   startDate: integer("start_date", { mode: "timestamp" }),
   endDate: integer("end_date", { mode: "timestamp" }),
   notes: text("notes"),

@@ -32,6 +32,8 @@ const updateSubprojectSchema = z
         const trimmedValue = value.trim();
         return trimmedValue === "" ? null : trimmedValue;
       }),
+    companyId: z.string().uuid().nullable().optional(),
+    contactId: z.string().uuid().nullable().optional(),
   })
   .refine((value) => {
     if (value.startDate && value.endDate) {
@@ -118,7 +120,7 @@ export async function PUT(
     );
   }
 
-  const { name, status, startDate, endDate, notes } = parsedBody.data;
+  const { name, status, startDate, endDate, notes, companyId, contactId } = parsedBody.data;
 
   const startDateIso = toIsoDate(startDate);
   const endDateIso = toIsoDate(endDate);
@@ -135,6 +137,8 @@ export async function PUT(
       start_date: startDate !== undefined ? startDateIso : existing.start_date,
       end_date: endDate !== undefined ? endDateIso : existing.end_date,
       notes: notes !== undefined ? notes || null : existing.notes,
+      company_id: companyId !== undefined ? (companyId ?? null) : existing.company_id,
+      contact_id: contactId !== undefined ? (contactId ?? null) : existing.contact_id,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id).select().single();
@@ -148,6 +152,7 @@ export async function PUT(
     id: data.id, name: data.name, status: data.status,
     projectId: data.project_id, startDate: data.start_date ?? null,
     endDate: data.end_date ?? null, notes: data.notes ?? null,
+    companyId: data.company_id ?? null, contactId: data.contact_id ?? null,
     createdAt: data.created_at, updatedAt: data.updated_at,
   });
 }
