@@ -26,26 +26,28 @@ const defaultStats: DashboardStats = {
 export default function DashboardPage() {
   const { user } = useAuth();
   const { activeProject, isAllProjects } = useProject();
+  const userId = user?.id ?? null;
+  const activeProjectId = activeProject?.id ?? null;
   const [stats, setStats] = useState<DashboardStats>(defaultStats);
   const [pipelineData, setPipelineData] = useState<StageData[]>([]);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadDashboard = useCallback(async () => {
-    if (!user) return;
+    if (!userId) return;
     setLoading(true);
 
     // Obtener org_id del usuario
     const { data: memberRow } = await supabase
       .from("organization_members")
       .select("organization_id")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .single();
 
     const orgId = memberRow?.organization_id;
     if (!orgId) { setLoading(false); return; }
 
-    const projectFilter = !isAllProjects && activeProject ? activeProject.id : null;
+    const projectFilter = !isAllProjects && activeProjectId ? activeProjectId : null;
 
     // Queries en paralelo
     let contactsQ = supabase.from("contacts").select("id, temperature").eq("organization_id", orgId).is("deleted_at", null);
@@ -113,10 +115,14 @@ export default function DashboardPage() {
     })));
 
     setLoading(false);
-  }, [user, activeProject, isAllProjects]);
+  }, [activeProjectId, isAllProjects, userId]);
 
   useEffect(() => {
-    loadDashboard();
+    const timerId = window.setTimeout(() => {
+      void loadDashboard();
+    }, 0);
+
+    return () => window.clearTimeout(timerId);
   }, [loadDashboard]);
 
   const isFirstRun = !loading && stats.totalContacts === 0 && stats.activeDeals === 0;

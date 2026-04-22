@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Sun, Moon, Monitor } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -56,12 +56,7 @@ const langOptions: { value: LangPref; label: string; flag: string }[] = [
 ];
 
 export function PreferencesSheet({ open, onClose }: PreferencesSheetProps) {
-  const [prefs, setPrefs] = useState<UserPrefs>({ theme: "auto", language: "es" });
-
-  // Load from localStorage when sheet opens
-  useEffect(() => {
-    if (open) setPrefs(loadPrefs());
-  }, [open]);
+  const [prefs, setPrefs] = useState<UserPrefs>(() => loadPrefs());
 
   function handleTheme(theme: ThemePref) {
     const next = { ...prefs, theme };
@@ -76,8 +71,17 @@ export function PreferencesSheet({ open, onClose }: PreferencesSheetProps) {
     savePrefs(next);
   }
 
+  function handleOpenChange(isOpen: boolean) {
+    if (isOpen) {
+      setPrefs(loadPrefs());
+      return;
+    }
+
+    onClose();
+  }
+
   return (
-    <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent side="right" className="w-80 sm:w-96">
         <SheetHeader>
           <SheetTitle>Preferencias personales</SheetTitle>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -40,7 +40,7 @@ export default function CompanyDetailPage() {
   const [loading, setLoading] = useState(true);
   const [showEdit, setShowEdit] = useState(false);
 
-  const loadCompany = () => {
+  const loadCompany = useCallback(() => {
     fetch(`/api/companies/${id}`)
       .then((r) => r.json())
       .then((data) => {
@@ -48,11 +48,11 @@ export default function CompanyDetailPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  };
+  }, [id]);
 
   useEffect(() => {
     loadCompany();
-  }, [id]);
+  }, [loadCompany]);
 
   const handleDelete = async () => {
     if (!confirm("¿Eliminar esta empresa?")) return;

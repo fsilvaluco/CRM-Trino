@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -48,7 +48,7 @@ export default function ProjectDetailPage() {
   const [showEdit, setShowEdit] = useState(false);
   const [showSubprojectForm, setShowSubprojectForm] = useState(false);
 
-  const loadProject = () => {
+  const loadProject = useCallback(() => {
     fetch(`/api/projects/${id}`)
       .then((r) => r.json())
       .then((data) => {
@@ -56,11 +56,11 @@ export default function ProjectDetailPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  };
+  }, [id]);
 
   useEffect(() => {
     loadProject();
-  }, [id]);
+  }, [loadProject]);
 
   const handleDelete = async () => {
     if (!confirm("¿Eliminar este proyecto?")) return;

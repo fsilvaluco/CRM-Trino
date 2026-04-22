@@ -119,7 +119,7 @@ export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal }: Kanban
         toast.error("Error al mover el deal. Se revirtio el cambio.");
       }
     },
-    [columns]
+    [columns, onMoveSuccess]
   );
 
   return (

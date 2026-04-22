@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 
@@ -28,18 +28,30 @@ const STORAGE_KEY = "crm_active_project";
 
 export function ProjectProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
+  const userId = user?.id ?? null;
   const [projects, setProjects] = useState<ProjectOption[]>([]);
-  const [activeProject, setActiveProjectState] = useState<ProjectOption | null>(null);
+  const [activeProject, setActiveProjectState] = useState<ProjectOption | null>(() => {
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
   const [orgRole, setOrgRole] = useState<OrgRole | null>(null);
 
   const reloadProjects = useCallback(async () => {
-    if (!user) return;
+    if (!userId) return;
 
     // 1. Verificar rol del usuario en la organización
     const { data: memberRow } = await supabase
       .from("organization_members")
       .select("role, organization_id")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .single();
 
     if (!memberRow) return;
@@ -63,11 +75,14 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       const { data: memberships } = await supabase
         .from("project_members")
         .select("project_id")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .eq("organization_id", memberRow.organization_id);
 
       const projectIds = (memberships ?? []).map((m: { project_id: string }) => m.project_id);
-      if (projectIds.length === 0) { setProjects([]); return; }
+      if (projectIds.length === 0) {
+        setProjects([]);
+        return;
+      }
 
       const { data } = await supabase
         .from("projects")
@@ -79,49 +94,59 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
     setProjects(list);
 
-    if (list.length === 1) {
-      setActiveProjectState((prev) => prev ?? list[0]);
-      if (!localStorage.getItem(STORAGE_KEY)) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(list[0]));
+    setActiveProjectState((prev) => {
+      if (!prev) {
+        if (list.length === 1) {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(list[0]));
+          return list[0];
+        }
+        return prev;
       }
-    }
-  }, [user]);
+
+      const stillExists = list.some((project) => project.id === prev.id);
+      if (stillExists) {
+        return prev;
+      }
+
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    });
+  }, [userId]);
 
   // Cargar proyectos solo cuando el usuario esté autenticado
   useEffect(() => {
-    if (!authLoading && user) {
-      reloadProjects();
+    if (authLoading) return;
+
+    if (userId) {
+      const timerId = window.setTimeout(() => {
+        void reloadProjects();
+      }, 0);
+      return () => window.clearTimeout(timerId);
     }
-    if (!authLoading && !user) {
+
+    const timerId = window.setTimeout(() => {
       setProjects([]);
-    }
-  }, [authLoading, user, reloadProjects]);
+      setOrgRole(null);
+      setActiveProjectState(null);
+      localStorage.removeItem(STORAGE_KEY);
+    }, 0);
 
-  // Restaurar proyecto activo desde localStorage
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        setActiveProjectState(JSON.parse(stored));
-      }
-    } catch {
-      // ignorar
-    }
-  }, []);
+    return () => window.clearTimeout(timerId);
+  }, [authLoading, userId, reloadProjects]);
 
-  const setActiveProject = (p: ProjectOption | null) => {
+  const setActiveProject = useCallback((p: ProjectOption | null) => {
     setActiveProjectState(p);
     if (p) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(p));
     } else {
       localStorage.removeItem(STORAGE_KEY);
     }
-  };
+  }, []);
 
   const isAdmin = orgRole === "owner" || orgRole === "admin";
 
-  return (
-    <ProjectContext.Provider value={{
+  const contextValue = useMemo(
+    () => ({
       activeProject,
       setActiveProject,
       projects,
@@ -130,7 +155,12 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       isAllProjects: activeProject === null,
       isAdmin,
       orgRole,
-    }}>
+    }),
+    [activeProject, isAdmin, orgRole, projects, reloadProjects, setActiveProject]
+  );
+
+  return (
+    <ProjectContext.Provider value={contextValue}>
       {children}
     </ProjectContext.Provider>
   );

@@ -133,6 +133,7 @@ function TransactionList({
 export default function FinancesPage() {
   const { user } = useAuth();
   const { activeProject, isAllProjects } = useProject();
+  const activeProjectId = activeProject?.id ?? null;
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
@@ -161,15 +162,21 @@ export default function FinancesPage() {
   const loadTransactions = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
-    if (!isAllProjects && activeProject) params.set("projectId", activeProject.id);
+    if (!isAllProjects && activeProjectId) params.set("projectId", activeProjectId);
 
     const res = await fetch(`/api/finances?${params}`);
     const data = await res.json();
     setTransactions(Array.isArray(data) ? data : []);
     setLoading(false);
-  }, [activeProject, isAllProjects]);
+  }, [activeProjectId, isAllProjects]);
 
-  useEffect(() => { loadTransactions(); }, [loadTransactions]);
+  useEffect(() => {
+    const timerId = window.setTimeout(() => {
+      void loadTransactions();
+    }, 0);
+
+    return () => window.clearTimeout(timerId);
+  }, [loadTransactions]);
 
   const handleReimburse = async (id: string, reimbursed: boolean) => {
     const res = await fetch(`/api/finances/${id}`, {
