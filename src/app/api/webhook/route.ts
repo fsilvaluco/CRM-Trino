@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { z } from "zod";
 
 // Field name mapping: common variations → standard field
 const FIELD_MAP: Record<string, string> = {
@@ -73,6 +74,99 @@ function extractFields(
   return result;
 }
 
+const webhookContactSchema = z.object({
+  name: z.string().trim().min(1, "El nombre es requerido"),
+  email: z
+    .union([z.string().trim().email(), z.literal(""), z.null(), z.undefined()])
+    .transform((value) => (typeof value === "string" && value.trim() !== "" ? value.trim() : null)),
+  phone: z
+    .union([z.string().trim(), z.null(), z.undefined()])
+    .transform((value) => (typeof value === "string" && value.trim() !== "" ? value.trim() : null)),
+  company: z
+    .union([z.string().trim(), z.null(), z.undefined()])
+    .transform((value) => (typeof value === "string" && value.trim() !== "" ? value.trim() : null)),
+  notes: z
+    .union([z.string().trim(), z.null(), z.undefined()])
+    .transform((value) => (typeof value === "string" && value.trim() !== "" ? value.trim() : null)),
+});
+
+const uuidSchema = z.string().uuid();
+type SupabaseServerClient = Awaited<ReturnType<typeof requireAuth>>["supabase"];
+
+function escapeIlikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, "\\$&");
+}
+
+async function getOrCreateCompanyId(params: {
+  supabase: SupabaseServerClient;
+  organizationId: string;
+  createdBy: string;
+  projectId: string;
+  companyName: string | null;
+}): Promise<string | null> {
+  if (!params.companyName) {
+    return null;
+  }
+
+  const normalizedCompanyName = params.companyName.trim();
+  if (!normalizedCompanyName) {
+    return null;
+  }
+
+  const escapedCompanyName = escapeIlikePattern(normalizedCompanyName);
+
+  const { data: existingCompanies, error: findError } = await params.supabase
+    .from("companies")
+    .select("id")
+    .eq("organization_id", params.organizationId)
+    .ilike("name", escapedCompanyName)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: true })
+    .limit(1);
+
+  if (findError) {
+    throw new Error(`Error buscando empresa '${normalizedCompanyName}': ${findError.message}`);
+  }
+
+  const existingId = existingCompanies?.[0]?.id;
+  if (typeof existingId === "string" && uuidSchema.safeParse(existingId).success) {
+    return existingId;
+  }
+
+  const { data: insertedCompany, error: insertError } = await params.supabase
+    .from("companies")
+    .insert({
+      name: normalizedCompanyName,
+      organization_id: params.organizationId,
+      created_by: params.createdBy,
+      project_id: params.projectId,
+    })
+    .select("id")
+    .single();
+
+  if (!insertError && insertedCompany?.id && uuidSchema.safeParse(insertedCompany.id).success) {
+    return insertedCompany.id;
+  }
+
+  const { data: retriedCompanies, error: retryError } = await params.supabase
+    .from("companies")
+    .select("id")
+    .eq("organization_id", params.organizationId)
+    .ilike("name", escapedCompanyName)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: true })
+    .limit(1);
+
+  const retriedId = retriedCompanies?.[0]?.id;
+  if (!retryError && typeof retriedId === "string" && uuidSchema.safeParse(retriedId).success) {
+    return retriedId;
+  }
+
+  throw new Error(
+    `No se pudo resolver company_id para '${normalizedCompanyName}': ${insertError?.message ?? retryError?.message ?? "desconocido"}`
+  );
+}
+
 export async function POST(request: NextRequest) {
   const { supabase, user, orgId, isAdmin, allowedProjectIds, error: authError } = await requireAuth();
   if (authError) return authError;
@@ -98,7 +192,10 @@ export async function POST(request: NextRequest) {
   // Resolve project_id: prefer payload > crm_settings fallback
   let resolvedProjectId: string | null = null;
 
-  const payloadProjectId = typeof payload.project_id === "string" ? payload.project_id : null;
+  const payloadProjectId =
+    typeof payload.project_id === "string" && uuidSchema.safeParse(payload.project_id).success
+      ? payload.project_id
+      : null;
   if (payloadProjectId) {
     // Validate that it belongs to the org before accepting
     const { data: proj } = await supabase
@@ -117,7 +214,9 @@ export async function POST(request: NextRequest) {
       .select("value")
       .eq("key", "webhook_default_project_id")
       .single();
-    if (settingRow?.value) resolvedProjectId = settingRow.value;
+    if (settingRow?.value && uuidSchema.safeParse(settingRow.value).success) {
+      resolvedProjectId = settingRow.value;
+    }
   }
 
   if (!resolvedProjectId) {
@@ -139,11 +238,13 @@ export async function POST(request: NextRequest) {
   }
 
   const fields = extractFields(payload);
+  const parsedFields = webhookContactSchema.safeParse(fields);
 
-  if (!fields.name) {
+  if (!parsedFields.success) {
     return NextResponse.json(
       {
-        error: "Campo 'name' o 'nombre' es requerido",
+        error: "Payload de contacto invalido",
+        details: parsedFields.error.flatten(),
         received: Object.keys(payload),
         hint: "Campos soportados: name, nombre, full_name, email, correo, phone, telefono, company, empresa, notes, notas, message",
       },
@@ -151,18 +252,38 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const fieldsData = parsedFields.data;
+
+  let companyId: string | null = null;
+  try {
+    companyId = await getOrCreateCompanyId({
+      supabase,
+      organizationId: orgId,
+      createdBy: user!.id,
+      projectId: resolvedProjectId,
+      companyName: fieldsData.company,
+    });
+  } catch (companyError) {
+    return NextResponse.json(
+      {
+        error: `Error resolviendo empresa: ${companyError instanceof Error ? companyError.message : "Unknown"}`,
+      },
+      { status: 500 }
+    );
+  }
+
   try {
     const { data: contact, error: contactErr } = await supabase
       .from("contacts")
       .insert({
-        name: fields.name,
-        email: fields.email || null,
-        phone: fields.phone || null,
-        company: fields.company || null,
+        name: fieldsData.name,
+        email: fieldsData.email,
+        phone: fieldsData.phone,
+        company_id: companyId,
         source: "webhook",
         temperature: "cold",
         score: 0,
-        notes: fields.notes || null,
+        notes: fieldsData.notes,
         organization_id: orgId,
         project_id: resolvedProjectId,
         created_by: user!.id,
@@ -175,7 +296,7 @@ export async function POST(request: NextRequest) {
 
     await supabase.from("activities").insert({
       type: "note",
-      description: `Lead recibido via webhook${fields.company ? ` (${fields.company})` : ""}`,
+      description: `Lead recibido via webhook${fieldsData.company ? ` (${fieldsData.company})` : ""}`,
       contact_id: contact.id,
       organization_id: orgId,
       project_id: resolvedProjectId,
