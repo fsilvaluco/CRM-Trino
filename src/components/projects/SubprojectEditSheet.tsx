@@ -27,11 +27,10 @@ import { Textarea } from "@/components/ui/textarea";
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
-const uuidOrEmpty = z
-  .string()
-  .optional()
-  .transform((v) => (v === "" ? undefined : v))
-  .pipe(z.string().uuid().optional());
+const uuidOrEmpty = z.preprocess(
+  (v) => (v === "" || v == null ? undefined : v),
+  z.string().uuid().optional()
+);
 
 const subprojectEditSchema = z
   .object({
