@@ -1,5 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { z } from "zod";
+
+const createContactSchema = z.object({
+  name: z.string().trim().min(1, "El nombre es requerido"),
+  email: z.union([z.string().trim().email("Email invalido"), z.literal(""), z.null(), z.undefined()]).transform((value) => {
+    if (typeof value !== "string") return null;
+    const trimmedValue = value.trim();
+    return trimmedValue === "" ? null : trimmedValue;
+  }),
+  phone: z.union([z.string(), z.null(), z.undefined()]).transform((value) => {
+    if (typeof value !== "string") return null;
+    const trimmedValue = value.trim();
+    return trimmedValue === "" ? null : trimmedValue;
+  }),
+  companyId: z.string().uuid("La empresa debe ser un UUID valido"),
+  source: z.union([z.string(), z.null(), z.undefined()]).transform((value) => {
+    if (typeof value !== "string") return "otro";
+    const trimmedValue = value.trim();
+    return trimmedValue === "" ? "otro" : trimmedValue;
+  }),
+  temperature: z.union([z.enum(["cold", "warm", "hot"]), z.null(), z.undefined()]).transform((value) => value ?? "cold"),
+  score: z.coerce.number().int().min(0).max(100).optional().default(0),
+  notes: z.union([z.string(), z.null(), z.undefined()]).transform((value) => {
+    if (typeof value !== "string") return null;
+    const trimmedValue = value.trim();
+    return trimmedValue === "" ? null : trimmedValue;
+  }),
+  projectId: z.string().uuid("El proyecto debe ser un UUID valido"),
+});
 
 function errorResponse(message: string, status: number, details?: unknown) {
   return NextResponse.json(
@@ -80,23 +109,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
   }
 
+  console.log("API Body:", body);
+
+  const parsedBody = createContactSchema.safeParse(body);
+  if (!parsedBody.success) {
+    console.error("Contact schema validation error:", parsedBody.error.flatten());
+    return errorResponse("Payload invalido", 400, parsedBody.error.flatten());
+  }
+
   const { name, email, phone, companyId, source, temperature, score, notes, projectId } =
-    body;
-
-  if (!name || String(name).trim() === "") {
-    return errorResponse("El nombre es requerido", 400);
-  }
-
-  if (!projectId || String(projectId).trim() === "") {
-    return errorResponse("El proyecto es requerido", 400);
-  }
+    parsedBody.data;
 
   if (!isAdmin && allowedProjectIds && !allowedProjectIds.includes(String(projectId))) {
     return errorResponse("No tienes acceso al proyecto seleccionado", 403);
-  }
-
-  if (!companyId || String(companyId).trim() === "") {
-    return errorResponse("La empresa es requerida", 400);
   }
 
   const { data: company, error: companyError } = await supabase

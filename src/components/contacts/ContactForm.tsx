@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectLabel,
   SelectSeparator,
@@ -28,16 +29,32 @@ import { toast } from "sonner";
 import { useLocale } from "@/lib/locale-context";
 import { useProject } from "@/lib/project-context";
 
-const contactSchema = z.object({
-  name: z.string().min(1, "El nombre es requerido"),
-  email: z.string().email("Email invalido").or(z.literal("")),
-  phone: z.string(),
-  companyId: z.string().min(1, "Selecciona una empresa"), // FK to companies table
-  newCompanyName: z.string(), // for creating a new company on the fly
-  source: z.string(),
-  temperature: z.enum(["cold", "warm", "hot"]),
-  notes: z.string(),
-});
+const NEW_COMPANY_VALUE = "__new__";
+const uuidSchema = z.string().uuid("Company ID invalido");
+
+const contactSchema = z
+  .object({
+    name: z.string().min(1, "El nombre es requerido"),
+    email: z.string().email("Email invalido").or(z.literal("")),
+    phone: z.string(),
+    companyId: z.union([
+      z.string().uuid("Selecciona una empresa valida"),
+      z.literal(NEW_COMPANY_VALUE),
+    ]),
+    newCompanyName: z.string(),
+    source: z.string(),
+    temperature: z.enum(["cold", "warm", "hot"]),
+    notes: z.string(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.companyId === NEW_COMPANY_VALUE && data.newCompanyName.trim() === "") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["newCompanyName"],
+        message: "Escribe el nombre de la nueva empresa",
+      });
+    }
+  });
 
 type ContactFormData = z.infer<typeof contactSchema>;
 
@@ -62,8 +79,6 @@ interface ContactFormProps {
     notes?: string;
   };
 }
-
-const NEW_COMPANY_VALUE = "__new__";
 
 export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
   const router = useRouter();
@@ -112,7 +127,18 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
 
   const onSubmit = async (data: ContactFormData) => {
     try {
+      console.log("Form Data:", data);
+
+      if (!activeProject?.id) {
+        throw new Error("Debes seleccionar un proyecto antes de crear un contacto");
+      }
+
       let finalCompanyId = data.companyId === NEW_COMPANY_VALUE ? null : data.companyId || null;
+
+      if (finalCompanyId && !uuidSchema.safeParse(finalCompanyId).success) {
+        throw new Error("El company_id seleccionado no es un UUID valido");
+      }
+
       // Create new company on the fly if selected
       if (data.companyId === NEW_COMPANY_VALUE && data.newCompanyName.trim()) {
         const res = await fetch("/api/companies", {
@@ -123,11 +149,34 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
             projectId: activeProject?.id ?? null,
           }),
         });
-        if (res.ok) {
-          const company = await res.json();
-          finalCompanyId = company.id;
+        if (!res.ok) {
+          let message = "Error al crear la empresa";
+          try {
+            const payload = await res.json();
+            if (payload?.error?.message) {
+              message = payload.error.message;
+            } else if (typeof payload?.error === "string") {
+              message = payload.error;
+            }
+          } catch {
+            // Keep default message when response body is not JSON.
+          }
+          throw new Error(message);
+        }
+
+        const company = await res.json();
+        finalCompanyId = company.id;
+
+        if (!uuidSchema.safeParse(finalCompanyId).success) {
+          throw new Error("La API devolvio un company_id invalido al crear la empresa");
         }
       }
+
+      if (!finalCompanyId) {
+        throw new Error("Debes seleccionar o crear una empresa valida");
+      }
+
+      console.log("Resolved companyId:", finalCompanyId);
 
       const url = isEditing ? `/api/contacts/${initialData!.id}` : "/api/contacts";
       const method = isEditing ? "PUT" : "POST";
@@ -144,7 +193,7 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
           temperature: data.temperature,
           score: initialData?.score ?? 0,
           notes: data.notes || null,
-          projectId: activeProject?.id ?? null,
+          projectId: activeProject.id,
         }),
       });
 
@@ -168,6 +217,7 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
       onClose();
       router.refresh();
     } catch (err) {
+      console.error("Client Error:", err);
       const message = err instanceof Error ? err.message : "Error al guardar el contacto";
       toast.error(message);
     }
@@ -206,21 +256,35 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
             <Label>Empresa</Label>
             <Select
               value={watch("companyId")}
-              onValueChange={(v) => v && setValue("companyId", v)}
+              onValueChange={(v) => {
+                if (!v) {
+                  return;
+                }
+
+                console.log("Selected companyId:", v);
+
+                if (v !== NEW_COMPANY_VALUE && !uuidSchema.safeParse(v).success) {
+                  console.error("Client Error:", new Error(`Invalid company_id selected: ${v}`));
+                }
+
+                setValue("companyId", v, { shouldValidate: true, shouldDirty: true });
+              }}
             >
               <SelectTrigger className="cursor-pointer">
                 <SelectValue placeholder="Selecciona una empresa" />
               </SelectTrigger>
               <SelectContent>
-                <SelectLabel>Empresas</SelectLabel>
-                {companiesList.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                ))}
-                {selectedCompanyMissing && (
-                  <SelectItem value={watchedCompanyId}>
-                    {initialData?.company || "Empresa seleccionada"}
-                  </SelectItem>
-                )}
+                <SelectGroup>
+                  <SelectLabel>Empresas</SelectLabel>
+                  {companiesList.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                  {selectedCompanyMissing && (
+                    <SelectItem value={watchedCompanyId}>
+                      {initialData?.company || "Empresa seleccionada"}
+                    </SelectItem>
+                  )}
+                </SelectGroup>
                 <SelectSeparator />
                 <SelectItem value={NEW_COMPANY_VALUE}>+ Nueva empresa...</SelectItem>
               </SelectContent>
@@ -239,6 +303,9 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
                 placeholder="Nombre de la empresa"
                 autoFocus
               />
+                {errors.newCompanyName && (
+                  <p className="text-xs text-destructive">{errors.newCompanyName.message}</p>
+                )}
             </div>
           )}
 
