@@ -25,7 +25,7 @@ import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
 
-const DB_PATH = process.env.CRM_DB_PATH || path.join(process.cwd(), "data", "crm.db");
+const DB_PATH = process.env["CRM_DB_PATH"] || path.join(process.cwd(), "data", "crm.db");
 
 if (!fs.existsSync(DB_PATH)) {
   process.stderr.write(`Database not found at ${DB_PATH}. Run 'npm run init' first.\n`);

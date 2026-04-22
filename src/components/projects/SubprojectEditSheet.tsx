@@ -27,10 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
-const uuidOrEmpty = z.preprocess(
-  (v) => (v === "" || v == null ? undefined : v),
-  z.string().uuid().optional()
-);
+const uuidOrEmpty = z.string().uuid().optional();
 
 const subprojectEditSchema = z
   .object({
@@ -300,7 +297,7 @@ export function SubprojectEditSheet({
                 <Select
                   value={currentCompanyId ?? "none"}
                   onValueChange={(v) =>
-                    setValue("company_id", v === "none" ? undefined : v, {
+                    setValue("company_id", v === "none" ? undefined : v || undefined, {
                       shouldDirty: true,
                     })
                   }
@@ -323,7 +320,7 @@ export function SubprojectEditSheet({
                 <Select
                   value={currentContactId ?? "none"}
                   onValueChange={(v) =>
-                    setValue("contact_id", v === "none" ? undefined : v, {
+                    setValue("contact_id", v === "none" ? undefined : v || undefined, {
                       shouldDirty: true,
                     })
                   }
