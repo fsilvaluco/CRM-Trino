@@ -109,11 +109,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
   }
 
-  console.log("API Body:", body);
-
   const parsedBody = createContactSchema.safeParse(body);
   if (!parsedBody.success) {
-    console.error("Contact schema validation error:", parsedBody.error.flatten());
     return errorResponse("Payload invalido", 400, parsedBody.error.flatten());
   }
 
@@ -163,7 +160,6 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (dbError) {
-    console.error(dbError, insertPayload);
     return errorResponse("No se pudo crear el contacto", 500, dbError.message);
   }
 

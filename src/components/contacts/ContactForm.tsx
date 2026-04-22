@@ -127,8 +127,6 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
 
   const onSubmit = async (data: ContactFormData) => {
     try {
-      console.log("Form Data:", data);
-
       if (!activeProject?.id) {
         throw new Error("Debes seleccionar un proyecto antes de crear un contacto");
       }
@@ -176,8 +174,6 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
         throw new Error("Debes seleccionar o crear una empresa valida");
       }
 
-      console.log("Resolved companyId:", finalCompanyId);
-
       const url = isEditing ? `/api/contacts/${initialData!.id}` : "/api/contacts";
       const method = isEditing ? "PUT" : "POST";
 
@@ -217,7 +213,6 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
       onClose();
       router.refresh();
     } catch (err) {
-      console.error("Client Error:", err);
       const message = err instanceof Error ? err.message : "Error al guardar el contacto";
       toast.error(message);
     }
@@ -259,12 +254,6 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
               onValueChange={(v) => {
                 if (!v) {
                   return;
-                }
-
-                console.log("Selected companyId:", v);
-
-                if (v !== NEW_COMPANY_VALUE && !uuidSchema.safeParse(v).success) {
-                  console.error("Client Error:", new Error(`Invalid company_id selected: ${v}`));
                 }
 
                 setValue("companyId", v, { shouldValidate: true, shouldDirty: true });
