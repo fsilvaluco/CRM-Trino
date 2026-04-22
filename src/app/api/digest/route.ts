@@ -3,6 +3,16 @@ import { requireAuth } from "@/lib/supabase-server";
 import { getLocaleSettings } from "@/lib/locale-server";
 import { formatCurrencyWith } from "@/lib/locale";
 
+type CompanyRelation = { name: string | null } | Array<{ name: string | null }> | null;
+
+function getCompanyName(companies: CompanyRelation): string | null {
+  if (Array.isArray(companies)) {
+    return companies[0]?.name ?? null;
+  }
+
+  return companies?.name ?? null;
+}
+
 export async function POST() {
   const { supabase, error } = await requireAuth();
   if (error) return error;
@@ -29,16 +39,21 @@ export async function POST() {
 
   // Gather data
   const [{ data: allContacts }, { data: allDeals }, { data: stages }, { data: pendingActivities }] = await Promise.all([
-    supabase.from("contacts").select("name, company, temperature").is("deleted_at", null),
+    supabase.from("contacts").select("name, temperature, company, companies(name)").is("deleted_at", null),
     supabase.from("deals").select("value, stage_id, deleted_at").is("deleted_at", null),
     supabase.from("pipeline_stages").select("id, name, is_won, is_lost").order("order", { ascending: true }),
     supabase.from("activities").select("id, type, description, scheduled_at, contacts ( name )").is("completed_at", null),
   ]);
 
   const now = Date.now();
+  const contacts = (allContacts ?? []).map((contact) => ({
+    name: contact.name,
+    temperature: contact.temperature,
+    companyName: getCompanyName(contact.companies as CompanyRelation) ?? contact.company ?? null,
+  }));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const overdue = (pendingActivities ?? []).filter((a: any) => a.scheduled_at && new Date(a.scheduled_at).getTime() < now);
-  const hotLeads = (allContacts ?? []).filter((c) => c.temperature === "hot");
+  const hotLeads = contacts.filter((contact) => contact.temperature === "hot");
   const stageMap = new Map((stages ?? []).map((s) => [s.id, s]));
   const activeDeals = (allDeals ?? []).filter((d) => {
     const stage = stageMap.get(d.stage_id);
@@ -66,7 +81,7 @@ export async function POST() {
 
       <div style="display: flex; gap: 12px; margin-bottom: 16px;">
         <div style="flex: 1; background: #f1f5f9; border-radius: 8px; padding: 16px; text-align: center;">
-          <div style="font-size: 24px; font-weight: bold; color: #1e293b;">${(allContacts ?? []).length}</div>
+          <div style="font-size: 24px; font-weight: bold; color: #1e293b;">${contacts.length}</div>
           <div style="font-size: 12px; color: #64748b;">Contactos</div>
         </div>
         <div style="flex: 1; background: #f1f5f9; border-radius: 8px; padding: 16px; text-align: center;">
@@ -82,7 +97,7 @@ export async function POST() {
       ${hotLeads.length > 0 ? `
         <h3 style="color: #1e293b; font-size: 14px;">Leads calientes (${hotLeads.length})</h3>
         <ul style="color: #334155; font-size: 14px; padding-left: 20px;">
-          ${hotLeads.map((c) => `<li>${c.name}${c.company ? ` — ${c.company}` : ""}</li>`).join("")}
+          ${hotLeads.map((contact) => `<li>${contact.name}${contact.companyName ? ` — ${contact.companyName}` : ""}</li>`).join("")}
         </ul>
       ` : ""}
 
