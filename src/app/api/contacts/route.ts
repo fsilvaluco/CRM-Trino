@@ -65,22 +65,39 @@ function mapContact(row: any) {
 }
 
 export async function GET(request: NextRequest) {
-  const { supabase, error } = await requireAuth();
+  const { supabase, orgId, isAdmin, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search");
   const temperature = searchParams.get("temperature");
   const source = searchParams.get("source");
-  const projectId = searchParams.get("projectId");
+  const projectIdParam = searchParams.get("projectId");
+
+  // Validate projectId belongs to current org (prevent cross-org leakage)
+  if (projectIdParam) {
+    const { data: proj } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("id", projectIdParam)
+      .eq("organization_id", orgId!)
+      .single();
+    if (!proj) {
+      return errorResponse("Proyecto no encontrado", 404);
+    }
+    if (!isAdmin && allowedProjectIds && !allowedProjectIds.includes(projectIdParam)) {
+      return errorResponse("Sin acceso al proyecto", 403);
+    }
+  }
 
   let query = supabase
     .from("contacts")
     .select("*, companies(name)")
+    .eq("organization_id", orgId!)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
-  if (projectId) query = query.eq("project_id", projectId);
+  if (projectIdParam) query = query.eq("project_id", projectIdParam);
   if (temperature) query = query.eq("temperature", temperature);
   if (source) query = query.eq("source", source);
   if (search) {

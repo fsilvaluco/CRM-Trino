@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
+import { useProject } from "@/lib/project-context";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,7 +28,16 @@ import { Textarea } from "@/components/ui/textarea";
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
-const uuidOrEmpty = z.string().uuid().optional();
+// Explicit form type avoids z.infer inference issues with ZodEffects (refine/superRefine)
+type SubprojectEditFormData = {
+  name: string;
+  description?: string;
+  start_date?: string;
+  end_date?: string;
+  status: "active" | "paused" | "completed";
+  company_id?: string;
+  contact_id?: string;
+};
 
 const subprojectEditSchema = z
   .object({
@@ -36,25 +46,20 @@ const subprojectEditSchema = z
     start_date: z.string().optional(),
     end_date: z.string().optional(),
     status: z.enum(["active", "paused", "completed"]),
-    company_id: uuidOrEmpty,
-    contact_id: uuidOrEmpty,
+    company_id: z.string().uuid().optional(),
+    contact_id: z.string().uuid().optional(),
   })
-  .refine(
-    (data) => {
-      if (data.start_date && data.end_date) {
-        return (
-          new Date(data.end_date).getTime() >= new Date(data.start_date).getTime()
-        );
+  .superRefine((data, ctx) => {
+    if (data.start_date && data.end_date) {
+      if (new Date(data.end_date).getTime() < new Date(data.start_date).getTime()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["end_date"],
+          message: "La fecha de fin debe ser posterior o igual a la fecha de inicio",
+        });
       }
-      return true;
-    },
-    {
-      path: ["end_date"],
-      message: "La fecha de fin debe ser posterior o igual a la fecha de inicio",
     }
-  );
-
-type SubprojectEditFormData = z.infer<typeof subprojectEditSchema>;
+  });
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -114,6 +119,7 @@ export function SubprojectEditSheet({
   onClose,
   onSaved,
 }: SubprojectEditSheetProps) {
+  const { activeProject } = useProject();
   const [companies, setCompanies] = useState<Relation[]>([]);
   const [contacts, setContacts] = useState<Relation[]>([]);
 
@@ -165,9 +171,10 @@ export function SubprojectEditSheet({
 
   // Load relation options when sheet opens
   const loadRelations = useCallback(() => {
+    const qs = activeProject ? `?projectId=${encodeURIComponent(activeProject.id)}` : "";
     Promise.all([
-      fetch("/api/companies").then((r) => r.json()),
-      fetch("/api/contacts").then((r) => r.json()),
+      fetch(`/api/companies${qs}`).then((r) => r.json()),
+      fetch(`/api/contacts${qs}`).then((r) => r.json()),
     ])
       .then(([cos, cts]) => {
         setCompanies(
@@ -184,7 +191,7 @@ export function SubprojectEditSheet({
         );
       })
       .catch(() => {});
-  }, []);
+  }, [activeProject]);
 
   useEffect(() => {
     if (open) {

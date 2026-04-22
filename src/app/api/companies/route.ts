@@ -20,20 +20,38 @@ function mapCompany(row: any) {
 }
 
 export async function GET(request: NextRequest) {
-  const { supabase, error } = await requireAuth();
+  const { supabase, orgId, isAdmin, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search");
-  const projectId = searchParams.get("projectId");
+  const projectIdParam = searchParams.get("projectId");
+
+  // Validate projectId belongs to current org (prevent cross-org leakage)
+  if (projectIdParam) {
+    const { data: proj } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("id", projectIdParam)
+      .eq("organization_id", orgId!)
+      .single();
+    if (!proj) {
+      return NextResponse.json({ error: "Proyecto no encontrado" }, { status: 404 });
+    }
+    // Members can only query projects they belong to
+    if (!isAdmin && allowedProjectIds && !allowedProjectIds.includes(projectIdParam)) {
+      return NextResponse.json({ error: "Sin acceso al proyecto" }, { status: 403 });
+    }
+  }
 
   let query = supabase
     .from("companies")
     .select("*, contacts(count), deals(count)")
+    .eq("organization_id", orgId!)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
-  if (projectId) query = query.eq("project_id", projectId);
+  if (projectIdParam) query = query.eq("project_id", projectIdParam);
   if (search) query = query.ilike("name", `%${search}%`);
 
   const { data, error: dbError } = await query;
