@@ -122,6 +122,7 @@ export function SubprojectEditSheet({
   const { activeProject } = useProject();
   const [companies, setCompanies] = useState<Relation[]>([]);
   const [contacts, setContacts] = useState<Relation[]>([]);
+  const [relationsLoaded, setRelationsLoaded] = useState(false);
 
   const {
     register,
@@ -171,6 +172,7 @@ export function SubprojectEditSheet({
 
   // Load relation options when sheet opens
   const loadRelations = useCallback(() => {
+    setRelationsLoaded(false);
     const qs = activeProject ? `?projectId=${encodeURIComponent(activeProject.id)}` : "";
     Promise.all([
       fetch(`/api/companies${qs}`).then((r) => r.json()),
@@ -189,13 +191,18 @@ export function SubprojectEditSheet({
             name: x.name,
           }))
         );
+        setRelationsLoaded(true);
       })
-      .catch(() => {});
+      .catch(() => {
+        setRelationsLoaded(true); // unblock even on error
+      });
   }, [activeProject]);
 
   useEffect(() => {
     if (open) {
       window.setTimeout(loadRelations, 0);
+    } else {
+      setRelationsLoaded(false);
     }
   }, [open, loadRelations]);
 
@@ -302,7 +309,8 @@ export function SubprojectEditSheet({
 
               <FieldRow label="Empresa">
                 <Select
-                  value={currentCompanyId ?? "none"}
+                  disabled={!relationsLoaded}
+                  value={relationsLoaded ? (currentCompanyId ?? "none") : ""}
                   onValueChange={(v) =>
                     setValue("company_id", v === "none" ? undefined : v || undefined, {
                       shouldDirty: true,
@@ -310,7 +318,7 @@ export function SubprojectEditSheet({
                   }
                 >
                   <SelectTrigger className="h-8 text-sm cursor-pointer">
-                    <SelectValue placeholder="Sin empresa" />
+                    <SelectValue placeholder={relationsLoaded ? "Sin empresa" : "Cargando..."} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Sin empresa</SelectItem>
@@ -325,7 +333,8 @@ export function SubprojectEditSheet({
 
               <FieldRow label="Contacto">
                 <Select
-                  value={currentContactId ?? "none"}
+                  disabled={!relationsLoaded}
+                  value={relationsLoaded ? (currentContactId ?? "none") : ""}
                   onValueChange={(v) =>
                     setValue("contact_id", v === "none" ? undefined : v || undefined, {
                       shouldDirty: true,
@@ -333,7 +342,7 @@ export function SubprojectEditSheet({
                   }
                 >
                   <SelectTrigger className="h-8 text-sm cursor-pointer">
-                    <SelectValue placeholder="Sin contacto" />
+                    <SelectValue placeholder={relationsLoaded ? "Sin contacto" : "Cargando..."} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Sin contacto</SelectItem>

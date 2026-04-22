@@ -22,6 +22,8 @@ interface Campaign {
   startDate: string | null;
   endDate: string | null;
   notes: string | null;
+  companyId: string | null;
+  contactId: string | null;
   createdAt: string | number;
 }
 

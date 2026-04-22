@@ -11,6 +11,8 @@ function mapSubproject(row: any) {
     startDate: row.start_date ?? null,
     endDate: row.end_date ?? null,
     notes: row.notes ?? null,
+    companyId: row.company_id ?? null,
+    contactId: row.contact_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     projectName: row.projects?.name ?? null,
