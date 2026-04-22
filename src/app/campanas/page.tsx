@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { SubprojectForm } from "@/components/projects/SubprojectForm";
+import { SubprojectEditSheet } from "@/components/projects/SubprojectEditSheet";
 import { useProject } from "@/lib/project-context";
 import { Megaphone, Plus, Calendar } from "lucide-react";
 import { format } from "date-fns";
@@ -39,16 +41,19 @@ function formatDate(d: string | null) {
 }
 
 export default function CampanasPage() {
+  const router = useRouter();
   const { activeProject, isAllProjects, projects } = useProject();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showEditSheet, setShowEditSheet] = useState(false);
+  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [filterStatus, setFilterStatus] = useState("all");
 
   const hasProjects = projects.length > 0;
   const targetProjectId = activeProject?.id ?? null;
 
-  const loadCampaigns = () => {
+  const loadCampaigns = useCallback(() => {
     if (!hasProjects) {
       setLoading(false);
       return;
@@ -65,12 +70,25 @@ export default function CampanasPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  };
+  }, [filterStatus, hasProjects, isAllProjects, targetProjectId]);
+
+  const handleCampaignClick = useCallback((campaign: Campaign) => {
+    setSelectedCampaign(campaign);
+    setShowEditSheet(true);
+  }, []);
+
+  const handleCampaignSaved = useCallback(() => {
+    loadCampaigns();
+    router.refresh();
+  }, [loadCampaigns, router]);
 
   useEffect(() => {
-    loadCampaigns();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterStatus, targetProjectId, isAllProjects, hasProjects]);
+    const timerId = window.setTimeout(() => {
+      loadCampaigns();
+    }, 0);
+
+    return () => window.clearTimeout(timerId);
+  }, [loadCampaigns]);
 
   if (!hasProjects) {
     return (
@@ -131,6 +149,16 @@ export default function CampanasPage() {
         />
       )}
 
+      <SubprojectEditSheet
+        open={showEditSheet}
+        campaign={selectedCampaign}
+        onClose={() => {
+          setShowEditSheet(false);
+          setSelectedCampaign(null);
+        }}
+        onSaved={handleCampaignSaved}
+      />
+
       {/* Filtros */}
       <div className="flex flex-wrap gap-2">
         {["all", "active", "paused", "completed"].map((s) => (
@@ -165,7 +193,19 @@ export default function CampanasPage() {
           {campaigns.map((campaign) => {
             const statusCfg = STATUS_CONFIG[campaign.status] ?? { label: campaign.status, className: "" };
             return (
-              <Card key={campaign.id} className="hover:shadow-md transition-shadow">
+              <Card
+                key={campaign.id}
+                className="hover:shadow-md transition-shadow cursor-pointer"
+                role="button"
+                tabIndex={0}
+                onClick={() => handleCampaignClick(campaign)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    handleCampaignClick(campaign);
+                  }
+                }}
+              >
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="font-semibold leading-tight">{campaign.name}</h3>

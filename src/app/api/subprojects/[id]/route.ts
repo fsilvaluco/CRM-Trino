@@ -1,5 +1,59 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { z } from "zod";
+
+const dateFieldSchema = z
+  .union([z.string(), z.null(), z.undefined()])
+  .transform((value) => {
+    if (value === undefined) return undefined;
+    if (value === null) return null;
+    const trimmedValue = value.trim();
+    return trimmedValue === "" ? null : trimmedValue;
+  })
+  .refine((value) => {
+    if (value === undefined || value === null) return true;
+    return /^\d{4}-\d{2}-\d{2}$/.test(value);
+  }, "La fecha debe tener formato YYYY-MM-DD");
+
+const updateSubprojectSchema = z
+  .object({
+    name: z
+      .union([z.string(), z.undefined()])
+      .transform((value) => (value === undefined ? undefined : value.trim()))
+      .refine((value) => value === undefined || value.length > 0, "El nombre no puede estar vacio"),
+    status: z.enum(["active", "paused", "completed"]).optional(),
+    startDate: dateFieldSchema,
+    endDate: dateFieldSchema,
+    notes: z
+      .union([z.string(), z.null(), z.undefined()])
+      .transform((value) => {
+        if (value === undefined) return undefined;
+        if (value === null) return null;
+        const trimmedValue = value.trim();
+        return trimmedValue === "" ? null : trimmedValue;
+      }),
+  })
+  .refine((value) => {
+    if (value.startDate && value.endDate) {
+      return value.endDate >= value.startDate;
+    }
+    return true;
+  }, {
+    path: ["endDate"],
+    message: "La fecha de fin debe ser posterior o igual a la fecha de inicio",
+  });
+
+function toIsoDate(value: string | null | undefined): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+
+  const parsedDate = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return undefined;
+  }
+
+  return parsedDate.toISOString();
+}
 
 export async function GET(
   _request: NextRequest,
@@ -56,22 +110,38 @@ export async function PUT(
     return NextResponse.json({ error: "Subproyecto no encontrado" }, { status: 404 });
   }
 
-  const { name, status, startDate, endDate, notes } = body as Record<string, string | undefined>;
+  const parsedBody = updateSubprojectSchema.safeParse(body);
+  if (!parsedBody.success) {
+    return NextResponse.json(
+      { error: "Payload invalido", details: parsedBody.error.flatten() },
+      { status: 400 }
+    );
+  }
+
+  const { name, status, startDate, endDate, notes } = parsedBody.data;
+
+  const startDateIso = toIsoDate(startDate);
+  const endDateIso = toIsoDate(endDate);
+
+  if ((startDate !== undefined && startDateIso === undefined) || (endDate !== undefined && endDateIso === undefined)) {
+    return NextResponse.json({ error: "Formato de fecha invalido" }, { status: 400 });
+  }
 
   const { data, error: dbError } = await supabase
     .from("subprojects")
     .update({
       name: name ?? existing.name,
       status: status ?? existing.status,
-      start_date: startDate !== undefined ? (startDate ? new Date(startDate).toISOString() : null) : existing.start_date,
-      end_date: endDate !== undefined ? (endDate ? new Date(endDate).toISOString() : null) : existing.end_date,
+      start_date: startDate !== undefined ? startDateIso : existing.start_date,
+      end_date: endDate !== undefined ? endDateIso : existing.end_date,
       notes: notes !== undefined ? notes || null : existing.notes,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id).select().single();
 
   if (dbError) {
-    return NextResponse.json({ error: `Error al actualizar subproyecto: ${dbError.message}` }, { status: 500 });
+    console.error("Error updating subproject", { id, message: dbError.message });
+    return NextResponse.json({ error: "Error al actualizar subproyecto" }, { status: 500 });
   }
 
   return NextResponse.json({
@@ -80,6 +150,13 @@ export async function PUT(
     endDate: data.end_date ?? null, notes: data.notes ?? null,
     createdAt: data.created_at, updatedAt: data.updated_at,
   });
+}
+
+export async function PATCH(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  return PUT(request, context);
 }
 
 export async function DELETE(
