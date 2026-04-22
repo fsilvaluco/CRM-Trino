@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -27,15 +28,25 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth-context";
 import { useProject } from "@/lib/project-context";
 
-const EXPENSE_CATEGORIES = ["Transporte", "Alimentación", "Equipamiento", "Producción", "Marketing", "Servicios", "Arriendo", "Otro"];
+const EXPENSE_CATEGORIES = [
+  "Transporte", "Alimentación", "Equipamiento", "Producción",
+  "Marketing", "Servicios", "Arriendo", "Otro",
+];
 const INCOME_CATEGORIES = ["Venta", "Patrocinio", "Subsidio", "Transferencia", "Otro"];
+
+const EXTERNAL_KEY = "__external__";
+const NONE_KEY = "__none__";
 
 const schema = z.object({
   type: z.enum(["income", "expense"]),
   amount: z.string().min(1, "Ingresa un monto"),
   description: z.string().min(1, "Agrega una descripción"),
   category: z.string().min(1, "Selecciona una categoría"),
-  responsibleName: z.string(),
+  transactionDate: z.string().optional(),
+  // internal member key OR EXTERNAL_KEY OR NONE_KEY
+  responsibleKey: z.string().optional(),
+  responsibleExternal: z.string().optional(),
+  reimbursed: z.boolean().optional(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -52,7 +63,6 @@ export function TransactionForm({ open, onClose, onCreated, members }: Transacti
   const { activeProject } = useProject();
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  // fileUrl used as a storage path (not a public URL) — signed URL generated server-side
 
   const {
     register,
@@ -63,11 +73,23 @@ export function TransactionForm({ open, onClose, onCreated, members }: Transacti
     reset,
   } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { type: "expense", amount: "", description: "", category: "", responsibleName: "" },
+    defaultValues: {
+      type: "expense",
+      amount: "",
+      description: "",
+      category: "",
+      transactionDate: "",
+      responsibleKey: NONE_KEY,
+      responsibleExternal: "",
+      reimbursed: false,
+    },
   });
 
   const watchedType = watch("type");
+  const watchedKey = watch("responsibleKey");
+  const watchedReimbursed = watch("reimbursed");
   const categories = watchedType === "expense" ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
+  const isExternal = watchedKey === EXTERNAL_KEY;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -82,7 +104,6 @@ export function TransactionForm({ open, onClose, onCreated, members }: Transacti
     let fileName: string | null = null;
 
     try {
-      // Subir archivo a Supabase Storage si existe
       if (file && user) {
         const ext = file.name.split(".").pop();
         const storagePath = `receipts/${user.id}/${Date.now()}.${ext}`;
@@ -94,10 +115,19 @@ export function TransactionForm({ open, onClose, onCreated, members }: Transacti
           toast.error("Error subiendo comprobante: " + uploadError.message);
           return;
         }
-
-        // Guardamos el path, no la URL pública
         fileUrl = storagePath;
         fileName = file.name;
+      }
+
+      // Resolve responsible name
+      let responsibleName: string | null = null;
+      if (data.responsibleKey && data.responsibleKey !== NONE_KEY) {
+        if (data.responsibleKey === EXTERNAL_KEY) {
+          responsibleName = data.responsibleExternal?.trim() || null;
+        } else {
+          const member = members.find((m) => m.user_id === data.responsibleKey);
+          responsibleName = member?.name ?? null;
+        }
       }
 
       const res = await fetch("/api/finances", {
@@ -108,8 +138,10 @@ export function TransactionForm({ open, onClose, onCreated, members }: Transacti
           amount: Math.round(parseFloat(data.amount.replace(/\./g, "").replace(",", "."))),
           description: data.description,
           category: data.category,
-          responsibleName: data.responsibleName || null,
-          filePath: fileUrl,   // storage path
+          responsibleName,
+          reimbursed: data.reimbursed === true,
+          transactionDate: data.transactionDate || null,
+          filePath: fileUrl,
           fileName,
           projectId: activeProject?.id ?? null,
         }),
@@ -117,7 +149,7 @@ export function TransactionForm({ open, onClose, onCreated, members }: Transacti
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? "Error al guardar");
+        throw new Error((body as { error?: string }).error ?? "Error al guardar");
       }
 
       toast.success(data.type === "expense" ? "Gasto registrado" : "Ingreso registrado");
@@ -167,6 +199,13 @@ export function TransactionForm({ open, onClose, onCreated, members }: Transacti
             {errors.amount && <p className="text-xs text-destructive">{errors.amount.message}</p>}
           </div>
 
+          {/* Fecha del gasto */}
+          <div className="space-y-1.5">
+            <Label>Fecha del gasto</Label>
+            <Input type="date" {...register("transactionDate")} />
+            <p className="text-xs text-muted-foreground">Cuándo ocurrió realmente el gasto (puede diferir de hoy)</p>
+          </div>
+
           {/* Descripción */}
           <div className="space-y-1.5">
             <Label>Descripción *</Label>
@@ -193,19 +232,50 @@ export function TransactionForm({ open, onClose, onCreated, members }: Transacti
           {/* Responsable (solo para gastos) */}
           {watchedType === "expense" && (
             <div className="space-y-1.5">
-              <Label>Responsable del gasto</Label>
-              <Select value={watch("responsibleName") || "__none__"} onValueChange={(v) => setValue("responsibleName", !v || v === "__none__" ? "" : v)}>
+              <Label>Encargado del gasto</Label>
+              <Select
+                value={watchedKey ?? NONE_KEY}
+                onValueChange={(v) => {
+                  setValue("responsibleKey", v || NONE_KEY);
+                  if (v !== EXTERNAL_KEY) setValue("responsibleExternal", "");
+                }}
+              >
                 <SelectTrigger className="cursor-pointer">
                   <SelectValue placeholder="¿Quién pagó?" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">Sin asignar</SelectItem>
+                  <SelectItem value={NONE_KEY}>Sin asignar</SelectItem>
                   {members.map((m) => (
-                    <SelectItem key={m.user_id} value={m.name}>{m.name}</SelectItem>
+                    <SelectItem key={m.user_id} value={m.user_id}>{m.name}</SelectItem>
                   ))}
+                  <SelectItem value={EXTERNAL_KEY}>Encargado externo…</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">Persona que realizó el gasto y podría recibir devolución</p>
+              {isExternal && (
+                <Input
+                  {...register("responsibleExternal")}
+                  placeholder="Nombre del encargado externo"
+                  className="mt-1.5"
+                />
+              )}
+              <p className="text-xs text-muted-foreground">
+                Persona que realizó el gasto y podría recibir devolución
+              </p>
+            </div>
+          )}
+
+          {/* Reembolsado */}
+          {watchedType === "expense" && watchedKey && watchedKey !== NONE_KEY && (
+            <div className="flex items-center gap-2.5 rounded-lg border px-3 py-2.5 bg-muted/30">
+              <Checkbox
+                id="reimbursed"
+                checked={watchedReimbursed === true}
+                onCheckedChange={(checked) => setValue("reimbursed", checked === true)}
+                className="cursor-pointer"
+              />
+              <label htmlFor="reimbursed" className="text-sm cursor-pointer select-none">
+                Pagado / Reembolsado — el dinero ya fue devuelto al encargado
+              </label>
             </div>
           )}
 
@@ -233,7 +303,9 @@ export function TransactionForm({ open, onClose, onCreated, members }: Transacti
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={onClose} className="cursor-pointer">Cancelar</Button>
+            <Button type="button" variant="outline" onClick={onClose} className="cursor-pointer">
+              Cancelar
+            </Button>
             <Button type="submit" disabled={isSubmitting || uploading} className="cursor-pointer">
               {isSubmitting || uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               {isSubmitting || uploading ? "Guardando..." : "Guardar Comprobante"}

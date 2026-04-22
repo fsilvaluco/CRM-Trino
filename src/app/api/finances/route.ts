@@ -16,6 +16,8 @@ function mapTransaction(row: any) {
     responsibleUserId: row.responsible_user_id ?? null,
     responsibleName: row.responsible_name ?? null,
     reimbursed: row.reimbursed ?? false,
+    reimbursedAt: row.reimbursed_at ?? null,
+    transactionDate: row.transaction_date ?? null,
     projectId: row.project_id ?? null,
     createdBy: row.created_by ?? null,
     createdAt: row.created_at,
@@ -66,7 +68,7 @@ export async function POST(request: NextRequest) {
   if (error) return error;
 
   const body = await request.json();
-  const { type, amount, currency = "CLP", description, category, filePath, fileName, responsibleUserId, responsibleName, projectId } = body;
+  const { type, amount, currency = "CLP", description, category, filePath, fileName, responsibleUserId, responsibleName, reimbursed, transactionDate, projectId } = body;
 
   if (!type || !["income", "expense"].includes(type)) {
     return NextResponse.json({ error: "type debe ser 'income' o 'expense'" }, { status: 400 });
@@ -85,12 +87,14 @@ export async function POST(request: NextRequest) {
       currency,
       description: description ?? null,
       category: category ?? null,
-      file_path: body.filePath ?? null,   // storage path
-      file_url: null,                      // not stored, generated at read time
+      file_path: filePath ?? null,         // storage path
+      file_url: null,                       // not stored, generated at read time
       file_name: fileName ?? null,
       responsible_user_id: responsibleUserId ?? null,
       responsible_name: responsibleName ?? null,
-      reimbursed: false,
+      reimbursed: reimbursed === true,
+      reimbursed_at: reimbursed === true ? new Date().toISOString() : null,
+      transaction_date: transactionDate ?? null,
       created_by: user!.id,
     })
     .select()

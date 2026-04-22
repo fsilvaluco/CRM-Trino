@@ -26,6 +26,8 @@ interface Transaction {
   fileName: string | null;
   responsibleName: string | null;
   reimbursed: boolean;
+  reimbursedAt: string | null;
+  transactionDate: string | null;
   projectId: string | null;
   createdAt: string | number;
 }
@@ -64,6 +66,10 @@ function TransactionList({
           ? new Date(t.createdAt < 1e12 ? t.createdAt * 1000 : t.createdAt)
           : new Date(t.createdAt);
 
+        const displayDate = t.transactionDate
+          ? new Date(t.transactionDate)
+          : date;
+
         return (
           <div key={t.id} className="flex items-start gap-3 p-3 rounded-lg border hover:bg-muted/30 transition-colors">
             {/* Ícono tipo */}
@@ -82,12 +88,23 @@ function TransactionList({
                   {t.type === "expense" ? "-" : "+"}{formatCLP(t.amount)}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  {format(date, "d MMM yyyy", { locale: es })}
+                  {format(displayDate, "d MMM yyyy", { locale: es })}
+                  {t.transactionDate && (
+                    <span className="ml-1 text-muted-foreground/60">(fecha del gasto)</span>
+                  )}
                 </span>
                 {t.responsibleName && (
                   <span className="flex items-center gap-1 text-xs text-muted-foreground">
                     <User className="h-3 w-3" />{t.responsibleName}
-                    {t.reimbursed && <Badge className="text-[10px] px-1 py-0 ml-1 bg-green-600">Reembolsado</Badge>}
+                    {t.reimbursed ? (
+                      <Badge className="text-[10px] px-1.5 py-0 ml-1 bg-green-600 text-white flex items-center gap-0.5">
+                        <Check className="h-2.5 w-2.5" /> Reembolsado
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 ml-1 text-muted-foreground border-dashed">
+                        Pendiente
+                      </Badge>
+                    )}
                   </span>
                 )}
               </div>

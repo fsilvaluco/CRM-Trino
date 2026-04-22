@@ -12,9 +12,18 @@ export async function PATCH(
   const { id } = await params;
   const body = await request.json();
 
+  const updates: Record<string, unknown> = {};
+  if (typeof body.reimbursed === "boolean") {
+    updates.reimbursed = body.reimbursed;
+    updates.reimbursed_at = body.reimbursed ? new Date().toISOString() : null;
+  }
+  if (body.transactionDate !== undefined) {
+    updates.transaction_date = body.transactionDate ?? null;
+  }
+
   const { error: dbError } = await supabase
     .from("transactions")
-    .update({ reimbursed: body.reimbursed, reimbursed_at: body.reimbursed ? new Date().toISOString() : null })
+    .update(updates)
     .eq("id", id)
     .eq("organization_id", orgId!);
 
