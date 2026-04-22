@@ -3,6 +3,9 @@ import { requireAuth } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
 
 type MemberStatus = "pending" | "active";
+type MemberRole = "owner" | "admin" | "member";
+
+const ASSIGNABLE_MEMBER_ROLES = new Set<MemberRole>(["admin", "member"]);
 
 function isMissingStatusColumn(message: string | undefined): boolean {
   if (!message) return false;
@@ -263,42 +266,97 @@ export async function POST(request: NextRequest) {
 
 // PATCH /api/org-members → { userId, role } → cambiar rol
 export async function PATCH(request: NextRequest) {
-  const { supabase, orgId, isAdmin, error } = await requireAuth();
+  const { orgId, role: actorRole, isAdmin, error } = await requireAuth();
   if (error) return error;
   if (!isAdmin) return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
 
+  const admin = createAdminClient();
   const body = await request.json();
   const { userId, role } = body as { userId: string; role: string };
   if (!userId || !role) return NextResponse.json({ error: "userId y role requeridos" }, { status: 400 });
+  if (!ASSIGNABLE_MEMBER_ROLES.has(role as MemberRole)) {
+    return NextResponse.json({ error: "Rol inválido" }, { status: 400 });
+  }
 
-  const { error: dbError } = await supabase
+  const { data: targetMember, error: targetError } = await admin
+    .from("organization_members")
+    .select("user_id, role")
+    .eq("user_id", userId)
+    .eq("organization_id", orgId)
+    .maybeSingle();
+
+  if (targetError) return NextResponse.json({ error: targetError.message }, { status: 500 });
+  if (!targetMember) return NextResponse.json({ error: "Miembro no encontrado" }, { status: 404 });
+
+  if (targetMember.role === "owner") {
+    if (actorRole === "admin") {
+      return NextResponse.json({ error: "Un admin no puede cambiar el rol del owner" }, { status: 403 });
+    }
+    return NextResponse.json({ error: "El owner no se puede editar desde este endpoint" }, { status: 403 });
+  }
+
+  if (targetMember.role === role) {
+    return NextResponse.json({ ok: true, member: targetMember });
+  }
+
+  const { data: updatedMember, error: dbError } = await admin
     .from("organization_members")
     .update({ role })
     .eq("user_id", userId)
-    .eq("organization_id", orgId);
+    .eq("organization_id", orgId)
+    .neq("role", "owner")
+    .select("user_id, role")
+    .maybeSingle();
 
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
+  if (!updatedMember) {
+    return NextResponse.json({ error: "No se puede modificar el owner" }, { status: 403 });
+  }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, member: updatedMember });
 }
 
 // DELETE /api/org-members → { userId } → eliminar usuario de la org
 export async function DELETE(request: NextRequest) {
-  const { supabase, orgId, isAdmin, error } = await requireAuth();
+  const { orgId, role: actorRole, isAdmin, error } = await requireAuth();
   if (error) return error;
   if (!isAdmin) return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
 
+  const admin = createAdminClient();
   const body = await request.json();
   const { userId } = body as { userId: string };
   if (!userId) return NextResponse.json({ error: "userId requerido" }, { status: 400 });
 
-  const { error: dbError } = await supabase
+  const { data: targetMember, error: targetError } = await admin
+    .from("organization_members")
+    .select("user_id, role")
+    .eq("user_id", userId)
+    .eq("organization_id", orgId)
+    .maybeSingle();
+
+  if (targetError) return NextResponse.json({ error: targetError.message }, { status: 500 });
+  if (!targetMember) return NextResponse.json({ error: "Miembro no encontrado" }, { status: 404 });
+
+  if (targetMember.role === "owner") {
+    if (actorRole === "admin") {
+      return NextResponse.json({ error: "Un admin no puede eliminar al owner" }, { status: 403 });
+    }
+    return NextResponse.json({ error: "El owner no se puede eliminar desde este endpoint" }, { status: 403 });
+  }
+
+  const { data: deletedMember, error: dbError } = await admin
     .from("organization_members")
     .delete()
     .eq("user_id", userId)
-    .eq("organization_id", orgId);
+    .eq("organization_id", orgId)
+    .neq("role", "owner")
+    .select("user_id")
+    .maybeSingle();
 
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
+  if (!deletedMember) {
+    return NextResponse.json({ error: "No se puede eliminar el owner" }, { status: 403 });
+  }
 
   return NextResponse.json({ ok: true });
 }
