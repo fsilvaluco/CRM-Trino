@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -59,6 +60,7 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
   const [initialProjectIds, setInitialProjectIds] = useState<string[]>([]);
   const [selectedRole, setSelectedRole] = useState<string>("member");
+  const [projectSearch, setProjectSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -68,6 +70,11 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
 
   const selectedSet = useMemo(() => new Set(selectedProjectIds), [selectedProjectIds]);
   const initialSet = useMemo(() => new Set(initialProjectIds), [initialProjectIds]);
+  const filteredProjects = useMemo(() => {
+    const query = projectSearch.trim().toLowerCase();
+    if (!query) return projects;
+    return projects.filter((project) => project.name.toLowerCase().includes(query));
+  }, [projects, projectSearch]);
 
   useEffect(() => {
     if (!open || !member) return;
@@ -114,6 +121,7 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
         setInitialProjectIds(currentProjectIds);
         setSelectedProjectIds(currentProjectIds);
         setSelectedRole(member.role);
+        setProjectSearch("");
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Error cargando accesos");
       } finally {
@@ -273,23 +281,37 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
                 {projects.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No hay proyectos para asignar.</p>
                 ) : (
-                  <div className="space-y-2">
-                    {projects.map((project) => {
-                      const checked = selectedSet.has(project.id);
-                      return (
-                        <label
-                          key={project.id}
-                          className="flex items-center gap-3 rounded-md border border-border/60 px-3 py-2 text-sm"
-                        >
-                          <Checkbox
-                            checked={checked}
-                            disabled={saving}
-                            onCheckedChange={(value) => toggleProject(project.id, value === true)}
-                          />
-                          <span className="flex-1">{project.name}</span>
-                        </label>
-                      );
-                    })}
+                  <div className="space-y-3 rounded-lg border border-border/60 bg-card/50 p-3">
+                    <Input
+                      value={projectSearch}
+                      onChange={(event) => setProjectSearch(event.target.value)}
+                      placeholder="Buscar proyecto..."
+                      className="h-8"
+                    />
+                    <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
+                      {filteredProjects.length === 0 ? (
+                        <p className="text-xs text-muted-foreground py-2 px-1">
+                          No hay proyectos que coincidan con la búsqueda.
+                        </p>
+                      ) : (
+                        filteredProjects.map((project) => {
+                          const checked = selectedSet.has(project.id);
+                          return (
+                            <label
+                              key={project.id}
+                              className="flex items-center gap-3 rounded-md border border-border/60 px-3 py-2 text-sm hover:bg-muted/40"
+                            >
+                              <Checkbox
+                                checked={checked}
+                                disabled={saving}
+                                onCheckedChange={(value) => toggleProject(project.id, value === true)}
+                              />
+                              <span className="flex-1">{project.name}</span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

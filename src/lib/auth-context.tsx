@@ -29,39 +29,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const { data: memberRow } = await supabase
-      .from("organization_members")
-      .select("role")
-      .eq("user_id", nextUser.id)
-      .limit(1)
-      .maybeSingle();
+    try {
+      const { data: memberRow } = await supabase
+        .from("organization_members")
+        .select("role")
+        .eq("user_id", nextUser.id)
+        .limit(1)
+        .maybeSingle();
 
-    const nextRole = memberRow?.role;
-    if (nextRole === "owner" || nextRole === "admin" || nextRole === "member") {
-      setOrgRole(nextRole);
-      return;
+      const nextRole = memberRow?.role;
+      if (nextRole === "owner" || nextRole === "admin" || nextRole === "member") {
+        setOrgRole(nextRole);
+        return;
+      }
+      setOrgRole(null);
+    } catch {
+      setOrgRole(null);
     }
-    setOrgRole(null);
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setLoading(true);
-      const nextUser = session?.user ?? null;
-      setSession(session);
-      setUser(nextUser);
-      await resolveOrgRole(nextUser);
-      setLoading(false);
-    });
+    supabase.auth
+      .getSession()
+      .then(async ({ data: { session } }) => {
+        setLoading(true);
+        const nextUser = session?.user ?? null;
+        setSession(session);
+        setUser(nextUser);
+        await resolveOrgRole(nextUser);
+      })
+      .catch(() => {
+        setSession(null);
+        setUser(null);
+        setOrgRole(null);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setLoading(true);
-      setSession(session);
-      const nextUser = session?.user ?? null;
-      setUser(nextUser);
-      await resolveOrgRole(nextUser);
-      setLoading(false);
-    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        setLoading(true);
+        try {
+          setSession(session);
+          const nextUser = session?.user ?? null;
+          setUser(nextUser);
+          await resolveOrgRole(nextUser);
+        } catch {
+          setSession(null);
+          setUser(null);
+          setOrgRole(null);
+        } finally {
+          setLoading(false);
+        }
+      }
+    );
 
     return () => subscription.unsubscribe();
   }, []);

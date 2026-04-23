@@ -19,6 +19,7 @@ import { PipelineStagesEditor } from "@/components/settings/PipelineStagesEditor
 import { LocaleSettingsPanel } from "@/components/settings/LocaleSettingsPanel";
 import { BusinessSettingsPanel } from "@/components/settings/BusinessSettingsPanel";
 import { useProject } from "@/lib/project-context";
+import { useAuth } from "@/lib/auth-context";
 
 const commands = [
   { name: "/setup", description: "Configurar CRM para tu negocio" },
@@ -31,16 +32,19 @@ const commands = [
 
 export default function ProjectSettingsPage() {
   const router = useRouter();
-  const { isAdmin, orgRole, activeProject } = useProject();
+  const { activeProject } = useProject();
+  const { orgRole, loading } = useAuth();
+  const isAdmin = orgRole === "owner" || orgRole === "admin";
 
   // Redirect non-admins once role is resolved
   useEffect(() => {
-    if (orgRole !== null && !isAdmin) {
-      router.replace("/");
+    if (!loading && !isAdmin) {
+      router.replace("/sin-acceso");
     }
-  }, [isAdmin, orgRole, router]);
+  }, [isAdmin, loading, router]);
 
-  if (orgRole === null) return null; // loading
+  if (loading) return null;
+  if (!isAdmin) return null;
 
   return (
     <div className="space-y-6" key={activeProject?.id ?? "all"}>
