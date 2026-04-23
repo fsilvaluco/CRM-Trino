@@ -63,8 +63,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  // Cargando sesión: spinner centrado
-  if (loading) {
+  // Cargando sesión inicial sin usuario conocido: spinner centrado
+  if (loading && !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />

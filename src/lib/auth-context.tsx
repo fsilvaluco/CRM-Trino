@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
-import type { User, Session } from "@supabase/supabase-js";
+import type { User, Session, AuthChangeEvent } from "@supabase/supabase-js";
 
 export type OrgRole = "owner" | "admin" | "member";
 
@@ -16,6 +16,10 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+function shouldBlockForAuthEvent(event: AuthChangeEvent) {
+  return event === "INITIAL_SESSION" || event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED";
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -68,8 +72,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setLoading(true);
+      async (event, session) => {
+        if (shouldBlockForAuthEvent(event)) {
+          setLoading(true);
+        }
         try {
           setSession(session);
           const nextUser = session?.user ?? null;
@@ -80,7 +86,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
           setOrgRole(null);
         } finally {
-          setLoading(false);
+          if (shouldBlockForAuthEvent(event)) {
+            setLoading(false);
+          }
         }
       }
     );
