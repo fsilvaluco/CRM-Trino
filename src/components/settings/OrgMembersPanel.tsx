@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -54,6 +55,7 @@ const STATUS_LABELS: Record<Member["status"], string> = {
 };
 
 export function OrgMembersPanel() {
+  const router = useRouter();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -107,6 +109,7 @@ export function OrgMembersPanel() {
 
       setInviteEmail("");
       await loadMembers();
+      router.refresh();
     } finally {
       setInviting(false);
     }
@@ -132,6 +135,7 @@ export function OrgMembersPanel() {
 
       toast.success("Rol actualizado");
       await loadMembers();
+      router.refresh();
     } catch {
       toast.error("Error al cambiar rol");
     } finally {
@@ -160,6 +164,7 @@ export function OrgMembersPanel() {
 
       toast.success("Usuario eliminado");
       await loadMembers();
+      router.refresh();
     } catch {
       toast.error("Error al eliminar usuario");
     } finally {
@@ -167,8 +172,8 @@ export function OrgMembersPanel() {
     }
   };
 
-  const handleEdit = (userId: string) => {
-    console.log("Editar miembro:", userId);
+  const handleManageAccess = (member: Member) => {
+    console.log("Gestionar acceso:", member);
   };
 
   return (
@@ -276,10 +281,10 @@ export function OrgMembersPanel() {
                           variant="outline"
                           size="sm"
                           className="h-8"
-                          onClick={() => handleEdit(m.user_id)}
+                          onClick={() => handleManageAccess(m)}
                         >
                           <Pencil className="h-3.5 w-3.5" />
-                          Editar
+                          Gestionar Acceso
                         </Button>
                         <Button
                           type="button"
