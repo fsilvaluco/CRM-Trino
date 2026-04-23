@@ -178,13 +178,18 @@ export default function FinancesPage() {
 
   const loadTransactions = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams();
-    if (!isAllProjects && activeProjectId) params.set("projectId", activeProjectId);
+    try {
+      const params = new URLSearchParams();
+      if (!isAllProjects && activeProjectId) params.set("projectId", activeProjectId);
 
-    const res = await fetch(`/api/finances?${params}`);
-    const data = await res.json();
-    setTransactions(Array.isArray(data) ? data : []);
-    setLoading(false);
+      const res = await fetch(`/api/finances?${params}`);
+      const data = await res.json();
+      setTransactions(Array.isArray(data) ? data : []);
+    } catch {
+      // Preserva transacciones previas si la carga falla transitoriamente
+    } finally {
+      setLoading(false);
+    }
   }, [activeProjectId, isAllProjects]);
 
   useEffect(() => {

@@ -6,6 +6,7 @@ import { useState } from "react";
 import { ChevronDown, Briefcase } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProject } from "@/lib/project-context";
+import { useAuth } from "@/lib/auth-context";
 import { navConfig, settingsConfig, type NavLeaf, type NavGroup } from "./nav-config";
 
 function isLeafActive(href: string, pathname: string) {
@@ -63,7 +64,9 @@ function GroupNav({ item, pathname }: { item: NavGroup; pathname: string }) {
 
 export function MobileNav() {
   const pathname = usePathname();
-  const { isAdmin } = useProject();
+  useProject(); // mantiene suscripción al contexto de proyecto
+  const { orgRole } = useAuth();
+  const isAdmin = orgRole === "owner" || orgRole === "admin";
 
   return (
     <div className="flex flex-col h-full bg-[var(--sidebar)] text-[var(--sidebar-foreground)]">

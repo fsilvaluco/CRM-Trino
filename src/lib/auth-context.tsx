@@ -123,9 +123,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (shouldBlockForAuthEvent(event)) {
-          setLoading(true);
+        // TOKEN_REFRESHED and other background refresh events only need a silent
+        // session token update. Re-running full user/role resolution for these
+        // events can trigger transient DB errors on tab resume that wipe auth state.
+        if (!shouldBlockForAuthEvent(event)) {
+          if (session) {
+            setSession(session);
+          }
+          return;
         }
+
+        setLoading(true);
         try {
           let nextSession = session;
 
@@ -145,13 +153,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(nextUser);
           await resolveOrgRole(nextUser);
         } catch {
-          setSession(null);
-          setUser(null);
-          applyOrgRole(null);
-        } finally {
-          if (shouldBlockForAuthEvent(event)) {
-            setLoading(false);
+          // Only clear auth state on explicit sign-out. For all other significant
+          // events, preserve existing state — the next event will correct it.
+          if (event === "SIGNED_OUT") {
+            setSession(null);
+            setUser(null);
+            applyOrgRole(null);
           }
+        } finally {
+          setLoading(false);
         }
       }
     );
