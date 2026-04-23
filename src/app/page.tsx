@@ -134,6 +134,17 @@ export default function DashboardPage() {
     return () => window.clearTimeout(timerId);
   }, [loadDashboard]);
 
+  // Recargar datos cuando el usuario vuelve a la pestaña/app
+  useEffect(() => {
+    const handleVisible = () => {
+      if (document.visibilityState === "visible") {
+        void loadDashboard();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisible);
+    return () => document.removeEventListener("visibilitychange", handleVisible);
+  }, [loadDashboard]);
+
   const isFirstRun = !loading && stats.totalContacts === 0 && stats.activeDeals === 0;
 
   return (
