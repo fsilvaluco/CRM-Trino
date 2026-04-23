@@ -46,8 +46,9 @@ export async function GET(request: NextRequest) {
 
 
 export async function POST(request: NextRequest) {
-  const { supabase, user, orgId, error } = await requireAuth();
+  const { supabase, user, orgId, isAdmin, error } = await requireAuth();
   if (error) return error;
+  if (!isAdmin) return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
 
   let body: Record<string, unknown>;
   try {

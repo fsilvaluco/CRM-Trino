@@ -4,10 +4,13 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { supabase } from "@/lib/supabase";
 import type { User, Session } from "@supabase/supabase-js";
 
+export type OrgRole = "owner" | "admin" | "member";
+
 interface AuthContextValue {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  orgRole: OrgRole | null;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 }
@@ -18,17 +21,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [orgRole, setOrgRole] = useState<OrgRole | null>(null);
+
+  const resolveOrgRole = async (nextUser: User | null) => {
+    if (!nextUser) {
+      setOrgRole(null);
+      return;
+    }
+
+    const { data: memberRow } = await supabase
+      .from("organization_members")
+      .select("role")
+      .eq("user_id", nextUser.id)
+      .limit(1)
+      .maybeSingle();
+
+    const nextRole = memberRow?.role;
+    if (nextRole === "owner" || nextRole === "admin" || nextRole === "member") {
+      setOrgRole(nextRole);
+      return;
+    }
+    setOrgRole(null);
+  };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      setLoading(true);
+      const nextUser = session?.user ?? null;
       setSession(session);
-      setUser(session?.user ?? null);
+      setUser(nextUser);
+      await resolveOrgRole(nextUser);
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setLoading(true);
       setSession(session);
-      setUser(session?.user ?? null);
+      const nextUser = session?.user ?? null;
+      setUser(nextUser);
+      await resolveOrgRole(nextUser);
       setLoading(false);
     });
 
@@ -43,10 +74,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    setOrgRole(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, orgRole, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );

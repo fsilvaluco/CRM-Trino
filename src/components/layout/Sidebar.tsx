@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { ChevronDown, ChevronRight, ChevronLeft, Briefcase } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useProject } from "@/lib/project-context";
+import { useAuth } from "@/lib/auth-context";
 import { navConfig, settingsConfig, type NavLeaf, type NavGroup } from "./nav-config";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -141,7 +141,12 @@ function GroupNav({
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
-  const { isAdmin } = useProject();
+  const { orgRole, loading } = useAuth();
+  const isAdmin = orgRole === "owner" || orgRole === "admin";
+
+  if (loading) {
+    return null;
+  }
 
   return (
     <aside

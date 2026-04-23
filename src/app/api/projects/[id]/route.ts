@@ -6,8 +6,12 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
+
+  if (allowedProjectIds !== null && !allowedProjectIds.includes(id)) {
+    return NextResponse.json({ error: "Proyecto no encontrado" }, { status: 404 });
+  }
 
   const { data: project, error: projErr } = await supabase
     .from("projects")
@@ -45,8 +49,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, isAdmin, error } = await requireAuth();
   if (error) return error;
+  if (!isAdmin) return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
 
   let body: Record<string, unknown>;
   try {
@@ -89,13 +94,21 @@ export async function PUT(
   });
 }
 
+export async function PATCH(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  return PUT(request, context);
+}
+
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, isAdmin, error } = await requireAuth();
   if (error) return error;
+  if (!isAdmin) return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
 
   const { data: existing, error: findErr } = await supabase
     .from("projects").select("id").eq("id", id).single();

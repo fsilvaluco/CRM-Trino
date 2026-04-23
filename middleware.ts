@@ -10,6 +10,8 @@ const PUBLIC_PATHS = new Set([
   "/sin-acceso",
 ]);
 
+const ADMIN_ONLY_PREFIXES = ["/settings/team", "/settings/project", "/settings/org"];
+
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next({ request });
 
@@ -55,6 +57,26 @@ export async function middleware(request: NextRequest) {
       const hasPending = (memberships ?? []).some((m) => m.status === "pending");
       if (hasPending) {
         return NextResponse.redirect(new URL("/auth/activate", request.url));
+      }
+
+      const needsAdmin = ADMIN_ONLY_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+      if (needsAdmin) {
+        const { data: roleRows, error: roleError } = await supabase
+          .from("organization_members")
+          .select("role")
+          .eq("user_id", user.id)
+          .in("role", ["owner", "admin"])
+          .limit(1);
+
+        if (roleError) {
+          console.error("[middleware] role check failed", roleError.message);
+          return NextResponse.redirect(new URL("/sin-acceso", request.url));
+        }
+
+        const isAdmin = (roleRows?.length ?? 0) > 0;
+        if (!isAdmin) {
+          return NextResponse.redirect(new URL("/sin-acceso", request.url));
+        }
       }
     }
   }
