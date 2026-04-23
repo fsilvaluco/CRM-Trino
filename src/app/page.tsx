@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { useProject } from "@/lib/project-context";
 import { useAuth } from "@/lib/auth-context";
@@ -31,10 +31,13 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>(defaultStats);
   const [pipelineData, setPipelineData] = useState<StageData[]>([]);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const loadingRef = useRef(false);
 
   const loadDashboard = useCallback(async () => {
     if (!userId) return;
+    if (loadingRef.current) return; // evita ejecuciones concurrentes
+    loadingRef.current = true;
     setLoading(true);
 
     try {
@@ -122,6 +125,7 @@ export default function DashboardPage() {
       }
       // Keep previous dashboard snapshot; this can fail transiently on tab resume.
     } finally {
+      loadingRef.current = false;
       setLoading(false);
     }
   }, [activeProjectId, isAllProjects, userId]);

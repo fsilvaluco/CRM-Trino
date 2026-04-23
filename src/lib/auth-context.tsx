@@ -17,6 +17,21 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 const TRANSIENT_ROLE_PRESERVE_MS = 10000;
+const ORG_ROLE_KEY = "crm_org_role";
+const ORG_ROLE_AT_KEY = "crm_org_role_at";
+const ORG_ROLE_MAX_AGE_MS = 8 * 60 * 60 * 1000; // 8 horas
+
+function readStoredOrgRole(): OrgRole | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = localStorage.getItem(ORG_ROLE_KEY);
+    const storedAt = localStorage.getItem(ORG_ROLE_AT_KEY);
+    if (!stored || !storedAt) return null;
+    if (Date.now() - parseInt(storedAt, 10) > ORG_ROLE_MAX_AGE_MS) return null;
+    if (stored === "owner" || stored === "admin" || stored === "member") return stored;
+  } catch { /* ignore */ }
+  return null;
+}
 
 function shouldBlockForAuthEvent(event: AuthChangeEvent) {
   return event === "INITIAL_SESSION" || event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED";
@@ -26,14 +41,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [orgRole, setOrgRole] = useState<OrgRole | null>(null);
-  const orgRoleRef = useRef<OrgRole | null>(null);
-  const orgRoleUpdatedAtRef = useRef<number>(0);
+  const [orgRole, setOrgRole] = useState<OrgRole | null>(() => readStoredOrgRole());
+  const orgRoleRef = useRef<OrgRole | null>(readStoredOrgRole());
+  const orgRoleUpdatedAtRef = useRef<number>(
+    typeof window !== "undefined"
+      ? (() => { try { return parseInt(localStorage.getItem(ORG_ROLE_AT_KEY) ?? "0", 10); } catch { return 0; } })()
+      : 0
+  );
 
   const applyOrgRole = (nextRole: OrgRole | null) => {
     setOrgRole(nextRole);
     orgRoleRef.current = nextRole;
     orgRoleUpdatedAtRef.current = Date.now();
+    if (typeof window !== "undefined") {
+      try {
+        if (nextRole) {
+          localStorage.setItem(ORG_ROLE_KEY, nextRole);
+          localStorage.setItem(ORG_ROLE_AT_KEY, String(Date.now()));
+        } else {
+          localStorage.removeItem(ORG_ROLE_KEY);
+          localStorage.removeItem(ORG_ROLE_AT_KEY);
+        }
+      } catch { /* ignore */ }
+    }
   };
 
   const shouldPreserveRoleOnError = () => {
