@@ -26,11 +26,30 @@ interface ProjectContextValue {
 const ProjectContext = createContext<ProjectContextValue | null>(null);
 
 const STORAGE_KEY = "crm_active_project";
+const STORAGE_PROJECTS_KEY = "crm_projects_cache";
+
+function readStoredProjects(): ProjectOption[] {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const stored = localStorage.getItem(STORAGE_PROJECTS_KEY);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    return Array.isArray(parsed)
+      ? parsed.filter(
+          (item): item is ProjectOption =>
+            Boolean(item) && typeof item.id === "string" && typeof item.name === "string"
+        )
+      : [];
+  } catch {
+    return [];
+  }
+}
 
 export function ProjectProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
   const userId = user?.id ?? null;
-  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [projects, setProjects] = useState<ProjectOption[]>(() => readStoredProjects());
   const [activeProject, setActiveProjectState] = useState<ProjectOption | null>(() => {
     if (typeof window === "undefined") {
       return null;
@@ -54,6 +73,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       if (typeof window !== "undefined") {
         localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(STORAGE_PROJECTS_KEY);
       }
       return;
     }
@@ -62,16 +82,18 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
     try {
       // 1. Verificar rol del usuario en la organización
-      const { data: memberRow } = await supabase
+      const { data: memberRow, error: memberError } = await supabase
         .from("organization_members")
         .select("role, organization_id")
         .eq("user_id", userId)
-        .single();
+        .maybeSingle();
+
+      if (memberError) {
+        throw memberError;
+      }
 
       if (!memberRow) {
-        setProjects([]);
-        setOrgRole(null);
-        setActiveProjectState(null);
+        setLoading(false);
         return;
       }
 
@@ -83,35 +105,57 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
       if (isAdmin) {
         // Owner/admin: ve todos los proyectos de la organización
-        const { data } = await supabase
+        const { data, error: projectsError } = await supabase
           .from("projects")
           .select("id, name")
           .eq("organization_id", memberRow.organization_id)
           .order("created_at", { ascending: false });
+
+        if (projectsError) {
+          throw projectsError;
+        }
+
         list = (data ?? []).map((p: { id: string; name: string }) => ({ id: p.id, name: p.name }));
       } else {
         // Member: solo los proyectos asignados en project_members
-        const { data: memberships } = await supabase
+        const { data: memberships, error: membershipsError } = await supabase
           .from("project_members")
           .select("project_id")
           .eq("user_id", userId)
           .eq("organization_id", memberRow.organization_id);
 
+        if (membershipsError) {
+          throw membershipsError;
+        }
+
         const projectIds = (memberships ?? []).map((m: { project_id: string }) => m.project_id);
         if (projectIds.length === 0) {
           setProjects([]);
+          if (typeof window !== "undefined") {
+            localStorage.setItem(STORAGE_PROJECTS_KEY, JSON.stringify([]));
+            localStorage.removeItem(STORAGE_KEY);
+          }
+          setActiveProjectState(null);
           return;
         }
 
-        const { data } = await supabase
+        const { data, error: projectsError } = await supabase
           .from("projects")
           .select("id, name")
           .in("id", projectIds)
           .order("created_at", { ascending: false });
+
+        if (projectsError) {
+          throw projectsError;
+        }
+
         list = (data ?? []).map((p: { id: string; name: string }) => ({ id: p.id, name: p.name }));
       }
 
       setProjects(list);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(STORAGE_PROJECTS_KEY, JSON.stringify(list));
+      }
 
       setActiveProjectState((prev) => {
         if (!prev) {
@@ -131,9 +175,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         return null;
       });
     } catch {
-      setProjects([]);
-      setOrgRole(null);
-      setActiveProjectState(null);
+      // Preserve last known good state when the browser resumes from background
+      // and one of the project queries fails transiently.
     } finally {
       setLoading(false);
     }
