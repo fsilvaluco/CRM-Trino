@@ -77,8 +77,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setLoading(true);
         }
         try {
-          setSession(session);
-          const nextUser = session?.user ?? null;
+          let nextSession = session;
+
+          // In some resume/focus cycles Supabase may emit a transient null session.
+          // Recheck before clearing user-related state unless this is an actual sign-out.
+          if (!nextSession && event !== "SIGNED_OUT") {
+            const { data } = await supabase.auth.getSession();
+            nextSession = data.session;
+          }
+
+          if (!nextSession && event !== "SIGNED_OUT") {
+            return;
+          }
+
+          setSession(nextSession);
+          const nextUser = nextSession?.user ?? null;
           setUser(nextUser);
           await resolveOrgRole(nextUser);
         } catch {

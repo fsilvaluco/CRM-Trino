@@ -141,12 +141,8 @@ function GroupNav({
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
-  const { orgRole, loading } = useAuth();
+  const { orgRole } = useAuth();
   const isAdmin = orgRole === "owner" || orgRole === "admin";
-
-  if (loading) {
-    return null;
-  }
 
   return (
     <aside
