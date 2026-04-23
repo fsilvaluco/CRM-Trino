@@ -116,7 +116,10 @@ export default function DashboardPage() {
         contactName: a.contacts?.name ?? null,
         createdAt: a.created_at,
       })));
-    } catch {
+    } catch (error) {
+      if (process.env.NODE_ENV === "development") {
+        console.error("[Dashboard] Failed to load data", error);
+      }
       // Keep previous dashboard snapshot; this can fail transiently on tab resume.
     } finally {
       setLoading(false);

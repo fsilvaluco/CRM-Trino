@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import type { User, Session, AuthChangeEvent } from "@supabase/supabase-js";
 
@@ -16,6 +16,7 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+const TRANSIENT_ROLE_PRESERVE_MS = 10000;
 
 function shouldBlockForAuthEvent(event: AuthChangeEvent) {
   return event === "INITIAL_SESSION" || event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED";
@@ -26,37 +27,77 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [orgRole, setOrgRole] = useState<OrgRole | null>(null);
+  const orgRoleRef = useRef<OrgRole | null>(null);
+  const orgRoleUpdatedAtRef = useRef<number>(0);
+
+  const applyOrgRole = (nextRole: OrgRole | null) => {
+    setOrgRole(nextRole);
+    orgRoleRef.current = nextRole;
+    orgRoleUpdatedAtRef.current = Date.now();
+  };
+
+  const shouldPreserveRoleOnError = () => {
+    const hasPreviousRole = orgRoleRef.current !== null;
+    const roleAgeMs = Date.now() - orgRoleUpdatedAtRef.current;
+    return hasPreviousRole && roleAgeMs <= TRANSIENT_ROLE_PRESERVE_MS;
+  };
 
   const resolveOrgRole = async (nextUser: User | null) => {
     if (!nextUser) {
-      setOrgRole(null);
+      applyOrgRole(null);
       return;
     }
 
     try {
-      const { data: memberRow, error } = await supabase
-        .from("organization_members")
-        .select("role")
-        .eq("user_id", nextUser.id)
-        .limit(1)
-        .maybeSingle();
+      const fetchMemberRow = async () =>
+        supabase
+          .from("organization_members")
+          .select("role")
+          .eq("user_id", nextUser.id)
+          .limit(1)
+          .maybeSingle();
 
-      // Preserve previous role on transient query errors (e.g. tab resume/network hiccup).
+      let { data: memberRow, error } = await fetchMemberRow();
+
       if (error) {
+        if (shouldPreserveRoleOnError()) {
+          return;
+        }
+        applyOrgRole(null);
         return;
       }
 
-      const nextRole = memberRow?.role;
-      if (nextRole === "owner" || nextRole === "admin" || nextRole === "member") {
-        setOrgRole(nextRole);
-        return;
-      }
-      // If the row is temporarily unavailable (resume/focus race), keep last role.
+      // Retry once when no row is found to avoid transient empty results on resume.
       if (!memberRow) {
+        const retryResult = await fetchMemberRow();
+        memberRow = retryResult.data;
+        error = retryResult.error;
+      }
+
+      if (error) {
+        if (shouldPreserveRoleOnError()) {
+          return;
+        }
+        applyOrgRole(null);
         return;
       }
-      setOrgRole(null);
-    } catch {
+
+      if (!memberRow) {
+        // Confirmed no membership: revoke cached role immediately.
+        applyOrgRole(null);
+        return;
+      }
+
+      const nextRole = memberRow.role;
+      if (nextRole === "owner" || nextRole === "admin" || nextRole === "member") {
+        applyOrgRole(nextRole);
+        return;
+      }
+      applyOrgRole(null);
+    } catch (error) {
+      if (process.env.NODE_ENV === "development") {
+        console.error("[Auth] Failed to resolve org role", error);
+      }
       // Keep last known role if we cannot resolve this cycle.
     }
   };
@@ -74,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .catch(() => {
         setSession(null);
         setUser(null);
-        setOrgRole(null);
+        applyOrgRole(null);
       })
       .finally(() => {
         setLoading(false);
@@ -106,7 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch {
           setSession(null);
           setUser(null);
-          setOrgRole(null);
+          applyOrgRole(null);
         } finally {
           if (shouldBlockForAuthEvent(event)) {
             setLoading(false);
@@ -126,7 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
-    setOrgRole(null);
+    applyOrgRole(null);
   };
 
   return (
