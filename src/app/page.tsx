@@ -145,6 +145,17 @@ export default function DashboardPage() {
     return () => document.removeEventListener("visibilitychange", handleVisible);
   }, [loadDashboard]);
 
+  // Recargar cuando Supabase renueva el token (visibilitychange puede dispararse
+  // ANTES de que el token se haya renovado, causando auth errors silenciosos)
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "TOKEN_REFRESHED") {
+        void loadDashboard();
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [loadDashboard]);
+
   const isFirstRun = !loading && stats.totalContacts === 0 && stats.activeDeals === 0;
 
   return (
