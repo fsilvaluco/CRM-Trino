@@ -10,15 +10,16 @@ import { useAuth } from "@/lib/auth-context";
 export default function TeamSettingsPage() {
   const router = useRouter();
   const { orgRole, loading } = useAuth();
+  const roleResolved = orgRole !== null;
   const isAdmin = orgRole === "owner" || orgRole === "admin";
 
   useEffect(() => {
-    if (!loading && !isAdmin) {
+    if (!loading && roleResolved && !isAdmin) {
       router.replace("/sin-acceso");
     }
-  }, [isAdmin, loading, router]);
+  }, [isAdmin, loading, roleResolved, router]);
 
-  if (loading) return null;
+  if (loading || !roleResolved) return null;
   if (!isAdmin) return null;
 
   return (

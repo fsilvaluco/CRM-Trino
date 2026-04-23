@@ -34,12 +34,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const { data: memberRow } = await supabase
+      const { data: memberRow, error } = await supabase
         .from("organization_members")
         .select("role")
         .eq("user_id", nextUser.id)
         .limit(1)
         .maybeSingle();
+
+      // Preserve previous role on transient query errors (e.g. tab resume/network hiccup).
+      if (error) {
+        return;
+      }
 
       const nextRole = memberRow?.role;
       if (nextRole === "owner" || nextRole === "admin" || nextRole === "member") {
@@ -48,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setOrgRole(null);
     } catch {
-      setOrgRole(null);
+      // Keep last known role if we cannot resolve this cycle.
     }
   };
 
