@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from("project_members")
-    .select("id, user_id, project_id, created_at, profiles ( full_name, email, avatar_url )")
+    .select("id, user_id, project_id, created_at")
     .eq("organization_id", orgId);
 
   if (projectId) {
@@ -22,7 +22,31 @@ export async function GET(request: NextRequest) {
   const { data, error: dbError } = await query;
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
 
-  return NextResponse.json(data ?? []);
+  const rows = data ?? [];
+  const userIds = [...new Set(rows.map((row) => row.user_id))];
+  if (userIds.length === 0) return NextResponse.json([]);
+
+  const { data: profiles, error: profilesError } = await supabase
+    .from("profiles")
+    .select("id, full_name, email, avatar_url")
+    .in("id", userIds);
+
+  if (profilesError) return NextResponse.json({ error: profilesError.message }, { status: 500 });
+
+  const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
+
+  return NextResponse.json(
+    rows.map((row) => ({
+      ...row,
+      profiles: profileMap.get(row.user_id)
+        ? {
+            full_name: profileMap.get(row.user_id)?.full_name ?? null,
+            email: profileMap.get(row.user_id)?.email ?? null,
+            avatar_url: profileMap.get(row.user_id)?.avatar_url ?? null,
+          }
+        : null,
+    }))
+  );
 }
 
 export async function POST(request: NextRequest) {

@@ -20,6 +20,7 @@ interface ProjectContextValue {
   isAllProjects: boolean;
   isAdmin: boolean;
   orgRole: OrgRole | null;
+  loading: boolean;
 }
 
 const ProjectContext = createContext<ProjectContextValue | null>(null);
@@ -43,74 +44,99 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
   });
   const [orgRole, setOrgRole] = useState<OrgRole | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const reloadProjects = useCallback(async () => {
-    if (!userId) return;
+    if (!userId) {
+      setProjects([]);
+      setOrgRole(null);
+      setActiveProjectState(null);
+      setLoading(false);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+      return;
+    }
 
-    // 1. Verificar rol del usuario en la organización
-    const { data: memberRow } = await supabase
-      .from("organization_members")
-      .select("role, organization_id")
-      .eq("user_id", userId)
-      .single();
+    setLoading(true);
 
-    if (!memberRow) return;
-
-    const role = memberRow.role as OrgRole;
-    setOrgRole(role);
-    const isAdmin = role === "owner" || role === "admin";
-
-    let list: ProjectOption[] = [];
-
-    if (isAdmin) {
-      // Owner/admin: ve todos los proyectos de la organización
-      const { data } = await supabase
-        .from("projects")
-        .select("id, name")
-        .eq("organization_id", memberRow.organization_id)
-        .order("created_at", { ascending: false });
-      list = (data ?? []).map((p: { id: string; name: string }) => ({ id: p.id, name: p.name }));
-    } else {
-      // Member: solo los proyectos asignados en project_members
-      const { data: memberships } = await supabase
-        .from("project_members")
-        .select("project_id")
+    try {
+      // 1. Verificar rol del usuario en la organización
+      const { data: memberRow } = await supabase
+        .from("organization_members")
+        .select("role, organization_id")
         .eq("user_id", userId)
-        .eq("organization_id", memberRow.organization_id);
+        .single();
 
-      const projectIds = (memberships ?? []).map((m: { project_id: string }) => m.project_id);
-      if (projectIds.length === 0) {
+      if (!memberRow) {
         setProjects([]);
+        setOrgRole(null);
+        setActiveProjectState(null);
         return;
       }
 
-      const { data } = await supabase
-        .from("projects")
-        .select("id, name")
-        .in("id", projectIds)
-        .order("created_at", { ascending: false });
-      list = (data ?? []).map((p: { id: string; name: string }) => ({ id: p.id, name: p.name }));
-    }
+      const role = memberRow.role as OrgRole;
+      setOrgRole(role);
+      const isAdmin = role === "owner" || role === "admin";
 
-    setProjects(list);
+      let list: ProjectOption[] = [];
 
-    setActiveProjectState((prev) => {
-      if (!prev) {
-        if (list.length === 1) {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(list[0]));
-          return list[0];
+      if (isAdmin) {
+        // Owner/admin: ve todos los proyectos de la organización
+        const { data } = await supabase
+          .from("projects")
+          .select("id, name")
+          .eq("organization_id", memberRow.organization_id)
+          .order("created_at", { ascending: false });
+        list = (data ?? []).map((p: { id: string; name: string }) => ({ id: p.id, name: p.name }));
+      } else {
+        // Member: solo los proyectos asignados en project_members
+        const { data: memberships } = await supabase
+          .from("project_members")
+          .select("project_id")
+          .eq("user_id", userId)
+          .eq("organization_id", memberRow.organization_id);
+
+        const projectIds = (memberships ?? []).map((m: { project_id: string }) => m.project_id);
+        if (projectIds.length === 0) {
+          setProjects([]);
+          return;
         }
-        return prev;
+
+        const { data } = await supabase
+          .from("projects")
+          .select("id, name")
+          .in("id", projectIds)
+          .order("created_at", { ascending: false });
+        list = (data ?? []).map((p: { id: string; name: string }) => ({ id: p.id, name: p.name }));
       }
 
-      const stillExists = list.some((project) => project.id === prev.id);
-      if (stillExists) {
-        return prev;
-      }
+      setProjects(list);
 
-      localStorage.removeItem(STORAGE_KEY);
-      return null;
-    });
+      setActiveProjectState((prev) => {
+        if (!prev) {
+          if (list.length === 1) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(list[0]));
+            return list[0];
+          }
+          return prev;
+        }
+
+        const stillExists = list.some((project) => project.id === prev.id);
+        if (stillExists) {
+          return prev;
+        }
+
+        localStorage.removeItem(STORAGE_KEY);
+        return null;
+      });
+    } catch {
+      setProjects([]);
+      setOrgRole(null);
+      setActiveProjectState(null);
+    } finally {
+      setLoading(false);
+    }
   }, [userId]);
 
   // Cargar proyectos solo cuando el usuario esté autenticado
@@ -118,6 +144,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     if (authLoading) return;
 
     if (userId) {
+      setLoading(true);
       const timerId = window.setTimeout(() => {
         void reloadProjects();
       }, 0);
@@ -128,6 +155,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       setProjects([]);
       setOrgRole(null);
       setActiveProjectState(null);
+      setLoading(false);
       localStorage.removeItem(STORAGE_KEY);
     }, 0);
 
@@ -155,8 +183,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       isAllProjects: activeProject === null,
       isAdmin,
       orgRole,
+      loading,
     }),
-    [activeProject, isAdmin, orgRole, projects, reloadProjects, setActiveProject]
+    [activeProject, isAdmin, loading, orgRole, projects, reloadProjects, setActiveProject]
   );
 
   return (

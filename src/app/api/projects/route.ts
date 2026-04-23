@@ -13,7 +13,7 @@ function mapProject(row: any) {
     notes: row.notes ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    companyName: row.companies?.name ?? null,
+    companyName: row.project_company?.name ?? row.companies?.name ?? null,
   };
 }
 
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from("projects")
-    .select("*, companies ( name )")
+    .select("*, project_company:companies!projects_company_id_fkey(name)")
     .order("created_at", { ascending: false });
 
   if (companyId) query = query.eq("company_id", companyId);
