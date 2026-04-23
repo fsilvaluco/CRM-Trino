@@ -14,6 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { MemberAccessSheet } from "@/components/settings/MemberAccessSheet";
 import {
   Table,
   TableBody,
@@ -37,12 +38,6 @@ const ROLE_LABELS: Record<string, string> = {
   member: "Miembro",
 };
 
-const ROLE_COLORS: Record<string, "default" | "secondary" | "outline"> = {
-  owner: "default",
-  admin: "secondary",
-  member: "outline",
-};
-
 const ROLE_BADGE_CLASSNAMES: Record<string, string> = {
   owner: "bg-violet-500/15 text-violet-300 border-violet-500/40",
   admin: "bg-blue-500/15 text-blue-300 border-blue-500/40",
@@ -61,8 +56,9 @@ export function OrgMembersPanel() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("member");
   const [inviting, setInviting] = useState(false);
-  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const [accessSheetOpen, setAccessSheetOpen] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
 
   const loadMembers = useCallback(async () => {
     setLoading(true);
@@ -115,34 +111,6 @@ export function OrgMembersPanel() {
     }
   };
 
-  const handleRoleChange = async (userId: string, role: string) => {
-    setUpdatingUserId(userId);
-    try {
-      const res = await fetch("/api/org-members", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, role }),
-      });
-
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        toast.error(
-          "Error al cambiar rol: " +
-            ((data && typeof data.error === "string" && data.error) || res.statusText)
-        );
-        return;
-      }
-
-      toast.success("Rol actualizado");
-      await loadMembers();
-      router.refresh();
-    } catch {
-      toast.error("Error al cambiar rol");
-    } finally {
-      setUpdatingUserId(null);
-    }
-  };
-
   const handleRemove = async (userId: string, name: string) => {
     if (!confirm(`¿Eliminar a ${name} de la organización?`)) return;
     setDeletingUserId(userId);
@@ -173,7 +141,8 @@ export function OrgMembersPanel() {
   };
 
   const handleManageAccess = (member: Member) => {
-    console.log("Gestionar acceso:", member);
+    setSelectedMember(member);
+    setAccessSheetOpen(true);
   };
 
   return (
@@ -202,7 +171,6 @@ export function OrgMembersPanel() {
                 const initials = (m.profiles?.full_name ?? m.profiles?.email ?? "?")
                   .slice(0, 2)
                   .toUpperCase();
-                const isRowUpdating = updatingUserId === m.user_id;
                 const isRowDeleting = deletingUserId === m.user_id;
 
                 return (
@@ -220,47 +188,12 @@ export function OrgMembersPanel() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {m.role === "owner" ? (
-                        <Badge
-                          variant="outline"
-                          className={ROLE_BADGE_CLASSNAMES[m.role] ?? ROLE_BADGE_CLASSNAMES.member}
-                        >
-                          {ROLE_LABELS[m.role] ?? m.role}
-                        </Badge>
-                      ) : (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger
-                            disabled={isRowUpdating || isRowDeleting}
-                            className="flex items-center gap-1 h-8 px-2 rounded border border-input bg-background text-xs hover:bg-accent cursor-pointer disabled:opacity-60"
-                          >
-                            <Badge
-                              variant={ROLE_COLORS[m.role] ?? "outline"}
-                              className={
-                                "text-xs px-1.5 py-0 border " +
-                                (ROLE_BADGE_CLASSNAMES[m.role] ?? ROLE_BADGE_CLASSNAMES.member)
-                              }
-                            >
-                              {ROLE_LABELS[m.role] ?? m.role}
-                            </Badge>
-                            {isRowUpdating ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <ChevronDown className="h-3 w-3" />
-                            )}
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start">
-                            {["admin", "member"].map((r) => (
-                              <DropdownMenuItem
-                                key={r}
-                                className={m.role === r ? "font-medium" : ""}
-                                onClick={() => handleRoleChange(m.user_id, r)}
-                              >
-                                {ROLE_LABELS[r]}
-                              </DropdownMenuItem>
-                            ))}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
+                      <Badge
+                        variant="outline"
+                        className={ROLE_BADGE_CLASSNAMES[m.role] ?? ROLE_BADGE_CLASSNAMES.member}
+                      >
+                        {ROLE_LABELS[m.role] ?? m.role}
+                      </Badge>
                     </TableCell>
                     <TableCell>
                       <Badge
@@ -291,7 +224,7 @@ export function OrgMembersPanel() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          disabled={m.role === "owner" || isRowDeleting || isRowUpdating}
+                          disabled={m.role === "owner" || isRowDeleting}
                           onClick={() => handleRemove(m.user_id, name)}
                         >
                           {isRowDeleting ? (
@@ -344,6 +277,19 @@ export function OrgMembersPanel() {
           El usuario recibirá un email con un enlace para acceder al CRM.
         </p>
       </div>
+
+      <MemberAccessSheet
+        open={accessSheetOpen}
+        member={selectedMember}
+        onClose={() => {
+          setAccessSheetOpen(false);
+          setSelectedMember(null);
+        }}
+        onSaved={async () => {
+          await loadMembers();
+          router.refresh();
+        }}
+      />
     </div>
   );
 }
