@@ -51,6 +51,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setOrgRole(nextRole);
         return;
       }
+      // If the row is temporarily unavailable (resume/focus race), keep last role.
+      if (!memberRow) {
+        return;
+      }
       setOrgRole(null);
     } catch {
       // Keep last known role if we cannot resolve this cycle.

@@ -37,84 +37,90 @@ export default function DashboardPage() {
     if (!userId) return;
     setLoading(true);
 
-    // Obtener org_id del usuario
-    const { data: memberRow } = await supabase
-      .from("organization_members")
-      .select("organization_id")
-      .eq("user_id", userId)
-      .single();
+    try {
+      // Obtener org_id del usuario
+      const { data: memberRow } = await supabase
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", userId)
+        .single();
 
-    const orgId = memberRow?.organization_id;
-    if (!orgId) { setLoading(false); return; }
+      const orgId = memberRow?.organization_id;
+      if (!orgId) {
+        return;
+      }
 
-    const projectFilter = !isAllProjects && activeProjectId ? activeProjectId : null;
+      const projectFilter = !isAllProjects && activeProjectId ? activeProjectId : null;
 
-    // Queries en paralelo
-    let contactsQ = supabase.from("contacts").select("id, temperature").eq("organization_id", orgId).is("deleted_at", null);
-    let dealsQ = supabase.from("deals").select("id, value, stage_id").eq("organization_id", orgId).is("deleted_at", null);
-    let activitiesQ = supabase.from("activities").select("id, type, description, created_at, contacts ( name )").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(5);
+      // Queries en paralelo
+      let contactsQ = supabase.from("contacts").select("id, temperature").eq("organization_id", orgId).is("deleted_at", null);
+      let dealsQ = supabase.from("deals").select("id, value, stage_id").eq("organization_id", orgId).is("deleted_at", null);
+      let activitiesQ = supabase.from("activities").select("id, type, description, created_at, contacts ( name )").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(5);
 
-    if (projectFilter) {
-      contactsQ = contactsQ.eq("project_id", projectFilter);
-      dealsQ = dealsQ.eq("project_id", projectFilter);
-      activitiesQ = activitiesQ.eq("project_id", projectFilter);
+      if (projectFilter) {
+        contactsQ = contactsQ.eq("project_id", projectFilter);
+        dealsQ = dealsQ.eq("project_id", projectFilter);
+        activitiesQ = activitiesQ.eq("project_id", projectFilter);
+      }
+
+      const [
+        { data: allContacts },
+        { data: allDeals },
+        { data: stages },
+        { data: recentActivities },
+      ] = await Promise.all([
+        contactsQ,
+        dealsQ,
+        supabase.from("pipeline_stages").select("id, name, color, is_won, is_lost").eq("organization_id", orgId).order("order"),
+        activitiesQ,
+      ]);
+
+      const contacts = allContacts ?? [];
+      const deals = allDeals ?? [];
+      const pipelineStages = stages ?? [];
+
+      const activeDeals = deals.filter((d) => {
+        const stage = pipelineStages.find((s) => s.id === d.stage_id);
+        return stage && !stage.is_won && !stage.is_lost;
+      });
+      const wonDeals = deals.filter((d) => {
+        const stage = pipelineStages.find((s) => s.id === d.stage_id);
+        return stage?.is_won;
+      });
+
+      setStats({
+        totalContacts: contacts.length,
+        activeDeals: activeDeals.length,
+        totalPipelineValue: activeDeals.reduce((sum, d) => sum + d.value, 0),
+        wonDealsValue: wonDeals.reduce((sum, d) => sum + d.value, 0),
+        conversionRate: deals.length > 0 ? Math.round((wonDeals.length / deals.length) * 100) : 0,
+        hotLeads: contacts.filter((c) => c.temperature === "hot").length,
+      });
+
+      setPipelineData(
+        pipelineStages
+          .filter((s) => !s.is_lost)
+          .map((stage) => ({
+            name: stage.name,
+            count: deals.filter((d) => d.stage_id === stage.id).length,
+            value: deals.filter((d) => d.stage_id === stage.id).reduce((sum, d) => sum + d.value, 0),
+            color: stage.color,
+          }))
+      );
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setActivities((recentActivities ?? []).map((a: any) => ({
+        id: a.id,
+        type: a.type,
+        description: a.description,
+        contactName: a.contacts?.name ?? null,
+        createdAt: a.created_at,
+      })));
+    } catch {
+      // Keep previous dashboard snapshot; this can fail transiently on tab resume.
+    } finally {
+      setLoading(false);
     }
-
-    const [
-      { data: allContacts },
-      { data: allDeals },
-      { data: stages },
-      { data: recentActivities },
-    ] = await Promise.all([
-      contactsQ,
-      dealsQ,
-      supabase.from("pipeline_stages").select("id, name, color, is_won, is_lost").eq("organization_id", orgId).order("order"),
-      activitiesQ,
-    ]);
-
-    const contacts = allContacts ?? [];
-    const deals = allDeals ?? [];
-    const pipelineStages = stages ?? [];
-
-    const activeDeals = deals.filter((d) => {
-      const stage = pipelineStages.find((s) => s.id === d.stage_id);
-      return stage && !stage.is_won && !stage.is_lost;
-    });
-    const wonDeals = deals.filter((d) => {
-      const stage = pipelineStages.find((s) => s.id === d.stage_id);
-      return stage?.is_won;
-    });
-
-    setStats({
-      totalContacts: contacts.length,
-      activeDeals: activeDeals.length,
-      totalPipelineValue: activeDeals.reduce((sum, d) => sum + d.value, 0),
-      wonDealsValue: wonDeals.reduce((sum, d) => sum + d.value, 0),
-      conversionRate: deals.length > 0 ? Math.round((wonDeals.length / deals.length) * 100) : 0,
-      hotLeads: contacts.filter((c) => c.temperature === "hot").length,
-    });
-
-    setPipelineData(
-      pipelineStages
-        .filter((s) => !s.is_lost)
-        .map((stage) => ({
-          name: stage.name,
-          count: deals.filter((d) => d.stage_id === stage.id).length,
-          value: deals.filter((d) => d.stage_id === stage.id).reduce((sum, d) => sum + d.value, 0),
-          color: stage.color,
-        }))
-    );
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    setActivities((recentActivities ?? []).map((a: any) => ({
-      id: a.id,
-      type: a.type,
-      description: a.description,
-      contactName: a.contacts?.name ?? null,
-      createdAt: a.created_at,
-    })));
-
-    setLoading(false);
   }, [activeProjectId, isAllProjects, userId]);
 
   useEffect(() => {
