@@ -1,7 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Briefcase,
@@ -19,7 +17,6 @@ import { PipelineStagesEditor } from "@/components/settings/PipelineStagesEditor
 import { LocaleSettingsPanel } from "@/components/settings/LocaleSettingsPanel";
 import { BusinessSettingsPanel } from "@/components/settings/BusinessSettingsPanel";
 import { useProject } from "@/lib/project-context";
-import { useAuth } from "@/lib/auth-context";
 
 const commands = [
   { name: "/setup", description: "Configurar CRM para tu negocio" },
@@ -31,21 +28,7 @@ const commands = [
 ];
 
 export default function ProjectSettingsPage() {
-  const router = useRouter();
   const { activeProject } = useProject();
-  const { orgRole, loading } = useAuth();
-  const roleResolved = orgRole !== null;
-  const isAdmin = orgRole === "owner" || orgRole === "admin";
-
-  // Redirect non-admins once role is resolved
-  useEffect(() => {
-    if (!loading && roleResolved && !isAdmin) {
-      router.replace("/sin-acceso");
-    }
-  }, [isAdmin, loading, roleResolved, router]);
-
-  if (loading || !roleResolved) return null;
-  if (!isAdmin) return null;
 
   return (
     <div className="space-y-6" key={activeProject?.id ?? "all"}>

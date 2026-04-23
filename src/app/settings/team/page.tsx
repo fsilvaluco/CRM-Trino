@@ -1,27 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users } from "lucide-react";
 import { OrgMembersPanel } from "@/components/settings/OrgMembersPanel";
-import { useAuth } from "@/lib/auth-context";
 
 export default function TeamSettingsPage() {
-  const router = useRouter();
-  const { orgRole, loading } = useAuth();
-  const roleResolved = orgRole !== null;
-  const isAdmin = orgRole === "owner" || orgRole === "admin";
-
-  useEffect(() => {
-    if (!loading && roleResolved && !isAdmin) {
-      router.replace("/sin-acceso");
-    }
-  }, [isAdmin, loading, roleResolved, router]);
-
-  if (loading || !roleResolved) return null;
-  if (!isAdmin) return null;
-
   return (
     <div className="space-y-6">
       <div>
