@@ -14,16 +14,6 @@ import type { DashboardStats } from "@/types";
 interface StageData { name: string; count: number; value: number; color: string; }
 interface ActivityItem { id: string; type: string; description: string; contactName: string | null; createdAt: number | Date; }
 
-// Helper to add timeout to Supabase queries that may hang after tab resume
-function queryWithTimeout<T>(promise: Promise<T>, timeoutMs = 8000): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`Query timeout after ${timeoutMs}ms`)), timeoutMs)
-    ),
-  ]);
-}
-
 const defaultStats: DashboardStats = {
   totalContacts: 0,
   activeDeals: 0,
@@ -61,16 +51,21 @@ export default function DashboardPage() {
     setLoading(true);
 
     try {
-      // Obtener org_id del usuario
+      // Obtener org_id del usuario con timeout de 8s
       console.log('[Dashboard] Fetching organization_id...');
-      const { data: memberRow, error: memberError } = await queryWithTimeout(
-        supabase
-          .from("organization_members")
-          .select("organization_id")
-          .eq("user_id", userId)
-          .single(),
-        8000
+      
+      const orgQuery = supabase
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", userId)
+        .single();
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Query timeout after 8000ms')), 8000)
       );
+
+      const result = await Promise.race([orgQuery, timeoutPromise]);
+      const { data: memberRow, error: memberError } = result as any;
 
       console.log('[Dashboard] Got response:', { hasData: !!memberRow, hasError: !!memberError });
 
