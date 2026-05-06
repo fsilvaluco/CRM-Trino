@@ -43,11 +43,19 @@ export default function DashboardPage() {
 
     try {
       // Obtener org_id del usuario
-      const { data: memberRow } = await supabase
+      console.log('[Dashboard] Fetching organization_id...');
+      const { data: memberRow, error: memberError } = await supabase
         .from("organization_members")
         .select("organization_id")
         .eq("user_id", userId)
         .single();
+
+      console.log('[Dashboard] Got response:', { hasData: !!memberRow, hasError: !!memberError });
+
+      if (memberError) {
+        console.error('[Dashboard] Error fetching orgId:', memberError);
+        return;
+      }
 
       const orgId = memberRow?.organization_id;
       if (!orgId) {
