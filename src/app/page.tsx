@@ -24,7 +24,7 @@ const defaultStats: DashboardStats = {
 };
 
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const { activeProject, isAllProjects } = useProject();
   const userId = user?.id ?? null;
   const activeProjectId = activeProject?.id ?? null;
@@ -124,7 +124,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeProjectId, isAllProjects, userId]);
+  }, [activeProjectId, isAllProjects, userId, session?.access_token]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
@@ -143,17 +143,6 @@ export default function DashboardPage() {
     };
     document.addEventListener("visibilitychange", handleVisible);
     return () => document.removeEventListener("visibilitychange", handleVisible);
-  }, [loadDashboard]);
-
-  // Recargar cuando Supabase renueva el token (visibilitychange puede dispararse
-  // ANTES de que el token se haya renovado, causando auth errors silenciosos)
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "TOKEN_REFRESHED") {
-        void loadDashboard();
-      }
-    });
-    return () => subscription.unsubscribe();
   }, [loadDashboard]);
 
   const isFirstRun = !loading && stats.totalContacts === 0 && stats.activeDeals === 0;
