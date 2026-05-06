@@ -53,7 +53,7 @@ export default function DashboardPage() {
     setLoading(true);
 
     try {
-      // Obtener org_id del usuario con timeout de 15s (aumentado para debugging)
+      // Obtener org_id del usuario con timeout de 8s (reducido con botón manual)
       console.log('[Dashboard] Fetching organization_id...');
       console.log('[Dashboard] Query params:', { userId, hasSupabase: !!supabase });
       
@@ -64,7 +64,7 @@ export default function DashboardPage() {
         .single();
 
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Query timeout after 15000ms')), 15000)
+        setTimeout(() => reject(new Error('Query timeout after 8000ms')), 8000)
       );
 
       const timeoutStart = Date.now();
@@ -102,7 +102,7 @@ export default function DashboardPage() {
         activitiesQ = activitiesQ.eq("project_id", projectFilter);
       }
 
-      // Ejecutar queries en paralelo con timeout
+      // Ejecutar queries en paralelo con timeout (reducido a 5s con botón manual)
       console.log('[Dashboard] Fetching parallel queries...');
       const queriesStart = Date.now();
       
@@ -114,7 +114,7 @@ export default function DashboardPage() {
       ]);
 
       const queriesTimeout = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Parallel queries timeout after 10000ms')), 10000)
+        setTimeout(() => reject(new Error('Parallel queries timeout after 5000ms')), 5000)
       );
 
       const results = await Promise.race([queriesPromise, queriesTimeout]);
@@ -234,18 +234,33 @@ export default function DashboardPage() {
       </div>
 
       {isStale && lastSuccessfulLoad && (
-        <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-3 flex items-start gap-3">
-          <svg className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-4 flex items-start gap-3">
+          <svg className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <div className="flex-1">
-            <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
-              Datos desactualizados
+            <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+              Hay nuevos datos disponibles
             </p>
-            <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-0.5">
-              Mostrando última versión exitosa ({lastSuccessfulLoad.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}). Las queries están tardando más de lo normal.
+            <p className="text-xs text-blue-700 dark:text-blue-300 mt-0.5">
+              Mostrando última versión exitosa ({lastSuccessfulLoad.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}). 
+              Haz clic en "Recargar" para actualizar.
             </p>
           </div>
+          <button
+            onClick={() => {
+              console.log('[Dashboard] Manual reload triggered by user');
+              setIsStale(false);
+              void loadDashboard();
+            }}
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            {loading ? 'Cargando...' : 'Recargar'}
+          </button>
         </div>
       )}
 
