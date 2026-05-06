@@ -34,7 +34,11 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(false);
 
   const loadDashboard = useCallback(async () => {
-    if (!userId) return;
+    console.log('[Dashboard] loadDashboard called', { userId, hasSession: !!session, tokenPreview: session?.access_token?.slice(0, 20) });
+    if (!userId) {
+      console.log('[Dashboard] No userId, aborting');
+      return;
+    }
     setLoading(true);
 
     try {
@@ -47,8 +51,10 @@ export default function DashboardPage() {
 
       const orgId = memberRow?.organization_id;
       if (!orgId) {
+        console.log('[Dashboard] No orgId found');
         return;
       }
+      console.log('[Dashboard] Got orgId:', orgId);
 
       const projectFilter = !isAllProjects && activeProjectId ? activeProjectId : null;
 
@@ -116,10 +122,9 @@ export default function DashboardPage() {
         contactName: a.contacts?.name ?? null,
         createdAt: a.created_at,
       })));
+      console.log('[Dashboard] Data loaded successfully');
     } catch (error) {
-      if (process.env.NODE_ENV === "development") {
-        console.error("[Dashboard] Failed to load data", error);
-      }
+      console.error("[Dashboard] Failed to load data", error);
       // Keep previous dashboard snapshot; this can fail transiently on tab resume.
     } finally {
       setLoading(false);
@@ -137,6 +142,7 @@ export default function DashboardPage() {
   // Recargar datos cuando el usuario vuelve a la pestaña/app
   useEffect(() => {
     const handleVisible = () => {
+      console.log('[Dashboard] visibilitychange event', { state: document.visibilityState });
       if (document.visibilityState === "visible") {
         void loadDashboard();
       }
