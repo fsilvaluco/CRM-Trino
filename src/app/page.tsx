@@ -51,8 +51,9 @@ export default function DashboardPage() {
     setLoading(true);
 
     try {
-      // Obtener org_id del usuario con timeout de 8s
+      // Obtener org_id del usuario con timeout de 15s (aumentado para debugging)
       console.log('[Dashboard] Fetching organization_id...');
+      console.log('[Dashboard] Query params:', { userId, hasSupabase: !!supabase });
       
       const orgQuery = supabase
         .from("organization_members")
@@ -61,16 +62,21 @@ export default function DashboardPage() {
         .single();
 
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Query timeout after 8000ms')), 8000)
+        setTimeout(() => reject(new Error('Query timeout after 15000ms')), 15000)
       );
 
+      const timeoutStart = Date.now();
       const result = await Promise.race([orgQuery, timeoutPromise]);
+      const timeoutEnd = Date.now();
+      console.log('[Dashboard] Query completed in', timeoutEnd - timeoutStart, 'ms');
+      
       const { data: memberRow, error: memberError } = result as any;
 
-      console.log('[Dashboard] Got response:', { hasData: !!memberRow, hasError: !!memberError });
+      console.log('[Dashboard] Got response:', { hasData: !!memberRow, hasError: !!memberError, error: memberError });
 
       if (memberError) {
         console.error('[Dashboard] Error fetching orgId:', memberError);
+        console.error('[Dashboard] Error details:', { code: memberError.code, message: memberError.message, hint: memberError.hint });
         return;
       }
 
@@ -150,6 +156,12 @@ export default function DashboardPage() {
       console.log('[Dashboard] Data loaded successfully');
     } catch (error) {
       console.error("[Dashboard] Failed to load data", error);
+      // Distinguir entre timeout y otros errores
+      if (error instanceof Error && error.message.includes('timeout')) {
+        console.error('[Dashboard] TIMEOUT: Query took longer than 15s - possible Supabase connection issue or RLS policy problem');
+      } else {
+        console.error('[Dashboard] UNEXPECTED ERROR:', error);
+      }
       // Keep previous dashboard snapshot; this can fail transiently on tab resume.
     } finally {
       loadingRef.current = false;
