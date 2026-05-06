@@ -51,10 +51,6 @@ export default function DashboardPage() {
     setLoading(true);
 
     try {
-      // Force Supabase to check connection health after tab resume
-      console.log('[Dashboard] Checking Supabase connection...');
-      await supabase.auth.getSession();
-      console.log('[Dashboard] Connection OK');
       // Obtener org_id del usuario
       console.log('[Dashboard] Fetching organization_id...');
       const { data: memberRow, error: memberError } = await supabase
