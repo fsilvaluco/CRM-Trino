@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { supabase, maybeReinitializeClient } from "@/lib/supabase";
 import { useProject } from "@/lib/project-context";
 import { useAuth } from "@/lib/auth-context";
 
@@ -37,7 +36,7 @@ export default function DashboardPage() {
   const loadingRef = useRef(false);
 
   const loadDashboard = useCallback(async () => {
-    console.log('[Dashboard] loadDashboard called', { userId, hasSession: !!session, tokenPreview: session?.access_token?.slice(0, 20) });
+    console.log('[Dashboard] loadDashboard called', { userId, hasSession: !!session, activeProjectId, isAllProjects });
     if (!userId) {
       console.log('[Dashboard] No userId, aborting');
       return;
@@ -53,141 +52,55 @@ export default function DashboardPage() {
     setLoading(true);
 
     try {
-      // Obtener org_id del usuario con timeout de 8s (reducido con botón manual)
-      console.log('[Dashboard] Fetching organization_id...');
-      console.log('[Dashboard] Query params:', { userId, hasSupabase: !!supabase });
+      console.log('[Dashboard] Fetching from API route...');
+      const startTime = Date.now();
       
-      const orgQuery = supabase
-        .from("organization_members")
-        .select("organization_id")
-        .eq("user_id", userId)
-        .single();
+      // Build query params
+      const params = new URLSearchParams();
+      if (activeProjectId && !isAllProjects) {
+        params.set('projectId', activeProjectId);
+      }
+      params.set('isAllProjects', isAllProjects.toString());
 
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Query timeout after 8000ms')), 8000)
-      );
-
-      const timeoutStart = Date.now();
-      const result = await Promise.race([orgQuery, timeoutPromise]);
-      const timeoutEnd = Date.now();
-      console.log('[Dashboard] Query completed in', timeoutEnd - timeoutStart, 'ms');
+      const url = `/api/dashboard?${params.toString()}`;
       
-      const { data: memberRow, error: memberError } = result as any;
-
-      console.log('[Dashboard] Got response:', { hasData: !!memberRow, hasError: !!memberError, error: memberError });
-
-      if (memberError) {
-        console.error('[Dashboard] Error fetching orgId:', memberError);
-        console.error('[Dashboard] Error details:', { code: memberError.code, message: memberError.message, hint: memberError.hint });
-        return;
-      }
-
-      const orgId = memberRow?.organization_id;
-      if (!orgId) {
-        console.log('[Dashboard] No orgId found');
-        return;
-      }
-      console.log('[Dashboard] Got orgId:', orgId);
-
-      const projectFilter = !isAllProjects && activeProjectId ? activeProjectId : null;
-
-      // Queries en paralelo
-      let contactsQ = supabase.from("contacts").select("id, temperature").eq("organization_id", orgId).is("deleted_at", null);
-      let dealsQ = supabase.from("deals").select("id, value, stage_id").eq("organization_id", orgId).is("deleted_at", null);
-      let activitiesQ = supabase.from("activities").select("id, type, description, created_at, contacts ( name )").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(5);
-
-      if (projectFilter) {
-        contactsQ = contactsQ.eq("project_id", projectFilter);
-        dealsQ = dealsQ.eq("project_id", projectFilter);
-        activitiesQ = activitiesQ.eq("project_id", projectFilter);
-      }
-
-      // Ejecutar queries en paralelo con timeout (reducido a 5s con botón manual)
-      console.log('[Dashboard] Fetching parallel queries...');
-      const queriesStart = Date.now();
-      
-      const queriesPromise = Promise.all([
-        contactsQ,
-        dealsQ,
-        supabase.from("pipeline_stages").select("id, name, color, is_won, is_lost").eq("organization_id", orgId).order("order"),
-        activitiesQ,
-      ]);
-
-      const queriesTimeout = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Parallel queries timeout after 5000ms')), 5000)
-      );
-
-      const results = await Promise.race([queriesPromise, queriesTimeout]);
-      const queriesEnd = Date.now();
-      console.log('[Dashboard] Parallel queries completed in', queriesEnd - queriesStart, 'ms');
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const [
-        { data: allContacts },
-        { data: allDeals },
-        { data: stages },
-        { data: recentActivities },
-      ] = results as any;
-
-      const contacts = allContacts ?? [];
-      const deals = allDeals ?? [];
-      const pipelineStages = stages ?? [];
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const activeDeals = deals.filter((d: any) => {
-        const stage = pipelineStages.find((s: any) => s.id === d.stage_id);
-        return stage && !stage.is_won && !stage.is_lost;
-      });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const wonDeals = deals.filter((d: any) => {
-        const stage = pipelineStages.find((s: any) => s.id === d.stage_id);
-        return stage?.is_won;
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include', // Include cookies for auth
       });
 
-      setStats({
-        totalContacts: contacts.length,
-        activeDeals: activeDeals.length,
-        totalPipelineValue: activeDeals.reduce((sum: number, d: any) => sum + d.value, 0),
-        wonDealsValue: wonDeals.reduce((sum: number, d: any) => sum + d.value, 0),
-        conversionRate: deals.length > 0 ? Math.round((wonDeals.length / deals.length) * 100) : 0,
-        hotLeads: contacts.filter((c: any) => c.temperature === "hot").length,
-      });
+      const endTime = Date.now();
+      console.log('[Dashboard] API request completed in', endTime - startTime, 'ms');
 
-      setPipelineData(
-        pipelineStages
-          .filter((s: any) => !s.is_lost)
-          .map((stage: any) => ({
-            name: stage.name,
-            count: deals.filter((d: any) => d.stage_id === stage.id).length,
-            value: deals.filter((d: any) => d.stage_id === stage.id).reduce((sum: number, d: any) => sum + d.value, 0),
-            color: stage.color,
-          }))
-      );
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setActivities((recentActivities ?? []).map((a: any) => ({
-        id: a.id,
-        type: a.type,
-        description: a.description,
-        contactName: a.contacts?.name ?? null,
-        createdAt: a.created_at,
-      })));
-      console.log('[Dashboard] Data loaded successfully');
+      const data = await response.json();
+      
+      // Update state with data from API
+      setStats(data.stats);
+      setPipelineData(data.pipelineData);
+      setActivities(data.activities);
+      
+      console.log('[Dashboard] Data loaded successfully from API', { queryTime: data.queryTime });
       setIsStale(false);
       setLastSuccessfulLoad(new Date());
+      
     } catch (error) {
       console.error("[Dashboard] Failed to load data", error);
-      // Distinguir entre timeout y otros errores
-      if (error instanceof Error && error.message.includes('timeout')) {
-        const timeoutMsg = error.message.includes('Parallel queries') 
-          ? 'Supabase queries hung after visibilitychange - they will eventually resolve'
-          : 'Organization query timeout - possible RLS policy issue';
-        console.error(`[Dashboard] TIMEOUT: ${timeoutMsg}`);
+      
+      if (error instanceof Error) {
+        console.error('[Dashboard] Error details:', error.message);
         // Mark data as stale but keep showing it (snapshot approach)
         setIsStale(true);
       } else {
         console.error('[Dashboard] UNEXPECTED ERROR:', error);
-        // For non-timeout errors, clear the dashboard
+        // For non-error objects, clear the dashboard
         setStats(defaultStats);
         setPipelineData([]);
         setActivities([]);
@@ -196,7 +109,7 @@ export default function DashboardPage() {
       loadingRef.current = false;
       setLoading(false);
     }
-  }, [activeProjectId, isAllProjects, userId, session?.access_token]);
+  }, [activeProjectId, isAllProjects, userId, session]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
@@ -211,8 +124,7 @@ export default function DashboardPage() {
     const handleVisible = () => {
       console.log('[Dashboard] visibilitychange event', { state: document.visibilityState });
       if (document.visibilityState === "visible") {
-        // Reinitialize Supabase client to prevent hung queries after tab freeze/thaw
-        maybeReinitializeClient();
+        // Simply reload dashboard - server-side API handles Supabase connection
         void loadDashboard();
       }
     };
