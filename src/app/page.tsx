@@ -32,6 +32,8 @@ export default function DashboardPage() {
   const [pipelineData, setPipelineData] = useState<StageData[]>([]);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isStale, setIsStale] = useState(false);
+  const [lastSuccessfulLoad, setLastSuccessfulLoad] = useState<Date | null>(null);
   const loadingRef = useRef(false);
 
   const loadDashboard = useCallback(async () => {
@@ -171,6 +173,8 @@ export default function DashboardPage() {
         createdAt: a.created_at,
       })));
       console.log('[Dashboard] Data loaded successfully');
+      setIsStale(false);
+      setLastSuccessfulLoad(new Date());
     } catch (error) {
       console.error("[Dashboard] Failed to load data", error);
       // Distinguir entre timeout y otros errores
@@ -179,10 +183,15 @@ export default function DashboardPage() {
           ? 'Supabase queries hung after visibilitychange - they will eventually resolve'
           : 'Organization query timeout - possible RLS policy issue';
         console.error(`[Dashboard] TIMEOUT: ${timeoutMsg}`);
+        // Mark data as stale but keep showing it (snapshot approach)
+        setIsStale(true);
       } else {
         console.error('[Dashboard] UNEXPECTED ERROR:', error);
+        // For non-timeout errors, clear the dashboard
+        setStats(defaultStats);
+        setPipelineData([]);
+        setActivities([]);
       }
-      // Keep previous dashboard snapshot; this can fail transiently on tab resume.
     } finally {
       loadingRef.current = false;
       setLoading(false);
@@ -221,6 +230,22 @@ export default function DashboardPage() {
             : `Proyecto: ${activeProject.name}`}
         </p>
       </div>
+
+      {isStale && lastSuccessfulLoad && (
+        <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-3 flex items-start gap-3">
+          <svg className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+              Datos desactualizados
+            </p>
+            <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-0.5">
+              Mostrando última versión exitosa ({lastSuccessfulLoad.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}). Las queries están tardando más de lo normal.
+            </p>
+          </div>
+        </div>
+      )}
 
       {isFirstRun && (
         <div className="rounded-lg border border-primary/20 bg-primary/5 p-6">
