@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from("activities")
-    .select("*, contacts ( name, company )")
+    .select("*, contacts ( name, company_id, companies ( name ) )")
     .is("completed_at", null)
     .order("scheduled_at", { ascending: true });
 
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     completedAt: f.completed_at ?? null,
     createdAt: f.created_at,
     contactName: f.contacts?.name ?? null,
-    contactCompany: f.contacts?.company ?? null,
+    contactCompany: f.contacts?.companies?.name ?? null,
   }));
 
   const categorized = {
@@ -58,4 +58,3 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json(categorized);
 }
-
