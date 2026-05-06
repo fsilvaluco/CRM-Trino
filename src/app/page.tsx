@@ -175,7 +175,10 @@ export default function DashboardPage() {
       console.error("[Dashboard] Failed to load data", error);
       // Distinguir entre timeout y otros errores
       if (error instanceof Error && error.message.includes('timeout')) {
-        console.error('[Dashboard] TIMEOUT: Query took longer than 15s - possible Supabase connection issue or RLS policy problem');
+        const timeoutMsg = error.message.includes('Parallel queries') 
+          ? 'Supabase queries hung after visibilitychange - they will eventually resolve'
+          : 'Organization query timeout - possible RLS policy issue';
+        console.error(`[Dashboard] TIMEOUT: ${timeoutMsg}`);
       } else {
         console.error('[Dashboard] UNEXPECTED ERROR:', error);
       }
