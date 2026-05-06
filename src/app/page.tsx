@@ -100,17 +100,31 @@ export default function DashboardPage() {
         activitiesQ = activitiesQ.eq("project_id", projectFilter);
       }
 
-      const [
-        { data: allContacts },
-        { data: allDeals },
-        { data: stages },
-        { data: recentActivities },
-      ] = await Promise.all([
+      // Ejecutar queries en paralelo con timeout
+      console.log('[Dashboard] Fetching parallel queries...');
+      const queriesStart = Date.now();
+      
+      const queriesPromise = Promise.all([
         contactsQ,
         dealsQ,
         supabase.from("pipeline_stages").select("id, name, color, is_won, is_lost").eq("organization_id", orgId).order("order"),
         activitiesQ,
       ]);
+
+      const queriesTimeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Parallel queries timeout after 10000ms')), 10000)
+      );
+
+      const results = await Promise.race([queriesPromise, queriesTimeout]);
+      const queriesEnd = Date.now();
+      console.log('[Dashboard] Parallel queries completed in', queriesEnd - queriesStart, 'ms');
+
+      const [
+        { data: allContacts },
+        { data: allDeals },
+        { data: stages },
+        { data: recentActivities },
+      ] = results as any;
 
       const contacts = allContacts ?? [];
       const deals = allDeals ?? [];
