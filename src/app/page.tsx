@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { useProject } from "@/lib/project-context";
 import { useAuth } from "@/lib/auth-context";
@@ -32,6 +32,7 @@ export default function DashboardPage() {
   const [pipelineData, setPipelineData] = useState<StageData[]>([]);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const loadingRef = useRef(false);
 
   const loadDashboard = useCallback(async () => {
     console.log('[Dashboard] loadDashboard called', { userId, hasSession: !!session, tokenPreview: session?.access_token?.slice(0, 20) });
@@ -39,9 +40,21 @@ export default function DashboardPage() {
       console.log('[Dashboard] No userId, aborting');
       return;
     }
+    
+    // Prevent concurrent executions
+    if (loadingRef.current) {
+      console.log('[Dashboard] Already loading, skipping');
+      return;
+    }
+    
+    loadingRef.current = true;
     setLoading(true);
 
     try {
+      // Force Supabase to check connection health after tab resume
+      console.log('[Dashboard] Checking Supabase connection...');
+      await supabase.auth.getSession();
+      console.log('[Dashboard] Connection OK');
       // Obtener org_id del usuario
       console.log('[Dashboard] Fetching organization_id...');
       const { data: memberRow, error: memberError } = await supabase
@@ -135,6 +148,7 @@ export default function DashboardPage() {
       console.error("[Dashboard] Failed to load data", error);
       // Keep previous dashboard snapshot; this can fail transiently on tab resume.
     } finally {
+      loadingRef.current = false;
       setLoading(false);
     }
   }, [activeProjectId, isAllProjects, userId, session?.access_token]);
