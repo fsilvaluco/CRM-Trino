@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase, maybeReinitializeClient } from "@/lib/supabase";
 import { useProject } from "@/lib/project-context";
 import { useAuth } from "@/lib/auth-context";
 
@@ -211,6 +211,8 @@ export default function DashboardPage() {
     const handleVisible = () => {
       console.log('[Dashboard] visibilitychange event', { state: document.visibilityState });
       if (document.visibilityState === "visible") {
+        // Reinitialize Supabase client to prevent hung queries after tab freeze/thaw
+        maybeReinitializeClient();
         void loadDashboard();
       }
     };
