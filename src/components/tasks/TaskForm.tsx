@@ -23,6 +23,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useProject } from "@/lib/project-context";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const taskSchema = z.object({
   title: z.string().min(1, "El titulo es requerido"),
@@ -61,6 +62,8 @@ export function TaskForm({
   const [dealsList, setDeals] = useState<Array<{ id: string; title: string }>>([]);
   const [companiesList, setCompanies] = useState<Array<{ id: string; name: string }>>([]);
   const [subprojectsList, setSubprojects] = useState<Array<{ id: string; name: string }>>([]);
+  const [orgMembers, setOrgMembers] = useState<Array<{ user_id: string; profiles: { full_name: string | null; email: string | null; avatar_url: string | null } }>>([]);
+  const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
 
   const {
     register,
@@ -104,6 +107,11 @@ export function TaskForm({
     } else {
       setSubprojects([]);
     }
+    // Cargar miembros de la organizacion
+    fetch("/api/org-members")
+      .then((r) => r.json())
+      .then((d) => setOrgMembers(Array.isArray(d) ? d.filter((m: { status: string }) => m.status === "active") : []))
+      .catch(() => {});
   }, [open, activeProject, preselectedContactId, preselectedDealId, preselectedCompanyId]);
 
   const onSubmit = async (data: TaskFormData) => {
@@ -121,6 +129,7 @@ export function TaskForm({
           dealId: data.dealId || null,
           projectId: activeProject?.id || null,
           subprojectId: data.subprojectId || null,
+          assigneeIds: selectedAssignees.length > 0 ? selectedAssignees : null,
         }),
       });
 
@@ -128,6 +137,7 @@ export function TaskForm({
 
       toast.success("Tarea creada");
       reset();
+      setSelectedAssignees([]);
       onClose();
     } catch {
       toast.error("Error al crear la tarea");
@@ -275,7 +285,43 @@ export function TaskForm({
             </div>
           )}
 
-
+          {/* Assignees (Responsables) */}
+          {orgMembers.length > 0 && (
+            <div className="space-y-2">
+              <Label>Asignar a:</Label>
+              <div className="border rounded-md p-3 space-y-2 max-h-32 overflow-y-auto">
+                {orgMembers.map((member) => {
+                  const isChecked = selectedAssignees.includes(member.user_id);
+                  return (
+                    <div key={member.user_id} className="flex items-center gap-2">
+                      <Checkbox
+                        id={`assignee-${member.user_id}`}
+                        checked={isChecked}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedAssignees([...selectedAssignees, member.user_id]);
+                          } else {
+                            setSelectedAssignees(selectedAssignees.filter((id) => id !== member.user_id));
+                          }
+                        }}
+                      />
+                      <label
+                        htmlFor={`assignee-${member.user_id}`}
+                        className="text-sm cursor-pointer flex-1"
+                      >
+                        {member.profiles?.full_name || member.profiles?.email || "Usuario sin nombre"}
+                      </label>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {selectedAssignees.length === 0
+                  ? "Sin asignar"
+                  : `${selectedAssignees.length} persona${selectedAssignees.length > 1 ? "s" : ""} seleccionada${selectedAssignees.length > 1 ? "s" : ""}`}
+              </p>
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 pt-2">
             <Button

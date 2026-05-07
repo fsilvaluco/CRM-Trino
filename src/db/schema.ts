@@ -173,3 +173,16 @@ export const crmSettings = sqliteTable("crm_settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
 });
+
+// ============================================================
+// NOTE: task_assignees table exists ONLY in Supabase (Postgres)
+// NOT in local SQLite. See scripts/migrations/005_task_assignees.sql
+// Used for multi-user task assignment and push notifications.
+// ============================================================
+// Structure for reference (Supabase only):
+// - id: UUID
+// - task_id: UUID → tasks(id)
+// - user_id: UUID → organization_members(user_id)
+// - assigned_at: TIMESTAMPTZ
+// - assigned_by: UUID (optional)
+// ============================================================
