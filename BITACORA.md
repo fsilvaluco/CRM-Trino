@@ -337,3 +337,46 @@ _Ninguno — todos resueltos ✅_
 - Dashboard no recargaba al volver de otra app (listener timing fix)
 - TypeScript error en task-notifications: projects/subprojects inferidos como `never` (fix: `as any[]` en loop)
 - PopoverTrigger `asChild` prop no soportado en @base-ui/react (removido, Button como hijo directo)
+
+---
+
+## 🐛 Fix Storage: URLs firmadas para bucket privado
+
+**Fecha:** 7 de mayo de 2026  
+**Commit:** 87eed50  
+**Problema:**  
+Error "Bucket not found" al intentar ver comprobantes de gastos. El bucket `finances` existe en Supabase y tiene las 4 políticas RLS correctamente configuradas, pero los archivos no se podían visualizar.
+
+**Causa raíz:**  
+El bucket `finances` es **privado** (correcto por seguridad). Sin embargo, el código usaba `getPublicUrl()` que solo funciona con buckets públicos. Cuando intentas acceder a una URL pública de un bucket privado, Supabase retorna error 404 o "Bucket not found".
+
+**Solución implementada:**
+1. **TransactionForm.tsx:**  
+   - Reemplazado `getFilePublicUrl()` con `getFileSignedUrl()` (async)
+   - Agregado estado `fileUrl` para almacenar la URL firmada
+   - useEffect carga la URL firmada cuando `initialData.fileUrl` existe
+   - Link del comprobante usa `fileUrl` con validación (muestra error si aún no carga)
+
+2. **finances/page.tsx:**  
+   - Reemplazado `getFilePublicUrl()` con `getFileSignedUrl()` (async)
+   - Creado componente `<FileLink>` que maneja carga de URL firmada con estado
+   - Muestra spinner mientras carga, oculta botón si falla
+   - Cada transacción con archivo genera su URL firmada al renderizar
+
+3. **Herramientas de diagnóstico:**
+   - Script `diagnose-storage.ts` para verificar bucket, políticas, y acceso
+   - Comando `npm run diagnose:storage` para troubleshooting
+   - Instalado `dotenv` para cargar `.env.local` en scripts
+
+**URLs firmadas vs públicas:**
+- `createSignedUrl(path, expiresIn)`: Genera URL temporal (1h) que funciona con buckets privados
+- `getPublicUrl(path)`: Genera URL permanente que SOLO funciona con buckets públicos
+- Las URLs firmadas son seguras: incluyen token JWT que expira
+
+**Policies RLS vigentes:**
+1. INSERT: usuarios pueden subir a `receipts/{user_id}/*` (su carpeta)
+2. SELECT: miembros de organización pueden VER todos los archivos
+3. DELETE: usuarios pueden eliminar solo sus propios archivos
+4. UPDATE: usuarios pueden actualizar solo sus propios archivos
+
+**Seguridad:** Bucket privado + URLs firmadas + RLS policies = acceso controlado y auditable ✅
