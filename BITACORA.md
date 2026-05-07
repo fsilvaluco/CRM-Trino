@@ -57,6 +57,41 @@ _Ninguno — todos resueltos ✅_
 
 ## ✅ Completado recientemente
 
+**✅ Fix: Dropdown responsable + visualización de comprobantes en edición** _(completado: 7 may 2026)_
+- **Problemas reportados:**
+  1. Dropdown "Encargado del gasto" mostraba `__none__` en lugar del responsable seleccionado al editar transacción
+  2. Al editar transacción, no se mostraba el comprobante adjunto (si existe)
+  3. Para editar era necesario buscar el botón de edición — mejorar UX haciendo clic directo en descripción
+- **Fixes implementados:**
+  - **Bug del dropdown:**
+    - Agregada validación explícita de `responsibleUserId` en useEffect de TransactionForm
+    - Verificación de que el miembro existe en la lista `members` antes de asignar valor
+    - Uso de `shouldValidate: true` en setValue para forzar actualización del Select de shadcn/ui
+    - Verificación de strings vacíos con `.trim() !== ""`
+    - Dependencias del useEffect incluyen `members` para recalcular si cambian
+  - **Visualización de comprobante:**
+    - ExtExtended `InitialTransaction` interface con `fileUrl` y `fileName`
+    - Nuevo estado `signedUrl` para almacenar URL firmada temporal de Supabase Storage
+    - useEffect que detecta `initialData.fileUrl` y genera URL firmada automáticamente (válida 1 hora)
+    - Nueva sección UI en formulario de edición:
+      - Muestra nombre del archivo con ícono File
+      - Link "Abrir" con ExternalLink icon para ver archivo en nueva pestaña
+      - Estado "Cargando..." mientras se genera signedUrl
+      - Solo visible en modo edit cuando hay archivo adjunto
+  - **Descripción clickeable:**
+    - Cambio de `<span>` a `<button>` en TransactionList
+    - Hover effect con `hover:text-blue-600`
+    - title="Clic para editar" para feedback visual
+    - onClick llama directamente a `onEdit(t)` para abrir modal
+    - Mejora UX: clic directo sin buscar botón de edición
+- **Resultado:** 
+  - ✅ Dropdown ahora muestra correctamente el responsable seleccionado al editar
+  - ✅ Comprobantes adjuntos son accesibles desde el modal de edición
+  - ✅ Experiencia de edición más fluida con clic directo en descripción
+- **Build verificado:** ✓ Compila exitosamente (6.6s), TypeScript passing
+- **Archivos modificados:** 2 (TransactionForm.tsx, finances/page.tsx)
+- **Commit:** `4caef3f`
+
 **✅ Fix: RLS para upload de comprobantes en Supabase Storage** _(completado: 7 may 2026)_
 - **Problema:** Error "new row violates row-level security policy" al intentar subir comprobantes en producción con Supabase
 - **Causa raíz:** El bucket `finances` en Supabase Storage no tenía políticas de Row Level Security configuradas
