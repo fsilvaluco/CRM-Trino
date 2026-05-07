@@ -1,14 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { createAdminClient } from "@/lib/supabase-admin";
 
-// GET /api/project-members?projectId=xxx → miembros de ese proyecto
+// GET /api/project-members?projectId=xxx → miembros de ese proyecto (cualquier member del proyecto puede ver)
 // GET /api/project-members                → todos los project_members de la org (admin only, para matrix)
 export async function GET(request: NextRequest) {
-  const { supabase, orgId, isAdmin, error } = await requireAuth();
+  const { supabase, orgId, isAdmin, user, error } = await requireAuth();
   if (error) return error;
-  if (!isAdmin) return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
 
   const projectId = new URL(request.url).searchParams.get("projectId");
+
+  // Si pide un proyecto específico, verificar que el usuario sea miembro de ese proyecto
+  if (projectId && !isAdmin) {
+    const { data: membership } = await supabase
+      .from("project_members")
+      .select("id")
+      .eq("project_id", projectId)
+      .eq("user_id", user!.id)
+      .maybeSingle();
+
+    if (!membership) {
+      return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
+    }
+  }
+
+  // Si no hay projectId y no es admin, denegar (requiere admin para ver todos)
+  if (!projectId && !isAdmin) {
+    return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
+  }
 
   let query = supabase
     .from("project_members")
@@ -34,6 +53,18 @@ export async function GET(request: NextRequest) {
   if (profilesError) return NextResponse.json({ error: profilesError.message }, { status: 500 });
 
   const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
+// Para usuarios sin perfil, obtener email desde auth.admin
+  const missingIds = userIds.filter((id) => !profileMap.has(id));
+  const authEmailMap = new Map<string, string>();
+  if (missingIds.length > 0) {
+    const admin = createAdminClient();
+    const { data: authUsers } = await admin.auth.admin.listUsers({ perPage: 1000 });
+    for (const u of authUsers?.users ?? []) {
+      if (missingIds.includes(u.id) && u.email) {
+        authEmailMap.set(u.id, u.email);
+      }
+    }
+  }
 
   return NextResponse.json(
     rows.map((row) => ({
@@ -44,7 +75,11 @@ export async function GET(request: NextRequest) {
             email: profileMap.get(row.user_id)?.email ?? null,
             avatar_url: profileMap.get(row.user_id)?.avatar_url ?? null,
           }
-        : null,
+        : {
+            full_name: null,
+            email: authEmailMap.get(row.user_id) ?? null,
+            avatar_url: null,
+          }
     }))
   );
 }

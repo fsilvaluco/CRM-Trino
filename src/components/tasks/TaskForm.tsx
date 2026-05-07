@@ -108,11 +108,15 @@ export function TaskForm({
     } else {
       setSubprojects([]);
     }
-    // Cargar miembros de la organizacion
-    fetch("/api/org-members")
-      .then((r) => r.json())
-      .then((d) => setOrgMembers(Array.isArray(d) ? d.filter((m: { status: string }) => m.status === "active") : []))
-      .catch(() => {});
+    // Cargar miembros del proyecto activo (solo usuarios asignados al proyecto)
+    if (activeProject?.id) {
+      fetch(`/api/project-members?projectId=${activeProject.id}`)
+        .then((r) => r.json())
+        .then((d) => setOrgMembers(Array.isArray(d) ? d : []))
+        .catch(() => {});
+    } else {
+      setOrgMembers([]);
+    }
   }, [open, activeProject, preselectedContactId, preselectedDealId, preselectedCompanyId]);
 
   const onSubmit = async (data: TaskFormData) => {
@@ -224,9 +228,9 @@ export function TaskForm({
             </div>
           )}
 
-          {!preselectedContactId && contactsList.length > 0 && (
+          {!preselectedContactId && (
             <div className="space-y-2">
-              <Label>Contacto</Label>
+              <Label>Contacto (opcional)</Label>
               <Select
                 value={watch("contactId") || ""}
                 onValueChange={(v) => v && setValue("contactId", v)}
@@ -237,9 +241,13 @@ export function TaskForm({
                   </span>
                 </SelectTrigger>
                 <SelectContent>
-                  {contactsList.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
+                  {contactsList.length > 0 ? (
+                    contactsList.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))
+                  ) : (
+                    <div className="px-2 py-1.5 text-sm text-muted-foreground">No hay contactos en este proyecto</div>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -247,7 +255,7 @@ export function TaskForm({
 
           {!preselectedCompanyId && companiesList.length > 0 && (
             <div className="space-y-2">
-              <Label>Empresa</Label>
+              <Label>Empresa (opcional)</Label>
               <Select
                 value={watch("companyId") || ""}
                 onValueChange={(v) => v && setValue("companyId", v)}
@@ -268,7 +276,7 @@ export function TaskForm({
 
           {!preselectedDealId && dealsList.length > 0 && (
             <div className="space-y-2">
-              <Label>Deal</Label>
+              <Label>Deal (opcional)</Label>
               <Select
                 value={watch("dealId") || ""}
                 onValueChange={(v) => v && setValue("dealId", v)}
@@ -298,13 +306,14 @@ export function TaskForm({
                   {selectedAssignees.map((userId) => {
                     const member = orgMembers.find((m) => m.user_id === userId);
                     if (!member) return null;
-                    const displayName = member.profiles?.full_name || member.profiles?.email || "?";
-                    const initials = displayName
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")
-                      .toUpperCase()
-                      .slice(0, 2);
+                    const fullName = member.profiles?.full_name;
+                    const email = member.profiles?.email;
+                    const displayName = fullName || email || "Usuario";
+                    const initials = fullName
+                      ? fullName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
+                      : email
+                      ? email.slice(0, 2).toUpperCase()
+                      : "?";
                     return (
                       <div key={userId} className="flex items-center gap-1 bg-primary text-primary-foreground px-2 py-1 rounded-md text-xs">
                         <span className="font-medium">{initials}</span>
@@ -340,39 +349,35 @@ export function TaskForm({
                   })
                   .map((member) => {
                     const isChecked = selectedAssignees.includes(member.user_id);
-                    const displayName = member.profiles?.full_name || member.profiles?.email || "Usuario sin nombre";
-                    const initials = displayName
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")
-                      .toUpperCase()
-                      .slice(0, 2);
+                    const fullName = member.profiles?.full_name;
+                    const email = member.profiles?.email;
+                    const displayName = fullName || email || "Usuario";
+                    const initials = fullName
+                      ? fullName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
+                      : email
+                      ? email.slice(0, 2).toUpperCase()
+                      : "?";
                     return (
                       <div
                         key={member.user_id}
-                        className="flex items-center gap-2 p-2 hover:bg-muted/50 cursor-pointer border-b last:border-b-0"
-                        onClick={() => {
-                          if (isChecked) {
-                            setSelectedAssignees(selectedAssignees.filter((id) => id !== member.user_id));
-                          } else {
-                            setSelectedAssignees([...selectedAssignees, member.user_id]);
-                          }
-                        }}
+                        className="flex items-center gap-2 p-2 hover:bg-muted/50 border-b last:border-b-0"
                       >
                         <Checkbox
-                          id={`assignee-${member.user_id}`}
                           checked={isChecked}
-                          onCheckedChange={() => {}} // Handled by parent div onClick
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedAssignees([...selectedAssignees, member.user_id]);
+                            } else {
+                              setSelectedAssignees(selectedAssignees.filter((id) => id !== member.user_id));
+                            }
+                          }}
                         />
                         <div className="w-7 h-7 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-medium">
                           {initials}
                         </div>
-                        <label
-                          htmlFor={`assignee-${member.user_id}`}
-                          className="text-sm cursor-pointer flex-1"
-                        >
+                        <span className="text-sm flex-1">
                           {displayName}
-                        </label>
+                        </span>
                       </div>
                     );
                   })}
