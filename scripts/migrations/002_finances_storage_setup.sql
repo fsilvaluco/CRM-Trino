@@ -8,13 +8,13 @@
 -- Storage → Create Bucket → Name: "finances" → Public: NO → File size limit: 10MB
 
 -- ============================================================
--- STEP 1: Enable RLS on storage.objects (if not already enabled)
+-- NOTE: RLS is already enabled by default on storage.objects in Supabase
+-- No need to run ALTER TABLE (requires superuser permissions)
 -- ============================================================
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 
 
 -- ============================================================
--- STEP 2: Storage Policies for 'finances' bucket
+-- Storage Policies for 'finances' bucket
 -- ============================================================
 
 -- Policy 1: Allow authenticated users to upload files to their own folder
