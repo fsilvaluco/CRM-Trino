@@ -98,6 +98,24 @@ Banner en el dashboard para seguimientos vencidos. Notificaciones del navegador 
 ### Email Digest
 Resumen diario por correo con seguimientos pendientes, leads calientes y metricas. Requiere Resend (gratis).
 
+### Finanzas
+Gestiona gastos e ingresos del proyecto. Sube comprobantes (PDF, JPG, PNG), asigna encargados, marca devoluciones. Dashboard con balance y devoluciones pendientes. Exporta a CSV.
+
+## Configuracion de Supabase Storage (Produccion)
+
+Si usas Supabase en produccion y ves el error **"new row violates row-level security policy"** al subir comprobantes:
+
+1. **Crear bucket 'finances'** en Supabase Dashboard → Storage
+   - Nombre: `finances`
+   - Publico: **NO** (privado)
+   - Limite: 10 MB
+
+2. **Ejecutar migracion de RLS:**
+   - Supabase Dashboard → SQL Editor
+   - Copiar y ejecutar: `scripts/migrations/002_finances_storage_setup.sql`
+
+Ver documentacion completa en: **[SUPABASE_STORAGE_SETUP.md](SUPABASE_STORAGE_SETUP.md)**
+
 ## Comandos de Claude Code
 
 | Comando | Que hace |

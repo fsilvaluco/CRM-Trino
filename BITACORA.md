@@ -57,6 +57,38 @@ _Ninguno — todos resueltos ✅_
 
 ## ✅ Completado recientemente
 
+**✅ Fix: RLS para upload de comprobantes en Supabase Storage** _(completado: 7 may 2026)_
+- **Problema:** Error "new row violates row-level security policy" al intentar subir comprobantes en producción con Supabase
+- **Causa raíz:** El bucket `finances` en Supabase Storage no tenía políticas de Row Level Security configuradas
+- **Solución implementada:**
+  - **Migración SQL:** Nuevo archivo `scripts/migrations/002_finances_storage_setup.sql`
+    - 4 políticas RLS para el bucket `finances`:
+      1. **INSERT** - Usuarios autenticados pueden subir a su carpeta (`receipts/{user_id}/*`)
+      2. **SELECT** - Miembros de la org pueden ver todos los archivos del bucket
+      3. **DELETE** - Usuarios pueden eliminar solo sus propios archivos
+      4. **UPDATE** - Usuarios pueden actualizar/reemplazar sus propios archivos
+  - **Documentación:** Nuevo archivo `SUPABASE_STORAGE_SETUP.md`
+    - Instrucciones paso a paso para crear bucket y ejecutar migración
+    - Explicación de cada política y qué permite
+    - Queries de verificación
+    - Sección de troubleshooting
+  - **README actualizado:**
+    - Nueva sección "Configuración de Supabase Storage"
+    - Instrucciones rápidas con link a docs detalladas
+    - Agregada funcionalidad de Finanzas a la lista de features
+- **Configuración del bucket:**
+  - Nombre: `finances`
+  - Visibilidad: Privado (NO público)
+  - Límite de tamaño: 10 MB por archivo
+  - Tipos permitidos: PDF, JPG, PNG, WEBP
+- **Estructura de archivos:** `receipts/{user_id}/{timestamp}.{ext}`
+- **Encargado del gasto:** Confirmado que funciona correctamente - puede ser:
+  - Cualquier usuario miembro del proyecto (selector dropdown)
+  - Nombre externo libre (campo de texto)
+- **Resultado:** Sistema de finanzas completamente funcional en producción con upload seguro de comprobantes
+- **Archivos creados:** 2 (migración SQL + documentación)
+- **Archivos modificados:** 2 (README + BITACORA)
+
 **✅ Finanzas — edición y asignación de usuario** _(completado: 7 may 2026)_
 - **Requerimiento:** Permitir editar transacciones existentes y manejar asignación de responsables
 - **Implementación:**
