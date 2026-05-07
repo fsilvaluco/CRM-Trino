@@ -71,13 +71,21 @@ export async function GET() {
       dueDate.getDate()
     );
 
+    // Manejar projects y subprojects como array u objeto
+    const projectName = Array.isArray(task.projects)
+      ? task.projects[0]?.name ?? null
+      : task.projects?.name ?? null;
+    const subprojectName = Array.isArray(task.subprojects)
+      ? task.subprojects[0]?.name ?? null
+      : task.subprojects?.name ?? null;
+
     const notification: TaskNotification = {
       id: task.id,
       title: task.title,
       dueDate: task.due_date,
       priority: task.priority,
-      projectName: task.projects?.name ?? null,
-      subprojectName: task.subprojects?.name ?? null,
+      projectName,
+      subprojectName,
     };
 
     if (dueDateOnly < today) {
