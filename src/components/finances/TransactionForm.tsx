@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -51,18 +51,33 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
+interface InitialTransaction {
+  id: string;
+  type: "income" | "expense";
+  amount: number;
+  description: string | null;
+  category: string | null;
+  transactionDate: string | null;
+  responsibleUserId: string | null;
+  responsibleName: string | null;
+  reimbursed: boolean;
+}
+
 interface TransactionFormProps {
   open: boolean;
   onClose: () => void;
   onCreated: () => void;
   members: Array<{ user_id: string; name: string }>;
+  initialData?: InitialTransaction; // Si existe, estamos en modo edit
 }
 
-export function TransactionForm({ open, onClose, onCreated, members }: TransactionFormProps) {
+export function TransactionForm({ open, onClose, onCreated, members, initialData }: TransactionFormProps) {
   const { user } = useAuth();
   const { activeProject } = useProject();
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+
+  const isEditMode = !!initialData;
 
   const {
     register,
@@ -85,6 +100,33 @@ export function TransactionForm({ open, onClose, onCreated, members }: Transacti
     },
   });
 
+  // Pre-cargar formulario cuando hay initialData
+  useEffect(() => {
+    if (initialData && open) {
+      setValue("type", initialData.type);
+      setValue("amount", initialData.amount.toString());
+      setValue("description", initialData.description ?? "");
+      setValue("category", initialData.category ?? "");
+      setValue("transactionDate", initialData.transactionDate ?? "");
+      setValue("reimbursed", initialData.reimbursed);
+
+      // Determinar responsibleKey
+      if (initialData.responsibleUserId) {
+        // Usuario miembro del proyecto
+        setValue("responsibleKey", initialData.responsibleUserId);
+        setValue("responsibleExternal", "");
+      } else if (initialData.responsibleName) {
+        // Usuario externo
+        setValue("responsibleKey", EXTERNAL_KEY);
+        setValue("responsibleExternal", initialData.responsibleName);
+      } else {
+        // Sin asignar
+        setValue("responsibleKey", NONE_KEY);
+        setValue("responsibleExternal", "");
+      }
+    }
+  }, [initialData, open, setValue]);
+
   const watchedType = watch("type");
   const watchedKey = watch("responsibleKey");
   const watchedReimbursed = watch("reimbursed");
@@ -104,7 +146,8 @@ export function TransactionForm({ open, onClose, onCreated, members }: Transacti
     let fileName: string | null = null;
 
     try {
-      if (file && user) {
+      // Upload file solo en modo create (no edit)
+      if (file && user && !isEditMode) {
         const ext = file.name.split(".").pop();
         const storagePath = `receipts/${user.id}/${Date.now()}.${ext}`;
         const { error: uploadError } = await supabase.storage
@@ -119,42 +162,76 @@ export function TransactionForm({ open, onClose, onCreated, members }: Transacti
         fileName = file.name;
       }
 
-      // Resolve responsible name
+      // Resolve responsible name and user_id
+      let responsibleUserId: string | null = null;
       let responsibleName: string | null = null;
+
       if (data.responsibleKey && data.responsibleKey !== NONE_KEY) {
         if (data.responsibleKey === EXTERNAL_KEY) {
           responsibleName = data.responsibleExternal?.trim() || null;
+          responsibleUserId = null;
         } else {
           const member = members.find((m) => m.user_id === data.responsibleKey);
+          responsibleUserId = data.responsibleKey;
           responsibleName = member?.name ?? null;
         }
       }
 
-      const res = await fetch("/api/finances", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: data.type,
-          amount: Math.round(parseFloat(data.amount.replace(/\./g, "").replace(",", "."))),
-          description: data.description,
-          category: data.category,
-          responsibleName,
-          reimbursed: data.reimbursed === true,
-          transactionDate: data.transactionDate || null,
-          filePath: fileUrl,
-          fileName,
-          projectId: activeProject?.id ?? null,
-        }),
-      });
+      const amount = Math.round(parseFloat(data.amount.replace(/\./g, "").replace(",", ".")));
 
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error((body as { error?: string }).error ?? "Error al guardar");
+      if (isEditMode) {
+        // Modo edit: PUT
+        const res = await fetch(`/api/finances/${initialData.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: data.type,
+            amount,
+            description: data.description,
+            category: data.category,
+            transactionDate: data.transactionDate || null,
+            responsibleUserId,
+            responsibleName,
+            reimbursed: data.reimbursed === true,
+          }),
+        });
+
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error((body as { error?: string }).error ?? "Error al guardar");
+        }
+
+        toast.success("Transacción actualizada");
+      } else {
+        // Modo create: POST
+        const res = await fetch("/api/finances", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: data.type,
+            amount,
+            description: data.description,
+            category: data.category,
+            responsibleName,
+            responsibleUserId,
+            reimbursed: data.reimbursed === true,
+            transactionDate: data.transactionDate || null,
+            filePath: fileUrl,
+            fileName,
+            projectId: activeProject?.id ?? null,
+          }),
+        });
+
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error((body as { error?: string }).error ?? "Error al guardar");
+        }
+
+        toast.success(data.type === "expense" ? "Gasto registrado" : "Ingreso registrado");
+        reset();
+        setFile(null);
       }
 
-      toast.success(data.type === "expense" ? "Gasto registrado" : "Ingreso registrado");
-      reset();
-      setFile(null);
       onCreated();
       onClose();
     } catch (err) {
@@ -168,7 +245,7 @@ export function TransactionForm({ open, onClose, onCreated, members }: Transacti
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nuevo Comprobante</DialogTitle>
+          <DialogTitle>{isEditMode ? "Editar Transacción" : "Nuevo Comprobante"}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -279,28 +356,30 @@ export function TransactionForm({ open, onClose, onCreated, members }: Transacti
             </div>
           )}
 
-          {/* Comprobante (archivo) */}
-          <div className="space-y-1.5">
-            <Label>Comprobante (opcional)</Label>
-            {file ? (
-              <div className="flex items-center gap-2 p-2.5 rounded-lg border bg-muted/30">
-                <File className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span className="text-sm flex-1 truncate">{file.name}</span>
-                <button type="button" onClick={() => setFile(null)} className="cursor-pointer text-muted-foreground hover:text-destructive">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            ) : (
-              <label className="flex flex-col items-center justify-center gap-2 p-4 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/30 transition-colors">
-                <Upload className="h-5 w-5 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground text-center">
-                  Arrastra un archivo o haz clic para subir<br />
-                  <span className="text-xs">PDF, JPG, PNG — máx. 10 MB</span>
-                </span>
-                <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={handleFileChange} />
-              </label>
-            )}
-          </div>
+          {/* Comprobante (archivo) - solo en modo create */}
+          {!isEditMode && (
+            <div className="space-y-1.5">
+              <Label>Comprobante (opcional)</Label>
+              {file ? (
+                <div className="flex items-center gap-2 p-2.5 rounded-lg border bg-muted/30">
+                  <File className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span className="text-sm flex-1 truncate">{file.name}</span>
+                  <button type="button" onClick={() => setFile(null)} className="cursor-pointer text-muted-foreground hover:text-destructive">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <label className="flex flex-col items-center justify-center gap-2 p-4 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/30 transition-colors">
+                  <Upload className="h-5 w-5 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground text-center">
+                    Arrastra un archivo o haz clic para subir<br />
+                    <span className="text-xs">PDF, JPG, PNG — máx. 10 MB</span>
+                  </span>
+                  <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={handleFileChange} />
+                </label>
+              )}
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={onClose} className="cursor-pointer">
@@ -308,7 +387,7 @@ export function TransactionForm({ open, onClose, onCreated, members }: Transacti
             </Button>
             <Button type="submit" disabled={isSubmitting || uploading} className="cursor-pointer">
               {isSubmitting || uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {isSubmitting || uploading ? "Guardando..." : "Guardar Comprobante"}
+              {isSubmitting || uploading ? "Guardando..." : isEditMode ? "Actualizar" : "Guardar Comprobante"}
             </Button>
           </div>
         </form>

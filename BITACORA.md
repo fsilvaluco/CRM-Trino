@@ -14,13 +14,6 @@ _Ninguno — todos resueltos ✅_
 
 ## 🟠 Importante (esta semana)
 
-**1. Finanzas — edición y asignación de usuario** _(creado: 6 may 2026)_
-- Permitir editar transacciones ya creadas (cambiar monto, estado, descripción)
-- Poder marcar/desmarcar "pendiente" (casos: devoluciones, ajustes)
-- Asignar usuario responsable de la transacción
-- **Estado:** Pendiente
-- **Estimado:** 3-4 horas
-
 **2. Kanban de tareas — delay de 2 segundos** _(creado: 6 may 2026)_
 - Investigar si el delay viene del optimistic update o de la query de revalidación
 - Implementar actualización optimista real (actualizar UI antes de que confirme el server)
@@ -63,6 +56,40 @@ _Ninguno — todos resueltos ✅_
 ---
 
 ## ✅ Completado recientemente
+
+**✅ Finanzas — edición y asignación de usuario** _(completado: 7 may 2026)_
+- **Requerimiento:** Permitir editar transacciones existentes y manejar asignación de responsables
+- **Implementación:**
+  - **API endpoint PUT:** Nuevo `/api/finances/[id]` PUT para editar transacciones completas
+    - Campos editables: type, amount, description, category, transactionDate, responsibleUserId, responsibleName, reimbursed
+    - Validación de tipo y monto
+    - PATCH mantiene compatibilidad para toggle rápido de reimbursed
+  - **TransactionForm modo edit:**
+    - Prop `initialData` opcional para detectar modo edit vs create
+    - Pre-carga formulario con datos existentes usando useEffect
+    - Upload de archivo solo en modo create (no se permite cambiar archivo en edit)
+    - Título dinámico: "Editar Transacción" vs "Nuevo Comprobante"
+    - Botón: "Actualizar" vs "Guardar Comprobante"
+    - Lógica de responsable: detecta si es user_id (miembro) o nombre externo
+  - **UI de finanzas:**
+    - Botón "Editar" (Pencil icon) en cada transacción
+    - Estado `editingTransaction` para manejar transacción seleccionada
+    - Función `handleEdit` abre formulario con initialData
+    - Función `handleCloseForm` limpia estado al cerrar
+    - Interface Transaction incluye `responsibleUserId` opcional
+  - **Flujo completo:**
+    1. Usuario hace clic en botón Editar
+    2. Se abre formulario pre-cargado con datos de la transacción
+    3. Usuario modifica campos (monto, descripción, categoría, fecha, responsable, reimbursed)
+    4. Submit hace PUT a `/api/finances/[id]`
+    5. Recarga lista y cierra formulario
+- **Funcionalidad YA existente (no modificada):**
+  - ✅ Asignación de responsable con selector de miembros o nombre externo
+  - ✅ Toggle reimbursed (pendiente/pagado) con badge visual
+  - ✅ API PATCH para marcar reembolsado rápidamente desde la lista
+- **Resultado:** Sistema de finanzas completo con edición inline, gestión de responsables y estados de devolución
+- **Build verificado:** ✓ Compila exitosamente, TypeScript passing
+- **Archivos modificados:** 3 (api/finances/[id]/route.ts, TransactionForm.tsx, finances/page.tsx)
 
 **✅ Fix: Referencias remanentes de Activities** _(completado: 7 may 2026, fix post-deploy)_
 - **Problema:** Build de Railway falló con errores TypeScript — ContactDetail y classify route todavía referenciaban Activities

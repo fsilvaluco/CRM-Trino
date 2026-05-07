@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
-  Plus, FileText, ExternalLink, Check, Trash2, Loader2, TrendingUp, TrendingDown, DollarSign, User
+  Plus, FileText, ExternalLink, Check, Trash2, Loader2, TrendingUp, TrendingDown, DollarSign, User, Pencil
 } from "lucide-react";
 import { TransactionForm } from "@/components/finances/TransactionForm";
 import { useProject } from "@/lib/project-context";
@@ -24,6 +24,7 @@ interface Transaction {
   category: string | null;
   fileUrl: string | null;
   fileName: string | null;
+  responsibleUserId?: string | null;
   responsibleName: string | null;
   reimbursed: boolean;
   reimbursedAt: string | null;
@@ -43,10 +44,12 @@ function formatCLP(amount: number) {
 
 function TransactionList({
   transactions,
+  onEdit,
   onReimburse,
   onDelete,
 }: {
   transactions: Transaction[];
+  onEdit: (transaction: Transaction) => void;
   onReimburse: (id: string, reimbursed: boolean) => void;
   onDelete: (id: string) => void;
 }) {
@@ -119,6 +122,15 @@ function TransactionList({
                   </Button>
                 </a>
               )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-blue-600 hover:text-blue-700"
+                title="Editar"
+                onClick={() => onEdit(t)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
               {t.type === "expense" && t.responsibleName && !t.reimbursed && (
                 <Button
                   variant="ghost"
@@ -155,6 +167,7 @@ export default function FinancesPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
   // Cargar miembros de la org
   useEffect(() => {
@@ -199,6 +212,16 @@ export default function FinancesPage() {
 
     return () => window.clearTimeout(timerId);
   }, [loadTransactions]);
+
+  const handleEdit = (transaction: Transaction) => {
+    setEditingTransaction(transaction);
+    setShowForm(true);
+  };
+
+  const handleCloseForm = () => {
+    setShowForm(false);
+    setEditingTransaction(null);
+  };
 
   const handleReimburse = async (id: string, reimbursed: boolean) => {
     const res = await fetch(`/api/finances/${id}`, {
@@ -289,25 +312,36 @@ export default function FinancesPage() {
             )}
           </TabsList>
           <TabsContent value="all" className="mt-4">
-            <TransactionList transactions={transactions} onReimburse={handleReimburse} onDelete={handleDelete} />
+            <TransactionList transactions={transactions} onEdit={handleEdit} onReimburse={handleReimburse} onDelete={handleDelete} />
           </TabsContent>
           <TabsContent value="expense" className="mt-4">
-            <TransactionList transactions={expenses} onReimburse={handleReimburse} onDelete={handleDelete} />
+            <TransactionList transactions={expenses} onEdit={handleEdit} onReimburse={handleReimburse} onDelete={handleDelete} />
           </TabsContent>
           <TabsContent value="income" className="mt-4">
-            <TransactionList transactions={incomes} onReimburse={handleReimburse} onDelete={handleDelete} />
+            <TransactionList transactions={incomes} onEdit={handleEdit} onReimburse={handleReimburse} onDelete={handleDelete} />
           </TabsContent>
           <TabsContent value="pending" className="mt-4">
-            <TransactionList transactions={pendingReimbursements} onReimburse={handleReimburse} onDelete={handleDelete} />
+            <TransactionList transactions={pendingReimbursements} onEdit={handleEdit} onReimburse={handleReimburse} onDelete={handleDelete} />
           </TabsContent>
         </Tabs>
       )}
 
       <TransactionForm
         open={showForm}
-        onClose={() => setShowForm(false)}
+        onClose={handleCloseForm}
         onCreated={loadTransactions}
         members={members}
+        initialData={editingTransaction ? {
+          id: editingTransaction.id,
+          type: editingTransaction.type,
+          amount: editingTransaction.amount,
+          description: editingTransaction.description,
+          category: editingTransaction.category,
+          transactionDate: editingTransaction.transactionDate,
+          responsibleUserId: editingTransaction.responsibleUserId ?? null,
+          responsibleName: editingTransaction.responsibleName,
+          reimbursed: editingTransaction.reimbursed,
+        } : undefined}
       />
     </div>
   );
