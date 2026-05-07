@@ -34,10 +34,18 @@ const EXPENSE_CATEGORIES = [
 ];
 const INCOME_CATEGORIES = ["Venta", "Patrocinio", "Subsidio", "Transferencia", "Otro"];
 
-// Helper para obtener URL pública del archivo
-const getFilePublicUrl = (filePath: string): string => {
-  const { data } = supabase.storage.from("finances").getPublicUrl(filePath);
-  return data.publicUrl;
+// Helper para obtener URL firmada del archivo (bucket privado)
+const getFileSignedUrl = async (filePath: string): Promise<string> => {
+  const { data, error } = await supabase.storage
+    .from("finances")
+    .createSignedUrl(filePath, 3600); // 1 hora de validez
+  
+  if (error || !data) {
+    console.error("Error generando URL firmada:", error);
+    return "";
+  }
+  
+  return data.signedUrl;
 };
 
 const schema = z.object({
@@ -78,6 +86,7 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
   const { activeProject } = useProject();
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [fileUrl, setFileUrl] = useState<string>("");
 
   const isEditMode = !!initialData;
 
@@ -116,6 +125,13 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
         setValue("responsibleExternal", initialData.responsibleName);
       } else {
         setValue("responsibleExternal", "");
+      }
+
+      // Cargar URL firmada del archivo si existe
+      if (initialData.fileUrl) {
+        getFileSignedUrl(initialData.fileUrl).then(setFileUrl);
+      } else {
+        setFileUrl("");
       }
     }
   }, [initialData, open, setValue]);
@@ -356,10 +372,16 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
             <div className="space-y-1.5">
               <Label>Comprobante adjunto</Label>
               <a
-                href={getFilePublicUrl(initialData.fileUrl)}
+                href={fileUrl || "#"}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 p-2.5 rounded-lg border bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
+                onClick={(e) => {
+                  if (!fileUrl) {
+                    e.preventDefault();
+                    toast.error("Cargando archivo...");
+                  }
+                }}
               >
                 <File className="h-4 w-4 text-muted-foreground shrink-0" />
                 <span className="text-sm flex-1 truncate">{initialData.fileName || "Ver comprobante"}</span>

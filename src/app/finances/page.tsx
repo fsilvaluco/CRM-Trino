@@ -37,10 +37,50 @@ function formatCLP(amount: number) {
   return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(amount);
 }
 
-// Helper para obtener URL pública del archivo desde Supabase Storage
-function getFilePublicUrl(filePath: string): string {
-  const { data } = supabase.storage.from("finances").getPublicUrl(filePath);
-  return data.publicUrl;
+// Helper para obtener URL firmada del archivo desde Supabase Storage (bucket privado)
+async function getFileSignedUrl(filePath: string): Promise<string> {
+  const { data, error } = await supabase.storage
+    .from("finances")
+    .createSignedUrl(filePath, 3600); // 1 hora de validez
+  
+  if (error || !data) {
+    console.error("Error generando URL firmada:", error);
+    return "";
+  }
+  
+  return data.signedUrl;
+}
+
+// Componente para link con carga de URL firmada
+function FileLink({ fileUrl, title }: { fileUrl: string; title: string }) {
+  const [signedUrl, setSignedUrl] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getFileSignedUrl(fileUrl)
+      .then(setSignedUrl)
+      .finally(() => setLoading(false));
+  }, [fileUrl]);
+
+  if (loading) {
+    return (
+      <Button variant="ghost" size="icon" className="h-7 w-7" disabled>
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      </Button>
+    );
+  }
+
+  if (!signedUrl) {
+    return null;
+  }
+
+  return (
+    <a href={signedUrl} target="_blank" rel="noopener noreferrer" title={title}>
+      <Button variant="ghost" size="icon" className="h-7 w-7">
+        <ExternalLink className="h-3.5 w-3.5" />
+      </Button>
+    </a>
+  );
 }
 
 function TransactionList({
@@ -123,11 +163,7 @@ function TransactionList({
             {/* Acciones */}
             <div className="flex items-center gap-1 shrink-0">
               {t.fileUrl && (
-                <a href={getFilePublicUrl(t.fileUrl)} target="_blank" rel="noopener noreferrer" title="Ver comprobante">
-                  <Button variant="ghost" size="icon" className="h-7 w-7">
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </Button>
-                </a>
+                <FileLink fileUrl={t.fileUrl} title="Ver comprobante" />
               )}
               <Button
                 variant="ghost"
