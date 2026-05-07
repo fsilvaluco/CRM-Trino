@@ -31,6 +31,7 @@ export interface TaskFilters {
   hasDueDate: boolean;
   hasNoDate: boolean;
   completed: "all" | "yes" | "no";
+  assignedToMe: boolean;
 }
 
 export type SortKey =
@@ -56,6 +57,7 @@ export const DEFAULT_FILTERS: TaskFilters = {
   hasDueDate: false,
   hasNoDate: false,
   completed: "all",
+  assignedToMe: false,
 };
 
 export interface FilterOption {
@@ -104,6 +106,7 @@ export function countActiveFilters(f: TaskFilters): number {
   if (f.hasDueDate) n++;
   if (f.hasNoDate) n++;
   if (f.completed !== "all") n++;
+  if (f.assignedToMe) n++;
   return n;
 }
 
@@ -139,6 +142,7 @@ function buildChips(
   if (f.hasNoDate) chips.push({ key: "hasNoDate", label: "Sin vencimiento" });
   if (f.completed === "yes") chips.push({ key: "completed", label: "Completadas" });
   if (f.completed === "no") chips.push({ key: "completed", label: "No completadas" });
+  if (f.assignedToMe) chips.push({ key: "assignedToMe", label: "Asignadas a mí" });
   return chips;
 }
 
@@ -155,6 +159,7 @@ function removeChip(key: string, f: TaskFilters): TaskFilters {
     case "hasDueDate":  return { ...f, hasDueDate: false };
     case "hasNoDate":   return { ...f, hasNoDate: false };
     case "completed":   return { ...f, completed: "all" };
+    case "assignedToMe":return { ...f, assignedToMe: false };
     default:            return f;
   }
 }
@@ -328,6 +333,18 @@ function FilterPanel({
             <SelectItem value="yes">Completadas</SelectItem>
           </SelectContent>
         </Select>
+      </FilterSection>
+
+      <FilterSection label="Asignación">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={filters.assignedToMe}
+            onChange={(e) => set("assignedToMe", e.target.checked)}
+            className="w-4 h-4 rounded accent-primary cursor-pointer"
+          />
+          <span className="text-sm">Sólo asignadas a mí</span>
+        </label>
       </FilterSection>
     </div>
   );

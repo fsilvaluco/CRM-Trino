@@ -25,6 +25,7 @@ import { formatDate } from "@/lib/constants";
 import { toast } from "sonner";
 import type { TaskStatus, TaskPriority } from "@/types";
 import { useProject } from "@/lib/project-context";
+import { useAuth } from "@/lib/auth-context";
 
 const PRIORITY_CONFIG: Record<TaskPriority, { label: string; className: string }> = {
   low:    { label: "Baja",  className: "bg-slate-100 text-slate-600" },
@@ -119,7 +120,7 @@ function sortTasks(tasks: TaskItem[], sortBy: SortKey): TaskItem[] {
 
 // ─── Filter predicate ─────────────────────────────────────────────────────────
 
-function applyFilters(tasks: TaskItem[], f: TaskFilters): TaskItem[] {
+function applyFilters(tasks: TaskItem[], f: TaskFilters, currentUserId?: string): TaskItem[] {
   return tasks.filter((t) => {
     if (f.status !== "all" && t.status !== f.status) return false;
     if (f.priority !== "all" && t.priority !== f.priority) return false;
@@ -133,6 +134,10 @@ function applyFilters(tasks: TaskItem[], f: TaskFilters): TaskItem[] {
     if (f.hasNoDate && t.dueDate) return false;
     if (f.completed === "yes" && !DONE_STATUSES.includes(t.status)) return false;
     if (f.completed === "no" && DONE_STATUSES.includes(t.status)) return false;
+    if (f.assignedToMe && currentUserId) {
+      const isAssignedToMe = t.assignees?.some((a) => a.userId === currentUserId) ?? false;
+      if (!isAssignedToMe) return false;
+    }
     return true;
   });
 }
@@ -141,6 +146,7 @@ function applyFilters(tasks: TaskItem[], f: TaskFilters): TaskItem[] {
 
 export default function TasksPage() {
   const { activeProject } = useProject();
+  const { user } = useAuth();
   const [taskList, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -277,8 +283,8 @@ export default function TasksPage() {
   // ── Filtered + sorted tasks (used by both List and Kanban) ───────────────
 
   const filteredAndSortedTasks = useMemo(
-    () => sortTasks(applyFilters(taskList, filters), sortBy),
-    [taskList, filters, sortBy]
+    () => sortTasks(applyFilters(taskList, filters, user?.id), sortBy),
+    [taskList, filters, sortBy, user?.id]
   );
 
   // ── Actions ──────────────────────────────────────────────────────────────

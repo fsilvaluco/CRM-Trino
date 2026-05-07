@@ -96,9 +96,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
   }
 
-  const { title, description, priority, dueDate, contactId, companyId, dealId, projectId, subprojectId, assigneeIds } = body as Record<string, string | string[] | undefined>;
+  const { title, description, priority, dueDate, contactId, companyId, dealId, projectId, subprojectId, assigneeIds } = body;
 
-  if (!title || title.trim() === "") {
+  if (!title || typeof title !== "string" || title.trim() === "") {
     return NextResponse.json({ error: "El titulo es requerido" }, { status: 400 });
   }
 
@@ -106,15 +106,15 @@ export async function POST(request: NextRequest) {
     .from("tasks")
     .insert({
       title: title.trim(),
-      description: (description as string) || null,
+      description: (typeof description === "string" ? description : null) || null,
       status: "sin_empezar",
-      priority: (priority as string) || "medium",
-      due_date: dueDate ? new Date(dueDate as string).toISOString() : null,
-      contact_id: (contactId as string) || null,
-      company_id: (companyId as string) || null,
-      deal_id: (dealId as string) || null,
-      project_id: (projectId as string) || null,
-      subproject_id: (subprojectId as string) || null,
+      priority: (typeof priority === "string" ? priority : null) || "medium",
+      due_date: typeof dueDate === "string" && dueDate ? new Date(dueDate).toISOString() : null,
+      contact_id: (typeof contactId === "string" ? contactId : null) || null,
+      company_id: (typeof companyId === "string" ? companyId : null) || null,
+      deal_id: (typeof dealId === "string" ? dealId : null) || null,
+      project_id: (typeof projectId === "string" ? projectId : null) || null,
+      subproject_id: (typeof subprojectId === "string" ? subprojectId : null) || null,
       completed_at: null,
       organization_id: orgId,
       created_by: user!.id,
