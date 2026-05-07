@@ -33,11 +33,6 @@ interface Transaction {
   createdAt: string | number;
 }
 
-interface Member {
-  user_id: string;
-  name: string;
-}
-
 function formatCLP(amount: number) {
   return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(amount);
 }
@@ -176,31 +171,9 @@ export default function FinancesPage() {
   const { activeProject, isAllProjects } = useProject();
   const activeProjectId = activeProject?.id ?? null;
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-
-  // Cargar miembros del proyecto activo
-  useEffect(() => {
-    if (!user || !activeProjectId) return;
-    supabase
-      .from("project_members")
-      .select("user_id, profiles ( full_name, email )")
-      .eq("project_id", activeProjectId)
-      .then(({ data }) => {
-        const list = (data ?? []).map((m) => {
-          const p = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles;
-          return {
-            user_id: m.user_id,
-            name: (p as { full_name?: string; email?: string } | null)?.full_name
-              || (p as { full_name?: string; email?: string } | null)?.email
-              || m.user_id,
-          };
-        });
-        setMembers(list);
-      });
-  }, [user, activeProjectId]);
 
   const loadTransactions = useCallback(async () => {
     setLoading(true);
@@ -343,7 +316,6 @@ export default function FinancesPage() {
         open={showForm}
         onClose={handleCloseForm}
         onCreated={loadTransactions}
-        members={members}
         initialData={editingTransaction ? {
           id: editingTransaction.id,
           type: editingTransaction.type,

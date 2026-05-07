@@ -34,9 +34,6 @@ const EXPENSE_CATEGORIES = [
 ];
 const INCOME_CATEGORIES = ["Venta", "Patrocinio", "Subsidio", "Transferencia", "Otro"];
 
-const EXTERNAL_KEY = "__external__";
-const NONE_KEY = "__none__";
-
 // Helper para obtener URL pública del archivo
 const getFilePublicUrl = (filePath: string): string => {
   const { data } = supabase.storage.from("finances").getPublicUrl(filePath);
@@ -49,9 +46,7 @@ const schema = z.object({
   description: z.string().min(1, "Agrega una descripción"),
   category: z.string().min(1, "Selecciona una categoría"),
   transactionDate: z.string().optional(),
-  // internal member key OR EXTERNAL_KEY OR NONE_KEY
-  responsibleKey: z.string().optional(),
-  responsibleExternal: z.string().optional(),
+  responsibleExternal: z.string().optional(), // Nombre de otra persona si el gasto lo pagó alguien más
   reimbursed: z.boolean().optional(),
 });
 
@@ -75,11 +70,10 @@ interface TransactionFormProps {
   open: boolean;
   onClose: () => void;
   onCreated: () => void;
-  members: Array<{ user_id: string; name: string }>;
   initialData?: InitialTransaction; // Si existe, estamos en modo edit
 }
 
-export function TransactionForm({ open, onClose, onCreated, members, initialData }: TransactionFormProps) {
+export function TransactionForm({ open, onClose, onCreated, initialData }: TransactionFormProps) {
   const { user } = useAuth();
   const { activeProject } = useProject();
   const [file, setFile] = useState<File | null>(null);
@@ -102,7 +96,6 @@ export function TransactionForm({ open, onClose, onCreated, members, initialData
       description: "",
       category: "",
       transactionDate: "",
-      responsibleKey: NONE_KEY,
       responsibleExternal: "",
       reimbursed: false,
     },
@@ -118,34 +111,19 @@ export function TransactionForm({ open, onClose, onCreated, members, initialData
       setValue("transactionDate", initialData.transactionDate ?? "");
       setValue("reimbursed", initialData.reimbursed);
 
-      // Determinar responsibleKey con verificación explícita
-      if (initialData.responsibleUserId && initialData.responsibleUserId.trim() !== "") {
-        // Usuario miembro del proyecto - verificar que existe en la lista
-        const memberExists = members.some((m) => m.user_id === initialData.responsibleUserId);
-        if (memberExists) {
-          setValue("responsibleKey", initialData.responsibleUserId, { shouldValidate: true });
-          setValue("responsibleExternal", "");
-        } else {
-          setValue("responsibleKey", NONE_KEY);
-          setValue("responsibleExternal", "");
-        }
-      } else if (initialData.responsibleName && initialData.responsibleName.trim() !== "") {
-        // Usuario externo
-        setValue("responsibleKey", EXTERNAL_KEY, { shouldValidate: true });
+      // Si el responsable no es un usuario registrado (es externo), cargar el nombre
+      if (initialData.responsibleName && !initialData.responsibleUserId) {
         setValue("responsibleExternal", initialData.responsibleName);
       } else {
-        // Sin asignar
-        setValue("responsibleKey", NONE_KEY, { shouldValidate: true });
         setValue("responsibleExternal", "");
       }
     }
-  }, [initialData, open, setValue, members]);
+  }, [initialData, open, setValue]);
 
   const watchedType = watch("type");
-  const watchedKey = watch("responsibleKey");
+  const watchedExternal = watch("responsibleExternal");
   const watchedReimbursed = watch("reimbursed");
   const categories = watchedType === "expense" ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
-  const isExternal = watchedKey === EXTERNAL_KEY;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -176,19 +154,17 @@ export function TransactionForm({ open, onClose, onCreated, members, initialData
         fileName = file.name;
       }
 
-      // Resolve responsible name and user_id
-      let responsibleUserId: string | null = null;
+      // Responsable del gasto: siempre el usuario que lo ingresa
+      // Si especifica otro nombre, ese va como responsibleName
+      let responsibleUserId: string | null = user?.id || null;
       let responsibleName: string | null = null;
 
-      if (data.responsibleKey && data.responsibleKey !== NONE_KEY) {
-        if (data.responsibleKey === EXTERNAL_KEY) {
-          responsibleName = data.responsibleExternal?.trim() || null;
-          responsibleUserId = null;
-        } else {
-          const member = members.find((m) => m.user_id === data.responsibleKey);
-          responsibleUserId = data.responsibleKey;
-          responsibleName = member?.name ?? null;
-        }
+      if (data.responsibleExternal && data.responsibleExternal.trim() !== "") {
+        // Si especificó otra persona, usar ese nombre
+        responsibleName = data.responsibleExternal.trim();
+      } else if (user) {
+        // Si no, usar el nombre del usuario logueado
+        responsibleName = user.user_metadata?.full_name || user.email || null;
       }
 
       const amount = Math.round(parseFloat(data.amount.replace(/\./g, "").replace(",", ".")));
@@ -323,40 +299,20 @@ export function TransactionForm({ open, onClose, onCreated, members, initialData
           {/* Responsable (solo para gastos) */}
           {watchedType === "expense" && (
             <div className="space-y-1.5">
-              <Label>Encargado del gasto</Label>
-              <Select
-                value={watchedKey ?? NONE_KEY}
-                onValueChange={(v) => {
-                  setValue("responsibleKey", v || NONE_KEY);
-                  if (v !== EXTERNAL_KEY) setValue("responsibleExternal", "");
-                }}
-              >
-                <SelectTrigger className="cursor-pointer">
-                  <SelectValue placeholder="¿Quién pagó?" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE_KEY}>Sin asignar</SelectItem>
-                  {members.map((m) => (
-                    <SelectItem key={m.user_id} value={m.user_id}>{m.name}</SelectItem>
-                  ))}
-                  <SelectItem value={EXTERNAL_KEY}>Encargado externo…</SelectItem>
-                </SelectContent>
-              </Select>
-              {isExternal && (
-                <Input
-                  {...register("responsibleExternal")}
-                  placeholder="Nombre del encargado externo"
-                  className="mt-1.5"
-                />
-              )}
+              <Label>¿Lo pagó otra persona?</Label>
+              <Input
+                {...register("responsibleExternal")}
+                placeholder="Dejar vacío si lo pagaste tú (opcional)"
+                className="cursor-pointer"
+              />
               <p className="text-xs text-muted-foreground">
-                Persona que realizó el gasto y podría recibir devolución
+                Por defecto quedas tú como quien ingresó el gasto. Si lo pagó otra persona, escribe su nombre aquí.
               </p>
             </div>
           )}
 
           {/* Reembolsado */}
-          {watchedType === "expense" && watchedKey && watchedKey !== NONE_KEY && (
+          {watchedType === "expense" && watchedExternal && watchedExternal.trim() !== "" && (
             <div className="flex items-center gap-2.5 rounded-lg border px-3 py-2.5 bg-muted/30">
               <Checkbox
                 id="reimbursed"
@@ -365,7 +321,7 @@ export function TransactionForm({ open, onClose, onCreated, members, initialData
                 className="cursor-pointer"
               />
               <label htmlFor="reimbursed" className="text-sm cursor-pointer select-none">
-                Pagado / Reembolsado — el dinero ya fue devuelto al encargado
+                Pagado / Reembolsado — el dinero ya fue devuelto a {watchedExternal}
               </label>
             </div>
           )}
