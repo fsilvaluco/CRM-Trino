@@ -57,6 +57,36 @@ _Ninguno — todos resueltos ✅_
 
 ## ✅ Completado recientemente
 
+**✅ Fix final: Miembros del proyecto + comprobantes clickeables** _(completado: 7 may 2026)_
+- **Problemas reportados:**
+  1. Dropdown "Encargado del gasto" seguía sin mostrar usuarios del proyecto - mostraba solo `__none__`
+  2. Comprobante se quedaba en "Cargando..." indefinidamente en modal de edición
+  3. Usuario prefería que el nombre del archivo fuera clickeable directamente sin esperar
+- **Causa raíz identificada:**
+  - **Problema 1:** Se estaba cargando `organization_members` (todos los usuarios de la org) en lugar de `project_members` (usuarios del proyecto específico)
+  - **Problema 2:** Sistema de URL firmada con `createSignedUrl()` tardaba demasiado o fallaba silenciosamente, dejando el estado en "Cargando..."
+- **Soluciones implementadas:**
+  - **Miembros del proyecto:**
+    - Query cambiado de `organization_members` a `project_members`
+    - Agregado filtro `.eq("project_id", activeProjectId)`
+    - Agregado `activeProjectId` a dependencias del useEffect
+    - Ahora solo muestra usuarios asignados al proyecto activo
+  - **Comprobantes clickeables:**
+    - Eliminado completamente el sistema de URL firmada (estado `signedUrl` y lógica `createSignedUrl`)
+    - Nueva función helper `getFilePublicUrl(filePath)` que usa `storage.getPublicUrl()`
+    - Comprobante convertido en link `<a>` clickeable con hover effect
+    - Ícono ExternalLink visible todo el tiempo
+    - Sin delay - funciona instantáneamente
+    - Implementado tanto en modal de edición como en lista de transacciones
+- **Resultado:**
+  - ✅ Dropdown ahora muestra correctamente los miembros del proyecto activo
+  - ✅ Comprobantes se abren instantáneamente al hacer clic en el nombre
+  - ✅ No más "Cargando..." colgado
+  - ✅ UX mejorada: archivo clickeable con efecto hover visual
+- **Build verificado:** ✓ 5.5s compile, TypeScript passing
+- **Archivos modificados:** 2 (finances/page.tsx, TransactionForm.tsx)
+- **Commit:** `152844e`
+
 **✅ Fix: Dropdown responsable + visualización de comprobantes en edición** _(completado: 7 may 2026)_
 - **Problemas reportados:**
   1. Dropdown "Encargado del gasto" mostraba `__none__` en lugar del responsable seleccionado al editar transacción
