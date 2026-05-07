@@ -5,19 +5,20 @@
 -- ============================================================
 -- Purpose: Enable assigning multiple users to tasks for notifications
 -- and workload distribution. Required for push notifications feature.
+-- Foreign keys reference profiles table (1:1 with auth.users).
 -- ============================================================
 
 
 -- ============================================================
 -- STEP 1: Create task_assignees join table
--- Links tasks to organization_members (users in the org)
+-- Links tasks to users (via profiles table)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS task_assignees (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES organization_members(user_id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  assigned_by UUID REFERENCES organization_members(user_id),
+  assigned_by UUID REFERENCES profiles(id),
   
   -- Prevent duplicate assignments
   UNIQUE(task_id, user_id)
@@ -40,7 +41,8 @@ CREATE INDEX IF NOT EXISTS idx_task_assignees_assigned_at
 
 -- ============================================================
 -- STEP 3: Enable RLS (Row Level Security)
--- Users can only see task assignments in their organization
+-- Users can only see/modify assignments for tasks in their organization
+-- (validated via organization_members, even though FK is to profiles)
 -- ============================================================
 ALTER TABLE task_assignees ENABLE ROW LEVEL SECURITY;
 
