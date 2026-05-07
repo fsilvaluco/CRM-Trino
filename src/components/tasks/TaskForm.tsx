@@ -64,6 +64,7 @@ export function TaskForm({
   const [subprojectsList, setSubprojects] = useState<Array<{ id: string; name: string }>>([]);
   const [orgMembers, setOrgMembers] = useState<Array<{ user_id: string; profiles: { full_name: string | null; email: string | null; avatar_url: string | null } }>>([]);
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
+  const [assigneeSearch, setAssigneeSearch] = useState("");
 
   const {
     register,
@@ -138,6 +139,7 @@ export function TaskForm({
       toast.success("Tarea creada");
       reset();
       setSelectedAssignees([]);
+      setAssigneeSearch("");
       onClose();
     } catch {
       toast.error("Error al crear la tarea");
@@ -289,35 +291,104 @@ export function TaskForm({
           {orgMembers.length > 0 && (
             <div className="space-y-2">
               <Label>Asignar a:</Label>
-              <div className="border rounded-md p-3 space-y-2 max-h-32 overflow-y-auto">
-                {orgMembers.map((member) => {
-                  const isChecked = selectedAssignees.includes(member.user_id);
-                  return (
-                    <div key={member.user_id} className="flex items-center gap-2">
-                      <Checkbox
-                        id={`assignee-${member.user_id}`}
-                        checked={isChecked}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedAssignees([...selectedAssignees, member.user_id]);
-                          } else {
+              
+              {/* Selected assignees preview */}
+              {selectedAssignees.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 p-2 bg-muted/30 rounded-md">
+                  {selectedAssignees.map((userId) => {
+                    const member = orgMembers.find((m) => m.user_id === userId);
+                    if (!member) return null;
+                    const displayName = member.profiles?.full_name || member.profiles?.email || "?";
+                    const initials = displayName
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .toUpperCase()
+                      .slice(0, 2);
+                    return (
+                      <div key={userId} className="flex items-center gap-1 bg-primary text-primary-foreground px-2 py-1 rounded-md text-xs">
+                        <span className="font-medium">{initials}</span>
+                        <span>{displayName}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedAssignees(selectedAssignees.filter((id) => id !== userId))}
+                          className="ml-1 hover:opacity-70"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              
+              {/* Search input */}
+              <Input
+                type="text"
+                placeholder="Buscar personas..."
+                value={assigneeSearch}
+                onChange={(e) => setAssigneeSearch(e.target.value)}
+                className="text-sm"
+              />
+              
+              {/* Scrollable list */}
+              <div className="border rounded-md max-h-48 overflow-y-auto">
+                {orgMembers
+                  .filter((member) => {
+                    const name = member.profiles?.full_name || member.profiles?.email || "";
+                    return name.toLowerCase().includes(assigneeSearch.toLowerCase());
+                  })
+                  .map((member) => {
+                    const isChecked = selectedAssignees.includes(member.user_id);
+                    const displayName = member.profiles?.full_name || member.profiles?.email || "Usuario sin nombre";
+                    const initials = displayName
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .toUpperCase()
+                      .slice(0, 2);
+                    return (
+                      <div
+                        key={member.user_id}
+                        className="flex items-center gap-2 p-2 hover:bg-muted/50 cursor-pointer border-b last:border-b-0"
+                        onClick={() => {
+                          if (isChecked) {
                             setSelectedAssignees(selectedAssignees.filter((id) => id !== member.user_id));
+                          } else {
+                            setSelectedAssignees([...selectedAssignees, member.user_id]);
                           }
                         }}
-                      />
-                      <label
-                        htmlFor={`assignee-${member.user_id}`}
-                        className="text-sm cursor-pointer flex-1"
                       >
-                        {member.profiles?.full_name || member.profiles?.email || "Usuario sin nombre"}
-                      </label>
-                    </div>
-                  );
-                })}
+                        <Checkbox
+                          id={`assignee-${member.user_id}`}
+                          checked={isChecked}
+                          onCheckedChange={() => {}} // Handled by parent div onClick
+                        />
+                        <div className="w-7 h-7 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-medium">
+                          {initials}
+                        </div>
+                        <label
+                          htmlFor={`assignee-${member.user_id}`}
+                          className="text-sm cursor-pointer flex-1"
+                        >
+                          {displayName}
+                        </label>
+                      </div>
+                    );
+                  })}
+                {orgMembers.filter((member) => {
+                  const name = member.profiles?.full_name || member.profiles?.email || "";
+                  return name.toLowerCase().includes(assigneeSearch.toLowerCase());
+                }).length === 0 && (
+                  <div className="p-4 text-center text-sm text-muted-foreground">
+                    No se encontraron personas
+                  </div>
+                )}
               </div>
+              
               <p className="text-xs text-muted-foreground">
                 {selectedAssignees.length === 0
-                  ? "Sin asignar"
+                  ? "Sin asignar - selecciona personas de la lista"
                   : `${selectedAssignees.length} persona${selectedAssignees.length > 1 ? "s" : ""} seleccionada${selectedAssignees.length > 1 ? "s" : ""}`}
               </p>
             </div>

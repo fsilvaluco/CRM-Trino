@@ -26,10 +26,10 @@ function mapTask(row: any) {
     assignees: row.task_assignees?.map((ta: any) => ({
       userId: ta.user_id,
       assignedAt: ta.assigned_at,
-      profile: ta.organization_members ? {
-        fullName: ta.organization_members.full_name,
-        avatarUrl: ta.organization_members.avatar_url,
-        email: ta.organization_members.email,
+      profile: ta.profiles ? {
+        fullName: ta.profiles.full_name,
+        avatarUrl: ta.profiles.avatar_url,
+        email: ta.profiles.email,
       } : null,
     })) ?? [],
   };
@@ -57,10 +57,10 @@ export async function GET(request: NextRequest) {
       deals ( title ),
       projects ( name ),
       subprojects ( name ),
-      task_assignees ( 
+      task_assignees!left ( 
         user_id, 
         assigned_at,
-        organization_members ( full_name, avatar_url, email ) 
+        profiles ( full_name, avatar_url, email ) 
       )
     `)
     .order("created_at", { ascending: false });
