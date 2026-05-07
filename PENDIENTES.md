@@ -130,3 +130,5 @@ _Ninguno — todos resueltos ✅_
 - FK ambiguity error (especificado `task_assignees!task_assignees_task_id_fkey`)
 - Usuarios sin perfil mostraban "Usuario" (ahora busca email en auth.users)
 - Dashboard no recargaba al volver de otra app (listener timing fix)
+- TypeScript error en task-notifications: projects/subprojects inferidos como `never` (fix: `as any[]` en loop)
+- PopoverTrigger `asChild` prop no soportado en @base-ui/react (removido, Button como hijo directo)
