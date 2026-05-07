@@ -83,7 +83,13 @@ function TransactionList({
             {/* Info */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm font-medium">{t.description}</span>
+                <button
+                  onClick={() => onEdit(t)}
+                  className="text-sm font-medium hover:text-blue-600 transition-colors cursor-pointer text-left"
+                  title="Clic para editar"
+                >
+                  {t.description}
+                </button>
                 {t.category && <Badge variant="outline" className="text-xs px-1.5 py-0">{t.category}</Badge>}
               </div>
               <div className="flex items-center gap-3 mt-1 flex-wrap">
@@ -341,6 +347,8 @@ export default function FinancesPage() {
           responsibleUserId: editingTransaction.responsibleUserId ?? null,
           responsibleName: editingTransaction.responsibleName,
           reimbursed: editingTransaction.reimbursed,
+          fileUrl: editingTransaction.fileUrl,
+          fileName: editingTransaction.fileName,
         } : undefined}
       />
     </div>

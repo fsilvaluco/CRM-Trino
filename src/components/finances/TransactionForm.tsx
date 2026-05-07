@@ -23,7 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Upload, Loader2, File, X } from "lucide-react";
+import { Upload, Loader2, File, X, ExternalLink } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth-context";
 import { useProject } from "@/lib/project-context";
@@ -61,6 +61,8 @@ interface InitialTransaction {
   responsibleUserId: string | null;
   responsibleName: string | null;
   reimbursed: boolean;
+  fileUrl: string | null;
+  fileName: string | null;
 }
 
 interface TransactionFormProps {
@@ -76,6 +78,7 @@ export function TransactionForm({ open, onClose, onCreated, members, initialData
   const { activeProject } = useProject();
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
 
   const isEditMode = !!initialData;
 
@@ -110,22 +113,45 @@ export function TransactionForm({ open, onClose, onCreated, members, initialData
       setValue("transactionDate", initialData.transactionDate ?? "");
       setValue("reimbursed", initialData.reimbursed);
 
-      // Determinar responsibleKey
-      if (initialData.responsibleUserId) {
-        // Usuario miembro del proyecto
-        setValue("responsibleKey", initialData.responsibleUserId);
-        setValue("responsibleExternal", "");
-      } else if (initialData.responsibleName) {
+      // Determinar responsibleKey con verificación explícita
+      if (initialData.responsibleUserId && initialData.responsibleUserId.trim() !== "") {
+        // Usuario miembro del proyecto - verificar que existe en la lista
+        const memberExists = members.some((m) => m.user_id === initialData.responsibleUserId);
+        if (memberExists) {
+          setValue("responsibleKey", initialData.responsibleUserId, { shouldValidate: true });
+          setValue("responsibleExternal", "");
+        } else {
+          setValue("responsibleKey", NONE_KEY);
+          setValue("responsibleExternal", "");
+        }
+      } else if (initialData.responsibleName && initialData.responsibleName.trim() !== "") {
         // Usuario externo
-        setValue("responsibleKey", EXTERNAL_KEY);
+        setValue("responsibleKey", EXTERNAL_KEY, { shouldValidate: true });
         setValue("responsibleExternal", initialData.responsibleName);
       } else {
         // Sin asignar
-        setValue("responsibleKey", NONE_KEY);
+        setValue("responsibleKey", NONE_KEY, { shouldValidate: true });
         setValue("responsibleExternal", "");
       }
+
+      // Generar URL firmada si hay archivo adjunto
+      if (initialData.fileUrl) {
+        supabase.storage
+          .from("finances")
+          .createSignedUrl(initialData.fileUrl, 3600)
+          .then(({ data, error }) => {
+            if (error) {
+              console.error("Error generando URL firmada:", error);
+              setSignedUrl(null);
+            } else {
+              setSignedUrl(data.signedUrl);
+            }
+          });
+      } else {
+        setSignedUrl(null);
+      }
     }
-  }, [initialData, open, setValue]);
+  }, [initialData, open, setValue, members]);
 
   const watchedType = watch("type");
   const watchedKey = watch("responsibleKey");
@@ -378,6 +404,29 @@ export function TransactionForm({ open, onClose, onCreated, members, initialData
                   <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={handleFileChange} />
                 </label>
               )}
+            </div>
+          )}
+
+          {/* Comprobante existente - solo en modo edit */}
+          {isEditMode && initialData.fileUrl && (
+            <div className="space-y-1.5">
+              <Label>Comprobante adjunto</Label>
+              <div className="flex items-center gap-2 p-2.5 rounded-lg border bg-muted/50">
+                <File className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="text-sm flex-1 truncate">{initialData.fileName || "Archivo"}</span>
+                {signedUrl ? (
+                  <a
+                    href={signedUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1 cursor-pointer"
+                  >
+                    Abrir <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                ) : (
+                  <span className="text-xs text-muted-foreground">Cargando...</span>
+                )}
+              </div>
             </div>
           )}
 
