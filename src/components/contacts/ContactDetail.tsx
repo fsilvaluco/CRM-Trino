@@ -7,36 +7,24 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { ContactForm } from "./ContactForm";
-import { ActivityForm } from "@/components/activities/ActivityForm";
 import {
   ArrowLeft,
   Mail,
   Phone,
   Building2,
   Calendar,
-  FileText,
-  Clock,
-  Users,
   Pencil,
   Trash2,
-  Plus,
   MessageCircle,
   Copy,
   Check,
 } from "lucide-react";
 import { cleanPhoneForWhatsApp } from "@/lib/constants";
 import { useLocale } from "@/lib/locale-context";
-import { ACTIVITY_TYPE_CONFIG, SOURCE_LABELS } from "@/lib/constants";
+import { SOURCE_LABELS } from "@/lib/constants";
 import { toast } from "sonner";
-import type { Temperature, ActivityType, LeadSource } from "@/types";
+import type { Temperature, LeadSource } from "@/types";
 
-const activityIcons: Record<string, typeof Phone> = {
-  call: Phone,
-  email: Mail,
-  meeting: Users,
-  note: FileText,
-  follow_up: Clock,
-};
 
 interface ContactDetailClientProps {
   contact: {
@@ -61,25 +49,15 @@ interface ContactDetailClientProps {
     stageColor: string | null;
     createdAt: number | Date;
   }>;
-  activities: Array<{
-    id: string;
-    type: string;
-    description: string;
-    scheduledAt: number | Date | null;
-    completedAt: number | Date | null;
-    createdAt: number | Date;
-  }>;
 }
 
 export function ContactDetailClient({
   contact,
   deals,
-  activities,
 }: ContactDetailClientProps) {
   const router = useRouter();
-  const { formatCurrency, formatDate, formatRelativeDate } = useLocale();
+  const { formatCurrency, formatDate } = useLocale();
   const [showEditForm, setShowEditForm] = useState(false);
-  const [showActivityForm, setShowActivityForm] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const handleCopy = async (value: string, field: string) => {
@@ -105,21 +83,6 @@ export function ContactDetailClient({
       router.push("/contacts");
     } catch {
       toast.error("Error al eliminar el contacto");
-    }
-  };
-
-  const handleCompleteActivity = async (activityId: string) => {
-    try {
-      const res = await fetch(`/api/activities/${activityId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ completedAt: new Date().toISOString() }),
-      });
-      if (!res.ok) throw new Error("Error");
-      toast.success("Actividad completada");
-      router.refresh();
-    } catch {
-      toast.error("Error al completar la actividad");
     }
   };
 
@@ -167,7 +130,7 @@ export function ContactDetailClient({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Contact info */}
         <Card>
           <CardHeader>
@@ -295,66 +258,6 @@ export function ContactDetailClient({
             )}
           </CardContent>
         </Card>
-
-        {/* Activity timeline */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">
-              Actividades ({activities.length})
-            </CardTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowActivityForm(true)}
-              className="cursor-pointer"
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Registrar
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {activities.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Sin actividades. Registra una llamada, email o nota.
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {activities.map((activity) => {
-                  const Icon = activityIcons[activity.type] || FileText;
-                  const config = ACTIVITY_TYPE_CONFIG[activity.type as ActivityType];
-                  const isPending = !activity.completedAt && activity.scheduledAt;
-                  return (
-                    <div key={activity.id} className="flex gap-3">
-                      <div className="rounded-full bg-muted p-2 h-fit shrink-0">
-                        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="secondary" className="text-xs">
-                            {config?.label || activity.type}
-                          </Badge>
-                          {isPending && (
-                            <Badge
-                              variant="outline"
-                              className="text-xs text-orange-600 border-orange-600 cursor-pointer"
-                              onClick={() => handleCompleteActivity(activity.id)}
-                            >
-                              Completar
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-sm mt-1">{activity.description}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {formatRelativeDate(activity.createdAt)}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
 
       <ContactForm
@@ -375,15 +278,6 @@ export function ContactDetailClient({
           temperature: contact.temperature as "cold" | "warm" | "hot",
           notes: contact.notes || "",
         }}
-      />
-
-      <ActivityForm
-        open={showActivityForm}
-        onClose={() => {
-          setShowActivityForm(false);
-          router.refresh();
-        }}
-        preselectedContactId={contact.id}
       />
     </div>
   );

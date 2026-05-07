@@ -22,18 +22,11 @@ export default async function ContactDetailPage({
 
   if (!contact) notFound();
 
-  const [{ data: rawDeals }, { data: rawActivities }] = await Promise.all([
-    supabase
-      .from("deals")
-      .select("id, title, value, stage_id, probability, created_at, pipeline_stages ( name, color )")
-      .eq("contact_id", id)
-      .is("deleted_at", null),
-    supabase
-      .from("activities")
-      .select("*")
-      .eq("contact_id", id)
-      .order("created_at", { ascending: false }),
-  ]);
+  const { data: rawDeals } = await supabase
+    .from("deals")
+    .select("id, title, value, stage_id, probability, created_at, pipeline_stages ( name, color )")
+    .eq("contact_id", id)
+    .is("deleted_at", null);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const contactDeals = (rawDeals ?? []).map((d: any) => ({
@@ -45,18 +38,6 @@ export default async function ContactDetailPage({
     createdAt: d.created_at,
     stageName: d.pipeline_stages?.name ?? null,
     stageColor: d.pipeline_stages?.color ?? null,
-  }));
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const contactActivities = (rawActivities ?? []).map((a: any) => ({
-    id: a.id,
-    type: a.type,
-    description: a.description,
-    contactId: a.contact_id,
-    dealId: a.deal_id,
-    scheduledAt: a.scheduled_at,
-    completedAt: a.completed_at,
-    createdAt: a.created_at,
   }));
 
   const contactMapped = {
@@ -80,7 +61,6 @@ export default async function ContactDetailPage({
     <ContactDetailClient
       contact={contactMapped as Parameters<typeof ContactDetailClient>[0]["contact"]}
       deals={contactDeals as Parameters<typeof ContactDetailClient>[0]["deals"]}
-      activities={contactActivities as Parameters<typeof ContactDetailClient>[0]["activities"]}
     />
   );
 }

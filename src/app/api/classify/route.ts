@@ -165,10 +165,6 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const { data: contactActivities } = await supabase
-    .from("activities").select("*").eq("contact_id", contactId);
-  const acts = contactActivities ?? [];
-
   if (isAIEnabled()) {
     try {
       const result = await classifyLead(
@@ -178,11 +174,7 @@ export async function POST(request: NextRequest) {
           source: contact.source ?? undefined,
           notes: contact.notes ?? undefined,
         },
-        acts.map((a) => ({
-          type: a.type as "call" | "email" | "meeting" | "note" | "follow_up",
-          description: a.description,
-          date: a.created_at ? new Date(a.created_at).toISOString() : "unknown",
-        }))
+        []
       );
 
       await supabase
@@ -206,21 +198,11 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const lastActivity = acts.sort((a, b) => {
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-  })[0];
-
-  const daysSinceLastActivity = lastActivity
-    ? Math.floor((Date.now() - new Date(lastActivity.created_at).getTime()) / (1000 * 60 * 60 * 24))
-    : 999;
-
   const score = calculateLeadScore({
     temperature: contact.temperature as "cold" | "warm" | "hot",
     hasEmail: !!contact.email,
     hasPhone: !!contact.phone,
     hasCompany: !!resolvedCompanyId || !!resolvedCompanyName,
-    activityCount: acts.length,
-    daysSinceLastActivity,
     hasDeals: false,
     dealValue: 0,
   });
