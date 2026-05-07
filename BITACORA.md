@@ -380,3 +380,29 @@ El bucket `finances` es **privado** (correcto por seguridad). Sin embargo, el c�
 4. UPDATE: usuarios pueden actualizar solo sus propios archivos
 
 **Seguridad:** Bucket privado + URLs firmadas + RLS policies = acceso controlado y auditable ✅
+
+**Mejoras UX (commit 58ed49a - mismo día):**
+Problema secundario: al hacer clic en el archivo, quedaba en "Cargando archivo..." indefinidamente sin indicación visual de qué estaba pasando. Usuario no sabía si estaba cargando o si falló.
+
+**Solución:**
+1. **TransactionForm.tsx:**
+   - Estado `loadingFileUrl` para tracking de carga
+   - 3 estados visuales: Spinner animado (cargando) / Link clickeable (éxito) / Mensaje rojo (error)
+   - Logging detallado: `[TransactionForm] Cargando URL firmada para: {path}`
+   - Toast de error si falla la generación de URL
+   - Mensajes informativos: "No se pudo cargar el archivo. Verifica los permisos."
+
+2. **finances/page.tsx (FileLink):**
+   - Estado `error` para distinguir entre loading y fallo
+   - 3 estados visuales: Spinner (loading) / Ícono verde clickeable (success) / Ícono rojo deshabilitado (error)
+   - Logging detallado: `[FileLink] Solicitando URL firmada para: {path}` + resultado
+   - Tooltip "Error al cargar archivo" en estado de error
+   - Manejo de excepciones con try/catch
+
+**Debugging mejorado:**
+- Todos los logs tienen prefijo `[TransactionForm]` o `[FileLink]` para identificar origen
+- Se logea la ruta del archivo solicitado
+- Se logea el éxito o error de la operación
+- Permite identificar problemas de permisos RLS o rutas incorrectas en BD
+
+**Resultado:** Usuario siempre sabe qué está pasando (cargando / abierto / error) en lugar de quedarse sin feedback.
