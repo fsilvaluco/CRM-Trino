@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { Temperature, ActivityType } from "@/types";
+import type { Temperature } from "@/types";
 
 const apiKey = process.env.ANTHROPIC_API_KEY;
 
@@ -32,7 +32,7 @@ export async function classifyLead(
     notes?: string;
   },
   interactionHistory: Array<{
-    type: ActivityType;
+    type: string;
     description: string;
     date: string;
   }>

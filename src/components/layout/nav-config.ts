@@ -1,7 +1,6 @@
 import {
   LayoutDashboard,
   Users,
-  Activity,
   Briefcase,
   CheckSquare,
   Building2,
@@ -60,12 +59,6 @@ export const navConfig: NavItem[] = [
     href: "/tasks",
     label: "Tareas",
     icon: CheckSquare,
-  },
-  {
-    type: "leaf",
-    href: "/activities",
-    label: "Actividades",
-    icon: Activity,
   },
   {
     type: "leaf",

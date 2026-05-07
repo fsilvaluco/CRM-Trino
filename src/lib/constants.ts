@@ -1,4 +1,4 @@
-import type { Temperature, LeadSource, ActivityType } from "@/types";
+import type { Temperature, LeadSource } from "@/types";
 
 export const TEMPERATURE_CONFIG: Record<
   Temperature,
@@ -21,17 +21,6 @@ export const SOURCE_LABELS: Record<LeadSource, string> = {
   import: "Importado",
   webhook: "Webhook",
   otro: "Otro",
-};
-
-export const ACTIVITY_TYPE_CONFIG: Record<
-  ActivityType,
-  { label: string; icon: string }
-> = {
-  call: { label: "Llamada", icon: "Phone" },
-  email: { label: "Email", icon: "Mail" },
-  meeting: { label: "Reunion", icon: "Users" },
-  note: { label: "Nota", icon: "FileText" },
-  follow_up: { label: "Seguimiento", icon: "Clock" },
 };
 
 export function formatCurrency(cents: number): string {

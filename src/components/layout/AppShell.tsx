@@ -6,7 +6,6 @@ import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
-import { NotificationChecker } from "@/components/shared/NotificationChecker";
 
 const PUBLIC_PATHS = ["/login", "/auth/activate", "/forgot-password", "/reset-password"];
 const GUEST_ONLY_PATHS = ["/login", "/forgot-password"];
@@ -85,7 +84,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
-      <NotificationChecker />
     </div>
   );
 }

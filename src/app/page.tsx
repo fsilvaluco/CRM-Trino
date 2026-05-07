@@ -7,7 +7,6 @@ import { useAuth } from "@/lib/auth-context";
 import { KPICards } from "@/components/dashboard/KPICards";
 import { PipelineChart } from "@/components/dashboard/PipelineChart";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
-import { NotificationBanner } from "@/components/dashboard/NotificationBanner";
 import type { DashboardStats } from "@/types";
 
 interface StageData { name: string; count: number; value: number; color: string; }
@@ -196,8 +195,6 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
-
-      <NotificationBanner />
 
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

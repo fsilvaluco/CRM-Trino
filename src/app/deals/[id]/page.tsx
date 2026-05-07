@@ -5,8 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Calendar, DollarSign, Percent, FileText } from "lucide-react";
-import { ACTIVITY_TYPE_CONFIG } from "@/lib/constants";
+import { ArrowLeft, Calendar, DollarSign, Percent, CheckSquare, Clock } from "lucide-react";
 import { getLocaleSettings } from "@/lib/locale-server";
 import { formatCurrencyWith, formatDateWith, formatRelativeDateWith } from "@/lib/locale";
 
@@ -31,17 +30,17 @@ export default async function DealDetailPage({
 
   if (!deal) notFound();
 
-  const [{ data: contactData }, { data: stageData }, { data: rawActivities }] = await Promise.all([
+  const [{ data: contactData }, { data: stageData }, { data: dealTasks }] = await Promise.all([
     supabase.from("contacts").select("id, name").eq("id", deal.contact_id).single(),
     supabase.from("pipeline_stages").select("id, name, color").eq("id", deal.stage_id).single(),
     supabase
-      .from("activities")
-      .select("*")
+      .from("tasks")
+      .select("id, title, status, priority, due_date, created_at")
       .eq("deal_id", id)
       .order("created_at", { ascending: false }),
   ]);
 
-  const dealActivities = rawActivities ?? [];
+  const tasks = dealTasks ?? [];
 
   return (
     <div className="space-y-6">
@@ -134,37 +133,59 @@ export default async function DealDetailPage({
         <Card>
           <CardHeader>
             <CardTitle className="text-base">
-              Actividades ({dealActivities.length})
+              Tareas ({tasks.length})
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {dealActivities.length === 0 ? (
+            {tasks.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No hay actividades registradas para este deal
+                No hay tareas asociadas a este deal
               </p>
             ) : (
               <div className="space-y-3">
                 {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                {dealActivities.map((activity: any) => {
-                  const config =
-                    ACTIVITY_TYPE_CONFIG[
-                      activity.type as keyof typeof ACTIVITY_TYPE_CONFIG
-                    ];
+                {tasks.map((task: any) => {
+                  const statusConfig = {
+                    pending: { label: "Pendiente", color: "bg-gray-500" },
+                    in_progress: { label: "En Progreso", color: "bg-blue-500" },
+                    done: { label: "Completada", color: "bg-green-500" },
+                  };
+                  const priorityConfig = {
+                    low: { label: "Baja", color: "text-gray-600" },
+                    medium: { label: "Media", color: "text-yellow-600" },
+                    high: { label: "Alta", color: "text-red-600" },
+                  };
+                  const status = statusConfig[task.status as keyof typeof statusConfig];
+                  const priority = priorityConfig[task.priority as keyof typeof priorityConfig];
+                  
                   return (
-                    <div key={activity.id} className="flex gap-3 items-start">
-                      <div className="rounded-full bg-muted p-2 shrink-0">
-                        <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                    <div key={task.id} className="flex gap-3 items-start">
+                      <div className={`rounded-full ${status.color} p-2 shrink-0`}>
+                        <CheckSquare className="h-3.5 w-3.5 text-white" />
                       </div>
-                      <div>
+                      <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <Badge variant="secondary" className="text-xs">
-                            {config?.label || activity.type}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">
-                            {formatRelativeDateWith(activity.created_at, locale)}
-                          </span>
+                          <Link 
+                            href={`/tasks?taskId=${task.id}`}
+                            className="text-sm font-medium hover:text-primary"
+                          >
+                            {task.title}
+                          </Link>
                         </div>
-                        <p className="text-sm mt-1">{activity.description}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="secondary" className="text-xs">
+                            {status.label}
+                          </Badge>
+                          <span className={`text-xs ${priority.color}`}>
+                            {priority.label}
+                          </span>
+                          {task.due_date && (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Clock className="h-3 w-3" />
+                              {formatDateWith(task.due_date, locale)}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );

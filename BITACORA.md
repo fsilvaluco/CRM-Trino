@@ -1,7 +1,8 @@
-# Lista de trabajo — Auto-CRM
+# Bitácora de Trabajo — Auto-CRM
 _Última actualización: 7 de mayo de 2026_
 
-> **Formato de tracking:** Cada tarea incluye fecha de creación, estado (🔨 En Progreso / ✅ Hecho), y notas de implementación cuando se complete.
+> **Formato de tracking:** Registro histórico de trabajo realizado + pendientes actuales.  
+> Cada entrada incluye fecha, estado (🔨 En Progreso / ✅ Hecho), y notas de implementación detalladas.
 
 ---
 
@@ -62,6 +63,39 @@ _Ninguno — todos resueltos ✅_
 ---
 
 ## ✅ Completado recientemente
+
+**✅ Eliminación de módulo Activities** _(completado: 7 may 2026)_
+- **Requerimiento:** Remover módulo Activities - las tareas son el centro del sistema
+- **Implementación:**
+  - **Archivos eliminados (7):**
+    - `src/app/activities/page.tsx` - Página principal de activities
+    - `src/components/activities/ActivityForm.tsx` - Formulario
+    - `src/app/api/activities/route.ts` + `[id]/route.ts` - API endpoints
+    - `src/app/api/followups/route.ts` - Endpoint de seguimientos
+    - `src/components/dashboard/NotificationBanner.tsx` - Banner que usaba followups
+    - `src/components/shared/NotificationChecker.tsx` - Polling de followups (cada 5 min)
+  - **Navegación:**
+    - Removido link "Actividades" del menú principal
+    - Eliminado import de `Activity` icon en nav-config.ts
+  - **Deal detail:**
+    - Reemplazado sección "Actividades" con "Tareas"
+    - Query cambiado de `activities` a `tasks` filtrado por `deal_id`
+    - UI actualizada: muestra status/priority/due_date de tareas
+    - Links directos a `/tasks?taskId={id}`
+  - **Dashboard:**
+    - Removido `NotificationBanner` component (reemplazado por NotificationPopover de tareas)
+    - Removido `NotificationChecker` de AppShell (polling obsoleto)
+  - **Tipos y referencias:**
+    - Eliminado `ActivityType` y `Activity` interfaces de `types/index.ts`
+    - Removido `activities?: Activity[]` de `ContactWithDeals`
+    - Eliminado `ACTIVITY_TYPE_CONFIG` de `lib/constants.ts`
+    - Ajustado `classifyLead` en `lib/claude.ts` para usar `type: string` genérico
+  - **Scoring:**
+    - Removido `activityCount` y `daysSinceLastActivity` de `ScoringInput`
+    - Aumentado peso de deals: `hasDeals` +15 (antes +10), `dealValue` bonuses duplicados
+    - Score ahora se enfoca en: temperatura, completitud de datos, valor de deals
+- **Resultado:** Sistema simplificado centrado en tareas con notificaciones en tiempo real (NotificationPopover) en lugar de polling de seguimientos obsoletos
+- **Archivos modificados:** 8 (nav-config, deals/[id]/page, dashboard page, AppShell, types, constants, claude, scoring)
 
 **✅ Botón de notificaciones — sistema de alertas de tareas** _(completado: 7 may 2026)_
 - **Requerimiento:** Bell button decorativo sin funcionalidad → pivote a sistema de alertas de tareas

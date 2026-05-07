@@ -5,8 +5,6 @@ interface ScoringInput {
   hasEmail: boolean;
   hasPhone: boolean;
   hasCompany: boolean;
-  activityCount: number;
-  daysSinceLastActivity: number;
   hasDeals: boolean;
   dealValue: number;
 }
@@ -32,18 +30,10 @@ export function calculateLeadScore(input: ScoringInput): number {
   if (input.hasPhone) score += 10;
   if (input.hasCompany) score += 5;
 
-  // Engagement
-  score += Math.min(input.activityCount * 5, 20);
-
-  // Recency penalty
-  if (input.daysSinceLastActivity > 30) score -= 15;
-  else if (input.daysSinceLastActivity > 14) score -= 10;
-  else if (input.daysSinceLastActivity > 7) score -= 5;
-
   // Deal value bonus
-  if (input.hasDeals) score += 10;
-  if (input.dealValue > 100000) score += 5; // >$1,000
-  if (input.dealValue > 500000) score += 5; // >$5,000
+  if (input.hasDeals) score += 15; // Increased from 10
+  if (input.dealValue > 100000) score += 10; // >$1,000 (increased from 5)
+  if (input.dealValue > 500000) score += 10; // >$5,000 (increased from 5)
 
   return Math.max(0, Math.min(100, score));
 }

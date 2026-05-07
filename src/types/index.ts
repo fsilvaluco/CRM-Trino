@@ -1,7 +1,5 @@
 export type Temperature = "cold" | "warm" | "hot";
 
-export type ActivityType = "call" | "email" | "meeting" | "note" | "follow_up";
-
 // Task statuses — 6 specific states grouped into 3 visual columns
 export type TaskStatus =
   | "sin_empezar" // gris
@@ -76,17 +74,6 @@ export interface PipelineStage {
   color: string;
   isWon: boolean;
   isLost: boolean;
-}
-
-export interface Activity {
-  id: string;
-  type: ActivityType;
-  description: string;
-  contactId: string;
-  dealId: string | null;
-  scheduledAt: Date | null;
-  completedAt: Date | null;
-  createdAt: Date;
 }
 
 export interface Project {
@@ -177,7 +164,6 @@ export interface CompanyWithRelations extends Company {
 
 export interface ContactWithDeals extends Contact {
   deals?: Deal[];
-  activities?: Activity[];
   companyName?: string | null;
 }
 
