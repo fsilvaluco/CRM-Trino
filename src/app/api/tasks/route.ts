@@ -57,10 +57,10 @@ export async function GET(request: NextRequest) {
       deals ( title ),
       projects ( name ),
       subprojects ( name ),
-      task_assignees!left ( 
+      task_assignees!task_assignees_task_id_fkey ( 
         user_id, 
         assigned_at,
-        profiles ( full_name, avatar_url, email ) 
+        profiles!task_assignees_user_id_fkey ( full_name, avatar_url, email ) 
       )
     `)
     .order("created_at", { ascending: false });
