@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Bell, Menu } from "lucide-react";
+import { Search, Menu } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { MobileNav } from "./MobileNav";
 import { UserMenu } from "./UserMenu";
 import { ProjectSelector } from "./ProjectSelector";
+import { NotificationPopover } from "@/components/shared/NotificationPopover";
 
 export function Header() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -39,9 +40,7 @@ export function Header() {
         </div>
       </div>
 
-      <Button variant="ghost" size="icon" className="relative cursor-pointer">
-        <Bell className="h-5 w-5" />
-      </Button>
+      <NotificationPopover />
 
       <UserMenu />
     </header>
