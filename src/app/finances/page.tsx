@@ -42,6 +42,12 @@ function formatCLP(amount: number) {
   return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(amount);
 }
 
+// Helper para obtener URL pública del archivo desde Supabase Storage
+function getFilePublicUrl(filePath: string): string {
+  const { data } = supabase.storage.from("finances").getPublicUrl(filePath);
+  return data.publicUrl;
+}
+
 function TransactionList({
   transactions,
   onEdit,
@@ -122,7 +128,7 @@ function TransactionList({
             {/* Acciones */}
             <div className="flex items-center gap-1 shrink-0">
               {t.fileUrl && (
-                <a href={t.fileUrl} target="_blank" rel="noopener noreferrer" title="Ver comprobante">
+                <a href={getFilePublicUrl(t.fileUrl)} target="_blank" rel="noopener noreferrer" title="Ver comprobante">
                   <Button variant="ghost" size="icon" className="h-7 w-7">
                     <ExternalLink className="h-3.5 w-3.5" />
                   </Button>
@@ -175,12 +181,13 @@ export default function FinancesPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
-  // Cargar miembros de la org
+  // Cargar miembros del proyecto activo
   useEffect(() => {
-    if (!user) return;
+    if (!user || !activeProjectId) return;
     supabase
-      .from("organization_members")
+      .from("project_members")
       .select("user_id, profiles ( full_name, email )")
+      .eq("project_id", activeProjectId)
       .then(({ data }) => {
         const list = (data ?? []).map((m) => {
           const p = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles;
@@ -193,7 +200,7 @@ export default function FinancesPage() {
         });
         setMembers(list);
       });
-  }, [user]);
+  }, [user, activeProjectId]);
 
   const loadTransactions = useCallback(async () => {
     setLoading(true);

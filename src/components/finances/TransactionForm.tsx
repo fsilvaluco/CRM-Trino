@@ -37,6 +37,12 @@ const INCOME_CATEGORIES = ["Venta", "Patrocinio", "Subsidio", "Transferencia", "
 const EXTERNAL_KEY = "__external__";
 const NONE_KEY = "__none__";
 
+// Helper para obtener URL pública del archivo
+const getFilePublicUrl = (filePath: string): string => {
+  const { data } = supabase.storage.from("finances").getPublicUrl(filePath);
+  return data.publicUrl;
+};
+
 const schema = z.object({
   type: z.enum(["income", "expense"]),
   amount: z.string().min(1, "Ingresa un monto"),
@@ -78,7 +84,6 @@ export function TransactionForm({ open, onClose, onCreated, members, initialData
   const { activeProject } = useProject();
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [signedUrl, setSignedUrl] = useState<string | null>(null);
 
   const isEditMode = !!initialData;
 
@@ -132,23 +137,6 @@ export function TransactionForm({ open, onClose, onCreated, members, initialData
         // Sin asignar
         setValue("responsibleKey", NONE_KEY, { shouldValidate: true });
         setValue("responsibleExternal", "");
-      }
-
-      // Generar URL firmada si hay archivo adjunto
-      if (initialData.fileUrl) {
-        supabase.storage
-          .from("finances")
-          .createSignedUrl(initialData.fileUrl, 3600)
-          .then(({ data, error }) => {
-            if (error) {
-              console.error("Error generando URL firmada:", error);
-              setSignedUrl(null);
-            } else {
-              setSignedUrl(data.signedUrl);
-            }
-          });
-      } else {
-        setSignedUrl(null);
       }
     }
   }, [initialData, open, setValue, members]);
@@ -411,22 +399,16 @@ export function TransactionForm({ open, onClose, onCreated, members, initialData
           {isEditMode && initialData.fileUrl && (
             <div className="space-y-1.5">
               <Label>Comprobante adjunto</Label>
-              <div className="flex items-center gap-2 p-2.5 rounded-lg border bg-muted/50">
+              <a
+                href={getFilePublicUrl(initialData.fileUrl)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 p-2.5 rounded-lg border bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
+              >
                 <File className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span className="text-sm flex-1 truncate">{initialData.fileName || "Archivo"}</span>
-                {signedUrl ? (
-                  <a
-                    href={signedUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1 cursor-pointer"
-                  >
-                    Abrir <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
-                ) : (
-                  <span className="text-xs text-muted-foreground">Cargando...</span>
-                )}
-              </div>
+                <span className="text-sm flex-1 truncate">{initialData.fileName || "Ver comprobante"}</span>
+                <ExternalLink className="h-3.5 w-3.5 text-blue-600" />
+              </a>
             </div>
           )}
 
