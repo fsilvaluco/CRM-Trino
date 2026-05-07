@@ -32,7 +32,6 @@ const taskSchema = z.object({
   contactId: z.string(),
   companyId: z.string(),
   dealId: z.string(),
-  projectId: z.string(),
   subprojectId: z.string(),
 });
 
@@ -61,7 +60,6 @@ export function TaskForm({
   const [contactsList, setContacts] = useState<Array<{ id: string; name: string }>>([]);
   const [dealsList, setDeals] = useState<Array<{ id: string; title: string }>>([]);
   const [companiesList, setCompanies] = useState<Array<{ id: string; name: string }>>([]);
-  const [projectsList, setProjects] = useState<Array<{ id: string; name: string }>>([]);
   const [subprojectsList, setSubprojects] = useState<Array<{ id: string; name: string }>>([]);
 
   const {
@@ -81,12 +79,9 @@ export function TaskForm({
       contactId: preselectedContactId || "",
       companyId: preselectedCompanyId || "",
       dealId: preselectedDealId || "",
-      projectId: preselectedProjectId || activeProject?.id || "",
       subprojectId: preselectedSubprojectId || "",
     },
   });
-
-  const watchedProjectId = watch("projectId");
 
   useEffect(() => {
     if (!open) return;
@@ -100,23 +95,16 @@ export function TaskForm({
     if (!preselectedCompanyId) {
       fetch(`/api/companies${projectParam}`).then((r) => r.json()).then((d) => setCompanies(Array.isArray(d) ? d : [])).catch(() => {});
     }
-    if (!preselectedProjectId) {
-      fetch("/api/projects").then((r) => r.json()).then((d) => setProjects(Array.isArray(d) ? d : [])).catch(() => {});
-    }
-  }, [open, activeProject, preselectedContactId, preselectedDealId, preselectedCompanyId, preselectedProjectId]);
-
-  // Cargar subproyectos cuando cambia el proyecto seleccionado
-  useEffect(() => {
-    if (!watchedProjectId) {
+    // Cargar subproyectos del proyecto activo
+    if (activeProject?.id) {
+      fetch(`/api/subprojects?projectId=${activeProject.id}`)
+        .then((r) => r.json())
+        .then((d) => setSubprojects(Array.isArray(d) ? d : []))
+        .catch(() => {});
+    } else {
       setSubprojects([]);
-      setValue("subprojectId", "");
-      return;
     }
-    fetch(`/api/subprojects?projectId=${watchedProjectId}`)
-      .then((r) => r.json())
-      .then((d) => setSubprojects(Array.isArray(d) ? d : []))
-      .catch(() => {});
-  }, [watchedProjectId, setValue]);
+  }, [open, activeProject, preselectedContactId, preselectedDealId, preselectedCompanyId]);
 
   const onSubmit = async (data: TaskFormData) => {
     try {
@@ -131,7 +119,7 @@ export function TaskForm({
           contactId: data.contactId || null,
           companyId: data.companyId || null,
           dealId: data.dealId || null,
-          projectId: data.projectId || null,
+          projectId: activeProject?.id || null,
           subprojectId: data.subprojectId || null,
         }),
       });
@@ -203,6 +191,27 @@ export function TaskForm({
           </div>
 
           {/* Relaciones opcionales */}
+          {!preselectedSubprojectId && subprojectsList.length > 0 && (
+            <div className="space-y-2">
+              <Label>Subproyecto / Campaña</Label>
+              <Select
+                value={watch("subprojectId") || ""}
+                onValueChange={(v) => v && setValue("subprojectId", v)}
+              >
+                <SelectTrigger className="cursor-pointer">
+                  <span className={watch("subprojectId") ? "" : "text-muted-foreground"}>
+                    {subprojectsList.find((s) => s.id === watch("subprojectId"))?.name ?? "Sin subproyecto"}
+                  </span>
+                </SelectTrigger>
+                <SelectContent>
+                  {subprojectsList.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {!preselectedContactId && contactsList.length > 0 && (
             <div className="space-y-2">
               <Label>Contacto</Label>
@@ -266,47 +275,7 @@ export function TaskForm({
             </div>
           )}
 
-          {!preselectedProjectId && projectsList.length > 0 && (
-            <div className="space-y-2">
-              <Label>Proyecto</Label>
-              <Select
-                value={watch("projectId") || ""}
-                onValueChange={(v) => v && setValue("projectId", v)}
-              >
-                <SelectTrigger className="cursor-pointer">
-                  <span className={watch("projectId") ? "" : "text-muted-foreground"}>
-                    {projectsList.find((p) => p.id === watch("projectId"))?.name ?? "Sin proyecto"}
-                  </span>
-                </SelectTrigger>
-                <SelectContent>
-                  {projectsList.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
 
-          {!preselectedSubprojectId && subprojectsList.length > 0 && (
-            <div className="space-y-2">
-              <Label>Subproyecto</Label>
-              <Select
-                value={watch("subprojectId") || ""}
-                onValueChange={(v) => v && setValue("subprojectId", v)}
-              >
-                <SelectTrigger className="cursor-pointer">
-                  <span className={watch("subprojectId") ? "" : "text-muted-foreground"}>
-                    {subprojectsList.find((s) => s.id === watch("subprojectId"))?.name ?? "Sin subproyecto"}
-                  </span>
-                </SelectTrigger>
-                <SelectContent>
-                  {subprojectsList.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
 
           <div className="flex justify-end gap-2 pt-2">
             <Button
