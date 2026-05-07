@@ -87,6 +87,7 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [fileUrl, setFileUrl] = useState<string>("");
+  const [loadingFileUrl, setLoadingFileUrl] = useState(false);
 
   const isEditMode = !!initialData;
 
@@ -129,9 +130,26 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
 
       // Cargar URL firmada del archivo si existe
       if (initialData.fileUrl) {
-        getFileSignedUrl(initialData.fileUrl).then(setFileUrl);
+        setLoadingFileUrl(true);
+        console.log("[TransactionForm] Cargando URL firmada para:", initialData.fileUrl);
+        getFileSignedUrl(initialData.fileUrl)
+          .then((url) => {
+            if (url) {
+              console.log("[TransactionForm] URL firmada cargada exitosamente");
+              setFileUrl(url);
+            } else {
+              console.error("[TransactionForm] URL firmada vacía - puede haber error de permisos");
+              toast.error("No se pudo cargar el archivo. Verifica los permisos.");
+            }
+          })
+          .catch((err) => {
+            console.error("[TransactionForm] Error al cargar URL firmada:", err);
+            toast.error("Error al cargar el archivo");
+          })
+          .finally(() => setLoadingFileUrl(false));
       } else {
         setFileUrl("");
+        setLoadingFileUrl(false);
       }
     }
   }, [initialData, open, setValue]);
@@ -355,8 +373,8 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
                   </button>
                 </div>
               ) : (
-                <label className="flex flex-col items-center justify-center gap-2 p-4 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/30 transition-colors">
-                  <Upload className="h-5 w-5 text-muted-foreground" />
+                <label className="flex flex-col items-center gap-2 p-6 rounded-lg border-2 border-dashed border-muted-foreground/30 hover:border-muted-foreground/50 transition-colors cursor-pointer">
+                  <Upload className="h-6 w-6 text-muted-foreground/60" />
                   <span className="text-sm text-muted-foreground text-center">
                     Arrastra un archivo o haz clic para subir<br />
                     <span className="text-xs">PDF, JPG, PNG — máx. 10 MB</span>
@@ -371,22 +389,28 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
           {isEditMode && initialData.fileUrl && (
             <div className="space-y-1.5">
               <Label>Comprobante adjunto</Label>
-              <a
-                href={fileUrl || "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 p-2.5 rounded-lg border bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
-                onClick={(e) => {
-                  if (!fileUrl) {
-                    e.preventDefault();
-                    toast.error("Cargando archivo...");
-                  }
-                }}
-              >
-                <File className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span className="text-sm flex-1 truncate">{initialData.fileName || "Ver comprobante"}</span>
-                <ExternalLink className="h-3.5 w-3.5 text-blue-600" />
-              </a>
+              {loadingFileUrl ? (
+                <div className="flex items-center gap-2 p-2.5 rounded-lg border bg-muted/50">
+                  <Loader2 className="h-4 w-4 text-muted-foreground shrink-0 animate-spin" />
+                  <span className="text-sm text-muted-foreground">Cargando archivo...</span>
+                </div>
+              ) : fileUrl ? (
+                <a
+                  href={fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 p-2.5 rounded-lg border bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
+                >
+                  <File className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span className="text-sm flex-1 truncate">{initialData.fileName || "Ver comprobante"}</span>
+                  <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                </a>
+              ) : (
+                <div className="flex items-center gap-2 p-2.5 rounded-lg border bg-red-50 dark:bg-red-950/20">
+                  <File className="h-4 w-4 text-red-600 shrink-0" />
+                  <span className="text-sm text-red-600">No se pudo cargar el archivo</span>
+                </div>
+              )}
             </div>
           )}
 

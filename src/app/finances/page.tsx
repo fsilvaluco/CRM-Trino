@@ -39,15 +39,22 @@ function formatCLP(amount: number) {
 
 // Helper para obtener URL firmada del archivo desde Supabase Storage (bucket privado)
 async function getFileSignedUrl(filePath: string): Promise<string> {
+  console.log("[FileLink] Solicitando URL firmada para:", filePath);
   const { data, error } = await supabase.storage
     .from("finances")
     .createSignedUrl(filePath, 3600); // 1 hora de validez
   
-  if (error || !data) {
-    console.error("Error generando URL firmada:", error);
+  if (error) {
+    console.error("[FileLink] Error generando URL firmada:", error);
     return "";
   }
   
+  if (!data || !data.signedUrl) {
+    console.error("[FileLink] Data vacía o sin signedUrl:", data);
+    return "";
+  }
+  
+  console.log("[FileLink] URL firmada generada exitosamente");
   return data.signedUrl;
 }
 
@@ -55,23 +62,46 @@ async function getFileSignedUrl(filePath: string): Promise<string> {
 function FileLink({ fileUrl, title }: { fileUrl: string; title: string }) {
   const [signedUrl, setSignedUrl] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
+    setLoading(true);
+    setError(false);
     getFileSignedUrl(fileUrl)
-      .then(setSignedUrl)
+      .then((url) => {
+        if (url) {
+          setSignedUrl(url);
+        } else {
+          setError(true);
+        }
+      })
+      .catch((err) => {
+        console.error("[FileLink] Excepción al obtener URL:", err);
+        setError(true);
+      })
       .finally(() => setLoading(false));
   }, [fileUrl]);
 
   if (loading) {
     return (
-      <Button variant="ghost" size="icon" className="h-7 w-7" disabled>
+      <Button variant="ghost" size="icon" className="h-7 w-7" disabled title="Cargando...">
         <Loader2 className="h-3.5 w-3.5 animate-spin" />
       </Button>
     );
   }
 
-  if (!signedUrl) {
-    return null;
+  if (error || !signedUrl) {
+    return (
+      <Button 
+        variant="ghost" 
+        size="icon" 
+        className="h-7 w-7 text-red-500" 
+        disabled 
+        title="Error al cargar archivo"
+      >
+        <ExternalLink className="h-3.5 w-3.5" />
+      </Button>
+    );
   }
 
   return (
