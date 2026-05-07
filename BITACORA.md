@@ -57,6 +57,39 @@ _Ninguno — todos resueltos ✅_
 
 ## ✅ Completado recientemente
 
+**✅ Refactor: Simplificación total del sistema de responsable** _(completado: 7 may 2026)_
+- **Problema persistente:** Dropdown de "Encargado del gasto" no cargaba miembros del proyecto correctamente
+- **Decisión estratégica:** Cambiar el enfoque completamente - en lugar de seleccionar responsable, hacer log automático
+- **Nuevo flujo implementado:**
+  1. **Usuario que registra el gasto** → automático (`responsibleUserId = user.id`)
+  2. **Nombre del responsable** → automático (`responsibleName = user.full_name || user.email`)
+  3. **Si lo pagó otra persona** → campo opcional de texto libre para indicar nombre externo
+- **Eliminaciones:**
+  - Dropdown complejo con Select de project_members (eliminado por completo)
+  - Constantes `EXTERNAL_KEY` y `NONE_KEY` (ya no se necesitan)
+  - Schema field `responsibleKey` (simplificado)
+  - Estado `members` y su useEffect de carga (ya no se necesita)
+  - Prop `members` del componente TransactionForm (eliminado)
+  - Lógica compleja de validación de miembro en useEffect (innecesaria)
+- **UI simplificada:**
+  - Campo: "¿Lo pagó otra persona?" (Input de texto simple)
+  - Placeholder: "Dejar vacío si lo pagaste tú (opcional)"
+  - Texto explicativo: "Por defecto quedas tú como quien ingresó el gasto"
+  - Checkbox reembolsado: Solo aparece si hay nombre externo con el texto dinámico "el dinero ya fue devuelto a {nombre}"
+- **Beneficios:**
+  - ✅ **Log automático:** Siempre queda registrado quién ingresó cada gasto (trazabilidad)
+  - ✅ **UX ultra-simplificada:** Un solo campo opcional en lugar de dropdown complejo
+  - ✅ **Sin dependencia de APIs:** No requiere cargar miembros del proyecto
+  - ✅ **Más robusto:** Sin errores de dropdown vacío o miembros no encontrados
+  - ✅ **Mantiene funcionalidad:** Reembolsos a terceros siguen funcionando igual
+- **Código más limpio:**
+  - 72 líneas eliminadas (de 96 a 24 en lógica de responsable)
+  - Sin complejidad de Select + validación + carga de members
+  - onSubmit simplificado: solo 2 casos en lugar de 3 anidados
+- **Build verificado:** ✓ 10.2s compile, TypeScript passing
+- **Archivos modificados:** 2 (TransactionForm.tsx, finances/page.tsx)
+- **Commit:** `ffc368d`
+
 **✅ Fix final: Miembros del proyecto + comprobantes clickeables** _(completado: 7 may 2026)_
 - **Problemas reportados:**
   1. Dropdown "Encargado del gasto" seguía sin mostrar usuarios del proyecto - mostraba solo `__none__`
