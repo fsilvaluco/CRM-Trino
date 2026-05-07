@@ -64,6 +64,20 @@ _Ninguno — todos resueltos ✅_
 
 ## ✅ Completado recientemente
 
+**✅ Fix: Referencias remanentes de Activities** _(completado: 7 may 2026, fix post-deploy)_
+- **Problema:** Build de Railway falló con errores TypeScript — ContactDetail y classify route todavía referenciaban Activities
+- **Errores encontrados:**
+  - `ContactDetail.tsx`: Importaba `ActivityForm` y `ACTIVITY_TYPE_CONFIG` (eliminados)
+  - `contacts/[id]/page.tsx`: Query a tabla `activities` en Supabase (eliminada)
+  - `api/classify/route.ts`: Calculaba `activityCount` y `daysSinceLastActivity` para scoring (campos eliminados de ScoringInput)
+- **Fix implementado:**
+  - **ContactDetail.tsx:** Eliminados imports, props `activities`, estado `showActivityForm`, función `handleCompleteActivity`, y card completa de "Activity timeline". Grid cambiado de 3 columnas a 2 (info + deals).
+  - **contacts/[id]/page.tsx:** Eliminado query a activities, removido parámetro `activities` del componente
+  - **api/classify/route.ts:** Eliminado query a activities, función `classifyLead` ahora recibe `[]` (array vacío), removida lógica de lastActivity y daysSinceLastActivity
+- **Verificación:** Build local exitoso ✓ (5.6s compile, TypeScript passing)
+- **Resultado:** Todas las referencias a Activities completamente eliminadas del codebase
+- **Commits:** `1ce6c8c` (eliminación inicial) + `1a86815` (fix de referencias remanentes)
+
 **✅ Eliminación de módulo Activities** _(completado: 7 may 2026)_
 - **Requerimiento:** Remover módulo Activities - las tareas son el centro del sistema
 - **Implementación:**
