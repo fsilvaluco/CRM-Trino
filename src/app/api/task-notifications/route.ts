@@ -63,7 +63,7 @@ export async function GET() {
   const overdue: TaskNotification[] = [];
   const upcoming: TaskNotification[] = [];
 
-  for (const task of myTasks) {
+  for (const task of myTasks as any[]) {
     const dueDate = new Date(task.due_date);
     const dueDateOnly = new Date(
       dueDate.getFullYear(),
@@ -73,11 +73,11 @@ export async function GET() {
 
     // Manejar projects y subprojects como array u objeto
     const projectName = Array.isArray(task.projects)
-      ? task.projects[0]?.name ?? null
-      : task.projects?.name ?? null;
+      ? (task.projects[0]?.name ?? null)
+      : (task.projects?.name ?? null);
     const subprojectName = Array.isArray(task.subprojects)
-      ? task.subprojects[0]?.name ?? null
-      : task.subprojects?.name ?? null;
+      ? (task.subprojects[0]?.name ?? null)
+      : (task.subprojects?.name ?? null);
 
     const notification: TaskNotification = {
       id: task.id,
