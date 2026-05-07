@@ -53,6 +53,15 @@ interface TaskItem {
   dealTitle?: string | null;
   projectName?: string | null;
   subprojectName?: string | null;
+  assignees?: Array<{
+    userId: string;
+    assignedAt: string;
+    profile: {
+      fullName: string | null;
+      avatarUrl: string | null;
+      email: string | null;
+    } | null;
+  }>;
 }
 
 function toMs(d: number | Date | null | undefined): number {
@@ -316,6 +325,7 @@ export default function TasksPage() {
     dueDate: t.dueDate,
     contactName: t.contactName,
     projectName: t.projectName,
+    assignees: t.assignees,
   }));
 
   const pendingCount = taskList.filter((t) => !DONE_STATUSES.includes(t.status)).length;

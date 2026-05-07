@@ -61,6 +61,14 @@ export interface TaskCard {
   dueDate: number | Date | null;
   contactName?: string | null;
   projectName?: string | null;
+  assignees?: Array<{
+    userId: string;
+    profile?: {
+      fullName: string | null;
+      avatarUrl: string | null;
+      email: string | null;
+    } | null;
+  }>;
 }
 
 // ─── Draggable task card ──────────────────────────────────────────────────────
@@ -110,7 +118,7 @@ function DraggableTaskCard({
         </Badge>
       </div>
 
-      {(task.dueDate || task.contactName || task.projectName) && (
+      {(task.dueDate || task.contactName || task.projectName || (task.assignees && task.assignees.length > 0)) && (
         <div className="mt-2 space-y-0.5">
           {task.dueDate && (
             <p className={`text-xs flex items-center gap-1 ${isOverdue ? "text-destructive" : "text-muted-foreground"}`}>
@@ -123,6 +131,34 @@ function DraggableTaskCard({
           )}
           {task.projectName && (
             <p className="text-xs text-muted-foreground">{task.projectName}</p>
+          )}
+          {task.assignees && task.assignees.length > 0 && (
+            <div className="flex items-center gap-1 mt-1">
+              {task.assignees.slice(0, 3).map((assignee, idx) => {
+                const displayName = assignee.profile?.fullName || assignee.profile?.email || "?";
+                const initials = displayName
+                  .split(" ")
+                  .map((n) => n[0])
+                  .join("")
+                  .toUpperCase()
+                  .slice(0, 2);
+                return (
+                  <div
+                    key={assignee.userId}
+                    className="w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-medium"
+                    style={{ marginLeft: idx > 0 ? "-8px" : "0" }}
+                    title={displayName}
+                  >
+                    {initials}
+                  </div>
+                );
+              })}
+              {task.assignees.length > 3 && (
+                <div className="w-6 h-6 rounded-full bg-muted text-muted-foreground text-xs flex items-center justify-center font-medium" style={{ marginLeft: "-8px" }}>
+                  +{task.assignees.length - 3}
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}
