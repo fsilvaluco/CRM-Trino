@@ -144,9 +144,17 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
       if (file && user && !isEditMode) {
         const ext = file.name.split(".").pop();
         const storagePath = `receipts/${user.id}/${Date.now()}.${ext}`;
-        const { error: uploadError } = await supabase.storage
+        
+        // Timeout de 15s para evitar colgar infinitamente
+        const uploadPromise = supabase.storage
           .from("finances")
           .upload(storagePath, file, { upsert: false });
+        
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Timeout subiendo archivo (15s). Intenta de nuevo.")), 15000)
+        );
+        
+        const { error: uploadError } = await Promise.race([uploadPromise, timeoutPromise]) as Awaited<typeof uploadPromise>;
 
         if (uploadError) {
           toast.error("Error subiendo comprobante: " + uploadError.message);
