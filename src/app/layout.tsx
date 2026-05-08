@@ -17,7 +17,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Trino-Control",
+  title: "Artist Pro",
   description:
     "CRM conversacional con pipeline de ventas, clasificacion automatica de leads y seguimiento inteligente.",
 };

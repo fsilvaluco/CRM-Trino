@@ -161,7 +161,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         <Briefcase className="h-6 w-6 text-[var(--sidebar-primary)] shrink-0" />
         {!collapsed && (
           <span className="text-lg font-bold tracking-tight whitespace-nowrap">
-            Trino-Control
+            Artist Pro
           </span>
         )}
       </div>
@@ -224,10 +224,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         {!collapsed && (
           <div>
             <p className="text-xs text-[var(--sidebar-foreground)]/50">
-              Trino-Control v1.0
-            </p>
-            <p className="text-xs text-[var(--sidebar-foreground)]/50">
-              Powered by Claude
+              Artist Pro v2.0
             </p>
           </div>
         )}

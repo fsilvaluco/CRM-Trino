@@ -72,7 +72,7 @@ export function MobileNav() {
     <div className="flex flex-col h-full bg-[var(--sidebar)] text-[var(--sidebar-foreground)]">
       <div className="flex h-16 items-center gap-2 px-6 border-b border-[var(--sidebar-border)]">
         <Briefcase className="h-6 w-6 text-[var(--sidebar-primary)]" />
-        <span className="text-lg font-bold tracking-tight">Trino-Control</span>
+        <span className="text-lg font-bold tracking-tight">Artist Pro</span>
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1">

@@ -33,7 +33,7 @@ export function NotificationToggle() {
         toast.success("Notificaciones activadas");
 
         // Show test notification
-        new Notification("Trino-Control", {
+        new Notification("Artist Pro", {
           body: "Las notificaciones estan activas. Te avisaremos de seguimientos pendientes.",
         });
       } else {

@@ -46,7 +46,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm space-y-6 p-8 rounded-2xl border bg-card shadow-sm">
         {/* Logo / Nombre */}
         <div className="text-center space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight">Trino — SiSoy</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Artist Pro</h1>
           <p className="text-sm text-muted-foreground">Inicia sesión para continuar</p>
         </div>
 

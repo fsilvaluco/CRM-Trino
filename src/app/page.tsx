@@ -177,7 +177,7 @@ export default function DashboardPage() {
 
       {isFirstRun && (
         <div className="rounded-lg border border-primary/20 bg-primary/5 p-6">
-          <h2 className="text-lg font-semibold mb-2">Bienvenido a Trino-Control</h2>
+          <h2 className="text-lg font-semibold mb-2">Bienvenido a Artist Pro</h2>
           <p className="text-sm text-muted-foreground mb-4">Tu CRM esta listo. Aqui tienes como comenzar:</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
             <div className="p-3 rounded-lg bg-card border">

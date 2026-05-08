@@ -221,7 +221,7 @@ export async function POST(request: NextRequest) {
   // Si el usuario ya estaba registrado, enviar email de notificación (no llega el de Supabase)
   if (alreadyExists) {
     const apiKey = process.env.RESEND_API_KEY;
-    const from = process.env.DIGEST_FROM || "CRM Trino <onboarding@resend.dev>";
+    const from = process.env.DIGEST_FROM || "Artist Pro <onboarding@resend.dev>";
 
     if (apiKey) {
       const html = `
@@ -240,7 +240,7 @@ export async function POST(request: NextRequest) {
             </a>
           </div>
           <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
-          <p style="color: #94a3b8; font-size: 12px; text-align: center;">CRM Trino</p>
+          <p style="color: #94a3b8; font-size: 12px; text-align: center;">Artist Pro</p>
         </div>
       `;
 
