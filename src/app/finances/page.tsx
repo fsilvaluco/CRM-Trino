@@ -22,6 +22,7 @@ interface Transaction {
   currency: string;
   description: string | null;
   category: string | null;
+  filePath: string | null;
   fileUrl: string | null;
   fileName: string | null;
   responsibleUserId?: string | null;
@@ -122,8 +123,8 @@ function TransactionList({
 
             {/* Acciones */}
             <div className="flex items-center gap-1 shrink-0">
-              {t.fileUrl && (
-                <a href={getFilePublicUrl(t.fileUrl)} target="_blank" rel="noopener noreferrer" title="Ver comprobante">
+              {t.filePath && (
+                <a href={getFilePublicUrl(t.filePath)} target="_blank" rel="noopener noreferrer" title="Ver comprobante">
                   <Button variant="ghost" size="icon" className="h-7 w-7">
                     <ExternalLink className="h-3.5 w-3.5" />
                   </Button>
@@ -326,6 +327,7 @@ export default function FinancesPage() {
           responsibleUserId: editingTransaction.responsibleUserId ?? null,
           responsibleName: editingTransaction.responsibleName,
           reimbursed: editingTransaction.reimbursed,
+          filePath: editingTransaction.filePath,
           fileUrl: editingTransaction.fileUrl,
           fileName: editingTransaction.fileName,
         } : undefined}

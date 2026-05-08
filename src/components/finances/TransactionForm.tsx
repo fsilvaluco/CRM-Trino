@@ -62,6 +62,7 @@ interface InitialTransaction {
   responsibleUserId: string | null;
   responsibleName: string | null;
   reimbursed: boolean;
+  filePath: string | null;
   fileUrl: string | null;
   fileName: string | null;
 }
@@ -368,11 +369,11 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
           )}
 
           {/* Comprobante existente - solo en modo edit */}
-          {isEditMode && initialData.fileUrl && (
+          {isEditMode && initialData.filePath && (
             <div className="space-y-1.5">
               <Label>Comprobante adjunto</Label>
               <a
-                href={getFilePublicUrl(initialData.fileUrl)}
+                href={getFilePublicUrl(initialData.filePath)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 p-2.5 rounded-lg border bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
