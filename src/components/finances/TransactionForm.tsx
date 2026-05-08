@@ -145,21 +145,27 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
         const ext = file.name.split(".").pop();
         const storagePath = `receipts/${user.id}/${Date.now()}.${ext}`;
         
-        // Timeout de 15s para evitar colgar infinitamente
-        const uploadPromise = supabase.storage
+        console.log("[Upload] Iniciando upload...");
+        console.log("[Upload] user.id:", user.id);
+        console.log("[Upload] storagePath:", storagePath);
+        console.log("[Upload] file size:", file.size, "type:", file.type);
+        
+        // Verificar sesión activa
+        const { data: sessionData } = await supabase.auth.getSession();
+        console.log("[Upload] session:", sessionData.session ? "✅ Activa" : "❌ NO HAY SESIÓN");
+        
+        const uploadResult = await supabase.storage
           .from("finances")
           .upload(storagePath, file, { upsert: false });
         
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("Timeout subiendo archivo (15s). Intenta de nuevo.")), 15000)
-        );
+        console.log("[Upload] resultado:", uploadResult);
         
-        const { error: uploadError } = await Promise.race([uploadPromise, timeoutPromise]) as Awaited<typeof uploadPromise>;
-
-        if (uploadError) {
-          toast.error("Error subiendo comprobante: " + uploadError.message);
+        if (uploadResult.error) {
+          console.error("[Upload] ERROR:", uploadResult.error);
+          toast.error("Error subiendo comprobante: " + uploadResult.error.message);
           return;
         }
+        console.log("[Upload] ✅ Éxito:", uploadResult.data);
         fileUrl = storagePath;
         fileName = file.name;
       }
