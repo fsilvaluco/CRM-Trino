@@ -34,18 +34,10 @@ const EXPENSE_CATEGORIES = [
 ];
 const INCOME_CATEGORIES = ["Venta", "Patrocinio", "Subsidio", "Transferencia", "Otro"];
 
-// Helper para obtener URL firmada del archivo (bucket privado)
-const getFileSignedUrl = async (filePath: string): Promise<string> => {
-  const { data, error } = await supabase.storage
-    .from("finances")
-    .createSignedUrl(filePath, 3600); // 1 hora de validez
-  
-  if (error || !data) {
-    console.error("Error generando URL firmada:", error);
-    return "";
-  }
-  
-  return data.signedUrl;
+// Helper para obtener URL pública del archivo (bucket debe ser público)
+const getFilePublicUrl = (filePath: string): string => {
+  const { data } = supabase.storage.from("finances").getPublicUrl(filePath);
+  return data.publicUrl;
 };
 
 const schema = z.object({
@@ -86,8 +78,6 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
   const { activeProject } = useProject();
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [fileUrl, setFileUrl] = useState<string>("");
-  const [loadingFileUrl, setLoadingFileUrl] = useState(false);
 
   const isEditMode = !!initialData;
 
@@ -128,29 +118,7 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
         setValue("responsibleExternal", "");
       }
 
-      // Cargar URL firmada del archivo si existe
-      if (initialData.fileUrl) {
-        setLoadingFileUrl(true);
-        console.log("[TransactionForm] Cargando URL firmada para:", initialData.fileUrl);
-        getFileSignedUrl(initialData.fileUrl)
-          .then((url) => {
-            if (url) {
-              console.log("[TransactionForm] URL firmada cargada exitosamente");
-              setFileUrl(url);
-            } else {
-              console.error("[TransactionForm] URL firmada vacía - puede haber error de permisos");
-              toast.error("No se pudo cargar el archivo. Verifica los permisos.");
-            }
-          })
-          .catch((err) => {
-            console.error("[TransactionForm] Error al cargar URL firmada:", err);
-            toast.error("Error al cargar el archivo");
-          })
-          .finally(() => setLoadingFileUrl(false));
-      } else {
-        setFileUrl("");
-        setLoadingFileUrl(false);
-      }
+      // No se necesita cargar URL, getPublicUrl es síncrono
     }
   }, [initialData, open, setValue]);
 
@@ -389,28 +357,16 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
           {isEditMode && initialData.fileUrl && (
             <div className="space-y-1.5">
               <Label>Comprobante adjunto</Label>
-              {loadingFileUrl ? (
-                <div className="flex items-center gap-2 p-2.5 rounded-lg border bg-muted/50">
-                  <Loader2 className="h-4 w-4 text-muted-foreground shrink-0 animate-spin" />
-                  <span className="text-sm text-muted-foreground">Cargando archivo...</span>
-                </div>
-              ) : fileUrl ? (
-                <a
-                  href={fileUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 p-2.5 rounded-lg border bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
-                >
-                  <File className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <span className="text-sm flex-1 truncate">{initialData.fileName || "Ver comprobante"}</span>
-                  <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                </a>
-              ) : (
-                <div className="flex items-center gap-2 p-2.5 rounded-lg border bg-red-50 dark:bg-red-950/20">
-                  <File className="h-4 w-4 text-red-600 shrink-0" />
-                  <span className="text-sm text-red-600">No se pudo cargar el archivo</span>
-                </div>
-              )}
+              <a
+                href={getFilePublicUrl(initialData.fileUrl)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 p-2.5 rounded-lg border bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
+              >
+                <File className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="text-sm flex-1 truncate">{initialData.fileName || "Ver comprobante"}</span>
+                <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              </a>
             </div>
           )}
 

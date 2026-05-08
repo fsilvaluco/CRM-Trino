@@ -37,80 +37,10 @@ function formatCLP(amount: number) {
   return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(amount);
 }
 
-// Helper para obtener URL firmada del archivo desde Supabase Storage (bucket privado)
-async function getFileSignedUrl(filePath: string): Promise<string> {
-  console.log("[FileLink] Solicitando URL firmada para:", filePath);
-  const { data, error } = await supabase.storage
-    .from("finances")
-    .createSignedUrl(filePath, 3600); // 1 hora de validez
-  
-  if (error) {
-    console.error("[FileLink] Error generando URL firmada:", error);
-    return "";
-  }
-  
-  if (!data || !data.signedUrl) {
-    console.error("[FileLink] Data vacía o sin signedUrl:", data);
-    return "";
-  }
-  
-  console.log("[FileLink] URL firmada generada exitosamente");
-  return data.signedUrl;
-}
-
-// Componente para link con carga de URL firmada
-function FileLink({ fileUrl, title }: { fileUrl: string; title: string }) {
-  const [signedUrl, setSignedUrl] = useState<string>("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-
-  useEffect(() => {
-    setLoading(true);
-    setError(false);
-    getFileSignedUrl(fileUrl)
-      .then((url) => {
-        if (url) {
-          setSignedUrl(url);
-        } else {
-          setError(true);
-        }
-      })
-      .catch((err) => {
-        console.error("[FileLink] Excepción al obtener URL:", err);
-        setError(true);
-      })
-      .finally(() => setLoading(false));
-  }, [fileUrl]);
-
-  if (loading) {
-    return (
-      <Button variant="ghost" size="icon" className="h-7 w-7" disabled title="Cargando...">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-      </Button>
-    );
-  }
-
-  if (error || !signedUrl) {
-    return (
-      <Button 
-        variant="ghost" 
-        size="icon" 
-        className="h-7 w-7 text-red-500" 
-        disabled 
-        title="Error al cargar archivo"
-      >
-        <ExternalLink className="h-3.5 w-3.5" />
-      </Button>
-    );
-  }
-
-  return (
-    <a href={signedUrl} target="_blank" rel="noopener noreferrer" title={title}>
-      <Button variant="ghost" size="icon" className="h-7 w-7">
-        <ExternalLink className="h-3.5 w-3.5" />
-      </Button>
-    </a>
-  );
+// Helper para obtener URL pública del archivo (bucket debe ser público)
+function getFilePublicUrl(filePath: string): string {
+  const { data } = supabase.storage.from("finances").getPublicUrl(filePath);
+  return data.publicUrl;
 }
 
 function TransactionList({
@@ -193,7 +123,11 @@ function TransactionList({
             {/* Acciones */}
             <div className="flex items-center gap-1 shrink-0">
               {t.fileUrl && (
-                <FileLink fileUrl={t.fileUrl} title="Ver comprobante" />
+                <a href={getFilePublicUrl(t.fileUrl)} target="_blank" rel="noopener noreferrer" title="Ver comprobante">
+                  <Button variant="ghost" size="icon" className="h-7 w-7">
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </Button>
+                </a>
               )}
               <Button
                 variant="ghost"
