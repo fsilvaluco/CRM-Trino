@@ -9,7 +9,8 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { SubprojectForm } from "@/components/projects/SubprojectForm";
 import { SubprojectEditSheet } from "@/components/projects/SubprojectEditSheet";
 import { useProject } from "@/lib/project-context";
-import { Megaphone, Plus, Calendar } from "lucide-react";
+import { toast } from "sonner";
+import { Megaphone, Plus, Calendar, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -51,6 +52,7 @@ export default function CampanasPage() {
   const [showEditSheet, setShowEditSheet] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [filterStatus, setFilterStatus] = useState("all");
+  const [deletingCampaignId, setDeletingCampaignId] = useState<string | null>(null);
 
   const hasProjects = projects.length > 0;
   const targetProjectId = activeProject?.id ?? null;
@@ -82,6 +84,31 @@ export default function CampanasPage() {
   const handleCampaignSaved = useCallback(() => {
     loadCampaigns();
     router.refresh();
+  }, [loadCampaigns, router]);
+
+  const handleDeleteCampaign = useCallback(async (campaign: Campaign) => {
+    const shouldDelete = confirm(`¿Eliminar la campaña "${campaign.name}"? Esta acción no se puede deshacer.`);
+    if (!shouldDelete) return;
+
+    setDeletingCampaignId(campaign.id);
+
+    try {
+      const response = await fetch(`/api/subprojects/${campaign.id}`, { method: "DELETE" });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        const message = typeof payload.error === "string" ? payload.error : "No se pudo eliminar la campaña";
+        toast.error(message);
+        return;
+      }
+
+      toast.success("Campaña eliminada");
+      await loadCampaigns();
+      router.refresh();
+    } catch {
+      toast.error("Error de conexión al eliminar la campaña");
+    } finally {
+      setDeletingCampaignId(null);
+    }
   }, [loadCampaigns, router]);
 
   useEffect(() => {
@@ -211,9 +238,25 @@ export default function CampanasPage() {
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="font-semibold leading-tight">{campaign.name}</h3>
-                    <Badge className={`shrink-0 text-xs ${statusCfg.className}`}>
-                      {statusCfg.label}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge className={`shrink-0 text-xs ${statusCfg.className}`}>
+                        {statusCfg.label}
+                      </Badge>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive hover:text-destructive cursor-pointer"
+                        title="Eliminar campaña"
+                        disabled={deletingCampaignId === campaign.id}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void handleDeleteCampaign(campaign);
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
 
                   {campaign.projectName && isAllProjects && (
