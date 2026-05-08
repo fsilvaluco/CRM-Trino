@@ -169,14 +169,36 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, orgId, error } = await requireAuth();
   if (error) return error;
 
+  if (!orgId) {
+    return NextResponse.json({ error: "Organizacion no identificada" }, { status: 403 });
+  }
+
   const { data: existing, error: findErr } = await supabase
-    .from("subprojects").select("id").eq("id", id).single();
+    .from("subprojects").select("id, organization_id").eq("id", id).single();
 
   if (findErr || !existing) {
     return NextResponse.json({ error: "Subproyecto no encontrado" }, { status: 404 });
+  }
+
+  if (existing.organization_id !== orgId) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  }
+
+  // Evita violar la FK tasks_subproject_id_fkey: primero desvincula tareas asociadas.
+  const { error: tasksError } = await supabase
+    .from("tasks")
+    .update({
+      subproject_id: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("subproject_id", id)
+    .eq("organization_id", orgId);
+
+  if (tasksError) {
+    return NextResponse.json({ error: `No se pudieron actualizar tareas relacionadas: ${tasksError.message}` }, { status: 500 });
   }
 
   const { error: dbError } = await supabase.from("subprojects").delete().eq("id", id);
