@@ -69,15 +69,37 @@ export async function POST(
         task_id: id,
         content: trimmedContent,
         author: normalizedAuthor,
+        author_id: user!.id,
         organization_id: orgId,
         created_by: user!.id,
       },
     },
     {
-      label: "no_author",
+      label: "author_id_schema",
       payload: {
         task_id: id,
         content: trimmedContent,
+        author: normalizedAuthor,
+        author_id: user!.id,
+        organization_id: orgId,
+      },
+    },
+    {
+      label: "created_by_schema",
+      payload: {
+        task_id: id,
+        content: trimmedContent,
+        author: normalizedAuthor,
+        organization_id: orgId,
+        created_by: user!.id,
+      },
+    },
+    {
+      label: "id_only_with_org",
+      payload: {
+        task_id: id,
+        content: trimmedContent,
+        author_id: user!.id,
         organization_id: orgId,
         created_by: user!.id,
       },
