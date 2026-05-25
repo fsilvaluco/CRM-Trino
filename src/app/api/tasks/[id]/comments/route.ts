@@ -22,7 +22,12 @@ export async function GET(
     .order("created_at", { ascending: true });
 
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
-  return NextResponse.json(comments ?? []);
+  const normalizedComments = (comments ?? []).map((comment) => ({
+    ...comment,
+    author: comment.author ?? "Usuario",
+  }));
+
+  return NextResponse.json(normalizedComments);
 }
 
 export async function POST(
@@ -55,47 +60,55 @@ export async function POST(
     return NextResponse.json({ error: "Tarea no encontrada" }, { status: 404 });
   }
 
-  // Try inserting with organization_id and created_by first
-  let comment = null;
-  let dbError = null;
-
-  const fullInsert = await supabase
-    .from("task_comments")
-    .insert({
-      task_id: id,
-      content: content.trim(),
-      author: author?.trim() || "Usuario",
-      organization_id: orgId,
-      created_by: user!.id,
-    })
-    .select().single();
-
-  if (fullInsert.error) {
-    console.error("[task_comments POST] full insert error:", fullInsert.error);
-    // Fallback: insert without extra columns (for schema cache lag or missing columns)
-    const minimalInsert = await supabase
-      .from("task_comments")
-      .insert({
+  const trimmedContent = content.trim();
+  const normalizedAuthor = author?.trim() || "Usuario";
+  const insertAttempts: Array<{ label: string; payload: Record<string, string | null> }> = [
+    {
+      label: "full",
+      payload: {
         task_id: id,
-        content: content.trim(),
-        author: author?.trim() || "Usuario",
-      })
-      .select().single();
+        content: trimmedContent,
+        author: normalizedAuthor,
+        organization_id: orgId,
+        created_by: user!.id,
+      },
+    },
+    {
+      label: "no_author",
+      payload: {
+        task_id: id,
+        content: trimmedContent,
+        organization_id: orgId,
+        created_by: user!.id,
+      },
+    },
+  ];
 
-    if (minimalInsert.error) {
-      console.error("[task_comments POST] minimal insert error:", minimalInsert.error);
+  let lastErrorMessage = "Error desconocido al crear comentario";
+
+  for (const attempt of insertAttempts) {
+    const result = await supabase
+      .from("task_comments")
+      .insert(attempt.payload)
+      .select()
+      .single();
+
+    if (!result.error) {
       return NextResponse.json(
-        { error: `Error al crear comentario: ${minimalInsert.error.message}` },
-        { status: 500 }
+        {
+          ...result.data,
+          author: result.data.author ?? normalizedAuthor,
+        },
+        { status: 201 }
       );
     }
-    comment = minimalInsert.data;
-  } else {
-    comment = fullInsert.data;
-    dbError = fullInsert.error;
+
+    lastErrorMessage = result.error.message;
+    console.error(`[task_comments POST] ${attempt.label} insert error:`, result.error);
   }
 
-  void dbError;
-
-  return NextResponse.json(comment, { status: 201 });
+  return NextResponse.json(
+    { error: `Error al crear comentario: ${lastErrorMessage}` },
+    { status: 500 }
+  );
 }
