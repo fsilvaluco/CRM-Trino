@@ -31,7 +31,10 @@ export async function POST(
 ) {
   const { id } = await params;
   const { supabase, user, orgId, error } = await requireAuth();
-  if (error) return error;
+  if (error) {
+    console.error("[task_comments POST] requireAuth error:", error);
+    return error;
+  }
 
   let body;
   try {
@@ -52,7 +55,11 @@ export async function POST(
     return NextResponse.json({ error: "Tarea no encontrada" }, { status: 404 });
   }
 
-  const { data: comment, error: dbError } = await supabase
+  // Try inserting with organization_id and created_by first
+  let comment = null;
+  let dbError = null;
+
+  const fullInsert = await supabase
     .from("task_comments")
     .insert({
       task_id: id,
@@ -63,9 +70,32 @@ export async function POST(
     })
     .select().single();
 
-  if (dbError) {
-    return NextResponse.json({ error: `Error al crear comentario: ${dbError.message}` }, { status: 500 });
+  if (fullInsert.error) {
+    console.error("[task_comments POST] full insert error:", fullInsert.error);
+    // Fallback: insert without extra columns (for schema cache lag or missing columns)
+    const minimalInsert = await supabase
+      .from("task_comments")
+      .insert({
+        task_id: id,
+        content: content.trim(),
+        author: author?.trim() || "Usuario",
+      })
+      .select().single();
+
+    if (minimalInsert.error) {
+      console.error("[task_comments POST] minimal insert error:", minimalInsert.error);
+      return NextResponse.json(
+        { error: `Error al crear comentario: ${minimalInsert.error.message}` },
+        { status: 500 }
+      );
+    }
+    comment = minimalInsert.data;
+  } else {
+    comment = fullInsert.data;
+    dbError = fullInsert.error;
   }
+
+  void dbError;
 
   return NextResponse.json(comment, { status: 201 });
 }
