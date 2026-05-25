@@ -101,6 +101,7 @@ function CommentItem({ comment }: { comment: TaskComment }) {
           ? comment.createdAt * 1000
           : comment.createdAt
       );
+  const isValidDate = !Number.isNaN(date.getTime());
 
   return (
     <div className="flex gap-3">
@@ -111,7 +112,7 @@ function CommentItem({ comment }: { comment: TaskComment }) {
         <div className="flex items-center gap-2 mb-1">
           <span className="text-sm font-medium">{comment.author}</span>
           <span className="text-xs text-muted-foreground">
-            {format(date, "d MMM yyyy, HH:mm", { locale: es })}
+            {isValidDate ? format(date, "d MMM yyyy, HH:mm", { locale: es }) : "Fecha no disponible"}
           </span>
         </div>
         <p className="text-sm text-foreground whitespace-pre-wrap break-words">{comment.content}</p>
@@ -297,6 +298,7 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = 
     const d = typeof val === "number"
       ? new Date(val < 1e12 ? val * 1000 : val)
       : new Date(val);
+    if (Number.isNaN(d.getTime())) return "";
     return format(d, "yyyy-MM-dd");
   };
 

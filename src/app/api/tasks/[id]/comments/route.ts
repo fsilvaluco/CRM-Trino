@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapTaskComment(row: any) {
+  return {
+    id: row.id,
+    taskId: row.task_id ?? null,
+    content: row.content ?? "",
+    author: row.author ?? "Usuario",
+    createdAt: row.created_at ?? row.createdAt ?? new Date().toISOString(),
+  };
+}
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -22,12 +33,7 @@ export async function GET(
     .order("created_at", { ascending: true });
 
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
-  const normalizedComments = (comments ?? []).map((comment) => ({
-    ...comment,
-    author: comment.author ?? "Usuario",
-  }));
-
-  return NextResponse.json(normalizedComments);
+  return NextResponse.json((comments ?? []).map(mapTaskComment));
 }
 
 export async function POST(
@@ -39,6 +45,9 @@ export async function POST(
   if (error) {
     console.error("[task_comments POST] requireAuth error:", error);
     return error;
+  }
+  if (!user || !orgId) {
+    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   }
 
   let body;
@@ -69,9 +78,9 @@ export async function POST(
         task_id: id,
         content: trimmedContent,
         author: normalizedAuthor,
-        author_id: user!.id,
+        author_id: user.id,
         organization_id: orgId,
-        created_by: user!.id,
+        created_by: user.id,
       },
     },
     {
@@ -80,7 +89,7 @@ export async function POST(
         task_id: id,
         content: trimmedContent,
         author: normalizedAuthor,
-        author_id: user!.id,
+        author_id: user.id,
         organization_id: orgId,
       },
     },
@@ -91,7 +100,7 @@ export async function POST(
         content: trimmedContent,
         author: normalizedAuthor,
         organization_id: orgId,
-        created_by: user!.id,
+        created_by: user.id,
       },
     },
     {
@@ -99,9 +108,9 @@ export async function POST(
       payload: {
         task_id: id,
         content: trimmedContent,
-        author_id: user!.id,
+        author_id: user.id,
         organization_id: orgId,
-        created_by: user!.id,
+        created_by: user.id,
       },
     },
   ];
@@ -116,13 +125,7 @@ export async function POST(
       .single();
 
     if (!result.error) {
-      return NextResponse.json(
-        {
-          ...result.data,
-          author: result.data.author ?? normalizedAuthor,
-        },
-        { status: 201 }
-      );
+      return NextResponse.json(mapTaskComment(result.data), { status: 201 });
     }
 
     lastErrorMessage = result.error.message;

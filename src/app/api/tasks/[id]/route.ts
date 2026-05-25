@@ -26,6 +26,17 @@ function mapTask(row: any) {
   };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapTaskComment(row: any) {
+  return {
+    id: row.id,
+    taskId: row.task_id ?? null,
+    content: row.content ?? "",
+    author: row.author ?? "Usuario",
+    createdAt: row.created_at ?? row.createdAt ?? new Date().toISOString(),
+  };
+}
+
 const DONE_STATUSES = ["listo", "descartado"];
 
 export async function GET(
@@ -52,7 +63,7 @@ export async function GET(
     .eq("task_id", id)
     .order("created_at", { ascending: true });
 
-  return NextResponse.json({ ...mapTask(task), comments: comments ?? [] });
+  return NextResponse.json({ ...mapTask(task), comments: (comments ?? []).map(mapTaskComment) });
 }
 
 
@@ -93,7 +104,17 @@ export async function PUT(
   if (description !== undefined) updates.description = description;
   if (status !== undefined) updates.status = status;
   if (priority !== undefined) updates.priority = priority;
-  if (dueDate !== undefined) updates.due_date = dueDate ? new Date(dueDate).toISOString() : null;
+  if (dueDate !== undefined) {
+    if (dueDate) {
+      const parsedDueDate = new Date(dueDate);
+      if (Number.isNaN(parsedDueDate.getTime())) {
+        return NextResponse.json({ error: "Fecha de vencimiento invalida" }, { status: 400 });
+      }
+      updates.due_date = parsedDueDate.toISOString();
+    } else {
+      updates.due_date = null;
+    }
+  }
   if (contactId !== undefined) updates.contact_id = contactId || null;
   if (companyId !== undefined) updates.company_id = companyId || null;
   if (dealId !== undefined) updates.deal_id = dealId || null;
