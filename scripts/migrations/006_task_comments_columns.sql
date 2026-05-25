@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS task_comments (
 
 
 -- ============================================================
--- STEP 2: Add organization_id column (if it doesn't exist)
+-- STEP 2: Add organization_id and created_by columns (if missing)
 -- ============================================================
 ALTER TABLE task_comments
   ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
@@ -49,7 +49,8 @@ CREATE INDEX IF NOT EXISTS idx_task_comments_created_at
 ALTER TABLE task_comments ENABLE ROW LEVEL SECURITY;
 
 -- Allow org members to view comments for tasks in their org
-CREATE POLICY IF NOT EXISTS "Org members can view task comments"
+DROP POLICY IF EXISTS "Org members can view task comments" ON task_comments;
+CREATE POLICY "Org members can view task comments"
   ON task_comments FOR SELECT
   USING (
     organization_id IN (
@@ -59,7 +60,8 @@ CREATE POLICY IF NOT EXISTS "Org members can view task comments"
   );
 
 -- Allow org members to insert comments
-CREATE POLICY IF NOT EXISTS "Org members can add task comments"
+DROP POLICY IF EXISTS "Org members can add task comments" ON task_comments;
+CREATE POLICY "Org members can add task comments"
   ON task_comments FOR INSERT
   WITH CHECK (
     organization_id IN (
@@ -69,6 +71,7 @@ CREATE POLICY IF NOT EXISTS "Org members can add task comments"
   );
 
 -- Allow comment author to delete their own comments
-CREATE POLICY IF NOT EXISTS "Authors can delete own task comments"
+DROP POLICY IF EXISTS "Authors can delete own task comments" ON task_comments;
+CREATE POLICY "Authors can delete own task comments"
   ON task_comments FOR DELETE
   USING (created_by = auth.uid());
