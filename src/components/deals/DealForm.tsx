@@ -51,7 +51,7 @@ const dealSchema = z.object({
   probability: z.string(),
   expectedClose: z.string(),
   notes: z.string(),
-  projectId: z.string(),
+  projectId: z.string().min(1, "El proyecto es requerido"),
 });
 
 type DealFormData = z.infer<typeof dealSchema>;
@@ -410,6 +410,9 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
                 )}
               </SelectContent>
             </Select>
+            {errors.projectId && (
+              <p className="text-xs text-destructive">{errors.projectId.message}</p>
+            )}
           </div>
 
           <div className="space-y-2">
