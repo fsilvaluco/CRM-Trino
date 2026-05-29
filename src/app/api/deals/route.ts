@@ -125,7 +125,6 @@ export async function POST(request: NextRequest) {
       title,
       value: normalizedValueType === "fixed" ? normalizedValue : 0,
       value_type: normalizedValueType,
-      percentage_value: normalizedValueType === "percentage" ? normalizedPercentageValue : null,
       tax_type: normalizedTaxType,
       stage_id: finalStageId,
       contact_id: contactId || null,
@@ -136,6 +135,7 @@ export async function POST(request: NextRequest) {
       organization_id: orgId,
       created_by: user!.id,
       project_id: projectId || null,
+      ...(normalizedValueType === "percentage" ? { percentage_value: normalizedPercentageValue } : {}),
     })
     .select()
     .single();
