@@ -51,6 +51,7 @@ const dealSchema = z.object({
   probability: z.string(),
   expectedClose: z.string(),
   notes: z.string(),
+  projectId: z.string(),
 });
 
 type DealFormData = z.infer<typeof dealSchema>;
@@ -82,7 +83,7 @@ function toDateInputValue(value: string | null): string {
 export function DealForm({ open, onClose, initialStageId, initialDealId }: DealFormProps) {
   const router = useRouter();
   const { settings } = useLocale();
-  const { activeProject } = useProject();
+  const { activeProject, projects } = useProject();
   const [contactsList, setContacts] = useState<Array<{ id: string; name: string }>>([]);
   const [companiesList, setCompanies] = useState<Array<{ id: string; name: string }>>([]);
   const [stagesList, setStages] = useState<Array<{ id: string; name: string }>>([]);
@@ -113,19 +114,29 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
       probability: "50",
       expectedClose: "",
       notes: "",
+      projectId: activeProject?.id || "",
     },
   });
 
   const isEditing = Boolean(initialDealId);
+  const selectedProjectId = watch("projectId");
+  const hasActiveProject = Boolean(activeProject?.id);
+
+  // Sync projectId when modal opens or active project changes
+  useEffect(() => {
+    if (!open) return;
+    setValue("projectId", activeProject?.id || "");
+  }, [open, activeProject?.id, setValue]);
 
   useEffect(() => {
-    const params = activeProject ? `?projectId=${activeProject.id}` : "";
+    const effectiveProjectId = selectedProjectId || activeProject?.id || "";
+    const params = effectiveProjectId ? `?projectId=${effectiveProjectId}` : "";
     fetch(`/api/contacts${params}`).then((r) => r.json()).then((d) => setContacts(Array.isArray(d) ? d : []));
     fetch(`/api/companies${params}`).then((r) => r.json()).then((d) => setCompanies(Array.isArray(d) ? d : []));
     fetch(`/api/pipeline${params}`)
       .then((r) => r.json())
       .then((d) => setStages(Array.isArray(d) ? d : []));
-  }, [activeProject]);
+  }, [activeProject?.id, selectedProjectId]);
 
   useEffect(() => {
     if (!open) {
@@ -139,6 +150,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
         probability: "50",
         expectedClose: "",
         notes: "",
+        projectId: activeProject?.id || "",
       });
       return;
     }
@@ -154,6 +166,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
         probability: "50",
         expectedClose: "",
         notes: "",
+        projectId: activeProject?.id || "",
       });
       return;
     }
@@ -220,7 +233,8 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
   }, [selectedContactId]);
 
   const handleCreateCompany = async (): Promise<string> => {
-    if (!activeProject?.id) {
+    const effectiveProjectId = selectedProjectId || activeProject?.id || "";
+    if (!effectiveProjectId) {
       throw new Error("Selecciona un proyecto para crear empresa");
     }
 
@@ -233,7 +247,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: newCompanyName.trim(),
-        projectId: activeProject.id,
+        projectId: effectiveProjectId,
       }),
     });
 
@@ -251,7 +265,8 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
   };
 
   const handleCreateContact = async (): Promise<string> => {
-    if (!activeProject?.id) {
+    const effectiveProjectId = selectedProjectId || activeProject?.id || "";
+    if (!effectiveProjectId) {
       throw new Error("Selecciona un proyecto para crear contacto");
     }
 
@@ -276,7 +291,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
         email: newContactEmail.trim() || null,
         phone: newContactPhone.trim() || null,
         companyId,
-        projectId: activeProject.id,
+        projectId: effectiveProjectId,
         source: "otro",
         temperature: "cold",
         score: 0,
@@ -319,7 +334,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
           contactId,
           value: Math.round(parseFloat(data.value || "0") * 100),
           probability: parseInt(data.probability || "0"),
-          projectId: activeProject?.id ?? null,
+          projectId: data.projectId || null,
         }),
       });
 
@@ -370,6 +385,33 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
           </div>
         ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div className="space-y-2">
+            <Label>Proyecto</Label>
+            <Select
+              value={selectedProjectId || ""}
+              onValueChange={(v) => {
+                if (!v) return;
+                setValue("projectId", v);
+              }}
+              disabled={hasActiveProject}
+            >
+              <SelectTrigger className="cursor-pointer disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground">
+                <span className={selectedProjectId ? "" : "text-muted-foreground"}>
+                  {projects.find((p) => p.id === selectedProjectId)?.name ?? "Sin proyecto"}
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                {projects.length > 0 ? (
+                  projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))
+                ) : (
+                  <div className="px-2 py-1.5 text-sm text-muted-foreground">No hay proyectos asignados</div>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="deal-title">Titulo *</Label>
             <Input id="deal-title" {...register("title")} placeholder="Ej: Servicio Premium - Empresa X" />
