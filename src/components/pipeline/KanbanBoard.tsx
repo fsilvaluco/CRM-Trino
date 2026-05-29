@@ -145,9 +145,6 @@ export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealCl
               title: d.title,
               value: d.value,
               contactName: d.contactName || (d.contact?.name ?? null),
-              contactTemperature:
-                d.contactTemperature ||
-                (d.contact?.temperature ?? null),
               probability: d.probability,
             }))}
           />
@@ -163,10 +160,6 @@ export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealCl
             contactName={
               activeDeal.contactName ||
               (activeDeal.contact?.name ?? null)
-            }
-            contactTemperature={
-              activeDeal.contactTemperature ||
-              (activeDeal.contact?.temperature ?? null)
             }
             probability={activeDeal.probability}
           />

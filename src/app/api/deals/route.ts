@@ -17,7 +17,6 @@ function mapDeal(row: any) {
     updatedAt: row.updated_at,
     contactName: row.contacts?.name ?? null,
     contactEmail: row.contacts?.email ?? null,
-    contactTemperature: row.contacts?.temperature ?? null,
     stageName: row.pipeline_stages?.name ?? null,
     stageColor: row.pipeline_stages?.color ?? null,
     stageOrder: row.pipeline_stages?.order ?? null,
@@ -38,7 +37,7 @@ export async function GET(request: NextRequest) {
     .from("deals")
     .select(`
       *,
-      contacts ( name, email, temperature ),
+      contacts ( name, email ),
       pipeline_stages ( name, color, order, is_won, is_lost ),
       companies ( name )
     `)

@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { StatusBadge } from "@/components/shared/StatusBadge";
 import { ContactForm } from "./ContactForm";
 import {
   ArrowLeft,
@@ -23,7 +22,7 @@ import { cleanPhoneForWhatsApp } from "@/lib/constants";
 import { useLocale } from "@/lib/locale-context";
 import { SOURCE_LABELS } from "@/lib/constants";
 import { toast } from "sonner";
-import type { Temperature, LeadSource } from "@/types";
+import type { LeadSource } from "@/types";
 
 
 interface ContactDetailClientProps {
@@ -35,7 +34,6 @@ interface ContactDetailClientProps {
     company: string | null;
     companyId: string | null;
     source: string;
-    temperature: string;
     score: number;
     notes: string | null;
     createdAt: number | Date;
@@ -101,7 +99,6 @@ export function ContactDetailClient({
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold">{contact.name}</h1>
-            <StatusBadge temperature={contact.temperature as Temperature} />
           </div>
           <p className="text-muted-foreground">
             Score: {contact.score}/100 &middot;{" "}
@@ -275,7 +272,6 @@ export function ContactDetailClient({
           companyId: contact.companyId || "",
           score: contact.score,
           source: contact.source,
-          temperature: contact.temperature as "cold" | "warm" | "hot",
           notes: contact.notes || "",
         }}
       />

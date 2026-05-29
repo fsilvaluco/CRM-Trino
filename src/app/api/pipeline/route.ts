@@ -25,7 +25,6 @@ function mapStage(stage: any, deals: any[]) {
         createdAt: d.created_at,
         updatedAt: d.updated_at,
         contactName: d.contacts?.name ?? null,
-        contactTemperature: d.contacts?.temperature ?? null,
       })),
   };
 }
@@ -39,7 +38,7 @@ export async function GET(request: NextRequest) {
 
   let dealsQuery = supabase
     .from("deals")
-    .select("*, contacts ( name, temperature )")
+    .select("*, contacts ( name )")
     .is("deleted_at", null);
 
   if (projectId) dealsQuery = dealsQuery.eq("project_id", projectId);

@@ -2,18 +2,15 @@
 
 import { useRef, type PointerEvent as ReactPointerEvent } from "react";
 import { Card } from "@/components/ui/card";
-import { StatusBadge } from "@/components/shared/StatusBadge";
 import { useLocale } from "@/lib/locale-context";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { Temperature } from "@/types";
 
 interface DealCardProps {
   id: string;
   title: string;
   value: number;
   contactName: string | null;
-  contactTemperature: string | null;
   probability: number;
   onClick?: () => void;
 }
@@ -23,7 +20,6 @@ export function DealCard({
   title,
   value,
   contactName,
-  contactTemperature,
   probability,
   onClick,
 }: DealCardProps) {
@@ -77,12 +73,6 @@ export function DealCard({
           <span className="text-sm font-semibold text-primary">
             {formatCurrency(value)}
           </span>
-          {contactTemperature && (
-            <StatusBadge
-              temperature={contactTemperature as Temperature}
-              size="sm"
-            />
-          )}
         </div>
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>{contactName || "Sin contacto"}</span>

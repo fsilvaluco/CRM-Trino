@@ -50,7 +50,6 @@ export default async function ContactDetailPage({
       : contact.companies?.name ?? null,
     companyId: contact.company_id,
     source: contact.source,
-    temperature: contact.temperature,
     score: contact.score,
     notes: contact.notes,
     createdAt: contact.created_at,

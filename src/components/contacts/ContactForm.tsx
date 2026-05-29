@@ -43,7 +43,6 @@ const contactSchema = z
     ]),
     newCompanyName: z.string(),
     source: z.string(),
-    temperature: z.enum(["cold", "warm", "hot"]),
     notes: z.string(),
   })
   .superRefine((data, ctx) => {
@@ -75,7 +74,6 @@ interface ContactFormProps {
     companyId?: string; // FK
     score?: number;
     source?: string;
-    temperature?: string;
     notes?: string;
   };
 }
@@ -113,7 +111,6 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
       companyId: initialData?.companyId || "",
       newCompanyName: "",
       source: initialData?.source || "otro",
-      temperature: (initialData?.temperature as ContactFormData["temperature"]) || "cold",
       notes: initialData?.notes || "",
     },
   });
@@ -186,7 +183,6 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
           phone: data.phone || null,
           companyId: finalCompanyId,
           source: data.source,
-          temperature: data.temperature,
           score: initialData?.score ?? 0,
           notes: data.notes || null,
           projectId: activeProject.id,
@@ -298,44 +294,26 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label>Fuente</Label>
-              <Select value={watch("source")} onValueChange={(v) => v && setValue("source", v)}>
-                <SelectTrigger className="cursor-pointer">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="website">Sitio web</SelectItem>
-                  <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                  <SelectItem value="referido">Referido</SelectItem>
-                  <SelectItem value="redes_sociales">Redes sociales</SelectItem>
-                  <SelectItem value="llamada_fria">Llamada fria</SelectItem>
-                  <SelectItem value="email">Email</SelectItem>
-                  <SelectItem value="formulario">Formulario</SelectItem>
-                  <SelectItem value="evento">Evento</SelectItem>
-                  <SelectItem value="import">Importado</SelectItem>
-                  <SelectItem value="webhook">Webhook</SelectItem>
-                  <SelectItem value="otro">Otro</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Temperatura</Label>
-              <Select
-                value={watch("temperature")}
-                onValueChange={(v) => v && setValue("temperature", v as ContactFormData["temperature"])}
-              >
-                <SelectTrigger className="cursor-pointer">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cold">Frio</SelectItem>
-                  <SelectItem value="warm">Tibio</SelectItem>
-                  <SelectItem value="hot">Caliente</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-2">
+            <Label>Fuente</Label>
+            <Select value={watch("source")} onValueChange={(v) => v && setValue("source", v)}>
+              <SelectTrigger className="cursor-pointer">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="website">Sitio web</SelectItem>
+                <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                <SelectItem value="referido">Referido</SelectItem>
+                <SelectItem value="redes_sociales">Redes sociales</SelectItem>
+                <SelectItem value="llamada_fria">Llamada fria</SelectItem>
+                <SelectItem value="email">Email</SelectItem>
+                <SelectItem value="formulario">Formulario</SelectItem>
+                <SelectItem value="evento">Evento</SelectItem>
+                <SelectItem value="import">Importado</SelectItem>
+                <SelectItem value="webhook">Webhook</SelectItem>
+                <SelectItem value="otro">Otro</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">

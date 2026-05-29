@@ -15,7 +15,6 @@ interface Deal {
   title: string;
   value: number;
   contactName: string | null;
-  contactTemperature: string | null;
   probability: number;
 }
 
