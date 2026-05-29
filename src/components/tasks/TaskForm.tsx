@@ -177,12 +177,13 @@ export function TaskForm({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-visible">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-hidden">
         <DialogHeader>
           <DialogTitle>Nueva Tarea</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="flex max-h-[calc(90vh-5rem)] min-h-0 flex-col">
+          <div className="flex-1 min-h-0 space-y-4 overflow-y-auto pr-2">
           <div className="space-y-2">
             <Label htmlFor="task-title">Titulo *</Label>
             <Input
@@ -456,8 +457,9 @@ export function TaskForm({
               </p>
             </div>
           )}
+          </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="mt-3 flex justify-end gap-2 border-t bg-background pt-3">
             <Button
               type="button"
               variant="outline"
