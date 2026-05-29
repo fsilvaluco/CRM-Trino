@@ -23,6 +23,15 @@ function mapTask(row: any) {
     dealTitle: row.deals?.title ?? null,
     projectName: row.projects?.name ?? null,
     subprojectName: row.subprojects?.name ?? null,
+    assignees: row.task_assignees?.map((ta: any) => ({
+      userId: ta.user_id,
+      assignedAt: ta.assigned_at,
+      profile: ta.profiles ? {
+        fullName: ta.profiles.full_name,
+        avatarUrl: ta.profiles.avatar_url,
+        email: ta.profiles.email,
+      } : null,
+    })) ?? [],
   };
 }
 
@@ -49,7 +58,19 @@ export async function GET(
 
   const { data: task, error: taskErr } = await supabase
     .from("tasks")
-    .select("*, contacts ( name ), companies ( name ), deals ( title ), projects ( name ), subprojects ( name )")
+    .select(`
+      *,
+      contacts ( name ),
+      companies ( name ),
+      deals ( title ),
+      projects ( name ),
+      subprojects ( name ),
+      task_assignees!task_assignees_task_id_fkey (
+        user_id,
+        assigned_at,
+        profiles!task_assignees_user_id_fkey ( full_name, avatar_url, email )
+      )
+    `)
     .eq("id", id)
     .single();
 
@@ -72,7 +93,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, user, error } = await requireAuth();
   if (error) return error;
 
   let body: Record<string, unknown>;
@@ -91,6 +112,13 @@ export async function PUT(
 
   const DONE_STATUSES = ["listo", "descartado"];
   const { title, description, status, priority, dueDate, contactId, companyId, dealId, projectId, subprojectId } = body as Record<string, string | undefined>;
+  const assigneeIds = Array.isArray(body.assigneeIds)
+    ? body.assigneeIds.filter((value): value is string => typeof value === "string" && value.length > 0)
+    : null;
+
+  if (assigneeIds && !user) {
+    return NextResponse.json({ error: "Usuario no autenticado" }, { status: 401 });
+  }
 
   const wasNotDone = !DONE_STATUSES.includes((existing.status as string) ?? "");
   const newStatus = status ?? (existing.status as string);
@@ -121,9 +149,49 @@ export async function PUT(
   if (projectId !== undefined) updates.project_id = projectId || null;
   if (subprojectId !== undefined) updates.subproject_id = subprojectId || null;
 
+  if (assigneeIds) {
+    const uniqueAssigneeIds = [...new Set(assigneeIds)];
+    const { error: deleteAssigneesError } = await supabase
+      .from("task_assignees")
+      .delete()
+      .eq("task_id", id);
+
+    if (deleteAssigneesError) {
+      return NextResponse.json({ error: `Error al actualizar responsables: ${deleteAssigneesError.message}` }, { status: 500 });
+    }
+
+    if (uniqueAssigneeIds.length > 0) {
+      const { error: insertAssigneesError } = await supabase
+        .from("task_assignees")
+        .insert(
+          uniqueAssigneeIds.map((assigneeId) => ({
+            task_id: id,
+            user_id: assigneeId,
+            assigned_by: user!.id,
+          }))
+        );
+
+      if (insertAssigneesError) {
+        return NextResponse.json({ error: `Error al actualizar responsables: ${insertAssigneesError.message}` }, { status: 500 });
+      }
+    }
+  }
+
   const { data, error: dbError } = await supabase
     .from("tasks").update(updates).eq("id", id)
-    .select("*, contacts ( name ), companies ( name ), deals ( title ), projects ( name ), subprojects ( name )")
+    .select(`
+      *,
+      contacts ( name ),
+      companies ( name ),
+      deals ( title ),
+      projects ( name ),
+      subprojects ( name ),
+      task_assignees!task_assignees_task_id_fkey (
+        user_id,
+        assigned_at,
+        profiles!task_assignees_user_id_fkey ( full_name, avatar_url, email )
+      )
+    `)
     .single();
 
   if (dbError) {

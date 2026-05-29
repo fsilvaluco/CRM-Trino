@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -45,6 +46,15 @@ interface TaskDetail {
   dealTitle: string | null;
   projectName: string | null;
   subprojectName: string | null;
+  assignees: Array<{
+    userId: string;
+    assignedAt: string;
+    profile: {
+      fullName: string | null;
+      avatarUrl: string | null;
+      email: string | null;
+    } | null;
+  }>;
   comments: TaskComment[];
 }
 
@@ -65,6 +75,7 @@ export interface TaskPatch {
   dealId?: string | null;
   projectId?: string | null;
   subprojectId?: string | null;
+  assigneeIds?: string[];
 }
 
 export const DEFAULT_PANEL_WIDTH = 520;
@@ -90,6 +101,11 @@ const PRIORITY_CONFIG: Record<TaskPriority, { label: string; className: string }
 const ALL_STATUSES: TaskStatus[] = [
   "sin_empezar", "en_curso", "revisar", "listo", "descartado",
 ];
+
+const CREATE_NEW_CONTACT = "__create_new_contact__";
+const CREATE_NEW_COMPANY = "__create_new_company__";
+const CREATE_NEW_DEAL = "__create_new_deal__";
+const CREATE_NEW_SUBPROJECT = "__create_new_subproject__";
 
 // ─── Comment item ─────────────────────────────────────────────────────────────
 
@@ -145,6 +161,9 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = 
   const [companies, setCompanies] = useState<Relation[]>([]);
   const [deals, setDeals] = useState<Relation[]>([]);
   const [subprojects, setSubprojects] = useState<Relation[]>([]);
+  const [orgMembers, setOrgMembers] = useState<Array<{ user_id: string; profiles: { full_name: string | null; email: string | null; avatar_url: string | null } }>>([]);
+  const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
+  const [assigneeSearch, setAssigneeSearch] = useState("");
 
   // Description auto-save
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
@@ -157,6 +176,8 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = 
       .then((r) => r.json())
       .then((data) => {
         setTask(data);
+        setSelectedAssignees(Array.isArray(data.assignees) ? data.assignees.map((assignee: { userId: string }) => assignee.userId) : []);
+        setAssigneeSearch("");
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -223,6 +244,7 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = 
   useEffect(() => {
     if (!task?.projectId) {
       setSubprojects([]);
+      setOrgMembers([]);
       return;
     }
     fetch(`/api/subprojects?projectId=${task.projectId}`)
@@ -231,6 +253,13 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = 
         setSubprojects(data.map((x) => ({ id: x.id, name: x.name })));
       })
       .catch(() => {});
+
+    fetch(`/api/project-members?projectId=${task.projectId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        setOrgMembers(Array.isArray(data) ? data : []);
+      })
+      .catch(() => setOrgMembers([]));
   }, [task?.projectId]);
 
   const patch = useCallback(async (fields: Record<string, unknown>) => {
@@ -246,10 +275,169 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = 
       setTask((prev) => prev ? { ...prev, ...updated } : prev);
       // Notify parent with the updated fields so it can update Kanban immediately
       onUpdated({ id: taskId, ...updated });
+      return true;
     } catch {
       toast.error("Error al guardar cambios");
+      return false;
     }
   }, [taskId, onUpdated]);
+
+  const handleToggleAssignee = async (userId: string, checked: boolean) => {
+    const previousAssignees = selectedAssignees;
+    const nextAssignees = checked
+      ? [...new Set([...selectedAssignees, userId])]
+      : selectedAssignees.filter((id) => id !== userId);
+
+    setSelectedAssignees(nextAssignees);
+    const saved = await patch({ assigneeIds: nextAssignees });
+    if (!saved) {
+      setSelectedAssignees(previousAssignees);
+    }
+  };
+
+  const handleCreateCompanyInline = async () => {
+    if (!task?.projectId) {
+      toast.error("Selecciona un proyecto para crear empresa");
+      return;
+    }
+
+    const name = window.prompt("Nombre de la nueva empresa");
+    if (!name || !name.trim()) return;
+
+    try {
+      const res = await fetch("/api/companies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          projectId: task.projectId,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "No se pudo crear la empresa");
+
+      const created = { id: data.id as string, name: data.name as string };
+      setCompanies((prev) => [created, ...prev.filter((item) => item.id !== created.id)]);
+      await patch({ companyId: created.id });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo crear la empresa");
+    }
+  };
+
+  const handleCreateContactInline = async () => {
+    if (!task?.projectId) {
+      toast.error("Selecciona un proyecto para crear contacto");
+      return;
+    }
+
+    const effectiveCompanyId = task.companyId;
+    if (!effectiveCompanyId) {
+      toast.error("Primero selecciona una empresa para crear contacto");
+      return;
+    }
+
+    const name = window.prompt("Nombre del nuevo contacto");
+    if (!name || !name.trim()) return;
+
+    try {
+      const res = await fetch("/api/contacts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: null,
+          phone: null,
+          companyId: effectiveCompanyId,
+          source: "otro",
+          temperature: "cold",
+          score: 0,
+          notes: null,
+          projectId: task.projectId,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      const errorMessage = typeof data?.error === "string"
+        ? data.error
+        : typeof data?.error?.message === "string"
+          ? data.error.message
+          : "No se pudo crear el contacto";
+      if (!res.ok) throw new Error(errorMessage);
+
+      const created = { id: data.id as string, name: data.name as string };
+      setContacts((prev) => [created, ...prev.filter((item) => item.id !== created.id)]);
+      await patch({ contactId: created.id });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo crear el contacto");
+    }
+  };
+
+  const handleCreateDealInline = async () => {
+    if (!task?.projectId) {
+      toast.error("Selecciona un proyecto para crear deal");
+      return;
+    }
+
+    if (!task.contactId && !task.companyId) {
+      toast.error("Selecciona contacto o empresa antes de crear un deal");
+      return;
+    }
+
+    const title = window.prompt("Titulo del nuevo deal");
+    if (!title || !title.trim()) return;
+
+    try {
+      const res = await fetch("/api/deals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: title.trim(),
+          value: 0,
+          probability: 50,
+          contactId: task.contactId,
+          companyId: task.companyId,
+          projectId: task.projectId,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "No se pudo crear el deal");
+
+      const created = { id: data.id as string, name: data.title as string };
+      setDeals((prev) => [created, ...prev.filter((item) => item.id !== created.id)]);
+      await patch({ dealId: created.id });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo crear el deal");
+    }
+  };
+
+  const handleCreateSubprojectInline = async () => {
+    if (!task?.projectId) {
+      toast.error("Selecciona un proyecto para crear campaña");
+      return;
+    }
+
+    const name = window.prompt("Nombre de la nueva campaña");
+    if (!name || !name.trim()) return;
+
+    try {
+      const res = await fetch("/api/subprojects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          status: "active",
+          projectId: task.projectId,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "No se pudo crear la campaña");
+
+      const created = { id: data.id as string, name: data.name as string };
+      setSubprojects((prev) => [created, ...prev.filter((item) => item.id !== created.id)]);
+      await patch({ subprojectId: created.id });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo crear la campaña");
+    }
+  };
 
   const handleDescriptionBlur = () => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -390,10 +578,76 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = 
                   </div>
                 </FieldRow>
 
+                <FieldRow label="Responsables">
+                  <div className="space-y-2">
+                    {selectedAssignees.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {selectedAssignees.map((userId) => {
+                          const member = orgMembers.find((item) => item.user_id === userId);
+                          if (!member) return null;
+                          const fullName = member.profiles?.full_name;
+                          const email = member.profiles?.email;
+                          const displayName = fullName || email || "Usuario";
+                          const initials = fullName
+                            ? fullName.split(" ").map((part) => part[0]).join("").toUpperCase().slice(0, 2)
+                            : email
+                              ? email.slice(0, 2).toUpperCase()
+                              : "?";
+                          return (
+                            <span key={userId} className="inline-flex items-center gap-1 rounded bg-primary px-2 py-0.5 text-xs text-primary-foreground">
+                              <span className="font-semibold">{initials}</span>
+                              <span>{displayName}</span>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <Input
+                      value={assigneeSearch}
+                      onChange={(event) => setAssigneeSearch(event.target.value)}
+                      placeholder="Buscar responsable..."
+                      className="h-8 text-sm"
+                    />
+
+                    <div className="max-h-36 overflow-y-auto rounded border">
+                      {orgMembers
+                        .filter((member) => {
+                          const name = member.profiles?.full_name || member.profiles?.email || "";
+                          return name.toLowerCase().includes(assigneeSearch.toLowerCase());
+                        })
+                        .map((member) => {
+                          const checked = selectedAssignees.includes(member.user_id);
+                          const fullName = member.profiles?.full_name;
+                          const email = member.profiles?.email;
+                          const displayName = fullName || email || "Usuario";
+                          return (
+                            <label key={member.user_id} className="flex cursor-pointer items-center gap-2 border-b px-2 py-1.5 text-sm last:border-b-0 hover:bg-muted/40">
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={(nextChecked) => handleToggleAssignee(member.user_id, Boolean(nextChecked))}
+                              />
+                              <span className="truncate">{displayName}</span>
+                            </label>
+                          );
+                        })}
+                      {orgMembers.length === 0 && (
+                        <div className="px-2 py-2 text-xs text-muted-foreground">No hay miembros disponibles en este proyecto</div>
+                      )}
+                    </div>
+                  </div>
+                </FieldRow>
+
                 <FieldRow label="Contacto">
                   <Select
                     value={task.contactId ?? "__none__"}
-                    onValueChange={(v) => patch({ contactId: v === "__none__" ? null : v })}
+                    onValueChange={(v) => {
+                      if (v === CREATE_NEW_CONTACT) {
+                        void handleCreateContactInline();
+                        return;
+                      }
+                      void patch({ contactId: v === "__none__" ? null : v });
+                    }}
                   >
                     <SelectTrigger className="h-8 text-sm">
                       {task.contactId
@@ -405,6 +659,7 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = 
                       {contacts.map((c) => (
                         <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                       ))}
+                      <SelectItem value={CREATE_NEW_CONTACT}>+ Crear nuevo contacto</SelectItem>
                     </SelectContent>
                   </Select>
                 </FieldRow>
@@ -412,7 +667,13 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = 
                 <FieldRow label="Empresa">
                   <Select
                     value={task.companyId ?? "__none__"}
-                    onValueChange={(v) => patch({ companyId: v === "__none__" ? null : v })}
+                    onValueChange={(v) => {
+                      if (v === CREATE_NEW_COMPANY) {
+                        void handleCreateCompanyInline();
+                        return;
+                      }
+                      void patch({ companyId: v === "__none__" ? null : v });
+                    }}
                   >
                     <SelectTrigger className="h-8 text-sm">
                       {task.companyId
@@ -424,6 +685,7 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = 
                       {companies.map((c) => (
                         <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                       ))}
+                      <SelectItem value={CREATE_NEW_COMPANY}>+ Crear nueva empresa</SelectItem>
                     </SelectContent>
                   </Select>
                 </FieldRow>
@@ -431,7 +693,13 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = 
                 <FieldRow label="Deal">
                   <Select
                     value={task.dealId ?? "__none__"}
-                    onValueChange={(v) => patch({ dealId: v === "__none__" ? null : v })}
+                    onValueChange={(v) => {
+                      if (v === CREATE_NEW_DEAL) {
+                        void handleCreateDealInline();
+                        return;
+                      }
+                      void patch({ dealId: v === "__none__" ? null : v });
+                    }}
                   >
                     <SelectTrigger className="h-8 text-sm">
                       {task.dealId
@@ -443,6 +711,7 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = 
                       {deals.map((d) => (
                         <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
                       ))}
+                      <SelectItem value={CREATE_NEW_DEAL}>+ Crear nuevo deal</SelectItem>
                     </SelectContent>
                   </Select>
                 </FieldRow>
@@ -450,7 +719,13 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = 
                 <FieldRow label="Campaña">
                   <Select
                     value={task.subprojectId ?? "__none__"}
-                    onValueChange={(v) => patch({ subprojectId: v === "__none__" ? null : v })}
+                    onValueChange={(v) => {
+                      if (v === CREATE_NEW_SUBPROJECT) {
+                        void handleCreateSubprojectInline();
+                        return;
+                      }
+                      void patch({ subprojectId: v === "__none__" ? null : v });
+                    }}
                   >
                     <SelectTrigger className="h-8 text-sm">
                       {task.subprojectId
@@ -462,6 +737,7 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = 
                       {subprojects.map((s) => (
                         <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                       ))}
+                      <SelectItem value={CREATE_NEW_SUBPROJECT}>+ Crear nueva campaña</SelectItem>
                     </SelectContent>
                   </Select>
                 </FieldRow>
