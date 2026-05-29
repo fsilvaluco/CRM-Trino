@@ -30,6 +30,7 @@ const taskSchema = z.object({
   description: z.string(),
   priority: z.enum(["low", "medium", "high"]),
   dueDate: z.string(),
+  projectId: z.string().min(1, "El proyecto es requerido"),
   contactId: z.string(),
   companyId: z.string(),
   dealId: z.string(),
@@ -57,7 +58,7 @@ export function TaskForm({
   preselectedProjectId,
   preselectedSubprojectId,
 }: TaskFormProps) {
-  const { activeProject } = useProject();
+  const { activeProject, projects } = useProject();
   const [contactsList, setContacts] = useState<Array<{ id: string; name: string }>>([]);
   const [dealsList, setDeals] = useState<Array<{ id: string; title: string }>>([]);
   const [companiesList, setCompanies] = useState<Array<{ id: string; name: string }>>([]);
@@ -80,6 +81,7 @@ export function TaskForm({
       description: "",
       priority: "medium",
       dueDate: "",
+      projectId: preselectedProjectId || activeProject?.id || "",
       contactId: preselectedContactId || "",
       companyId: preselectedCompanyId || "",
       dealId: preselectedDealId || "",
@@ -87,9 +89,23 @@ export function TaskForm({
     },
   });
 
+  const selectedProjectId = watch("projectId");
+  const hasActiveProject = Boolean(activeProject?.id);
+
   useEffect(() => {
     if (!open) return;
-    const projectParam = activeProject ? `?projectId=${activeProject.id}` : "";
+
+    const forcedProjectId = activeProject?.id || preselectedProjectId || "";
+    setValue("projectId", forcedProjectId);
+    if (!forcedProjectId) {
+      setValue("subprojectId", "");
+    }
+  }, [open, activeProject?.id, preselectedProjectId, setValue]);
+
+  useEffect(() => {
+    if (!open) return;
+    const effectiveProjectId = selectedProjectId || activeProject?.id || "";
+    const projectParam = effectiveProjectId ? `?projectId=${effectiveProjectId}` : "";
     if (!preselectedContactId) {
       fetch(`/api/contacts${projectParam}`).then((r) => r.json()).then((d) => setContacts(Array.isArray(d) ? d : [])).catch(() => {});
     }
@@ -100,24 +116,33 @@ export function TaskForm({
       fetch(`/api/companies${projectParam}`).then((r) => r.json()).then((d) => setCompanies(Array.isArray(d) ? d : [])).catch(() => {});
     }
     // Cargar subproyectos del proyecto activo
-    if (activeProject?.id) {
-      fetch(`/api/subprojects?projectId=${activeProject.id}`)
+    if (effectiveProjectId) {
+      fetch(`/api/subprojects?projectId=${effectiveProjectId}`)
         .then((r) => r.json())
         .then((d) => setSubprojects(Array.isArray(d) ? d : []))
         .catch(() => {});
     } else {
       setSubprojects([]);
+      setValue("subprojectId", "");
     }
     // Cargar miembros del proyecto activo (solo usuarios asignados al proyecto)
-    if (activeProject?.id) {
-      fetch(`/api/project-members?projectId=${activeProject.id}`)
+    if (effectiveProjectId) {
+      fetch(`/api/project-members?projectId=${effectiveProjectId}`)
         .then((r) => r.json())
         .then((d) => setOrgMembers(Array.isArray(d) ? d : []))
         .catch(() => {});
     } else {
       setOrgMembers([]);
     }
-  }, [open, activeProject, preselectedContactId, preselectedDealId, preselectedCompanyId]);
+  }, [
+    open,
+    activeProject?.id,
+    selectedProjectId,
+    preselectedContactId,
+    preselectedDealId,
+    preselectedCompanyId,
+    setValue,
+  ]);
 
   const onSubmit = async (data: TaskFormData) => {
     try {
@@ -132,7 +157,7 @@ export function TaskForm({
           contactId: data.contactId || null,
           companyId: data.companyId || null,
           dealId: data.dealId || null,
-          projectId: activeProject?.id || null,
+          projectId: data.projectId || null,
           subprojectId: data.subprojectId || null,
           assigneeIds: selectedAssignees.length > 0 ? selectedAssignees : null,
         }),
@@ -207,6 +232,37 @@ export function TaskForm({
           </div>
 
           {/* Relaciones opcionales */}
+          <div className="space-y-2">
+            <Label>Proyecto</Label>
+            <Select
+              value={selectedProjectId || ""}
+              onValueChange={(v) => {
+                if (!v) return;
+                setValue("projectId", v);
+                setValue("subprojectId", "");
+              }}
+              disabled={hasActiveProject}
+            >
+              <SelectTrigger className="cursor-pointer disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground">
+                <span className={selectedProjectId ? "" : "text-muted-foreground"}>
+                  {projects.find((p) => p.id === selectedProjectId)?.name ?? "Sin proyecto"}
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                {projects.length > 0 ? (
+                  projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))
+                ) : (
+                  <div className="px-2 py-1.5 text-sm text-muted-foreground">No hay proyectos asignados</div>
+                )}
+              </SelectContent>
+            </Select>
+            {errors.projectId && (
+              <p className="text-xs text-destructive">{errors.projectId.message}</p>
+            )}
+          </div>
+
           {!preselectedSubprojectId && subprojectsList.length > 0 && (
             <div className="space-y-2">
               <Label>Subproyecto / Campaña</Label>
