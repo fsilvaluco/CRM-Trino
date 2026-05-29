@@ -49,7 +49,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, orgId, error } = await requireAuth();
   if (error) return error;
 
   let body;
@@ -75,12 +75,35 @@ export async function PUT(
   const normalizedPercentageValue = body.percentageValue == null || body.percentageValue === ""
     ? null
     : Number(body.percentageValue);
-  const finalContactId = body.contactId !== undefined ? (body.contactId || null) : existing.contact_id;
+  let finalContactId = body.contactId !== undefined ? (body.contactId || null) : existing.contact_id;
   const finalCompanyId = body.companyId !== undefined ? (body.companyId || null) : existing.company_id;
 
   if (!finalContactId && !finalCompanyId) {
     return NextResponse.json(
       { error: "El deal debe tener al menos un contacto o empresa" },
+      { status: 400 }
+    );
+  }
+
+  if (!finalContactId && finalCompanyId) {
+    const { data: fallbackContact, error: fallbackContactError } = await supabase
+      .from("contacts")
+      .select("id")
+      .eq("company_id", finalCompanyId)
+      .eq("organization_id", orgId!)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .single();
+
+    if (!fallbackContactError && fallbackContact?.id) {
+      finalContactId = fallbackContact.id;
+    }
+  }
+
+  if (!finalContactId) {
+    return NextResponse.json(
+      { error: "No se puede guardar el deal sin contacto. Selecciona o crea un contacto primero." },
       { status: 400 }
     );
   }
@@ -108,7 +131,9 @@ export async function PUT(
   if (body.percentageValue !== undefined) updates.percentage_value = normalizedPercentageValue;
   if (body.taxType !== undefined) updates.tax_type = normalizedTaxType;
   if (body.stageId !== undefined) updates.stage_id = body.stageId;
-  if (body.contactId !== undefined) updates.contact_id = body.contactId;
+  if (body.contactId !== undefined || (!existing.contact_id && finalContactId)) {
+    updates.contact_id = finalContactId;
+  }
   if (body.companyId !== undefined) updates.company_id = body.companyId || null;
   if (body.projectId !== undefined) updates.project_id = body.projectId || null;
   if (body.expectedClose !== undefined) {
@@ -129,6 +154,13 @@ export async function PUT(
     .single();
 
   if (dbError) {
+    if (dbError.code === "23502" && dbError.message.includes("contact_id")) {
+      return NextResponse.json(
+        { error: "No se puede guardar el deal sin contacto. Selecciona o crea un contacto primero." },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json(
       { error: `Error al actualizar deal: ${dbError.message}` },
       { status: 500 }

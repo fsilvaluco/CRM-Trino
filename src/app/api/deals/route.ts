@@ -119,6 +119,32 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  let finalContactId = contactId || null;
+  const finalCompanyId = companyId || null;
+
+  if (!finalContactId && finalCompanyId) {
+    const { data: fallbackContact, error: fallbackContactError } = await supabase
+      .from("contacts")
+      .select("id")
+      .eq("company_id", finalCompanyId)
+      .eq("organization_id", orgId!)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .single();
+
+    if (!fallbackContactError && fallbackContact?.id) {
+      finalContactId = fallbackContact.id;
+    }
+  }
+
+  if (!finalContactId) {
+    return NextResponse.json(
+      { error: "No se puede crear el deal sin contacto. Selecciona o crea un contacto primero." },
+      { status: 400 }
+    );
+  }
+
   const { data, error: dbError } = await supabase
     .from("deals")
     .insert({
@@ -127,8 +153,8 @@ export async function POST(request: NextRequest) {
       value_type: normalizedValueType,
       tax_type: normalizedTaxType,
       stage_id: finalStageId,
-      contact_id: contactId || null,
-      company_id: companyId || null,
+      contact_id: finalContactId,
+      company_id: finalCompanyId,
       expected_close: expectedClose ? new Date(expectedClose).toISOString() : null,
       probability: Math.max(0, Math.min(100, Number(probability) || 0)),
       notes: notes || null,
@@ -141,6 +167,13 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (dbError) {
+    if (dbError.code === "23502" && dbError.message.includes("contact_id")) {
+      return NextResponse.json(
+        { error: "No se puede crear el deal sin contacto. Selecciona o crea un contacto primero." },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json(
       { error: `Error al crear deal: ${dbError.message}` },
       { status: 500 }
