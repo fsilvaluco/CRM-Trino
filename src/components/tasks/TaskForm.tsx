@@ -286,9 +286,11 @@ export function TaskForm({
                     {dealsList.find((d) => d.id === watch("dealId"))?.title ?? "Sin deal"}
                   </span>
                 </SelectTrigger>
-                <SelectContent className="z-[80] max-h-60 overflow-y-auto overscroll-contain border border-border shadow-lg">
+                <SelectContent className="z-[80] w-[min(34rem,calc(100vw-2rem))] max-h-80 max-w-[calc(100vw-2rem)] overflow-y-auto overscroll-contain border border-border shadow-lg">
                   {dealsList.map((d) => (
-                    <SelectItem key={d.id} value={d.id}>{d.title}</SelectItem>
+                    <SelectItem key={d.id} value={d.id} wrapText className="py-2 leading-snug">
+                      {d.title}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
