@@ -286,7 +286,7 @@ export function TaskForm({
                     {dealsList.find((d) => d.id === watch("dealId"))?.title ?? "Sin deal"}
                   </span>
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-[80] max-h-60 overflow-y-auto overscroll-contain border border-border shadow-lg">
                   {dealsList.map((d) => (
                     <SelectItem key={d.id} value={d.id}>{d.title}</SelectItem>
                   ))}
