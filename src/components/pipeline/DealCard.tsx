@@ -10,6 +10,8 @@ interface DealCardProps {
   id: string;
   title: string;
   value: number;
+  valueType?: "fixed" | "percentage";
+  percentageValue?: number | null;
   contactName: string | null;
   probability: number;
   onClick?: () => void;
@@ -19,6 +21,8 @@ export function DealCard({
   id,
   title,
   value,
+  valueType = "fixed",
+  percentageValue = null,
   contactName,
   probability,
   onClick,
@@ -71,7 +75,7 @@ export function DealCard({
         <p className="text-sm font-medium leading-tight">{title}</p>
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold text-primary">
-            {formatCurrency(value)}
+            {valueType === "percentage" ? `${percentageValue ?? 0}% recaudación` : formatCurrency(value)}
           </span>
         </div>
         <div className="flex items-center justify-between text-xs text-muted-foreground">

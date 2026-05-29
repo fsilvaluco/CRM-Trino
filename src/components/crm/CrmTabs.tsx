@@ -20,6 +20,9 @@ interface DealRow {
   id: string;
   title: string;
   value: number;
+  valueType: "fixed" | "percentage";
+  percentageValue: number | null;
+  taxType: "afecto" | "exento";
   probability: number;
   contactName: string | null;
   stageName: string | null;
@@ -86,7 +89,9 @@ export function CrmTabs({ columns, allDeals, onDealMoved, onAddDeal, onDealClick
                     <TableCell className="font-medium">{deal.title}</TableCell>
                     <TableCell>{deal.contactName || "-"}</TableCell>
                     <TableCell className="font-semibold text-primary">
-                      {formatCurrency(deal.value)}
+                      {deal.valueType === "percentage"
+                        ? `${deal.percentageValue ?? 0}% recaudación`
+                        : formatCurrency(deal.value)}
                     </TableCell>
                     <TableCell>
                       <Badge

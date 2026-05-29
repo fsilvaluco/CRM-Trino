@@ -7,6 +7,9 @@ function mapDeal(row: any) {
     id: row.id,
     title: row.title,
     value: row.value,
+    valueType: row.value_type ?? "fixed",
+    percentageValue: row.percentage_value ?? null,
+    taxType: row.tax_type ?? "afecto",
     stageId: row.stage_id,
     contactId: row.contact_id,
     companyId: row.company_id ?? null,
@@ -66,11 +69,33 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
   }
 
-  const { title, value, stageId, contactId, companyId, expectedClose, probability, notes, projectId } = body;
+  const { title, value, valueType, percentageValue, taxType, stageId, contactId, companyId, expectedClose, probability, notes, projectId } = body;
+
+  const normalizedValueType = valueType === "percentage" ? "percentage" : "fixed";
+  const normalizedTaxType = taxType === "exento" ? "exento" : "afecto";
+  const normalizedValue = Number(value) || 0;
+  const normalizedPercentageValue = percentageValue == null || percentageValue === ""
+    ? null
+    : Number(percentageValue);
 
   if (!title || (!contactId && !companyId)) {
     return NextResponse.json(
       { error: "Titulo y una asociacion (contacto o empresa) son requeridos" },
+      { status: 400 }
+    );
+  }
+
+  if (
+    normalizedValueType === "percentage" &&
+    (
+      normalizedPercentageValue == null ||
+      Number.isNaN(normalizedPercentageValue) ||
+      normalizedPercentageValue <= 0 ||
+      normalizedPercentageValue > 100
+    )
+  ) {
+    return NextResponse.json(
+      { error: "El porcentaje debe ser mayor a 0 y menor o igual a 100" },
       { status: 400 }
     );
   }
@@ -98,7 +123,10 @@ export async function POST(request: NextRequest) {
     .from("deals")
     .insert({
       title,
-      value: value || 0,
+      value: normalizedValueType === "fixed" ? normalizedValue : 0,
+      value_type: normalizedValueType,
+      percentage_value: normalizedValueType === "percentage" ? normalizedPercentageValue : null,
+      tax_type: normalizedTaxType,
       stage_id: finalStageId,
       contact_id: contactId || null,
       company_id: companyId || null,

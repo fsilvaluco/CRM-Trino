@@ -57,8 +57,11 @@ export interface Deal {
   id: string;
   title: string;
   value: number; // in cents
+  valueType: "fixed" | "percentage";
+  percentageValue: number | null;
+  taxType: "afecto" | "exento";
   stageId: string;
-  contactId: string;
+  contactId: string | null;
   companyId: string | null;
   expectedClose: Date | null;
   probability: number; // 0-100

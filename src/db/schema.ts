@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 
 export const companies = sqliteTable("companies", {
   id: text("id")
@@ -57,12 +57,13 @@ export const deals = sqliteTable("deals", {
     .$defaultFn(() => crypto.randomUUID()),
   title: text("title").notNull(),
   value: integer("value").notNull().default(0),
+  valueType: text("value_type").notNull().default("fixed"),
+  percentageValue: real("percentage_value"),
+  taxType: text("tax_type").notNull().default("afecto"),
   stageId: text("stage_id")
     .notNull()
     .references(() => pipelineStages.id),
-  contactId: text("contact_id")
-    .notNull()
-    .references(() => contacts.id),
+  contactId: text("contact_id").references(() => contacts.id),
   companyId: text("company_id").references(() => companies.id),
   expectedClose: integer("expected_close", { mode: "timestamp" }),
   probability: integer("probability").notNull().default(0),

@@ -13,6 +13,9 @@ interface StageDeal {
   id: string;
   title: string;
   value: number;
+  valueType: "fixed" | "percentage";
+  percentageValue: number | null;
+  taxType: "afecto" | "exento";
   stageId: string;
   contactId: string;
   companyId: string | null;
@@ -39,6 +42,9 @@ interface DealListItem {
   id: string;
   title: string;
   value: number;
+  valueType: "fixed" | "percentage";
+  percentageValue: number | null;
+  taxType: "afecto" | "exento";
   probability: number;
   contactName: string | null;
   stageName: string | null;
@@ -85,6 +91,9 @@ export default function CrmPageClient() {
             id: d.id,
             title: d.title,
             value: d.value,
+            valueType: d.valueType,
+            percentageValue: d.percentageValue,
+            taxType: d.taxType,
             stageId: d.stageId,
             contactId: d.contactId,
             companyId: d.companyId ?? null,
@@ -104,6 +113,9 @@ export default function CrmPageClient() {
             id: d.id,
             title: d.title,
             value: d.value,
+            valueType: d.valueType,
+            percentageValue: d.percentageValue,
+            taxType: d.taxType,
             probability: d.probability,
             contactName: d.contactName,
             stageName: stage.name,

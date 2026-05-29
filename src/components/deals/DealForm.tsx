@@ -43,16 +43,43 @@ function extractApiError(payload: unknown, fallback: string): string {
   return fallback;
 }
 
-const dealSchema = z.object({
-  title: z.string().min(1, "El titulo es requerido"),
-  value: z.string(),
-  associationId: z.string().min(1, "Selecciona un contacto o empresa"),
-  stageId: z.string(),
-  probability: z.string(),
-  expectedClose: z.string(),
-  notes: z.string(),
-  projectId: z.string().min(1, "El proyecto es requerido"),
-});
+const dealSchema = z
+  .object({
+    title: z.string().min(1, "El titulo es requerido"),
+    value: z.string(),
+    valueType: z.enum(["fixed", "percentage"]),
+    percentageValue: z.string(),
+    taxType: z.enum(["afecto", "exento"]),
+    associationId: z.string().min(1, "Selecciona un contacto o empresa"),
+    stageId: z.string(),
+    probability: z.string(),
+    expectedClose: z.string(),
+    notes: z.string(),
+    projectId: z.string().min(1, "El proyecto es requerido"),
+  })
+  .superRefine((data, ctx) => {
+    if (data.valueType === "fixed") {
+      const parsedValue = Number.parseFloat(data.value);
+      if (Number.isNaN(parsedValue) || parsedValue < 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["value"],
+          message: "Ingresa un valor neto valido",
+        });
+      }
+    }
+
+    if (data.valueType === "percentage") {
+      const parsedPercentage = Number.parseFloat(data.percentageValue);
+      if (Number.isNaN(parsedPercentage) || parsedPercentage <= 0 || parsedPercentage > 100) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["percentageValue"],
+          message: "El porcentaje debe ser mayor a 0 y menor o igual a 100",
+        });
+      }
+    }
+  });
 
 type DealFormData = z.infer<typeof dealSchema>;
 
@@ -60,6 +87,9 @@ interface DealRecord {
   id: string;
   title: string;
   value: number;
+  valueType: "fixed" | "percentage";
+  percentageValue: number | null;
+  taxType: "afecto" | "exento";
   contactId: string | null;
   stageId: string;
   companyId: string | null;
@@ -112,6 +142,9 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
     defaultValues: {
       title: "",
       value: "",
+      valueType: "fixed",
+      percentageValue: "",
+      taxType: "afecto",
       associationId: "",
       stageId: "",
       probability: "50",
@@ -124,6 +157,8 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
   const isEditing = Boolean(initialDealId);
   const selectedProjectId = watch("projectId");
   const selectedAssociationId = watch("associationId");
+  const selectedValueType = watch("valueType");
+  const selectedTaxType = watch("taxType");
   const hasActiveProject = Boolean(activeProject?.id);
 
   // Sync projectId when modal opens or active project changes
@@ -151,6 +186,9 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
       reset({
         title: "",
         value: "",
+        valueType: "fixed",
+        percentageValue: "",
+        taxType: "afecto",
         associationId: "",
         stageId: "",
         probability: "50",
@@ -169,6 +207,9 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
       reset({
         title: "",
         value: "",
+        valueType: "fixed",
+        percentageValue: "",
+        taxType: "afecto",
         associationId: "",
         stageId: initialStageId || "",
         probability: "50",
@@ -197,6 +238,9 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
         reset({
           title: deal.title,
           value: (deal.value / 100).toFixed(2),
+          valueType: deal.valueType ?? "fixed",
+          percentageValue: deal.percentageValue != null ? String(deal.percentageValue) : "",
+          taxType: deal.taxType ?? "afecto",
           associationId: deal.contactId || deal.companyId || "",
           stageId: deal.stageId,
           probability: String(deal.probability),
@@ -367,6 +411,8 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
 
       const url = isEditing ? `/api/deals/${initialDealId!}` : "/api/deals";
       const method = isEditing ? "PUT" : "POST";
+      const parsedValue = Number.parseFloat(data.value || "0");
+      const parsedPercentageValue = Number.parseFloat(data.percentageValue || "0");
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
@@ -374,7 +420,10 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
           ...data,
           contactId,
           companyId,
-          value: Math.round(parseFloat(data.value || "0") * 100),
+          value: data.valueType === "fixed" ? Math.round(parsedValue * 100) : 0,
+          valueType: data.valueType,
+          percentageValue: data.valueType === "percentage" ? parsedPercentageValue : null,
+          taxType: data.taxType,
           probability: parseInt(data.probability || "0"),
           projectId: data.projectId || null,
         }),
@@ -465,16 +514,67 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
             )}
           </div>
 
+          <div className="space-y-2">
+            <Label>Tipo de cierre *</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant={selectedValueType === "fixed" ? "default" : "outline"}
+                className="cursor-pointer"
+                onClick={() => {
+                  setValue("valueType", "fixed", { shouldValidate: true });
+                  setValue("percentageValue", "", { shouldValidate: true });
+                }}
+              >
+                Monto fijo
+              </Button>
+              <Button
+                type="button"
+                variant={selectedValueType === "percentage" ? "default" : "outline"}
+                className="cursor-pointer"
+                onClick={() => {
+                  setValue("valueType", "percentage", { shouldValidate: true });
+                  setValue("value", "0", { shouldValidate: true });
+                }}
+              >
+                % recaudación
+              </Button>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="deal-value">Valor ({settings.currency})</Label>
-              <Input
-                id="deal-value"
-                type="number"
-                step="0.01"
-                {...register("value")}
-                placeholder="0.00"
-              />
+              {selectedValueType === "fixed" ? (
+                <>
+                  <Label htmlFor="deal-value">Valor neto ({settings.currency})</Label>
+                  <Input
+                    id="deal-value"
+                    type="number"
+                    step="0.01"
+                    {...register("value")}
+                    placeholder="0.00"
+                  />
+                  {errors.value && (
+                    <p className="text-xs text-destructive">{errors.value.message}</p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Label htmlFor="deal-percentage">% participación recaudación</Label>
+                  <Input
+                    id="deal-percentage"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    {...register("percentageValue")}
+                    placeholder="30"
+                  />
+                  {errors.percentageValue && (
+                    <p className="text-xs text-destructive">{errors.percentageValue.message}</p>
+                  )}
+                </>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Probabilidad (%)</Label>
@@ -484,6 +584,28 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
                 max="100"
                 {...register("probability")}
               />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>IVA</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant={selectedTaxType === "afecto" ? "default" : "outline"}
+                className="cursor-pointer"
+                onClick={() => setValue("taxType", "afecto", { shouldValidate: true })}
+              >
+                Afecto
+              </Button>
+              <Button
+                type="button"
+                variant={selectedTaxType === "exento" ? "default" : "outline"}
+                className="cursor-pointer"
+                onClick={() => setValue("taxType", "exento", { shouldValidate: true })}
+              >
+                Exento
+              </Button>
             </div>
           </div>
 

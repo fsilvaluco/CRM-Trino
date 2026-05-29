@@ -144,6 +144,8 @@ export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealCl
               id: d.id,
               title: d.title,
               value: d.value,
+              valueType: d.valueType,
+              percentageValue: d.percentageValue,
               contactName: d.contactName || (d.contact?.name ?? null),
               probability: d.probability,
             }))}
@@ -157,6 +159,8 @@ export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealCl
             id={activeDeal.id}
             title={activeDeal.title}
             value={activeDeal.value}
+            valueType={activeDeal.valueType}
+            percentageValue={activeDeal.percentageValue}
             contactName={
               activeDeal.contactName ||
               (activeDeal.contact?.name ?? null)

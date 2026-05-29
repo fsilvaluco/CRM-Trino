@@ -14,6 +14,8 @@ interface Deal {
   id: string;
   title: string;
   value: number;
+  valueType: "fixed" | "percentage";
+  percentageValue: number | null;
   contactName: string | null;
   probability: number;
 }
@@ -31,7 +33,9 @@ export function KanbanColumn({ id, name, color, deals, onAddDeal, onDealClick }:
   const { setNodeRef, isOver } = useDroppable({ id });
   const { formatCurrency } = useLocale();
 
-  const totalValue = deals.reduce((sum, d) => sum + d.value, 0);
+  const totalValue = deals
+    .filter((deal) => deal.valueType === "fixed")
+    .reduce((sum, deal) => sum + deal.value, 0);
 
   return (
     <div
