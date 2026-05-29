@@ -25,9 +25,10 @@ interface KanbanColumnProps {
   color: string;
   deals: Deal[];
   onAddDeal?: () => void;
+  onDealClick?: (dealId: string) => void;
 }
 
-export function KanbanColumn({ id, name, color, deals, onAddDeal }: KanbanColumnProps) {
+export function KanbanColumn({ id, name, color, deals, onAddDeal, onDealClick }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id });
   const { formatCurrency } = useLocale();
 
@@ -61,7 +62,11 @@ export function KanbanColumn({ id, name, color, deals, onAddDeal }: KanbanColumn
       >
         <div className="flex-1 p-2 space-y-2 min-h-[100px] overflow-y-auto">
           {deals.map((deal) => (
-            <DealCard key={deal.id} {...deal} />
+            <DealCard
+              key={deal.id}
+              {...deal}
+              onClick={onDealClick ? () => onDealClick(deal.id) : undefined}
+            />
           ))}
         </div>
       </SortableContext>

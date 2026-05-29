@@ -54,10 +54,18 @@ export default function CrmPageClient() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [addToStageId, setAddToStageId] = useState<string | undefined>();
+  const [editingDealId, setEditingDealId] = useState<string | undefined>();
   const { activeProject } = useProject();
 
   const handleAddDeal = (stageId: string) => {
     setAddToStageId(stageId);
+    setEditingDealId(undefined);
+    setShowForm(true);
+  };
+
+  const handleEditDeal = (dealId: string) => {
+    setEditingDealId(dealId);
+    setAddToStageId(undefined);
     setShowForm(true);
   };
 
@@ -161,15 +169,18 @@ export default function CrmPageClient() {
         allDeals={dealList}
         onDealMoved={loadData}
         onAddDeal={handleAddDeal}
+        onDealClick={handleEditDeal}
       />
 
       {showForm && (
         <DealForm
           open={showForm}
           initialStageId={addToStageId}
+          initialDealId={editingDealId}
           onClose={() => {
             setShowForm(false);
             setAddToStageId(undefined);
+            setEditingDealId(undefined);
             loadData();
           }}
         />

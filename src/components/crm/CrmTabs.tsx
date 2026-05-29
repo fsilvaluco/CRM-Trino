@@ -33,9 +33,10 @@ interface CrmTabsProps {
   allDeals: DealRow[];
   onDealMoved: () => void;
   onAddDeal?: (stageId: string) => void;
+  onDealClick?: (dealId: string) => void;
 }
 
-export function CrmTabs({ columns, allDeals, onDealMoved, onAddDeal }: CrmTabsProps) {
+export function CrmTabs({ columns, allDeals, onDealMoved, onAddDeal, onDealClick }: CrmTabsProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"kanban" | "lista">("kanban");
   const { formatCurrency, formatDate } = useLocale();
@@ -51,7 +52,12 @@ export function CrmTabs({ columns, allDeals, onDealMoved, onAddDeal }: CrmTabsPr
       </TabsList>
 
       <TabsContent value="kanban">
-        <KanbanBoard initialColumns={columns} onMoveSuccess={onDealMoved} onAddDeal={onAddDeal} />
+        <KanbanBoard
+          initialColumns={columns}
+          onMoveSuccess={onDealMoved}
+          onAddDeal={onAddDeal}
+          onDealClick={onDealClick}
+        />
       </TabsContent>
 
       <TabsContent value="lista">

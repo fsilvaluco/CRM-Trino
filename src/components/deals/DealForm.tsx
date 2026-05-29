@@ -55,19 +55,40 @@ const dealSchema = z.object({
 
 type DealFormData = z.infer<typeof dealSchema>;
 
+interface DealRecord {
+  id: string;
+  title: string;
+  value: number;
+  contactId: string;
+  stageId: string;
+  companyId: string | null;
+  expectedClose: string | null;
+  probability: number;
+  notes: string | null;
+}
+
 interface DealFormProps {
   open: boolean;
   onClose: () => void;
   initialStageId?: string;
+  initialDealId?: string;
 }
 
-export function DealForm({ open, onClose, initialStageId }: DealFormProps) {
+function toDateInputValue(value: string | null): string {
+  if (!value) return "";
+  return value.slice(0, 10);
+}
+
+export function DealForm({ open, onClose, initialStageId, initialDealId }: DealFormProps) {
   const router = useRouter();
   const { settings } = useLocale();
   const { activeProject } = useProject();
   const [contactsList, setContacts] = useState<Array<{ id: string; name: string }>>([]);
   const [companiesList, setCompanies] = useState<Array<{ id: string; name: string }>>([]);
   const [stagesList, setStages] = useState<Array<{ id: string; name: string }>>([]);
+  const [isLoadingDeal, setIsLoadingDeal] = useState(false);
+  const [dealLoadError, setDealLoadError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [newContactName, setNewContactName] = useState("");
   const [newContactEmail, setNewContactEmail] = useState("");
   const [newContactPhone, setNewContactPhone] = useState("");
@@ -95,6 +116,8 @@ export function DealForm({ open, onClose, initialStageId }: DealFormProps) {
     },
   });
 
+  const isEditing = Boolean(initialDealId);
+
   useEffect(() => {
     const params = activeProject ? `?projectId=${activeProject.id}` : "";
     fetch(`/api/contacts${params}`).then((r) => r.json()).then((d) => setContacts(Array.isArray(d) ? d : []));
@@ -104,12 +127,81 @@ export function DealForm({ open, onClose, initialStageId }: DealFormProps) {
       .then((d) => setStages(Array.isArray(d) ? d : []));
   }, [activeProject]);
 
+  useEffect(() => {
+    if (!open) {
+      setIsLoadingDeal(false);
+      setDealLoadError(null);
+      reset({
+        title: "",
+        value: "",
+        contactId: "",
+        stageId: "",
+        probability: "50",
+        expectedClose: "",
+        notes: "",
+      });
+      return;
+    }
+
+    if (!initialDealId) {
+      setIsLoadingDeal(false);
+      setDealLoadError(null);
+      reset({
+        title: "",
+        value: "",
+        contactId: "",
+        stageId: initialStageId || "",
+        probability: "50",
+        expectedClose: "",
+        notes: "",
+      });
+      return;
+    }
+
+    const controller = new AbortController();
+    setDealLoadError(null);
+    setIsLoadingDeal(true);
+    fetch(`/api/deals/${initialDealId}`, { signal: controller.signal })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(extractApiError(payload, "No se pudo cargar el deal"));
+        }
+        return payload as DealRecord;
+      })
+      .then((deal: DealRecord) => {
+        if (controller.signal.aborted) return;
+        reset({
+          title: deal.title,
+          value: (deal.value / 100).toFixed(2),
+          contactId: deal.contactId,
+          stageId: deal.stageId,
+          probability: String(deal.probability),
+          expectedClose: toDateInputValue(deal.expectedClose),
+          notes: deal.notes || "",
+        });
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        const message = error instanceof Error ? error.message : "No se pudo cargar el deal";
+        setDealLoadError(message);
+        toast.error(message);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setIsLoadingDeal(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [open, initialDealId, initialStageId, loadAttempt, reset]);
+
   // Pre-select stage AFTER stagesList is populated
   useEffect(() => {
-    if (initialStageId && stagesList.length > 0) {
+    if (!isEditing && initialStageId && stagesList.length > 0) {
       setValue("stageId", initialStageId);
     }
-  }, [initialStageId, stagesList, setValue]);
+  }, [initialStageId, isEditing, stagesList, setValue]);
 
   const resetInlineCreateState = () => {
     setNewContactName("");
@@ -217,8 +309,10 @@ export function DealForm({ open, onClose, initialStageId }: DealFormProps) {
         setIsCreatingNested(false);
       }
 
-      const res = await fetch("/api/deals", {
-        method: "POST",
+      const url = isEditing ? `/api/deals/${initialDealId!}` : "/api/deals";
+      const method = isEditing ? "PUT" : "POST";
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...data,
@@ -229,16 +323,16 @@ export function DealForm({ open, onClose, initialStageId }: DealFormProps) {
         }),
       });
 
-      if (!res.ok) throw new Error("Error al crear deal");
+      if (!res.ok) throw new Error(isEditing ? "Error al actualizar deal" : "Error al crear deal");
 
-      toast.success("Deal creado exitosamente");
+      toast.success(isEditing ? "Deal actualizado exitosamente" : "Deal creado exitosamente");
       reset();
       resetInlineCreateState();
       onClose();
       router.refresh();
     } catch (error) {
       setIsCreatingNested(false);
-      const message = error instanceof Error ? error.message : "Error al crear el deal";
+      const message = error instanceof Error ? error.message : isEditing ? "Error al actualizar el deal" : "Error al crear el deal";
       toast.error(message);
     }
   };
@@ -255,9 +349,26 @@ export function DealForm({ open, onClose, initialStageId }: DealFormProps) {
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Nuevo Deal</DialogTitle>
+          <DialogTitle>{isEditing ? "Editar Deal" : "Nuevo Deal"}</DialogTitle>
         </DialogHeader>
 
+        {isLoadingDeal ? (
+          <div className="py-10 text-center text-sm text-muted-foreground">
+            Cargando deal...
+          </div>
+        ) : dealLoadError ? (
+          <div className="space-y-4 py-6 text-center">
+            <p className="text-sm text-destructive">{dealLoadError}</p>
+            <Button
+              type="button"
+              variant="outline"
+              className="cursor-pointer"
+              onClick={() => setLoadAttempt((current) => current + 1)}
+            >
+              Reintentar
+            </Button>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="deal-title">Titulo *</Label>
@@ -424,10 +535,11 @@ export function DealForm({ open, onClose, initialStageId }: DealFormProps) {
               Cancelar
             </Button>
             <Button type="submit" disabled={isSubmitting || isCreatingNested} className="cursor-pointer">
-              {isCreatingNested ? "Creando contacto..." : isSubmitting ? "Creando..." : "Crear Deal"}
+              {isCreatingNested ? "Creando contacto..." : isSubmitting ? "Guardando..." : isEditing ? "Actualizar Deal" : "Crear Deal"}
             </Button>
           </div>
         </form>
+        )}
       </DialogContent>
     </Dialog>
   );

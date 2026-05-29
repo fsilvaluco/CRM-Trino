@@ -21,9 +21,10 @@ interface KanbanBoardProps {
   initialColumns: PipelineColumn[];
   onMoveSuccess?: () => void;
   onAddDeal?: (stageId: string) => void;
+  onDealClick?: (dealId: string) => void;
 }
 
-export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal }: KanbanBoardProps) {
+export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealClick }: KanbanBoardProps) {
   const [columns, setColumns] = useState(initialColumns);
   const [activeId, setActiveId] = useState<string | null>(null);
   const columnsSnapshot = useRef<PipelineColumn[]>(initialColumns);
@@ -138,6 +139,7 @@ export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal }: Kanban
             name={column.name}
             color={column.color}
             onAddDeal={onAddDeal ? () => onAddDeal(column.id) : undefined}
+            onDealClick={onDealClick}
             deals={column.deals.map((d) => ({
               id: d.id,
               title: d.title,
