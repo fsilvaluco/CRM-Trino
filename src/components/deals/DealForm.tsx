@@ -46,7 +46,7 @@ function extractApiError(payload: unknown, fallback: string): string {
 const dealSchema = z.object({
   title: z.string().min(1, "El titulo es requerido"),
   value: z.string(),
-  contactId: z.string().min(1, "El contacto es requerido"),
+  associationId: z.string().min(1, "Selecciona un contacto o empresa"),
   stageId: z.string(),
   probability: z.string(),
   expectedClose: z.string(),
@@ -60,9 +60,10 @@ interface DealRecord {
   id: string;
   title: string;
   value: number;
-  contactId: string;
+  contactId: string | null;
   stageId: string;
   companyId: string | null;
+  projectId: string | null;
   expectedClose: string | null;
   probability: number;
   notes: string | null;
@@ -96,6 +97,8 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
   const [newContactCompanyId, setNewContactCompanyId] = useState("");
   const [newCompanyName, setNewCompanyName] = useState("");
   const [isCreatingNested, setIsCreatingNested] = useState(false);
+  const [associationType, setAssociationType] = useState<"contacto" | "empresa">("contacto");
+  const [associationQuery, setAssociationQuery] = useState("");
 
   const {
     register,
@@ -109,7 +112,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
     defaultValues: {
       title: "",
       value: "",
-      contactId: "",
+      associationId: "",
       stageId: "",
       probability: "50",
       expectedClose: "",
@@ -120,6 +123,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
 
   const isEditing = Boolean(initialDealId);
   const selectedProjectId = watch("projectId");
+  const selectedAssociationId = watch("associationId");
   const hasActiveProject = Boolean(activeProject?.id);
 
   // Sync projectId when modal opens or active project changes
@@ -142,10 +146,12 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
     if (!open) {
       setIsLoadingDeal(false);
       setDealLoadError(null);
+      setAssociationType("contacto");
+      setAssociationQuery("");
       reset({
         title: "",
         value: "",
-        contactId: "",
+        associationId: "",
         stageId: "",
         probability: "50",
         expectedClose: "",
@@ -158,10 +164,12 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
     if (!initialDealId) {
       setIsLoadingDeal(false);
       setDealLoadError(null);
+      setAssociationType("contacto");
+      setAssociationQuery("");
       reset({
         title: "",
         value: "",
-        contactId: "",
+        associationId: "",
         stageId: initialStageId || "",
         probability: "50",
         expectedClose: "",
@@ -184,14 +192,17 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
       })
       .then((deal: DealRecord) => {
         if (controller.signal.aborted) return;
+        setAssociationType(deal.contactId ? "contacto" : "empresa");
+        setAssociationQuery("");
         reset({
           title: deal.title,
           value: (deal.value / 100).toFixed(2),
-          contactId: deal.contactId,
+          associationId: deal.contactId || deal.companyId || "",
           stageId: deal.stageId,
           probability: String(deal.probability),
           expectedClose: toDateInputValue(deal.expectedClose),
           notes: deal.notes || "",
+          projectId: activeProject?.id || deal.projectId || "",
         });
       })
       .catch((error) => {
@@ -207,7 +218,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
       });
 
     return () => controller.abort();
-  }, [open, initialDealId, initialStageId, loadAttempt, reset]);
+  }, [open, initialDealId, initialStageId, loadAttempt, reset, activeProject?.id]);
 
   // Pre-select stage AFTER stagesList is populated
   useEffect(() => {
@@ -224,13 +235,19 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
     setNewCompanyName("");
   };
 
-  const selectedContactId = watch("contactId");
-
   useEffect(() => {
-    if (selectedContactId !== CREATE_CONTACT_VALUE) {
+    if (selectedAssociationId !== CREATE_CONTACT_VALUE && selectedAssociationId !== CREATE_COMPANY_VALUE) {
       resetInlineCreateState();
     }
-  }, [selectedContactId]);
+  }, [selectedAssociationId]);
+
+  const handleAssociationTypeChange = (nextType: "contacto" | "empresa") => {
+    if (nextType === associationType) return;
+    setAssociationType(nextType);
+    setAssociationQuery("");
+    setValue("associationId", "", { shouldValidate: true });
+    resetInlineCreateState();
+  };
 
   const handleCreateCompany = async (): Promise<string> => {
     const effectiveProjectId = selectedProjectId || activeProject?.id || "";
@@ -310,18 +327,42 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
 
     const createdContact = { id: payload.id as string, name: payload.name as string };
     setContacts((prev) => [createdContact, ...prev]);
-    setValue("contactId", createdContact.id, { shouldValidate: true });
+    setValue("associationId", createdContact.id, { shouldValidate: true });
     return createdContact.id;
   };
 
+  const filteredContacts = contactsList.filter((contact) =>
+    contact.name.toLowerCase().includes(associationQuery.toLowerCase())
+  );
+
+  const filteredCompanies = companiesList.filter((company) =>
+    company.name.toLowerCase().includes(associationQuery.toLowerCase())
+  );
+
   const onSubmit = async (data: DealFormData) => {
     try {
-      let contactId = data.contactId;
+      let contactId: string | null = null;
+      let companyId: string | null = null;
 
-      if (contactId === CREATE_CONTACT_VALUE) {
-        setIsCreatingNested(true);
-        contactId = await handleCreateContact();
-        setIsCreatingNested(false);
+      if (associationType === "contacto") {
+        companyId = null;
+        if (data.associationId === CREATE_CONTACT_VALUE) {
+          setIsCreatingNested(true);
+          contactId = await handleCreateContact();
+          setIsCreatingNested(false);
+        } else {
+          contactId = data.associationId;
+        }
+      } else {
+        contactId = null;
+        if (data.associationId === CREATE_COMPANY_VALUE) {
+          setIsCreatingNested(true);
+          companyId = await handleCreateCompany();
+          setValue("associationId", companyId, { shouldValidate: true });
+          setIsCreatingNested(false);
+        } else {
+          companyId = data.associationId;
+        }
       }
 
       const url = isEditing ? `/api/deals/${initialDealId!}` : "/api/deals";
@@ -332,6 +373,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
         body: JSON.stringify({
           ...data,
           contactId,
+          companyId,
           value: Math.round(parseFloat(data.value || "0") * 100),
           probability: parseInt(data.probability || "0"),
           projectId: data.projectId || null,
@@ -446,35 +488,79 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
           </div>
 
           <div className="space-y-2">
-            <Label>Contacto *</Label>
+            <Label>Tipo de asociacion *</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant={associationType === "contacto" ? "default" : "outline"}
+                className="cursor-pointer"
+                onClick={() => handleAssociationTypeChange("contacto")}
+              >
+                Contacto
+              </Button>
+              <Button
+                type="button"
+                variant={associationType === "empresa" ? "default" : "outline"}
+                className="cursor-pointer"
+                onClick={() => handleAssociationTypeChange("empresa")}
+              >
+                Empresa
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>{associationType === "contacto" ? "Contacto" : "Empresa"} *</Label>
+            <Input
+              value={associationQuery}
+              onChange={(event) => setAssociationQuery(event.target.value)}
+              placeholder={associationType === "contacto" ? "Buscar contacto..." : "Buscar empresa..."}
+            />
             <Select
-              value={selectedContactId || ""}
+              value={selectedAssociationId || ""}
               onValueChange={(v) => {
                 if (!v) return;
-                setValue("contactId", v, { shouldValidate: true });
+                setValue("associationId", v, { shouldValidate: true });
               }}
             >
               <SelectTrigger className="cursor-pointer">
-                <span className={selectedContactId ? "" : "text-muted-foreground"}>
-                  {selectedContactId === CREATE_CONTACT_VALUE
+                <span className={selectedAssociationId ? "" : "text-muted-foreground"}>
+                  {selectedAssociationId === CREATE_CONTACT_VALUE
                     ? "Crear nuevo contacto"
-                    : contactsList.find((c) => c.id === selectedContactId)?.name ?? "Seleccionar contacto"}
+                    : selectedAssociationId === CREATE_COMPANY_VALUE
+                      ? "Crear nueva empresa"
+                      : associationType === "contacto"
+                        ? contactsList.find((c) => c.id === selectedAssociationId)?.name ?? "Seleccionar contacto"
+                        : companiesList.find((c) => c.id === selectedAssociationId)?.name ?? "Seleccionar empresa"}
                 </span>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={CREATE_CONTACT_VALUE}>+ Crear nuevo contacto</SelectItem>
-                {contactsList.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
+                {associationType === "contacto" ? (
+                  <>
+                    {filteredContacts.map((contact) => (
+                      <SelectItem key={contact.id} value={contact.id}>
+                        {contact.name}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value={CREATE_CONTACT_VALUE}>+ Crear nuevo contacto</SelectItem>
+                  </>
+                ) : (
+                  <>
+                    {filteredCompanies.map((company) => (
+                      <SelectItem key={company.id} value={company.id}>
+                        {company.name}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value={CREATE_COMPANY_VALUE}>+ Crear nueva empresa</SelectItem>
+                  </>
+                )}
               </SelectContent>
             </Select>
-            {errors.contactId && (
-              <p className="text-xs text-destructive">{errors.contactId.message}</p>
+            {errors.associationId && (
+              <p className="text-xs text-destructive">{errors.associationId.message}</p>
             )}
 
-            {selectedContactId === CREATE_CONTACT_VALUE && (
+            {associationType === "contacto" && selectedAssociationId === CREATE_CONTACT_VALUE && (
               <div className="mt-2 space-y-2 rounded-md border p-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="new-contact-name">Nombre contacto *</Label>
@@ -541,6 +627,20 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
                 )}
               </div>
             )}
+
+            {associationType === "empresa" && selectedAssociationId === CREATE_COMPANY_VALUE && (
+              <div className="mt-2 space-y-2 rounded-md border p-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="quick-company-name">Nombre empresa *</Label>
+                  <Input
+                    id="quick-company-name"
+                    value={newCompanyName}
+                    onChange={(event) => setNewCompanyName(event.target.value)}
+                    placeholder="Ej: Empresa X"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -580,7 +680,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
               Cancelar
             </Button>
             <Button type="submit" disabled={isSubmitting || isCreatingNested} className="cursor-pointer">
-              {isCreatingNested ? "Creando contacto..." : isSubmitting ? "Guardando..." : isEditing ? "Actualizar Deal" : "Crear Deal"}
+              {isCreatingNested ? "Creando asociado..." : isSubmitting ? "Guardando..." : isEditing ? "Actualizar Deal" : "Crear Deal"}
             </Button>
           </div>
         </form>

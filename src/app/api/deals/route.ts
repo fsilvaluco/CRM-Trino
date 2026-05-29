@@ -68,9 +68,9 @@ export async function POST(request: NextRequest) {
 
   const { title, value, stageId, contactId, companyId, expectedClose, probability, notes, projectId } = body;
 
-  if (!title || !contactId) {
+  if (!title || (!contactId && !companyId)) {
     return NextResponse.json(
-      { error: "Titulo y contacto son requeridos" },
+      { error: "Titulo y una asociacion (contacto o empresa) son requeridos" },
       { status: 400 }
     );
   }
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
       title,
       value: value || 0,
       stage_id: finalStageId,
-      contact_id: contactId,
+      contact_id: contactId || null,
       company_id: companyId || null,
       expected_close: expectedClose ? new Date(expectedClose).toISOString() : null,
       probability: Math.max(0, Math.min(100, Number(probability) || 0)),
