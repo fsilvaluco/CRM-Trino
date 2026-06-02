@@ -46,6 +46,7 @@ export function DealCard({
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     pointerDownRef.current = { x: event.clientX, y: event.clientY };
+    listeners?.onPointerDown?.(event);
   };
 
   const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
