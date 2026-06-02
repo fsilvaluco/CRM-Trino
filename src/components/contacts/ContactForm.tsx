@@ -30,6 +30,7 @@ import { useLocale } from "@/lib/locale-context";
 import { useProject } from "@/lib/project-context";
 
 const NEW_COMPANY_VALUE = "__new__";
+const NO_COMPANY_VALUE = "__no_company__";
 const uuidSchema = z.string().uuid("Company ID invalido");
 
 const contactSchema = z
@@ -40,6 +41,7 @@ const contactSchema = z
     companyId: z.union([
       z.string().uuid("Selecciona una empresa valida"),
       z.literal(NEW_COMPANY_VALUE),
+      z.literal(NO_COMPANY_VALUE),
     ]),
     newCompanyName: z.string(),
     source: z.string(),
@@ -108,7 +110,7 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
       name: initialData?.name || "",
       email: initialData?.email || "",
       phone: initialData?.phone || "",
-      companyId: initialData?.companyId || "",
+      companyId: initialData?.companyId || NO_COMPANY_VALUE,
       newCompanyName: "",
       source: initialData?.source || "otro",
       notes: initialData?.notes || "",
@@ -120,6 +122,7 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
   const selectedCompanyMissing =
     !!watchedCompanyId &&
     watchedCompanyId !== NEW_COMPANY_VALUE &&
+    watchedCompanyId !== NO_COMPANY_VALUE &&
     !companiesList.some((company) => company.id === watchedCompanyId);
 
   const onSubmit = async (data: ContactFormData) => {
@@ -128,7 +131,10 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
         throw new Error("Debes seleccionar un proyecto antes de crear un contacto");
       }
 
-      let finalCompanyId = data.companyId === NEW_COMPANY_VALUE ? null : data.companyId || null;
+      let finalCompanyId =
+        data.companyId === NEW_COMPANY_VALUE || data.companyId === NO_COMPANY_VALUE
+          ? null
+          : data.companyId || null;
 
       if (finalCompanyId && !uuidSchema.safeParse(finalCompanyId).success) {
         throw new Error("El company_id seleccionado no es un UUID valido");
@@ -165,10 +171,6 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
         if (!uuidSchema.safeParse(finalCompanyId).success) {
           throw new Error("La API devolvio un company_id invalido al crear la empresa");
         }
-      }
-
-      if (!finalCompanyId) {
-        throw new Error("Debes seleccionar o crear una empresa valida");
       }
 
       const url = isEditing ? `/api/contacts/${initialData!.id}` : "/api/contacts";
@@ -244,7 +246,7 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label>Empresa</Label>
+            <Label>Empresa (opcional)</Label>
             <Select
               value={watch("companyId")}
               onValueChange={(v) => {
@@ -259,6 +261,7 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
                 <SelectValue placeholder="Selecciona una empresa" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={NO_COMPANY_VALUE}>Sin empresa (persona natural)</SelectItem>
                 <SelectGroup>
                   <SelectLabel>Empresas</SelectLabel>
                   {companiesList.map((c) => (

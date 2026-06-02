@@ -14,7 +14,13 @@ const createContactSchema = z.object({
     const trimmedValue = value.trim();
     return trimmedValue === "" ? null : trimmedValue;
   }),
-  companyId: z.string().uuid("La empresa debe ser un UUID valido"),
+  companyId: z
+    .union([z.string().uuid("La empresa debe ser un UUID valido"), z.literal(""), z.null(), z.undefined()])
+    .transform((value) => {
+      if (typeof value !== "string") return null;
+      const trimmedValue = value.trim();
+      return trimmedValue === "" ? null : trimmedValue;
+    }),
   source: z.union([z.string(), z.null(), z.undefined()]).transform((value) => {
     if (typeof value !== "string") return "otro";
     const trimmedValue = value.trim();
@@ -138,19 +144,21 @@ export async function POST(request: NextRequest) {
     return errorResponse("No tienes acceso al proyecto seleccionado", 403);
   }
 
-  const { data: company, error: companyError } = await supabase
-    .from("companies")
-    .select("id, project_id")
-    .eq("id", String(companyId))
-    .eq("organization_id", orgId)
-    .single();
+  if (companyId) {
+    const { data: company, error: companyError } = await supabase
+      .from("companies")
+      .select("id, project_id")
+      .eq("id", String(companyId))
+      .eq("organization_id", orgId)
+      .single();
 
-  if (companyError || !company) {
-    return errorResponse("La empresa seleccionada no existe", 400, companyError?.message ?? null);
-  }
+    if (companyError || !company) {
+      return errorResponse("La empresa seleccionada no existe", 400, companyError?.message ?? null);
+    }
 
-  if (company.project_id !== String(projectId)) {
-    return errorResponse("La empresa no pertenece al proyecto seleccionado", 400);
+    if (company.project_id !== String(projectId)) {
+      return errorResponse("La empresa no pertenece al proyecto seleccionado", 400);
+    }
   }
 
   const numericScore = Number.isFinite(Number(score)) ? Number(score) : 0;
@@ -160,7 +168,7 @@ export async function POST(request: NextRequest) {
     name: String(name).trim(),
     email: email || null,
     phone: phone || null,
-    company_id: String(companyId),
+    company_id: companyId || null,
     source: source || "otro",
     temperature: temperature || "cold",
     score: sanitizedScore,

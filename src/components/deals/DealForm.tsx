@@ -28,6 +28,7 @@ import { useProject } from "@/lib/project-context";
 
 const CREATE_CONTACT_VALUE = "__create_new_contact__";
 const CREATE_COMPANY_VALUE = "__create_new_company__";
+const NO_COMPANY_VALUE = "__no_company__";
 
 type ApiErrorPayload = {
   error?: string | { message?: string };
@@ -124,7 +125,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
   const [newContactName, setNewContactName] = useState("");
   const [newContactEmail, setNewContactEmail] = useState("");
   const [newContactPhone, setNewContactPhone] = useState("");
-  const [newContactCompanyId, setNewContactCompanyId] = useState("");
+  const [newContactCompanyId, setNewContactCompanyId] = useState(NO_COMPANY_VALUE);
   const [newCompanyName, setNewCompanyName] = useState("");
   const [isCreatingNested, setIsCreatingNested] = useState(false);
   const [associationType, setAssociationType] = useState<"contacto" | "empresa">("contacto");
@@ -275,7 +276,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
     setNewContactName("");
     setNewContactEmail("");
     setNewContactPhone("");
-    setNewContactCompanyId("");
+    setNewContactCompanyId(NO_COMPANY_VALUE);
     setNewCompanyName("");
   };
 
@@ -336,10 +337,6 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
     }
 
     let companyId = newContactCompanyId;
-    if (!companyId) {
-      throw new Error("Selecciona una empresa para el contacto");
-    }
-
     if (companyId === CREATE_COMPANY_VALUE) {
       companyId = await handleCreateCompany();
     }
@@ -351,7 +348,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
         name: newContactName.trim(),
         email: newContactEmail.trim() || null,
         phone: newContactPhone.trim() || null,
-        companyId,
+        companyId: companyId === NO_COMPANY_VALUE ? null : companyId,
         projectId: effectiveProjectId,
         source: "otro",
         temperature: "cold",
@@ -718,15 +715,16 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label>Empresa *</Label>
+                  <Label>Empresa (opcional)</Label>
                   <Select
                     value={newContactCompanyId}
-                    onValueChange={(value) => setNewContactCompanyId(value ?? "")}
+                    onValueChange={(value) => setNewContactCompanyId(value ?? NO_COMPANY_VALUE)}
                   >
                     <SelectTrigger className="cursor-pointer">
                       <SelectValue placeholder="Seleccionar empresa" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value={NO_COMPANY_VALUE}>Sin empresa (persona natural)</SelectItem>
                       <SelectItem value={CREATE_COMPANY_VALUE}>+ Crear nueva empresa</SelectItem>
                       {companiesList.map((company) => (
                         <SelectItem key={company.id} value={company.id}>
