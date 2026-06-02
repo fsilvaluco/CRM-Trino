@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CompanyForm } from "@/components/companies/CompanyForm";
+import { ContactForm } from "@/components/contacts/ContactForm";
 import {
   Building2,
   ArrowLeft,
@@ -19,6 +20,7 @@ import {
   Briefcase,
   FolderKanban,
   CheckSquare,
+  UserPlus,
 } from "lucide-react";
 import { formatDate } from "@/lib/constants";
 import { useLocale } from "@/lib/locale-context";
@@ -39,6 +41,7 @@ export default function CompanyDetailPage() {
   const [company, setCompany] = useState<CompanyDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [showEdit, setShowEdit] = useState(false);
+  const [showCreateContact, setShowCreateContact] = useState(false);
 
   const loadCompany = useCallback(() => {
     fetch(`/api/companies/${id}`)
@@ -133,6 +136,15 @@ export default function CompanyDetailPage() {
         }}
       />
 
+      <ContactForm
+        open={showCreateContact}
+        initialData={{ companyId: company.id, company: company.name }}
+        onClose={() => {
+          setShowCreateContact(false);
+          loadCompany();
+        }}
+      />
+
       {/* Info */}
       <Card>
         <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -177,10 +189,21 @@ export default function CompanyDetailPage() {
         {/* Contactos */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Contactos ({company.contacts.length})
-            </CardTitle>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Contactos ({company.contacts.length})
+              </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer"
+                onClick={() => setShowCreateContact(true)}
+              >
+                <UserPlus className="h-4 w-4 mr-1" />
+                Agregar contacto
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {company.contacts.length === 0 ? (
