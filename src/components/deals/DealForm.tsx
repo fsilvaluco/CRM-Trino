@@ -453,11 +453,12 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
         }
       }}
     >
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-hidden">
         <DialogHeader>
           <DialogTitle>{isEditing ? "Editar Deal" : "Nuevo Deal"}</DialogTitle>
         </DialogHeader>
 
+        <div className="max-h-[calc(90vh-5rem)] overflow-y-auto pr-1">
         {isLoadingDeal ? (
           <div className="py-10 text-center text-sm text-muted-foreground">
             Cargando deal...
@@ -807,6 +808,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
           </div>
         </form>
         )}
+        </div>
       </DialogContent>
     </Dialog>
   );
