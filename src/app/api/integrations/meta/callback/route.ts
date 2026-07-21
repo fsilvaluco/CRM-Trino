@@ -50,20 +50,31 @@ export async function GET(request: NextRequest) {
 
   try {
     // Step 1: Exchange code for a short-lived user access token
-    const tokenParams = new URLSearchParams({
+    const tokenBody = new URLSearchParams({
       client_id: process.env.META_APP_ID!,
       client_secret: process.env.META_APP_SECRET!,
       redirect_uri: process.env.META_REDIRECT_URI!,
       code: code!,
     });
 
-    const tokenRes = await fetch(`${GRAPH_BASE}/oauth/access_token?${tokenParams.toString()}`);
+    const tokenRes = await fetch(`${GRAPH_BASE}/oauth/access_token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: tokenBody,
+    });
+
+    const tokenRaw = await tokenRes.text();
+    console.log("[meta/callback] step1 code->token", {
+      status: tokenRes.status,
+      body: tokenRaw,
+    });
 
     if (!tokenRes.ok) {
+      console.error("[meta/callback] step1 failed", { status: tokenRes.status, body: tokenRaw });
       return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, request.url));
     }
 
-    const shortLived = (await tokenRes.json()) as TokenResponse;
+    const shortLived = JSON.parse(tokenRaw) as TokenResponse;
 
     // Step 2: Exchange for a long-lived user access token (~60 days)
     const longParams = new URLSearchParams({
@@ -74,12 +85,18 @@ export async function GET(request: NextRequest) {
     });
 
     const longRes = await fetch(`${GRAPH_BASE}/oauth/access_token?${longParams.toString()}`);
+    const longRaw = await longRes.text();
+    console.log("[meta/callback] step2 long-lived token", {
+      status: longRes.status,
+      body: longRaw,
+    });
 
     if (!longRes.ok) {
+      console.error("[meta/callback] step2 failed", { status: longRes.status, body: longRaw });
       return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, request.url));
     }
 
-    const longLived = (await longRes.json()) as TokenResponse;
+    const longLived = JSON.parse(longRaw) as TokenResponse;
     const longLivedToken = longLived.access_token;
     const expiresIn = longLived.expires_in ?? 60 * 24 * 60 * 60;
 
@@ -87,12 +104,18 @@ export async function GET(request: NextRequest) {
     const pagesRes = await fetch(
       `${GRAPH_BASE}/me/accounts?access_token=${longLivedToken}`
     );
+    const pagesRaw = await pagesRes.text();
+    console.log("[meta/callback] step3 me/accounts", {
+      status: pagesRes.status,
+      body: pagesRaw,
+    });
 
     if (!pagesRes.ok) {
+      console.error("[meta/callback] step3 failed", { status: pagesRes.status, body: pagesRaw });
       return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, request.url));
     }
 
-    const pages = (await pagesRes.json()) as PagesResponse;
+    const pages = JSON.parse(pagesRaw) as PagesResponse;
 
     // Step 4: Find the first Page with a linked Instagram Business account
     let igUserId: string | null = null;
@@ -102,10 +125,16 @@ export async function GET(request: NextRequest) {
       const pageRes = await fetch(
         `${GRAPH_BASE}/${page.id}?fields=instagram_business_account&access_token=${page.access_token}`
       );
+      const pageRaw = await pageRes.text();
+      console.log("[meta/callback] step4 page instagram_business_account", {
+        pageId: page.id,
+        status: pageRes.status,
+        body: pageRaw,
+      });
 
       if (!pageRes.ok) continue;
 
-      const pageData = (await pageRes.json()) as PageIgAccountResponse;
+      const pageData = JSON.parse(pageRaw) as PageIgAccountResponse;
 
       if (pageData.instagram_business_account?.id) {
         igUserId = pageData.instagram_business_account.id;
@@ -115,6 +144,9 @@ export async function GET(request: NextRequest) {
     }
 
     if (!igUserId || !pageAccessToken) {
+      console.error("[meta/callback] step4 no linked Instagram Business account found", {
+        pageCount: pages.data?.length ?? 0,
+      });
       return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_no_ig_account`, request.url));
     }
 
@@ -122,12 +154,18 @@ export async function GET(request: NextRequest) {
     const igRes = await fetch(
       `${GRAPH_BASE}/${igUserId}?fields=followers_count,username&access_token=${pageAccessToken}`
     );
+    const igRaw = await igRes.text();
+    console.log("[meta/callback] step5 ig user lookup", {
+      status: igRes.status,
+      body: igRaw,
+    });
 
     if (!igRes.ok) {
+      console.error("[meta/callback] step5 failed", { status: igRes.status, body: igRaw });
       return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, request.url));
     }
 
-    const igUser = (await igRes.json()) as InstagramUserResponse;
+    const igUser = JSON.parse(igRaw) as InstagramUserResponse;
 
     // Step 6: Upsert integration record
     const { error: upsertError } = await supabase.from("artist_integrations").upsert(
@@ -144,12 +182,14 @@ export async function GET(request: NextRequest) {
     );
 
     if (upsertError) {
+      console.error("[meta/callback] step6 upsert failed", upsertError);
       return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, request.url));
     }
 
     // Step 7: Immediate sync
     await syncInstagram(supabase, orgId!, pageAccessToken, igUserId);
-  } catch {
+  } catch (err) {
+    console.error("[meta/callback] unexpected error", err);
     return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, request.url));
   }
 
