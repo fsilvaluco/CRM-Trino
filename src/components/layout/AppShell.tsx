@@ -8,13 +8,14 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 
 const PUBLIC_PATHS = ["/login", "/auth/activate", "/forgot-password", "/reset-password"];
+const PUBLIC_PREFIXES = ["/rate/"];
 const GUEST_ONLY_PATHS = ["/login", "/forgot-password"];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
-  const isPublic = PUBLIC_PATHS.includes(pathname);
+  const isPublic = PUBLIC_PATHS.includes(pathname) || PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
   const isGuestOnly = GUEST_ONLY_PATHS.includes(pathname);
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {

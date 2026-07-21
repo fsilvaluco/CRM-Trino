@@ -8,6 +8,7 @@ import {
   Wallet,
   Kanban,
   ShieldCheck,
+  BarChart2,
 } from "lucide-react";
 import { type LucideIcon } from "lucide-react";
 
@@ -53,6 +54,12 @@ export const navConfig: NavItem[] = [
     href: "/campanas",
     label: "Campañas",
     icon: Megaphone,
+  },
+  {
+    type: "leaf",
+    href: "/analytics",
+    label: "Analytics",
+    icon: BarChart2,
   },
   {
     type: "leaf",
