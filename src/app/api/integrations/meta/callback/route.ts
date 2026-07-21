@@ -40,12 +40,12 @@ export async function GET(request: NextRequest) {
   const oauthError = searchParams.get("error");
 
   if (oauthError) {
-    return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_denied`, request.url));
+    return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_denied`, process.env.NEXT_PUBLIC_SITE_URL));
   }
 
   const decodedOrgId = state ? Buffer.from(state, "base64").toString() : null;
   if (!decodedOrgId || decodedOrgId !== orgId) {
-    return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_state_mismatch`, request.url));
+    return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_state_mismatch`, process.env.NEXT_PUBLIC_SITE_URL));
   }
 
   try {
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
 
     if (!tokenRes.ok) {
       console.error("[meta/callback] step1 failed", { status: tokenRes.status, body: tokenRaw });
-      return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, request.url));
+      return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, process.env.NEXT_PUBLIC_SITE_URL));
     }
 
     const shortLived = JSON.parse(tokenRaw) as TokenResponse;
@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
 
     if (!longRes.ok) {
       console.error("[meta/callback] step2 failed", { status: longRes.status, body: longRaw });
-      return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, request.url));
+      return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, process.env.NEXT_PUBLIC_SITE_URL));
     }
 
     const longLived = JSON.parse(longRaw) as TokenResponse;
@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
 
     if (!pagesRes.ok) {
       console.error("[meta/callback] step3 failed", { status: pagesRes.status, body: pagesRaw });
-      return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, request.url));
+      return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, process.env.NEXT_PUBLIC_SITE_URL));
     }
 
     const pages = JSON.parse(pagesRaw) as PagesResponse;
@@ -147,7 +147,7 @@ export async function GET(request: NextRequest) {
       console.error("[meta/callback] step4 no linked Instagram Business account found", {
         pageCount: pages.data?.length ?? 0,
       });
-      return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_no_ig_account`, request.url));
+      return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_no_ig_account`, process.env.NEXT_PUBLIC_SITE_URL));
     }
 
     // Step 5: Fetch the Instagram Business account username and followers
@@ -162,7 +162,7 @@ export async function GET(request: NextRequest) {
 
     if (!igRes.ok) {
       console.error("[meta/callback] step5 failed", { status: igRes.status, body: igRaw });
-      return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, request.url));
+      return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, process.env.NEXT_PUBLIC_SITE_URL));
     }
 
     const igUser = JSON.parse(igRaw) as InstagramUserResponse;
@@ -183,15 +183,15 @@ export async function GET(request: NextRequest) {
 
     if (upsertError) {
       console.error("[meta/callback] step6 upsert failed", upsertError);
-      return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, request.url));
+      return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, process.env.NEXT_PUBLIC_SITE_URL));
     }
 
     // Step 7: Immediate sync
     await syncInstagram(supabase, orgId!, pageAccessToken, igUserId);
   } catch (err) {
     console.error("[meta/callback] unexpected error", err);
-    return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, request.url));
+    return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, process.env.NEXT_PUBLIC_SITE_URL));
   }
 
-  return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?connected=instagram`, request.url));
+  return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?connected=instagram`, process.env.NEXT_PUBLIC_SITE_URL));
 }
