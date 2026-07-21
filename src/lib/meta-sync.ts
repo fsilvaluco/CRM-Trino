@@ -10,10 +10,11 @@ interface InstagramMeResponse {
 export async function syncInstagram(
   supabase: SupabaseClient,
   orgId: string,
-  accessToken: string
+  accessToken: string,
+  igUserId: string
 ): Promise<{ followers: number; recordedAt: string }> {
   const res = await fetch(
-    `https://graph.instagram.com/v21.0/me?fields=followers_count,username&access_token=${accessToken}`
+    `https://graph.facebook.com/v21.0/${igUserId}?fields=followers_count,username&access_token=${accessToken}`
   );
 
   if (!res.ok) {

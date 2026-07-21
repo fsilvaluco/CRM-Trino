@@ -21,7 +21,12 @@ export async function POST() {
   }
 
   try {
-    const result = await syncInstagram(supabase, orgId!, integration.access_token);
+    const result = await syncInstagram(
+      supabase,
+      orgId!,
+      integration.access_token,
+      integration.account_id
+    );
     return NextResponse.json({ ok: true, followers: result.followers, recordedAt: result.recordedAt });
   } catch (syncError: unknown) {
     const message = syncError instanceof Error ? syncError.message : "Error de sincronización";
