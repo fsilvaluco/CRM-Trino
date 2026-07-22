@@ -43,9 +43,22 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_denied`, process.env.NEXT_PUBLIC_SITE_URL));
   }
 
-  const decodedOrgId = state ? Buffer.from(state, "base64").toString() : null;
+  let decodedOrgId: string | null = null;
+  let decodedProjectId: string | null = null;
+  try {
+    const decoded = state ? JSON.parse(Buffer.from(state, "base64").toString()) : null;
+    decodedOrgId = decoded?.orgId ?? null;
+    decodedProjectId = decoded?.projectId ?? null;
+  } catch {
+    decodedOrgId = null;
+  }
+
   if (!decodedOrgId || decodedOrgId !== orgId) {
     return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_state_mismatch`, process.env.NEXT_PUBLIC_SITE_URL));
+  }
+
+  if (!decodedProjectId) {
+    return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_no_project`, process.env.NEXT_PUBLIC_SITE_URL));
   }
 
   try {
@@ -187,7 +200,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Step 7: Immediate sync
-    await syncInstagram(supabase, orgId!, pageAccessToken, igUserId);
+    await syncInstagram(supabase, orgId!, pageAccessToken, igUserId, decodedProjectId);
   } catch (err) {
     console.error("[meta/callback] unexpected error", err);
     return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, process.env.NEXT_PUBLIC_SITE_URL));

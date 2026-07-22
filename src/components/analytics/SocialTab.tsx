@@ -141,7 +141,7 @@ export function SocialTab({ metrics, onRefresh, integration }: SocialTabProps) {
         </Button>
       </div>
 
-      <MetaIntegrationCard integration={integration} onRefresh={onRefresh} />
+      <MetaIntegrationCard integration={integration} onRefresh={onRefresh} projectId={activeProject?.id} />
 
       {chartData.length > 0 ? (
         <div className="rounded-xl border bg-card p-4">

@@ -17,24 +17,42 @@ interface MetaIntegration {
 interface MetaIntegrationCardProps {
   integration: MetaIntegration;
   onRefresh: () => void;
+  projectId?: string;
 }
 
-export function MetaIntegrationCard({ integration, onRefresh }: MetaIntegrationCardProps) {
+export function MetaIntegrationCard({ integration, onRefresh, projectId }: MetaIntegrationCardProps) {
   const [syncing, setSyncing] = useState(false);
 
   const handleSync = async () => {
+    if (!projectId) {
+      toast.error("Selecciona un proyecto antes de sincronizar");
+      return;
+    }
     setSyncing(true);
     try {
-      const res = await fetch("/api/integrations/meta/sync", { method: "POST" });
+      const res = await fetch("/api/integrations/meta/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId }),
+      });
       if (res.ok) {
         toast.success("Sincronización completada");
         onRefresh();
       } else {
-        toast.error("Error al sincronizar");
+        const data = await res.json().catch(() => null);
+        toast.error(data?.error ?? "Error al sincronizar");
       }
     } finally {
       setSyncing(false);
     }
+  };
+
+  const handleConnect = () => {
+    if (!projectId) {
+      toast.error("Selecciona un proyecto antes de conectar");
+      return;
+    }
+    window.location.href = `/api/integrations/meta/connect?projectId=${projectId}`;
   };
 
   return (
@@ -73,13 +91,7 @@ export function MetaIntegrationCard({ integration, onRefresh }: MetaIntegrationC
           Sincronizar ahora
         </Button>
       ) : (
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => {
-            window.location.href = "/api/integrations/meta/connect";
-          }}
-        >
+        <Button size="sm" variant="outline" onClick={handleConnect}>
           Conectar Instagram
         </Button>
       )}
