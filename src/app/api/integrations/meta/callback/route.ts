@@ -185,6 +185,7 @@ export async function GET(request: NextRequest) {
       {
         organization_id: orgId,
         platform: "instagram",
+        project_id: decodedProjectId,
         access_token: pageAccessToken,
         token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
         account_id: igUserId,

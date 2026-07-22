@@ -7,6 +7,7 @@ declare namespace NodeJS {
     readonly RESEND_API_KEY?: string;
     readonly DIGEST_EMAIL?: string;
     readonly DIGEST_FROM?: string;
+    readonly CRON_SECRET?: string;
     readonly NODE_ENV: "development" | "production" | "test";
     readonly [key: string]: string | undefined;
   }
