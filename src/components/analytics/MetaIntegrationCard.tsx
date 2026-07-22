@@ -22,6 +22,7 @@ interface MetaIntegrationCardProps {
 
 export function MetaIntegrationCard({ integration, onRefresh, projectId }: MetaIntegrationCardProps) {
   const [syncing, setSyncing] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
 
   const handleSync = async () => {
     if (!projectId) {
@@ -44,6 +45,33 @@ export function MetaIntegrationCard({ integration, onRefresh, projectId }: MetaI
       }
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (
+      !confirm(
+        "¿Desconectar Instagram? Esto eliminará la integración y las métricas sincronizadas de este proyecto. Esta acción no se puede deshacer."
+      )
+    ) {
+      return;
+    }
+    setDisconnecting(true);
+    try {
+      const res = await fetch("/api/integrations/meta/disconnect", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId }),
+      });
+      if (res.ok) {
+        toast.success("Instagram desconectado");
+        onRefresh();
+      } else {
+        const data = await res.json().catch(() => null);
+        toast.error(data?.error ?? "Error al desconectar");
+      }
+    } finally {
+      setDisconnecting(false);
     }
   };
 
@@ -81,15 +109,27 @@ export function MetaIntegrationCard({ integration, onRefresh, projectId }: MetaI
       </div>
 
       {integration.connected ? (
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={handleSync}
-          disabled={syncing}
-        >
-          {syncing && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
-          Sincronizar ahora
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleSync}
+            disabled={syncing || disconnecting}
+          >
+            {syncing && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+            Sincronizar ahora
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-destructive hover:text-destructive"
+            onClick={handleDisconnect}
+            disabled={syncing || disconnecting}
+          >
+            {disconnecting && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+            Desconectar
+          </Button>
+        </div>
       ) : (
         <Button size="sm" variant="outline" onClick={handleConnect}>
           Conectar Instagram
