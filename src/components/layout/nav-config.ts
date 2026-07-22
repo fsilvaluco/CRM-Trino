@@ -58,7 +58,7 @@ export const navConfig: NavItem[] = [
   {
     type: "leaf",
     href: "/analytics",
-    label: "Analytics",
+    label: "Métricas",
     icon: BarChart2,
   },
   {

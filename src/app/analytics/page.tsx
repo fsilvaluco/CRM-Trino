@@ -103,7 +103,7 @@ export default function AnalyticsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Analytics</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Métricas</h1>
           <p className="text-muted-foreground text-sm">Shows, redes sociales y merch</p>
         </div>
         <BarChart2 className="h-6 w-6 text-muted-foreground/40" />
