@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useProject } from "@/lib/project-context";
 import { ProjectForm } from "@/components/projects/ProjectForm";
-import { ChevronDown, Layers, FolderOpen, Plus } from "lucide-react";
+import { ChevronDown, Layers, FolderOpen, Plus, Palette } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,10 +11,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ThemeColorPicker } from "@/components/settings/ThemeColorPicker";
 
 export function ProjectSelector() {
   const { activeProject, setActiveProject, projects, reloadProjects, isAllProjects } = useProject();
   const [showForm, setShowForm] = useState(false);
+  const [showThemePicker, setShowThemePicker] = useState(false);
 
   const label =
     projects.length === 0
@@ -84,10 +87,28 @@ export function ProjectSelector() {
                 <Plus className="h-4 w-4" />
                 Nuevo proyecto
               </DropdownMenuItem>
+              {!isAllProjects && activeProject && (
+                <DropdownMenuItem
+                  className="gap-2 cursor-pointer text-muted-foreground"
+                  onClick={() => setShowThemePicker(true)}
+                >
+                  <Palette className="h-4 w-4" />
+                  Color de {activeProject.name}
+                </DropdownMenuItem>
+              )}
             </>
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <Dialog open={showThemePicker} onOpenChange={setShowThemePicker}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Color del proyecto</DialogTitle>
+          </DialogHeader>
+          <ThemeColorPicker />
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

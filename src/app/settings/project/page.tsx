@@ -10,12 +10,14 @@ import {
   Bell,
   Copy,
   Globe,
+  Palette,
 } from "lucide-react";
 import { toast } from "sonner";
 import { NotificationToggle } from "@/components/shared/NotificationToggle";
 import { PipelineStagesEditor } from "@/components/settings/PipelineStagesEditor";
 import { LocaleSettingsPanel } from "@/components/settings/LocaleSettingsPanel";
 import { BusinessSettingsPanel } from "@/components/settings/BusinessSettingsPanel";
+import { ThemeColorPicker } from "@/components/settings/ThemeColorPicker";
 import { useProject } from "@/lib/project-context";
 
 const commands = [
@@ -41,6 +43,19 @@ export default function ProjectSettingsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Color del proyecto */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Palette className="h-4 w-4" />
+              Color del proyecto
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ThemeColorPicker />
+          </CardContent>
+        </Card>
+
         {/* Región */}
         <Card>
           <CardHeader>

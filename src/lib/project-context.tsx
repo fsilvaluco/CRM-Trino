@@ -3,10 +3,12 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
+import { applyProjectThemeColor, resetProjectThemeColor } from "@/lib/theme-palettes";
 
 export interface ProjectOption {
   id: string;
   name: string;
+  themeColor?: string;
 }
 
 export type OrgRole = "owner" | "admin" | "member";
@@ -107,7 +109,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         // Owner/admin: ve todos los proyectos de la organización
         const { data, error: projectsError } = await supabase
           .from("projects")
-          .select("id, name")
+          .select("id, name, theme_color")
           .eq("organization_id", memberRow.organization_id)
           .order("created_at", { ascending: false });
 
@@ -115,7 +117,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           throw projectsError;
         }
 
-        list = (data ?? []).map((p: { id: string; name: string }) => ({ id: p.id, name: p.name }));
+        list = (data ?? []).map((p: { id: string; name: string; theme_color?: string }) => ({
+          id: p.id,
+          name: p.name,
+          themeColor: p.theme_color,
+        }));
       } else {
         // Member: solo los proyectos asignados en project_members
         const { data: memberships, error: membershipsError } = await supabase
@@ -141,7 +147,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
         const { data, error: projectsError } = await supabase
           .from("projects")
-          .select("id, name")
+          .select("id, name, theme_color")
           .in("id", projectIds)
           .order("created_at", { ascending: false });
 
@@ -149,7 +155,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           throw projectsError;
         }
 
-        list = (data ?? []).map((p: { id: string; name: string }) => ({ id: p.id, name: p.name }));
+        list = (data ?? []).map((p: { id: string; name: string; theme_color?: string }) => ({
+          id: p.id,
+          name: p.name,
+          themeColor: p.theme_color,
+        }));
       }
 
       setProjects(list);
@@ -213,6 +223,16 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem(STORAGE_KEY);
     }
   }, []);
+
+  // Theming por proyecto: aplica la paleta del proyecto activo, o vuelve al
+  // azul por defecto en "Todos los proyectos" (solo admin puede estar ahí).
+  useEffect(() => {
+    if (activeProject) {
+      applyProjectThemeColor(activeProject.themeColor);
+    } else {
+      resetProjectThemeColor();
+    }
+  }, [activeProject]);
 
   const isAdmin = orgRole === "owner" || orgRole === "admin";
 
