@@ -18,6 +18,7 @@ import { PipelineStagesEditor } from "@/components/settings/PipelineStagesEditor
 import { LocaleSettingsPanel } from "@/components/settings/LocaleSettingsPanel";
 import { BusinessSettingsPanel } from "@/components/settings/BusinessSettingsPanel";
 import { ThemeColorPicker } from "@/components/settings/ThemeColorPicker";
+import { ProjectAvatarPicker } from "@/components/settings/ProjectAvatarPicker";
 import { useProject } from "@/lib/project-context";
 
 const commands = [
@@ -43,15 +44,16 @@ export default function ProjectSettingsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Color del proyecto */}
+        {/* Color e ícono del proyecto */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Palette className="h-4 w-4" />
-              Color del proyecto
+              Color e ícono del proyecto
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-5">
+            <ProjectAvatarPicker />
             <ThemeColorPicker />
           </CardContent>
         </Card>

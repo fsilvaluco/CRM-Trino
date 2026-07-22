@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useProject } from "@/lib/project-context";
 import { ProjectForm } from "@/components/projects/ProjectForm";
-import { ChevronDown, Layers, FolderOpen, Plus, Palette } from "lucide-react";
+import { ChevronDown, Layers, Plus, Settings2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,11 +13,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ThemeColorPicker } from "@/components/settings/ThemeColorPicker";
+import { ProjectAvatarPicker } from "@/components/settings/ProjectAvatarPicker";
+import { ProjectIcon } from "@/components/shared/ProjectIcon";
 
 export function ProjectSelector() {
   const { activeProject, setActiveProject, projects, reloadProjects, isAllProjects } = useProject();
   const [showForm, setShowForm] = useState(false);
-  const [showThemePicker, setShowThemePicker] = useState(false);
+  const [showPersonalize, setShowPersonalize] = useState(false);
 
   const label =
     projects.length === 0
@@ -43,7 +45,7 @@ export function ProjectSelector() {
           ) : isAllProjects ? (
             <Layers className="h-4 w-4 text-muted-foreground shrink-0" />
           ) : (
-            <FolderOpen className="h-4 w-4 text-primary shrink-0" />
+            <ProjectIcon avatarUrl={activeProject?.avatarUrl} name={activeProject?.name} />
           )}
           <span className="truncate font-medium text-muted-foreground">{label}</span>
           <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -75,7 +77,7 @@ export function ProjectSelector() {
                   className={'gap-2 cursor-pointer ' + (activeProject?.id === p.id ? 'font-medium bg-accent' : '')}
                   onClick={() => setActiveProject(p)}
                 >
-                  <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                  <ProjectIcon avatarUrl={p.avatarUrl} name={p.name} />
                   {p.name}
                 </DropdownMenuItem>
               ))}
@@ -90,10 +92,10 @@ export function ProjectSelector() {
               {!isAllProjects && activeProject && (
                 <DropdownMenuItem
                   className="gap-2 cursor-pointer text-muted-foreground"
-                  onClick={() => setShowThemePicker(true)}
+                  onClick={() => setShowPersonalize(true)}
                 >
-                  <Palette className="h-4 w-4" />
-                  Color de {activeProject.name}
+                  <Settings2 className="h-4 w-4" />
+                  Personalizar {activeProject.name}
                 </DropdownMenuItem>
               )}
             </>
@@ -101,12 +103,15 @@ export function ProjectSelector() {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Dialog open={showThemePicker} onOpenChange={setShowThemePicker}>
+      <Dialog open={showPersonalize} onOpenChange={setShowPersonalize}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Color del proyecto</DialogTitle>
+            <DialogTitle>Personalizar proyecto</DialogTitle>
           </DialogHeader>
-          <ThemeColorPicker />
+          <div className="space-y-5">
+            <ProjectAvatarPicker />
+            <ThemeColorPicker />
+          </div>
         </DialogContent>
       </Dialog>
     </>

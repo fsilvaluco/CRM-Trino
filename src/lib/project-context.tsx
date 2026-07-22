@@ -9,6 +9,8 @@ export interface ProjectOption {
   id: string;
   name: string;
   themeColor?: string;
+  avatarUrl?: string | null;
+  avatarSource?: string | null;
 }
 
 export type OrgRole = "owner" | "admin" | "member";
@@ -109,7 +111,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         // Owner/admin: ve todos los proyectos de la organización
         const { data, error: projectsError } = await supabase
           .from("projects")
-          .select("id, name, theme_color")
+          .select("id, name, theme_color, avatar_url, avatar_source")
           .eq("organization_id", memberRow.organization_id)
           .order("created_at", { ascending: false });
 
@@ -117,11 +119,15 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           throw projectsError;
         }
 
-        list = (data ?? []).map((p: { id: string; name: string; theme_color?: string }) => ({
-          id: p.id,
-          name: p.name,
-          themeColor: p.theme_color,
-        }));
+        list = (data ?? []).map(
+          (p: { id: string; name: string; theme_color?: string; avatar_url?: string | null; avatar_source?: string | null }) => ({
+            id: p.id,
+            name: p.name,
+            themeColor: p.theme_color,
+            avatarUrl: p.avatar_url,
+            avatarSource: p.avatar_source,
+          })
+        );
       } else {
         // Member: solo los proyectos asignados en project_members
         const { data: memberships, error: membershipsError } = await supabase
@@ -147,7 +153,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
         const { data, error: projectsError } = await supabase
           .from("projects")
-          .select("id, name, theme_color")
+          .select("id, name, theme_color, avatar_url, avatar_source")
           .in("id", projectIds)
           .order("created_at", { ascending: false });
 
@@ -155,11 +161,15 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           throw projectsError;
         }
 
-        list = (data ?? []).map((p: { id: string; name: string; theme_color?: string }) => ({
-          id: p.id,
-          name: p.name,
-          themeColor: p.theme_color,
-        }));
+        list = (data ?? []).map(
+          (p: { id: string; name: string; theme_color?: string; avatar_url?: string | null; avatar_source?: string | null }) => ({
+            id: p.id,
+            name: p.name,
+            themeColor: p.theme_color,
+            avatarUrl: p.avatar_url,
+            avatarSource: p.avatar_source,
+          })
+        );
       }
 
       setProjects(list);
