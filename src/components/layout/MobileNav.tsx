@@ -7,14 +7,10 @@ import { ChevronDown, Briefcase } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProject } from "@/lib/project-context";
 import { useAuth } from "@/lib/auth-context";
-import { navConfig, settingsConfig, type NavLeaf, type NavGroup } from "./nav-config";
+import { navConfig, settingsConfig, computeActiveHref, type NavLeaf, type NavGroup } from "./nav-config";
 
-function isLeafActive(href: string, pathname: string) {
-  return pathname === href || (href !== "/" && pathname.startsWith(href));
-}
-
-function LeafLink({ item, pathname, indent = false }: { item: NavLeaf; pathname: string; indent?: boolean }) {
-  const active = isLeafActive(item.href, pathname);
+function LeafLink({ item, activeHref, indent = false }: { item: NavLeaf; activeHref: string; indent?: boolean }) {
+  const active = item.href === activeHref;
   return (
     <Link
       href={item.href}
@@ -32,9 +28,15 @@ function LeafLink({ item, pathname, indent = false }: { item: NavLeaf; pathname:
   );
 }
 
-function GroupNav({ item, pathname }: { item: NavGroup; pathname: string }) {
-  const groupActive = item.children.some((c) => isLeafActive(c.href, pathname));
+function GroupNav({ item, activeHref }: { item: NavGroup; activeHref: string }) {
+  const groupActive = item.children.some((c) => c.href === activeHref);
   const [open, setOpen] = useState(groupActive);
+  const [prevGroupActive, setPrevGroupActive] = useState(groupActive);
+
+  if (groupActive !== prevGroupActive) {
+    setPrevGroupActive(groupActive);
+    if (groupActive) setOpen(true);
+  }
 
   return (
     <div>
@@ -54,7 +56,7 @@ function GroupNav({ item, pathname }: { item: NavGroup; pathname: string }) {
       {open && (
         <div className="mt-0.5 space-y-0.5">
           {item.children.map((child) => (
-            <LeafLink key={child.href} item={child} pathname={pathname} indent />
+            <LeafLink key={child.href} item={child} activeHref={activeHref} indent />
           ))}
         </div>
       )}
@@ -64,6 +66,7 @@ function GroupNav({ item, pathname }: { item: NavGroup; pathname: string }) {
 
 export function MobileNav() {
   const pathname = usePathname();
+  const activeHref = computeActiveHref(pathname);
   useProject(); // mantiene suscripción al contexto de proyecto
   const { orgRole } = useAuth();
   const isAdmin = orgRole === "owner" || orgRole === "admin";
@@ -78,9 +81,9 @@ export function MobileNav() {
       <nav className="flex-1 px-3 py-4 space-y-1">
         {navConfig.map((item) =>
           item.type === "group" ? (
-            <GroupNav key={item.label} item={item} pathname={pathname} />
+            <GroupNav key={item.label} item={item} activeHref={activeHref} />
           ) : (
-            <LeafLink key={item.href} item={item} pathname={pathname} />
+            <LeafLink key={item.href} item={item} activeHref={activeHref} />
           )
         )}
 
@@ -92,7 +95,7 @@ export function MobileNav() {
               </p>
             </div>
             {settingsConfig.map((item) => (
-              <LeafLink key={item.href} item={item} pathname={pathname} />
+              <LeafLink key={item.href} item={item} activeHref={activeHref} />
             ))}
           </>
         )}
@@ -100,4 +103,3 @@ export function MobileNav() {
     </div>
   );
 }
-

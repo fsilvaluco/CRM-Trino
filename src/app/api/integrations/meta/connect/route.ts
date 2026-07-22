@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
 
   if (!projectId) {
     return NextResponse.redirect(
-      new URL("/analytics?error=meta_no_project", process.env.NEXT_PUBLIC_SITE_URL)
+      new URL("/analytics/instagram?error=meta_no_project", process.env.NEXT_PUBLIC_SITE_URL)
     );
   }
 

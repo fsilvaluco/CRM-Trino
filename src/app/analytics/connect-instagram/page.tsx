@@ -57,7 +57,7 @@ export default function ConnectInstagramPage() {
         return;
       }
       toast.success(`Instagram conectado: ${data.accountName}`);
-      router.push("/analytics?connected=instagram");
+      router.push("/analytics/instagram?connected=instagram");
     } finally {
       setConfirmingId(null);
     }

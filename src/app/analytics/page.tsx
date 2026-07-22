@@ -1,23 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
-import { useProject } from "@/lib/project-context";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart2, Music, Users, ShoppingBag, Camera, Clock } from "lucide-react";
-import { toast } from "sonner";
-import { ShowsTab } from "@/components/analytics/ShowsTab";
+import { ClipboardList, Music, Users } from "lucide-react";
+import { AnalyticsPageHeader } from "@/components/analytics/AnalyticsPageHeader";
 import { ResumenTab } from "@/components/analytics/ResumenTab";
-import { PlatformTab } from "@/components/analytics/PlatformTab";
-import { MerchTab } from "@/components/analytics/MerchTab";
-import type { Show, SocialMetric, MerchSnapshot } from "@/types/analytics";
-
-interface MetaIntegration {
-  connected: boolean;
-  accountName?: string;
-  lastSyncAt?: string;
-  tokenExpiresAt?: string;
-}
+import { useAnalyticsData } from "@/lib/use-analytics-data";
 
 const CLP = new Intl.NumberFormat("es-CL", {
   style: "currency",
@@ -25,63 +11,9 @@ const CLP = new Intl.NumberFormat("es-CL", {
   maximumFractionDigits: 0,
 });
 
-export default function AnalyticsPage() {
-  const [shows, setShows] = useState<Show[]>([]);
-  const [social, setSocial] = useState<SocialMetric[]>([]);
-  const [merch, setMerch] = useState<MerchSnapshot[]>([]);
-  const [metaIntegration, setMetaIntegration] = useState<MetaIntegration>({ connected: false });
-  const [loading, setLoading] = useState(true);
-  const searchParams = useSearchParams();
-  const { activeProject, isAllProjects } = useProject();
+export default function AnalyticsResumenPage() {
+  const { shows, social, loading, refresh } = useAnalyticsData();
 
-  const loadAll = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (isAllProjects) {
-        params.set("isAllProjects", "true");
-      } else if (activeProject?.id) {
-        params.set("projectId", activeProject.id);
-      }
-      const qs = params.toString() ? `?${params.toString()}` : "";
-
-      const [showsRes, socialRes, merchRes, statusRes] = await Promise.all([
-        fetch(`/api/analytics/shows${qs}`),
-        fetch(`/api/analytics/social${qs}`),
-        fetch(`/api/analytics/merch${qs}`),
-        fetch(`/api/integrations/meta/status${qs}`),
-      ]);
-      const [showsData, socialData, merchData, statusData] = await Promise.all([
-        showsRes.ok ? showsRes.json() : [],
-        socialRes.ok ? socialRes.json() : [],
-        merchRes.ok ? merchRes.json() : [],
-        statusRes.ok ? statusRes.json() : { connected: false },
-      ]);
-      setShows(Array.isArray(showsData) ? showsData : []);
-      setSocial(Array.isArray(socialData) ? socialData : []);
-      setMerch(Array.isArray(merchData) ? merchData : []);
-      setMetaIntegration(statusData);
-    } finally {
-      setLoading(false);
-    }
-  }, [activeProject, isAllProjects]);
-
-  useEffect(() => {
-    const id = window.setTimeout(() => void loadAll(), 0);
-    return () => window.clearTimeout(id);
-  }, [loadAll]);
-
-  useEffect(() => {
-    const connected = searchParams.get("connected");
-    const error = searchParams.get("error");
-    if (connected === "instagram") {
-      toast.success("Instagram conectado correctamente");
-    } else if (error === "meta_denied") {
-      toast.error("Conexión cancelada");
-    }
-  }, [searchParams]);
-
-  // KPI calculations
   const totalShows = shows.length;
 
   const utilidadAcumulada = shows.reduce((sum, s) => {
@@ -101,16 +33,12 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Métricas</h1>
-          <p className="text-muted-foreground text-sm">Shows, redes sociales y merch</p>
-        </div>
-        <BarChart2 className="h-6 w-6 text-muted-foreground/40" />
-      </div>
+      <AnalyticsPageHeader
+        icon={ClipboardList}
+        title="Resumen"
+        description="Vistazo general de shows, redes sociales y merch"
+      />
 
-      {/* KPIs */}
       {loading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => (
@@ -156,60 +84,10 @@ export default function AnalyticsPage() {
         </div>
       )}
 
-      {/* Tabs */}
       {loading ? (
-        <div className="space-y-2">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-16 rounded-lg bg-muted animate-pulse" />
-          ))}
-        </div>
+        <div className="h-64 rounded-lg bg-muted animate-pulse" />
       ) : (
-        <Tabs defaultValue="resumen">
-          <TabsList>
-            <TabsTrigger value="resumen">
-              <BarChart2 className="h-3.5 w-3.5 mr-1.5" />
-              Resumen
-            </TabsTrigger>
-            <TabsTrigger value="shows">
-              <Music className="h-3.5 w-3.5 mr-1.5" />
-              Shows ({shows.length})
-            </TabsTrigger>
-            <TabsTrigger value="instagram">
-              <Camera className="h-3.5 w-3.5 mr-1.5" />
-              Instagram
-            </TabsTrigger>
-            <TabsTrigger value="tiktok">
-              <Clock className="h-3.5 w-3.5 mr-1.5" />
-              TikTok
-            </TabsTrigger>
-            <TabsTrigger value="youtube">
-              <Clock className="h-3.5 w-3.5 mr-1.5" />
-              YouTube
-            </TabsTrigger>
-            <TabsTrigger value="shopify">
-              <ShoppingBag className="h-3.5 w-3.5 mr-1.5" />
-              Shopify
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="resumen" className="mt-4">
-            <ResumenTab metrics={social} onRefresh={loadAll} />
-          </TabsContent>
-          <TabsContent value="shows" className="mt-4">
-            <ShowsTab shows={shows} onRefresh={loadAll} />
-          </TabsContent>
-          <TabsContent value="instagram" className="mt-4">
-            <PlatformTab platform="instagram" metrics={social} onRefresh={loadAll} integration={metaIntegration} />
-          </TabsContent>
-          <TabsContent value="tiktok" className="mt-4">
-            <PlatformTab platform="tiktok" metrics={social} onRefresh={loadAll} comingSoon />
-          </TabsContent>
-          <TabsContent value="youtube" className="mt-4">
-            <PlatformTab platform="youtube" metrics={social} onRefresh={loadAll} comingSoon />
-          </TabsContent>
-          <TabsContent value="shopify" className="mt-4">
-            <MerchTab snapshots={merch} onRefresh={loadAll} />
-          </TabsContent>
-        </Tabs>
+        <ResumenTab metrics={social} onRefresh={refresh} />
       )}
     </div>
   );

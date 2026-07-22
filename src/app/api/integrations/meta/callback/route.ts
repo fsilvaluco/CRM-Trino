@@ -28,7 +28,7 @@ interface InstagramUserResponse {
   followers_count?: number;
 }
 
-const ANALYTICS_BASE = "/analytics";
+const ANALYTICS_BASE = "/analytics/instagram";
 const GRAPH_BASE = "https://graph.facebook.com/v21.0";
 
 export async function GET(request: NextRequest) {

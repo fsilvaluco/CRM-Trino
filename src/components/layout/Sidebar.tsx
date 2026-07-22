@@ -6,7 +6,7 @@ import { useState } from "react";
 import { ChevronDown, ChevronRight, ChevronLeft, Briefcase } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
-import { navConfig, settingsConfig, type NavLeaf, type NavGroup } from "./nav-config";
+import { navConfig, settingsConfig, computeActiveHref, type NavLeaf, type NavGroup } from "./nav-config";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface SidebarProps {
@@ -14,22 +14,18 @@ interface SidebarProps {
   onToggle: () => void;
 }
 
-function isLeafActive(href: string, pathname: string) {
-  return pathname === href || (href !== "/" && pathname.startsWith(href));
-}
-
 function LeafLink({
   item,
-  pathname,
+  activeHref,
   indent = false,
   collapsed,
 }: {
   item: NavLeaf;
-  pathname: string;
+  activeHref: string;
   indent?: boolean;
   collapsed: boolean;
 }) {
-  const active = isLeafActive(item.href, pathname);
+  const active = item.href === activeHref;
   const baseClass = cn(
     "flex items-center rounded-lg text-sm font-medium transition-colors cursor-pointer",
     active
@@ -68,16 +64,25 @@ function LeafLink({
 
 function GroupNav({
   item,
-  pathname,
+  activeHref,
   collapsed,
 }: {
   item: NavGroup;
-  pathname: string;
+  activeHref: string;
   collapsed: boolean;
 }) {
-  const groupActive = item.children.some((c) => isLeafActive(c.href, pathname));
+  const groupActive = item.children.some((c) => c.href === activeHref);
   const [open, setOpen] = useState(groupActive);
+  const [prevGroupActive, setPrevGroupActive] = useState(groupActive);
   const firstChildHref = item.children[0]?.href ?? "/";
+
+  // Autoexpande el grupo si un hijo pasa a estar activo por navegación
+  // externa al sidebar. Ajuste durante el render (no en un efecto) —
+  // patrón recomendado por React para sincronizar estado con props/derivados.
+  if (groupActive !== prevGroupActive) {
+    setPrevGroupActive(groupActive);
+    if (groupActive) setOpen(true);
+  }
 
   const activeClass = groupActive
     ? "bg-[var(--sidebar-accent)] text-[var(--sidebar-accent-foreground)]"
@@ -128,7 +133,7 @@ function GroupNav({
             <LeafLink
               key={child.href}
               item={child}
-              pathname={pathname}
+              activeHref={activeHref}
               indent
               collapsed={false}
             />
@@ -141,6 +146,7 @@ function GroupNav({
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
+  const activeHref = computeActiveHref(pathname);
   const { orgRole } = useAuth();
   const isAdmin = orgRole === "owner" || orgRole === "admin";
 
@@ -178,14 +184,14 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             <GroupNav
               key={item.label}
               item={item}
-              pathname={pathname}
+              activeHref={activeHref}
               collapsed={collapsed}
             />
           ) : (
             <LeafLink
               key={(item as NavLeaf).href}
               item={item as NavLeaf}
-              pathname={pathname}
+              activeHref={activeHref}
               collapsed={collapsed}
             />
           )
@@ -206,7 +212,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               <LeafLink
                 key={item.href}
                 item={item}
-                pathname={pathname}
+                activeHref={activeHref}
                 collapsed={collapsed}
               />
             ))}
