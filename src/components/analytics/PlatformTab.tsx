@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { LineChart, Line, BarChart, Bar, Cell, ReferenceLine, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Plus, BarChart2, Clock, TrendingUp, TrendingDown, Users } from "lucide-react";
 import { format, subDays, startOfDay, eachDayOfInterval } from "date-fns";
 import { es } from "date-fns/locale";
@@ -155,6 +155,21 @@ export function PlatformTab({ platform, metrics, onRefresh, integration, comingS
 
   const hasAnyDataInPeriod = chartData.some((d) => d.followers != null);
 
+  /** Crecimiento diario = delta contra el día calendario anterior. Solo se
+   * calcula cuando AMBOS días tienen dato — si hay un hueco (sync que
+   * falló, o historial recién empezando), la barra queda vacía en vez de
+   * mostrar un salto que en realidad ocurrió a lo largo de varios días. */
+  const growthData = useMemo(() => {
+    return chartData.map((d, i) => {
+      if (i === 0 || d.followers == null) return { label: d.label, delta: null as number | null };
+      const prev = chartData[i - 1].followers;
+      if (prev == null) return { label: d.label, delta: null };
+      return { label: d.label, delta: d.followers - prev };
+    });
+  }, [chartData]);
+
+  const hasGrowthData = growthData.some((d) => d.delta != null);
+
   return (
     <div className="space-y-6">
       {comingSoon && (
@@ -274,6 +289,47 @@ export function PlatformTab({ platform, metrics, onRefresh, integration, comingS
           <p className="text-sm text-muted-foreground">
             Sin datos de {PLATFORM_LABEL[platform]} en este período
           </p>
+        </div>
+      )}
+
+      {hasGrowthData && (
+        <div className="rounded-xl border bg-card p-4">
+          <p className="text-xs font-medium text-muted-foreground mb-4">
+            Crecimiento diario — {PLATFORM_LABEL[platform]}
+          </p>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={growthData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 11 }}
+                interval={tickInterval(growthData.length)}
+                minTickGap={8}
+              />
+              <YAxis tick={{ fontSize: 11 }} width={40} allowDecimals={false} />
+              <ReferenceLine y={0} className="stroke-border" />
+              <Tooltip
+                formatter={(v) => {
+                  const n = Number(v ?? 0);
+                  return [`${n >= 0 ? "+" : ""}${NUM.format(n)}`, "Variación"];
+                }}
+              />
+              <Bar dataKey="delta" radius={[3, 3, 3, 3]}>
+                {growthData.map((d, i) => (
+                  <Cell
+                    key={i}
+                    fill={
+                      d.delta == null
+                        ? "transparent"
+                        : d.delta >= 0
+                        ? "#16a34a"
+                        : "#dc2626"
+                    }
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       )}
 
