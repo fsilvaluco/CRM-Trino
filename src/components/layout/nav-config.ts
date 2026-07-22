@@ -40,6 +40,12 @@ export const navConfig: NavItem[] = [
     icon: LayoutDashboard,
   },
   {
+    type: "leaf",
+    href: "/analytics",
+    label: "Métricas",
+    icon: BarChart2,
+  },
+  {
     type: "group",
     label: "CRM",
     icon: Briefcase,
@@ -54,12 +60,6 @@ export const navConfig: NavItem[] = [
     href: "/campanas",
     label: "Campañas",
     icon: Megaphone,
-  },
-  {
-    type: "leaf",
-    href: "/analytics",
-    label: "Métricas",
-    icon: BarChart2,
   },
   {
     type: "leaf",

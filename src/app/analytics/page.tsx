@@ -4,10 +4,11 @@ import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { useProject } from "@/lib/project-context";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart2, Music, Users, ShoppingBag } from "lucide-react";
+import { BarChart2, Music, Users, ShoppingBag, Camera, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { ShowsTab } from "@/components/analytics/ShowsTab";
-import { SocialTab } from "@/components/analytics/SocialTab";
+import { ResumenTab } from "@/components/analytics/ResumenTab";
+import { PlatformTab } from "@/components/analytics/PlatformTab";
 import { MerchTab } from "@/components/analytics/MerchTab";
 import type { Show, SocialMetric, MerchSnapshot } from "@/types/analytics";
 
@@ -163,28 +164,49 @@ export default function AnalyticsPage() {
           ))}
         </div>
       ) : (
-        <Tabs defaultValue="shows">
+        <Tabs defaultValue="resumen">
           <TabsList>
+            <TabsTrigger value="resumen">
+              <BarChart2 className="h-3.5 w-3.5 mr-1.5" />
+              Resumen
+            </TabsTrigger>
             <TabsTrigger value="shows">
               <Music className="h-3.5 w-3.5 mr-1.5" />
               Shows ({shows.length})
             </TabsTrigger>
-            <TabsTrigger value="social">
-              <BarChart2 className="h-3.5 w-3.5 mr-1.5" />
-              Redes Sociales
+            <TabsTrigger value="instagram">
+              <Camera className="h-3.5 w-3.5 mr-1.5" />
+              Instagram
             </TabsTrigger>
-            <TabsTrigger value="merch">
+            <TabsTrigger value="tiktok">
+              <Clock className="h-3.5 w-3.5 mr-1.5" />
+              TikTok
+            </TabsTrigger>
+            <TabsTrigger value="youtube">
+              <Clock className="h-3.5 w-3.5 mr-1.5" />
+              YouTube
+            </TabsTrigger>
+            <TabsTrigger value="shopify">
               <ShoppingBag className="h-3.5 w-3.5 mr-1.5" />
-              Merch
+              Shopify
             </TabsTrigger>
           </TabsList>
+          <TabsContent value="resumen" className="mt-4">
+            <ResumenTab metrics={social} onRefresh={loadAll} />
+          </TabsContent>
           <TabsContent value="shows" className="mt-4">
             <ShowsTab shows={shows} onRefresh={loadAll} />
           </TabsContent>
-          <TabsContent value="social" className="mt-4">
-            <SocialTab metrics={social} onRefresh={loadAll} integration={metaIntegration} />
+          <TabsContent value="instagram" className="mt-4">
+            <PlatformTab platform="instagram" metrics={social} onRefresh={loadAll} integration={metaIntegration} />
           </TabsContent>
-          <TabsContent value="merch" className="mt-4">
+          <TabsContent value="tiktok" className="mt-4">
+            <PlatformTab platform="tiktok" metrics={social} onRefresh={loadAll} comingSoon />
+          </TabsContent>
+          <TabsContent value="youtube" className="mt-4">
+            <PlatformTab platform="youtube" metrics={social} onRefresh={loadAll} comingSoon />
+          </TabsContent>
+          <TabsContent value="shopify" className="mt-4">
             <MerchTab snapshots={merch} onRefresh={loadAll} />
           </TabsContent>
         </Tabs>
