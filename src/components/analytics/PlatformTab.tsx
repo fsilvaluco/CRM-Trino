@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Plus, BarChart2, Clock, TrendingUp, TrendingDown, Users } from "lucide-react";
-import { format, subDays, isAfter, differenceInCalendarDays } from "date-fns";
+import { format, subDays, startOfDay, eachDayOfInterval } from "date-fns";
 import { es } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -59,46 +59,101 @@ const PERIODS: Period[] = [
 
 const NUM = new Intl.NumberFormat("es-CL");
 
+/** Clave de día (YYYY-MM-DD) a partir de recordedAt, que puede venir como
+ * fecha simple o como timestamp completo. */
+function dayKey(recordedAt: string): string {
+  return recordedAt.slice(0, 10);
+}
+
+/** Cuántos ticks mostrar en el eje X según la cantidad de días, para que no
+ * se amontonen las etiquetas. */
+function tickInterval(dayCount: number): number {
+  if (dayCount <= 7) return 0; // todos los días
+  if (dayCount <= 31) return 2; // uno de cada 3
+  if (dayCount <= 92) return 6; // ~semanal
+  if (dayCount <= 183) return 14;
+  return 29; // ~mensual
+}
+
 export function PlatformTab({ platform, metrics, onRefresh, integration, comingSoon }: PlatformTabProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [period, setPeriod] = useState<Period>(PERIODS[1]); // default: 30 días
   const { activeProject } = useProject();
 
-  const platformMetrics = useMemo(
-    () =>
-      metrics
-        .filter((m) => m.platform === platform)
-        .sort((a, b) => a.recordedAt.localeCompare(b.recordedAt)),
-    [metrics, platform]
-  );
+  /** Un valor por día: si hay varios registros del mismo día (ej. varios syncs
+   * manuales), nos quedamos SOLO con el último (mayor createdAt). */
+  const followersByDay = useMemo(() => {
+    const map = new Map<string, { followers: number; createdAt: string }>();
+    for (const m of metrics) {
+      if (m.platform !== platform) continue;
+      const key = dayKey(m.recordedAt);
+      const prev = map.get(key);
+      if (!prev || m.createdAt > prev.createdAt) {
+        map.set(key, { followers: m.followers, createdAt: m.createdAt });
+      }
+    }
+    return map;
+  }, [metrics, platform]);
 
-  const filteredMetrics = useMemo(() => {
-    if (period.days == null) return platformMetrics;
-    const cutoff = subDays(new Date(), period.days);
-    return platformMetrics.filter((m) => isAfter(new Date(m.recordedAt), cutoff));
-  }, [platformMetrics, period]);
+  const sortedDays = useMemo(() => Array.from(followersByDay.keys()).sort(), [followersByDay]);
 
-  const chartData = filteredMetrics.map((m) => ({
-    label: format(new Date(m.recordedAt), "d MMM", { locale: es }),
-    followers: m.followers,
-  }));
+  /**
+   * El eje X es un rango CONTINUO de días definido por el período elegido —
+   * no la lista de registros. Los días sin dato quedan como null y el gráfico
+   * los salta (connectNulls), pero el eje mantiene su escala temporal real.
+   */
+  const chartData = useMemo(() => {
+    const today = startOfDay(new Date());
+    let start: Date;
 
-  // Seguidores actuales: siempre el último dato conocido, sin importar el
-  // período seleccionado (el período solo recorta el gráfico y la variación).
-  const currentFollowers = platformMetrics.length > 0 ? platformMetrics[platformMetrics.length - 1].followers : null;
+    if (period.days == null) {
+      // "Todo": desde el primer registro (o hoy si no hay ninguno).
+      start = sortedDays.length > 0 ? startOfDay(new Date(`${sortedDays[0]}T00:00:00`)) : today;
+    } else {
+      start = subDays(today, period.days - 1);
+    }
 
+    if (start > today) start = today;
+
+    return eachDayOfInterval({ start, end: today }).map((date) => {
+      const key = format(date, "yyyy-MM-dd");
+      const entry = followersByDay.get(key);
+      return {
+        key,
+        label: format(date, "d MMM", { locale: es }),
+        followers: entry ? entry.followers : null,
+      };
+    });
+  }, [period, sortedDays, followersByDay]);
+
+  const currentFollowers = useMemo(() => {
+    if (sortedDays.length === 0) return null;
+    return followersByDay.get(sortedDays[sortedDays.length - 1])?.followers ?? null;
+  }, [sortedDays, followersByDay]);
+
+  /** Variación dentro del período visible: primer vs último día CON dato. */
   const stats = useMemo(() => {
-    if (filteredMetrics.length < 2 || currentFollowers == null) return null;
-    const first = filteredMetrics[0];
-    const delta = currentFollowers - first.followers;
+    const withData = chartData.filter((d) => d.followers != null);
+    if (withData.length < 2) return null;
+
+    const first = withData[0];
+    const last = withData[withData.length - 1];
+    const delta = (last.followers as number) - (first.followers as number);
+
+    const firstDate = new Date(`${first.key}T00:00:00`);
+    const lastDate = new Date(`${last.key}T00:00:00`);
     const elapsedDays = Math.max(
       1,
-      differenceInCalendarDays(new Date(), new Date(first.recordedAt))
+      Math.round((lastDate.getTime() - firstDate.getTime()) / 86_400_000)
     );
+
     const dailyAvg = delta / elapsedDays;
-    const pct = first.followers > 0 ? (delta / first.followers) * 100 : null;
+    const base = first.followers as number;
+    const pct = base > 0 ? (delta / base) * 100 : null;
     return { delta, dailyAvg, pct };
-  }, [filteredMetrics, currentFollowers]);
+  }, [chartData]);
+
+  const hasAnyDataInPeriod = chartData.some((d) => d.followers != null);
 
   return (
     <div className="space-y-6">
@@ -172,7 +227,7 @@ export function PlatformTab({ platform, metrics, onRefresh, integration, comingS
         </div>
         <div className="flex items-center gap-3">
           <p className="text-sm text-muted-foreground">
-            {platformMetrics.length} registro{platformMetrics.length !== 1 ? "s" : ""} en total
+            {sortedDays.length} día{sortedDays.length !== 1 ? "s" : ""} con datos
           </p>
           <Button size="sm" variant="outline" onClick={() => setSheetOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
@@ -181,18 +236,24 @@ export function PlatformTab({ platform, metrics, onRefresh, integration, comingS
         </div>
       </div>
 
-      {chartData.length > 0 ? (
+      {hasAnyDataInPeriod ? (
         <div className="rounded-xl border bg-card p-4">
           <p className="text-xs font-medium text-muted-foreground mb-4">Seguidores — {PLATFORM_LABEL[platform]}</p>
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 11 }}
+                interval={tickInterval(chartData.length)}
+                minTickGap={8}
+              />
               <YAxis
                 tick={{ fontSize: 11 }}
                 tickFormatter={(v) => NUM.format(v)}
                 width={70}
                 domain={["auto", "auto"]}
+                allowDecimals={false}
               />
               <Tooltip formatter={(v) => [NUM.format(Number(v ?? 0)), "Seguidores"]} />
               <Line
@@ -202,6 +263,7 @@ export function PlatformTab({ platform, metrics, onRefresh, integration, comingS
                 strokeWidth={2}
                 dot={{ r: 3 }}
                 name="Seguidores"
+                connectNulls
               />
             </LineChart>
           </ResponsiveContainer>
