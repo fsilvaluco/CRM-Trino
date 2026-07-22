@@ -11,6 +11,8 @@ interface SyncResult {
   accountName: string | null;
   ok: boolean;
   followers?: number;
+  avatarStatus?: string;
+  hasProfilePictureUrl?: boolean;
   error?: string;
 }
 
@@ -67,7 +69,15 @@ export async function POST(request: NextRequest) {
 
     try {
       const result = await syncInstagram(supabase, organizationId, accessToken, igUserId, projectId);
-      results.push({ organizationId, projectId, accountName, ok: true, followers: result.followers });
+      results.push({
+        organizationId,
+        projectId,
+        accountName,
+        ok: true,
+        followers: result.followers,
+        avatarStatus: result.avatarStatus,
+        hasProfilePictureUrl: result.hasProfilePictureUrl,
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Error desconocido";
       console.error("[cron/sync-instagram] sync failed", { organizationId, projectId, accountName, message });

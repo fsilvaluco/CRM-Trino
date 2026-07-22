@@ -8,13 +8,19 @@ interface InstagramMeResponse {
   error?: { message: string };
 }
 
+export type AvatarSyncStatus =
+  | "updated"
+  | "skipped_manual_override"
+  | "no_profile_picture_url"
+  | "update_failed";
+
 export async function syncInstagram(
   supabase: SupabaseClient,
   orgId: string,
   accessToken: string,
   igUserId: string,
   projectId: string
-): Promise<{ followers: number; recordedAt: string }> {
+): Promise<{ followers: number; recordedAt: string; avatarStatus: AvatarSyncStatus; hasProfilePictureUrl: boolean }> {
   const res = await fetch(
     `https://graph.facebook.com/v21.0/${igUserId}?fields=followers_count,username,profile_picture_url&access_token=${accessToken}`
   );
@@ -28,6 +34,13 @@ export async function syncInstagram(
   if (data.error) {
     throw new Error(data.error.message);
   }
+
+  console.log("[meta-sync] instagram graph response", {
+    projectId,
+    igUserId,
+    hasProfilePictureUrl: Boolean(data.profile_picture_url),
+    username: data.username,
+  });
 
   const recordedAt = new Date().toISOString().split("T")[0];
 
@@ -67,14 +80,22 @@ export async function syncInstagram(
   // Ícono del proyecto: usa la foto de perfil de Instagram como default,
   // pero NUNCA pisa una imagen que el usuario subió a mano
   // (avatar_source = 'manual').
+  let avatarStatus: AvatarSyncStatus = "no_profile_picture_url";
+
   if (data.profile_picture_url) {
-    const { data: project } = await supabase
+    const { data: project, error: projectFetchError } = await supabase
       .from("projects")
       .select("avatar_source")
       .eq("id", projectId)
       .maybeSingle();
 
-    if (!project || project.avatar_source !== "manual") {
+    if (projectFetchError) {
+      console.error("[meta-sync] projects avatar_source fetch failed", { projectId, projectFetchError });
+    }
+
+    if (project && project.avatar_source === "manual") {
+      avatarStatus = "skipped_manual_override";
+    } else {
       const { error: avatarError } = await supabase
         .from("projects")
         .update({ avatar_url: data.profile_picture_url, avatar_source: "instagram" })
@@ -82,9 +103,19 @@ export async function syncInstagram(
 
       if (avatarError) {
         console.error("[meta-sync] avatar_url update failed", { projectId, avatarError });
+        avatarStatus = "update_failed";
+      } else {
+        avatarStatus = "updated";
       }
     }
   }
 
-  return { followers: data.followers_count, recordedAt };
+  console.log("[meta-sync] avatar sync result", { projectId, avatarStatus });
+
+  return {
+    followers: data.followers_count,
+    recordedAt,
+    avatarStatus,
+    hasProfilePictureUrl: Boolean(data.profile_picture_url),
+  };
 }
