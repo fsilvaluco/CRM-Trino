@@ -192,7 +192,7 @@ export async function GET(request: NextRequest) {
         account_name: igUser.username,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "organization_id,platform" }
+      { onConflict: "organization_id,platform,project_id" }
     );
 
     if (upsertError) {

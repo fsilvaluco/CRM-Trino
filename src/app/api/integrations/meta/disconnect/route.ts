@@ -13,17 +13,24 @@ export async function DELETE(request: NextRequest) {
   }
 
   const projectId = (body as { projectId?: string })?.projectId;
+  if (!projectId) {
+    return NextResponse.json(
+      { error: "Selecciona un proyecto antes de desconectar" },
+      { status: 400 }
+    );
+  }
 
   const { data: integration, error: fetchError } = await supabase
     .from("artist_integrations")
     .select("account_id")
     .eq("organization_id", orgId!)
     .eq("platform", "instagram")
-    .single();
+    .eq("project_id", projectId)
+    .maybeSingle();
 
   if (fetchError || !integration) {
     return NextResponse.json(
-      { error: "Sin integración de Instagram conectada" },
+      { error: "Sin integración de Instagram conectada en este proyecto" },
       { status: 404 }
     );
   }
@@ -32,7 +39,8 @@ export async function DELETE(request: NextRequest) {
     .from("artist_integrations")
     .delete()
     .eq("organization_id", orgId!)
-    .eq("platform", "instagram");
+    .eq("platform", "instagram")
+    .eq("project_id", projectId);
 
   if (deleteIntegrationError) {
     console.error("[meta/disconnect] artist_integrations delete failed", {

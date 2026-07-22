@@ -48,7 +48,7 @@ export default function AnalyticsPage() {
         fetch(`/api/analytics/shows${qs}`),
         fetch(`/api/analytics/social${qs}`),
         fetch(`/api/analytics/merch${qs}`),
-        fetch("/api/integrations/meta/status"),
+        fetch(`/api/integrations/meta/status${qs}`),
       ]);
       const [showsData, socialData, merchData, statusData] = await Promise.all([
         showsRes.ok ? showsRes.json() : [],

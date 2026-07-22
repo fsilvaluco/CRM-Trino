@@ -19,8 +19,16 @@ export async function GET(request: NextRequest) {
   const params = new URLSearchParams({
     client_id: process.env.META_APP_ID!,
     redirect_uri: process.env.META_REDIRECT_URI!,
-    scope: "instagram_basic,instagram_manage_insights,pages_read_engagement",
+    // business_management: necesario para acceder a páginas que viven dentro
+    // de portafolios comerciales (Business Portfolios) y no directamente en
+    // la cuenta personal del usuario. Sin esto, /me/accounts solo devuelve
+    // acceso completo a páginas con rol personal directo.
+    scope: "instagram_basic,instagram_manage_insights,pages_read_engagement,business_management",
     response_type: "code",
+    // rerequest: fuerza a Facebook a mostrar de nuevo el selector de páginas
+    // y cuentas, en vez de la pantalla de "Reconectar" con la configuración
+    // anterior congelada.
+    auth_type: "rerequest",
     state,
   });
 

@@ -26,7 +26,8 @@ export async function POST(request: NextRequest) {
     .select("*")
     .eq("organization_id", orgId!)
     .eq("platform", "instagram")
-    .single();
+    .eq("project_id", projectId)
+    .maybeSingle();
 
   if (dbError || !integration) {
     return NextResponse.json(
