@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
-import { syncInstagram } from "@/lib/meta-sync";
+import { finalizeMetaConnection, type MetaAccountCandidate } from "@/lib/meta-connect";
 
 interface TokenResponse {
   access_token: string;
@@ -10,6 +10,7 @@ interface TokenResponse {
 
 interface FacebookPage {
   id: string;
+  name: string;
   access_token: string;
 }
 
@@ -77,10 +78,7 @@ export async function GET(request: NextRequest) {
     });
 
     const tokenRaw = await tokenRes.text();
-    console.log("[meta/callback] step1 code->token", {
-      status: tokenRes.status,
-      body: tokenRaw,
-    });
+    console.log("[meta/callback] step1 code->token", { status: tokenRes.status, body: tokenRaw });
 
     if (!tokenRes.ok) {
       console.error("[meta/callback] step1 failed", { status: tokenRes.status, body: tokenRaw });
@@ -99,10 +97,7 @@ export async function GET(request: NextRequest) {
 
     const longRes = await fetch(`${GRAPH_BASE}/oauth/access_token?${longParams.toString()}`);
     const longRaw = await longRes.text();
-    console.log("[meta/callback] step2 long-lived token", {
-      status: longRes.status,
-      body: longRaw,
-    });
+    console.log("[meta/callback] step2 long-lived token", { status: longRes.status, body: longRaw });
 
     if (!longRes.ok) {
       console.error("[meta/callback] step2 failed", { status: longRes.status, body: longRaw });
@@ -113,15 +108,13 @@ export async function GET(request: NextRequest) {
     const longLivedToken = longLived.access_token;
     const expiresIn = longLived.expires_in ?? 60 * 24 * 60 * 60;
 
-    // Step 3: List the Facebook Pages the user manages
-    const pagesRes = await fetch(
-      `${GRAPH_BASE}/me/accounts?access_token=${longLivedToken}`
-    );
+    // Step 3: List every Facebook Page currently granted to the app
+    // (Facebook accumulates grants across reconnections — this can include
+    // pages authorized for OTHER projects in previous connect attempts, not
+    // just the one(s) the user just checked).
+    const pagesRes = await fetch(`${GRAPH_BASE}/me/accounts?fields=id,name,access_token&access_token=${longLivedToken}`);
     const pagesRaw = await pagesRes.text();
-    console.log("[meta/callback] step3 me/accounts", {
-      status: pagesRes.status,
-      body: pagesRaw,
-    });
+    console.log("[meta/callback] step3 me/accounts", { status: pagesRes.status, body: pagesRaw });
 
     if (!pagesRes.ok) {
       console.error("[meta/callback] step3 failed", { status: pagesRes.status, body: pagesRaw });
@@ -130,82 +123,72 @@ export async function GET(request: NextRequest) {
 
     const pages = JSON.parse(pagesRaw) as PagesResponse;
 
-    // Step 4: Find the first Page with a linked Instagram Business account
-    let igUserId: string | null = null;
-    let pageAccessToken: string | null = null;
+    // Step 4: Collect ALL pages that have a linked Instagram Business
+    // account — NOT just the first one. Picking "the first match" is what
+    // caused the previous bug (wrong account getting connected/synced when
+    // more than one page had Instagram linked).
+    const candidates: MetaAccountCandidate[] = [];
 
     for (const page of pages.data ?? []) {
       const pageRes = await fetch(
         `${GRAPH_BASE}/${page.id}?fields=instagram_business_account&access_token=${page.access_token}`
       );
-      const pageRaw = await pageRes.text();
-      console.log("[meta/callback] step4 page instagram_business_account", {
-        pageId: page.id,
-        status: pageRes.status,
-        body: pageRaw,
-      });
-
       if (!pageRes.ok) continue;
+      const pageData = (await pageRes.json()) as PageIgAccountResponse;
+      const igUserId = pageData.instagram_business_account?.id;
+      if (!igUserId) continue;
 
-      const pageData = JSON.parse(pageRaw) as PageIgAccountResponse;
+      const igRes = await fetch(`${GRAPH_BASE}/${igUserId}?fields=username&access_token=${page.access_token}`);
+      if (!igRes.ok) continue;
+      const igUser = (await igRes.json()) as InstagramUserResponse;
 
-      if (pageData.instagram_business_account?.id) {
-        igUserId = pageData.instagram_business_account.id;
-        pageAccessToken = page.access_token;
-        break;
-      }
+      candidates.push({
+        pageId: page.id,
+        pageName: page.name,
+        pageAccessToken: page.access_token,
+        igUserId,
+        igUsername: igUser.username,
+      });
     }
 
-    if (!igUserId || !pageAccessToken) {
-      console.error("[meta/callback] step4 no linked Instagram Business account found", {
-        pageCount: pages.data?.length ?? 0,
-      });
+    console.log("[meta/callback] step4 candidates found", { count: candidates.length });
+
+    if (candidates.length === 0) {
       return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_no_ig_account`, process.env.NEXT_PUBLIC_SITE_URL));
     }
 
-    // Step 5: Fetch the Instagram Business account username and followers
-    const igRes = await fetch(
-      `${GRAPH_BASE}/${igUserId}?fields=followers_count,username&access_token=${pageAccessToken}`
-    );
-    const igRaw = await igRes.text();
-    console.log("[meta/callback] step5 ig user lookup", {
-      status: igRes.status,
-      body: igRaw,
-    });
-
-    if (!igRes.ok) {
-      console.error("[meta/callback] step5 failed", { status: igRes.status, body: igRaw });
-      return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, process.env.NEXT_PUBLIC_SITE_URL));
+    // Exactly one candidate: no ambiguity, connect it directly (fast path,
+    // same behavior as before for the common case).
+    if (candidates.length === 1) {
+      const result = await finalizeMetaConnection(supabase, orgId!, decodedProjectId, candidates[0], expiresIn);
+      if (!result.ok) {
+        return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, process.env.NEXT_PUBLIC_SITE_URL));
+      }
+      return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?connected=instagram`, process.env.NEXT_PUBLIC_SITE_URL));
     }
 
-    const igUser = JSON.parse(igRaw) as InstagramUserResponse;
-
-    // Step 6: Upsert integration record
-    const { error: upsertError } = await supabase.from("artist_integrations").upsert(
-      {
+    // More than one candidate: don't guess. Store them temporarily and let
+    // the user pick which account belongs to this project.
+    const { data: pending, error: pendingError } = await supabase
+      .from("meta_pending_connections")
+      .insert({
         organization_id: orgId,
-        platform: "instagram",
         project_id: decodedProjectId,
-        access_token: pageAccessToken,
-        token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
-        account_id: igUserId,
-        account_name: igUser.username,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "organization_id,platform,project_id" }
-    );
+        candidates: candidates.map((c) => ({ ...c, tokenExpiresIn: expiresIn })),
+      })
+      .select("id")
+      .single();
 
-    if (upsertError) {
-      console.error("[meta/callback] step6 upsert failed", upsertError);
+    if (pendingError || !pending) {
+      console.error("[meta/callback] failed to store pending connection", pendingError);
       return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, process.env.NEXT_PUBLIC_SITE_URL));
     }
 
-    // Step 7: Immediate sync
-    await syncInstagram(supabase, orgId!, pageAccessToken, igUserId, decodedProjectId);
+    return NextResponse.redirect(
+      new URL(`/analytics/connect-instagram?pending=${pending.id}`, process.env.NEXT_PUBLIC_SITE_URL)
+    );
   } catch (err) {
     console.error("[meta/callback] unexpected error", err);
     return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, process.env.NEXT_PUBLIC_SITE_URL));
   }
-
-  return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?connected=instagram`, process.env.NEXT_PUBLIC_SITE_URL));
 }
