@@ -186,9 +186,16 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           return prev;
         }
 
-        const stillExists = list.some((project) => project.id === prev.id);
-        if (stillExists) {
-          return prev;
+        // Importante: no basta con comprobar que el proyecto sigue
+        // existiendo — hay que devolver la versión FRESCA de la lista, no
+        // la referencia vieja en cache. Si no, cambios hechos server-side
+        // (ej. el cron actualizando el avatar_url, o cualquier admin
+        // cambiando el color) nunca se reflejan hasta que el usuario
+        // reselecciona el proyecto a mano.
+        const fresh = list.find((project) => project.id === prev.id);
+        if (fresh) {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(fresh));
+          return fresh;
         }
 
         localStorage.removeItem(STORAGE_KEY);
