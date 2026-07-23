@@ -62,6 +62,33 @@ export interface MerchSnapshot {
   createdAt: string;
 }
 
+// ── Shopify (Merch) ───────────────────────────────────────────────────────────
+// Datos de solo lectura: se llenan desde el sync con Shopify, nunca desde un
+// formulario en la UI.
+
+export interface ShopifyProduct {
+  id: string;
+  shopifyProductId: number;
+  title: string;
+  status: string | null;
+  available: boolean;
+  inventoryQuantity: number;
+  /** Precio de la variante más barata, en CLP cents */
+  price: number | null;
+  imageUrl: string | null;
+  updatedAt: string;
+}
+
+export interface ShopifySalesMonth {
+  id: string;
+  /** Primer día del mes, YYYY-MM-01 */
+  month: string;
+  unitsSold: number;
+  /** CLP cents */
+  totalSales: number;
+  ordersCount: number;
+}
+
 // ── Zod schemas & inferred input types ───────────────────────────────────────
 
 export const createShowSchema = z.object({

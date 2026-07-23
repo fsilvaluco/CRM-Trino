@@ -55,7 +55,7 @@ export const navConfig: NavItem[] = [
       { type: "leaf", href: "/analytics/instagram", label: "Instagram", icon: Camera },
       { type: "leaf", href: "/analytics/tiktok", label: "TikTok", icon: Music2 },
       { type: "leaf", href: "/analytics/youtube", label: "YouTube", icon: PlayCircle },
-      { type: "leaf", href: "/analytics/shopify", label: "Shopify", icon: ShoppingBag },
+      { type: "leaf", href: "/analytics/shopify", label: "Merch", icon: ShoppingBag },
     ],
   },
   {
