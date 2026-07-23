@@ -24,8 +24,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL(`${MERCH_BASE}?error=shopify_hmac_mismatch`, process.env.NEXT_PUBLIC_SITE_URL));
   }
 
-  // 2. Decodificar y validar el state contra la sesión actual (mismo
-  // patrón anti-CSRF que meta/callback).
+  // 2. Decodificar y validar el state contra la sesión actual (anti-CSRF,
+  // mismo patrón que meta/callback).
   let decodedOrgId: string | null = null;
   let decodedProjectId: string | null = null;
   let decodedShopDomain: string | null = null;
@@ -51,39 +51,68 @@ export async function GET(request: NextRequest) {
     // 3. Code -> access token permanente (offline).
     const accessToken = await exchangeCodeForToken(shop, code);
 
-    // 4. Nombre de la tienda (para mostrar en la UI) + resolver la colección.
+    // 4. Nombre de la tienda + resolver la colección por su handle.
     const { shopName } = await validateShopifyCredentials(shop, accessToken);
     const collection = await resolveCollectionByHandle(shop, accessToken, decodedCollectionHandle);
 
-    const { error: upsertError } = await supabase.from("artist_integrations").upsert(
-      {
-        organization_id: orgId,
-        platform: "shopify",
-        project_id: decodedProjectId,
-        access_token: accessToken,
-        account_id: shop,
-        account_name: shopName,
-        config: {
-          collectionId: collection.id,
-          collectionHandle: collection.handle,
-          collectionTitle: collection.title,
+    // 5. La TIENDA vive a nivel de organización: si ya estaba conectada
+    // (porque otro proyecto la usa), se actualiza el token en la misma fila
+    // en vez de duplicarla.
+    const { data: store, error: storeError } = await supabase
+      .from("shopify_stores")
+      .upsert(
+        {
+          organization_id: orgId,
+          shop_domain: shop,
+          shop_name: shopName,
+          access_token: accessToken,
+          updated_at: new Date().toISOString(),
         },
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "organization_id,platform,project_id" }
-    );
+        { onConflict: "organization_id,shop_domain" }
+      )
+      .select("id")
+      .single();
 
-    if (upsertError) {
-      console.error("[shopify/callback] upsert failed", upsertError);
+    if (storeError || !store) {
+      console.error("[shopify/callback] store upsert failed", storeError);
       return NextResponse.redirect(new URL(`${MERCH_BASE}?error=shopify_token_error`, process.env.NEXT_PUBLIC_SITE_URL));
     }
 
+    // 6. La COLECCIÓN es por proyecto, apuntando a esa tienda.
+    const { error: collectionError } = await supabase.from("shopify_collections").upsert(
+      {
+        organization_id: orgId,
+        project_id: decodedProjectId,
+        store_id: store.id,
+        shopify_collection_id: collection.id,
+        collection_handle: collection.handle,
+        collection_title: collection.title,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "organization_id,project_id" }
+    );
+
+    if (collectionError) {
+      console.error("[shopify/callback] collection upsert failed", collectionError);
+      return NextResponse.redirect(new URL(`${MERCH_BASE}?error=shopify_token_error`, process.env.NEXT_PUBLIC_SITE_URL));
+    }
+
+    // 7. Primer sync. Si falla, la conexión igual queda guardada — se
+    // reintenta con "Sincronizar ahora". El error se registra COMPLETO en
+    // logs para poder diagnosticarlo sin adivinar.
     try {
       await syncShopify(supabase, orgId!, decodedProjectId, shop, accessToken, collection.id);
+      await supabase
+        .from("shopify_collections")
+        .update({ last_sync_at: new Date().toISOString() })
+        .eq("organization_id", orgId!)
+        .eq("project_id", decodedProjectId);
     } catch (syncError) {
-      // La conexión queda guardada aunque el primer sync falle — se puede
-      // reintentar con "Sincronizar ahora".
-      console.error("[shopify/callback] initial sync failed", syncError);
+      console.error("[shopify/callback] initial sync failed", {
+        shop,
+        projectId: decodedProjectId,
+        message: syncError instanceof Error ? syncError.message : syncError,
+      });
     }
 
     return NextResponse.redirect(new URL(`${MERCH_BASE}?connected=shopify`, process.env.NEXT_PUBLIC_SITE_URL));
