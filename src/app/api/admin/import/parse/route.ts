@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { parseSpreadsheet } from "@/lib/spreadsheet";
-import { suggestColumnMapping } from "@/lib/gemini";
+import { suggestColumnMapping } from "@/lib/openai";
 import { IMPORT_TARGETS, type ImportTargetType } from "@/lib/import-schemas";
 
 const MAX_FILE_SIZE = 10_000_000; // 10MB

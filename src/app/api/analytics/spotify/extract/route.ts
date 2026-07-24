@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
-import { extractSpotifyStatsFromScreenshot, isGeminiEnabled } from "@/lib/gemini";
+import { extractSpotifyStatsFromScreenshot, isOpenAIEnabled } from "@/lib/openai";
 
 const MAX_BASE64_LENGTH = 8_000_000; // ~6MB de imagen — de sobra para un pantallazo comprimido en el cliente
 
@@ -8,8 +8,8 @@ export async function POST(request: NextRequest) {
   const { error } = await requireAuth();
   if (error) return error;
 
-  if (!isGeminiEnabled()) {
-    return NextResponse.json({ error: "Lectura con IA no disponible (falta configurar GEMINI_API_KEY)" }, { status: 503 });
+  if (!isOpenAIEnabled()) {
+    return NextResponse.json({ error: "Lectura con IA no disponible (falta configurar OPENAI_API_KEY)" }, { status: 503 });
   }
 
   let body: unknown;
