@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,11 +14,15 @@ import {
 import { Loader2, Upload, ImageIcon, X, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { useProject } from "@/lib/project-context";
+import type { SpotifyStatsSnapshot } from "@/types/analytics";
 
 interface SpotifyStatsSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onRegistered: () => void;
+  /** Si se pasa, el sheet edita este snapshot (PATCH) en vez de crear uno
+   * nuevo (POST). */
+  editingSnapshot?: SpotifyStatsSnapshot | null;
 }
 
 interface FormFields {
@@ -44,6 +48,20 @@ const EMPTY_FIELDS: FormFields = {
   playlistAdds: "",
   followers: "",
 };
+
+function snapshotToFields(s: SpotifyStatsSnapshot): FormFields {
+  return {
+    periodStart: s.periodStart,
+    periodEnd: s.periodEnd,
+    listeners: s.listeners != null ? String(s.listeners) : "",
+    monthlyActiveListeners: s.monthlyActiveListeners != null ? String(s.monthlyActiveListeners) : "",
+    streams: s.streams != null ? String(s.streams) : "",
+    streamsPerListener: s.streamsPerListener != null ? String(s.streamsPerListener) : "",
+    saves: s.saves != null ? String(s.saves) : "",
+    playlistAdds: s.playlistAdds != null ? String(s.playlistAdds) : "",
+    followers: s.followers != null ? String(s.followers) : "",
+  };
+}
 
 const FIELD_LABELS: Record<keyof Omit<FormFields, "periodStart" | "periodEnd">, string> = {
   listeners: "Oyentes",
@@ -82,7 +100,8 @@ function compressImage(file: File, maxWidth = 1400, quality = 0.82): Promise<{ b
   });
 }
 
-export function SpotifyStatsSheet({ open, onOpenChange, onRegistered }: SpotifyStatsSheetProps) {
+export function SpotifyStatsSheet({ open, onOpenChange, onRegistered, editingSnapshot }: SpotifyStatsSheetProps) {
+  const isEditing = !!editingSnapshot;
   const [fields, setFields] = useState<FormFields>(EMPTY_FIELDS);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [extracting, setExtracting] = useState(false);
@@ -91,6 +110,17 @@ export function SpotifyStatsSheet({ open, onOpenChange, onRegistered }: SpotifyS
   const [notFound, setNotFound] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { activeProject } = useProject();
+
+  // Al abrir en modo edición, precarga los valores del snapshot elegido.
+  useEffect(() => {
+    if (open) {
+      setFields(editingSnapshot ? snapshotToFields(editingSnapshot) : EMPTY_FIELDS);
+      setSource(editingSnapshot?.source ?? "manual");
+      setPreviewUrl(null);
+      setNotFound([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editingSnapshot?.id]);
 
   const reset = () => {
     setFields(EMPTY_FIELDS);
@@ -146,29 +176,33 @@ export function SpotifyStatsSheet({ open, onOpenChange, onRegistered }: SpotifyS
     }
     setSaving(true);
     try {
-      const res = await fetch("/api/analytics/spotify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          projectId: activeProject.id,
-          periodStart: fields.periodStart,
-          periodEnd: fields.periodEnd,
-          listeners: fields.listeners || null,
-          monthlyActiveListeners: fields.monthlyActiveListeners || null,
-          streams: fields.streams || null,
-          streamsPerListener: fields.streamsPerListener || null,
-          saves: fields.saves || null,
-          playlistAdds: fields.playlistAdds || null,
-          followers: fields.followers || null,
-          source,
-        }),
-      });
+      const payload = {
+        projectId: activeProject.id,
+        periodStart: fields.periodStart,
+        periodEnd: fields.periodEnd,
+        listeners: fields.listeners || null,
+        monthlyActiveListeners: fields.monthlyActiveListeners || null,
+        streams: fields.streams || null,
+        streamsPerListener: fields.streamsPerListener || null,
+        saves: fields.saves || null,
+        playlistAdds: fields.playlistAdds || null,
+        followers: fields.followers || null,
+        source,
+      };
+      const res = await fetch(
+        isEditing ? `/api/analytics/spotify/${editingSnapshot!.id}` : "/api/analytics/spotify",
+        {
+          method: isEditing ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
       const data = await res.json();
       if (!res.ok) {
         toast.error(data?.error ?? "Error al guardar");
         return;
       }
-      toast.success("Estadísticas de Spotify guardadas");
+      toast.success(isEditing ? "Registro actualizado" : "Estadísticas de Spotify guardadas");
       reset();
       onOpenChange(false);
       onRegistered();
@@ -187,11 +221,12 @@ export function SpotifyStatsSheet({ open, onOpenChange, onRegistered }: SpotifyS
     >
       <SheetContent className="overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>Registrar estadísticas de Spotify</SheetTitle>
+          <SheetTitle>{isEditing ? "Editar registro de Spotify" : "Registrar estadísticas de Spotify"}</SheetTitle>
         </SheetHeader>
 
         <div className="space-y-5 px-4 py-2">
-          {/* Subida de pantallazo */}
+          {/* Subida de pantallazo — también disponible al editar, por si
+              quieres reemplazar los números leyendo una captura nueva. */}
           <div className="space-y-2">
             <Label>Pantallazo de Spotify for Artists (opcional)</Label>
             <p className="text-xs text-muted-foreground">
@@ -289,7 +324,7 @@ export function SpotifyStatsSheet({ open, onOpenChange, onRegistered }: SpotifyS
           <Button onClick={handleSave} disabled={saving || extracting} className="w-full">
             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             {!saving && <Upload className="h-4 w-4 mr-2" />}
-            Guardar
+            {isEditing ? "Guardar cambios" : "Guardar"}
           </Button>
         </SheetFooter>
       </SheetContent>

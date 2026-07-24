@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Table,
   TableBody,
@@ -9,21 +10,47 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Pencil, Trash2, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { toast } from "sonner";
 import type { SpotifyStatsSnapshot } from "@/types/analytics";
 
 const NUM = new Intl.NumberFormat("es-CL");
 
 interface SpotifyStatsTableProps {
   snapshots: SpotifyStatsSnapshot[];
+  onEdit: (snapshot: SpotifyStatsSnapshot) => void;
+  onDeleted: () => void;
 }
 
 function fmt(n: number | null): string {
   return n != null ? NUM.format(n) : "—";
 }
 
-export function SpotifyStatsTable({ snapshots }: SpotifyStatsTableProps) {
+export function SpotifyStatsTable({ snapshots, onEdit, onDeleted }: SpotifyStatsTableProps) {
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = async (snapshot: SpotifyStatsSnapshot) => {
+    if (!confirm("¿Eliminar este registro? También se quita del gráfico de seguidores si aportaba un punto ahí.")) {
+      return;
+    }
+    setDeletingId(snapshot.id);
+    try {
+      const res = await fetch(`/api/analytics/spotify/${snapshot.id}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success("Registro eliminado");
+        onDeleted();
+      } else {
+        const data = await res.json().catch(() => null);
+        toast.error(data?.error ?? "Error al eliminar");
+      }
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   if (snapshots.length === 0) {
     return (
       <div className="rounded-xl border bg-card p-8 text-center text-sm text-muted-foreground">
@@ -45,6 +72,7 @@ export function SpotifyStatsTable({ snapshots }: SpotifyStatsTableProps) {
             <TableHead className="text-right">A playlist</TableHead>
             <TableHead className="text-right">Seguidores</TableHead>
             <TableHead>Fuente</TableHead>
+            <TableHead className="w-20" />
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -64,6 +92,22 @@ export function SpotifyStatsTable({ snapshots }: SpotifyStatsTableProps) {
                 <Badge variant={s.source === "screenshot" ? "default" : "secondary"}>
                   {s.source === "screenshot" ? "Pantallazo" : "Manual"}
                 </Badge>
+              </TableCell>
+              <TableCell>
+                <div className="flex items-center gap-1 justify-end">
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEdit(s)}>
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 text-destructive hover:text-destructive"
+                    onClick={() => handleDelete(s)}
+                    disabled={deletingId === s.id}
+                  >
+                    {deletingId === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           ))}

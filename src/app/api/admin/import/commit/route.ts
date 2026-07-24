@@ -87,6 +87,18 @@ export async function POST(request: NextRequest) {
       rowErrors.push({ row: idx + 2, reason: `Falta o no se pudo leer "${missingRequired}"` }); // +2: fila 1 es encabezado
       return;
     }
+
+    // Fila con todos los campos requeridos OK pero ningún dato opcional
+    // real (ej. una fila de fechas futuras sin métricas todavía en el
+    // archivo fuente) — no aporta nada, se descarta en vez de crear un
+    // registro vacío que después hay que borrar a mano.
+    const optionalFields = fields.filter((f) => !f.required);
+    const hasAnyOptionalValue = optionalFields.some((f) => extracted[f.key] != null);
+    if (optionalFields.length > 0 && !hasAnyOptionalValue) {
+      rowErrors.push({ row: idx + 2, reason: "Fila sin ningún dato además de los campos requeridos — omitida" });
+      return;
+    }
+
     validRows.push(extracted);
   });
 

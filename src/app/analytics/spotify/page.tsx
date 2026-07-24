@@ -7,11 +7,24 @@ import { AnalyticsPageHeader } from "@/components/analytics/AnalyticsPageHeader"
 import { PlatformTab } from "@/components/analytics/PlatformTab";
 import { SpotifyStatsSheet } from "@/components/analytics/SpotifyStatsSheet";
 import { SpotifyStatsTable } from "@/components/analytics/SpotifyStatsTable";
+import { SpotifyStatsCharts } from "@/components/analytics/SpotifyStatsCharts";
 import { useAnalyticsData } from "@/lib/use-analytics-data";
+import type { SpotifyStatsSnapshot } from "@/types/analytics";
 
 export default function AnalyticsSpotifyPage() {
   const { social, spotifyStats, loading, refresh } = useAnalyticsData();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [editingSnapshot, setEditingSnapshot] = useState<SpotifyStatsSnapshot | null>(null);
+
+  const openCreate = () => {
+    setEditingSnapshot(null);
+    setSheetOpen(true);
+  };
+
+  const openEdit = (snapshot: SpotifyStatsSnapshot) => {
+    setEditingSnapshot(snapshot);
+    setSheetOpen(true);
+  };
 
   return (
     <div className="space-y-6">
@@ -22,16 +35,23 @@ export default function AnalyticsSpotifyPage() {
         <>
           <PlatformTab platform="spotify" metrics={social} onRefresh={refresh} comingSoon />
 
+          <SpotifyStatsCharts snapshots={spotifyStats} />
+
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium">Estadísticas detalladas</p>
-            <Button size="sm" variant="outline" onClick={() => setSheetOpen(true)}>
+            <Button size="sm" variant="outline" onClick={openCreate}>
               <Camera className="h-4 w-4 mr-2" />
               Subir pantallazo / registrar
             </Button>
           </div>
-          <SpotifyStatsTable snapshots={spotifyStats} />
+          <SpotifyStatsTable snapshots={spotifyStats} onEdit={openEdit} onDeleted={refresh} />
 
-          <SpotifyStatsSheet open={sheetOpen} onOpenChange={setSheetOpen} onRegistered={refresh} />
+          <SpotifyStatsSheet
+            open={sheetOpen}
+            onOpenChange={setSheetOpen}
+            onRegistered={refresh}
+            editingSnapshot={editingSnapshot}
+          />
         </>
       )}
     </div>
