@@ -181,7 +181,11 @@ export async function syncShopify(
   shopDomain: string,
   accessToken: string,
   collectionId: number,
-  monthsBack = 12
+  // 36 meses: con el scope read_orders normal, Shopify solo devuelve los
+  // últimos 60 días sin importar lo que pidamos aquí — pedir más no rompe
+  // nada. Cuando Shopify apruebe read_all_orders, este rango es el que
+  // determina cuánto histórico se rellena en el primer sync.
+  monthsBack = 36
 ): Promise<{ productsCount: number; monthsUpdated: number }> {
   const products = await fetchCollectionProducts(shopDomain, accessToken, collectionId);
   const productIds = new Set(products.map((p) => p.id));

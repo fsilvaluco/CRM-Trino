@@ -1,5 +1,12 @@
 import crypto from "crypto";
 
+// Scopes de solo lectura. OJO: `read_orders` limita las órdenes a los
+// últimos 60 días. Para el histórico completo hay que agregar
+// `read_all_orders`, pero ese scope PRIMERO tiene que ser aprobado por
+// Shopify (Partner Dashboard > la app > API access > Read all orders >
+// Request access). Si se agrega acá antes de la aprobación, el authorize
+// falla con scope inválido — por eso queda comentado hasta entonces.
+// Tras la aprobación: agregar ",read_all_orders" y reconectar la tienda.
 const SCOPES = "read_products,read_inventory,read_orders";
 
 export function normalizeShopDomain(input: string): string {
