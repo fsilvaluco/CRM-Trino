@@ -66,7 +66,7 @@ export function ShopifyIntegrationCard({ integration, onRefresh, projectId }: Sh
 
   const handleDisconnect = async () => {
     if (!projectId) return;
-    if (!confirm("¿Desconectar Shopify? Se eliminará el catálogo e historial de ventas sincronizado de este proyecto.")) {
+    if (!confirm("¿Desconectar Shopify? Se detiene el sync y se limpia el catálogo (es solo el estado actual del inventario). El histórico de ventas por mes NO se borra.")) {
       return;
     }
     setDisconnecting(true);

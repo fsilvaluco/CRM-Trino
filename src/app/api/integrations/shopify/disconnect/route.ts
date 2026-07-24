@@ -43,8 +43,12 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "No se pudo desconectar la colección" }, { status: 500 });
   }
 
+  // shopify_products SÍ se borra: es un snapshot del inventario actual, no
+  // histórico — sin conexión activa ya no representa nada real. En cambio
+  // shopify_sales_monthly es histórico de ventas y se conserva, mismo
+  // criterio que Instagram/Facebook: desconectar detiene el sync, no
+  // destruye datos ya registrados.
   await supabase.from("shopify_products").delete().eq("organization_id", orgId!).eq("project_id", projectId);
-  await supabase.from("shopify_sales_monthly").delete().eq("organization_id", orgId!).eq("project_id", projectId);
 
   return NextResponse.json({ ok: true });
 }

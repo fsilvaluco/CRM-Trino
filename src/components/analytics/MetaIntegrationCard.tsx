@@ -51,7 +51,7 @@ export function MetaIntegrationCard({ integration, onRefresh, projectId }: MetaI
   const handleDisconnect = async () => {
     if (
       !confirm(
-        "¿Desconectar Instagram? Esto eliminará la integración y las métricas sincronizadas de este proyecto. Esta acción no se puede deshacer."
+        "¿Desconectar Instagram? Se detiene el sync automático. Las métricas ya registradas NO se borran — quedan guardadas y vuelven a aparecer si reconectas."
       )
     ) {
       return;
@@ -118,6 +118,15 @@ export function MetaIntegrationCard({ integration, onRefresh, projectId }: MetaI
           >
             {syncing && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
             Sincronizar ahora
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleConnect}
+            disabled={syncing || disconnecting}
+            title="Vuelve a pasar por el login de Meta — útil si agregamos una plataforma nueva (como Facebook) que reusa esta conexión, o si el token dejó de funcionar"
+          >
+            Reconectar
           </Button>
           <Button
             size="sm"

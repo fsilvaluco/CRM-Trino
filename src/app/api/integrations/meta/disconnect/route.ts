@@ -53,26 +53,9 @@ export async function DELETE(request: NextRequest) {
     );
   }
 
-  let deletedMetrics = 0;
-  if (projectId) {
-    const { data: deletedRows, error: deleteMetricsError } = await supabase
-      .from("social_metrics")
-      .delete()
-      .eq("organization_id", orgId!)
-      .eq("project_id", projectId)
-      .eq("platform", "instagram")
-      .select("id");
-
-    if (deleteMetricsError) {
-      console.error("[meta/disconnect] social_metrics delete failed", {
-        orgId,
-        projectId,
-        deleteMetricsError,
-      });
-    } else {
-      deletedMetrics = deletedRows?.length ?? 0;
-    }
-  }
-
-  return NextResponse.json({ ok: true, deletedMetrics });
+  // A propósito NO se borra social_metrics: desconectar solo detiene el
+  // sync automático, nunca destruye histórico ya registrado (manual o
+  // sincronizado). Si el día de mañana cambia la API de Meta o hay que
+  // reconectar, los datos previos siguen ahí.
+  return NextResponse.json({ ok: true });
 }

@@ -41,17 +41,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "No se pudo desconectar la integración" }, { status: 500 });
   }
 
-  const { data: deletedRows, error: deleteMetricsError } = await supabase
-    .from("social_metrics")
-    .delete()
-    .eq("organization_id", orgId!)
-    .eq("project_id", projectId)
-    .eq("platform", "facebook")
-    .select("id");
-
-  if (deleteMetricsError) {
-    console.error("[facebook/disconnect] social_metrics delete failed", { orgId, projectId, deleteMetricsError });
-  }
-
-  return NextResponse.json({ ok: true, deletedMetrics: deletedRows?.length ?? 0 });
+  // No se borra social_metrics — mismo criterio que Instagram: desconectar
+  // detiene el sync, no destruye histórico.
+  return NextResponse.json({ ok: true });
 }

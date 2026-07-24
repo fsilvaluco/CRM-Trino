@@ -54,7 +54,7 @@ export function FacebookIntegrationCard({ integration, onRefresh, projectId }: F
   };
 
   const handleDisconnect = async () => {
-    if (!confirm("¿Desconectar Facebook? Se eliminarán las métricas sincronizadas de este proyecto.")) {
+    if (!confirm("¿Desconectar Facebook? Se detiene el sync automático. Las métricas ya registradas NO se borran.")) {
       return;
     }
     setDisconnecting(true);
