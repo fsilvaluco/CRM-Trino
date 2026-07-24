@@ -17,6 +17,7 @@ import {
   ShoppingBag,
   Disc3,
   ThumbsUp,
+  Newspaper,
 } from "lucide-react";
 import { type LucideIcon } from "lucide-react";
 
@@ -60,6 +61,7 @@ export const navConfig: NavItem[] = [
       { type: "leaf", href: "/analytics/youtube", label: "YouTube", icon: PlayCircle },
       { type: "leaf", href: "/analytics/facebook", label: "Facebook", icon: ThumbsUp },
       { type: "leaf", href: "/analytics/shopify", label: "Merch", icon: ShoppingBag },
+      { type: "leaf", href: "/analytics/press", label: "Prensa", icon: Newspaper },
     ],
   },
   {

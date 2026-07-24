@@ -6,6 +6,17 @@ import type { SocialPlatform } from "@/types/analytics";
 
 const BATCH_SIZE = 500;
 
+/** Normaliza el texto libre de la columna "Tipo" (como viene en planillas
+ * reales: "Digital", "Digital / RRSS", "TV", "Radio") al enum que exige la
+ * base. Todo lo que no calce cae en "digital" por ser el más genérico. */
+function normalizePressType(raw: string | null | undefined): "radio" | "tv" | "digital" | "digital_rrss" {
+  const text = (raw ?? "").toLowerCase();
+  if (text.includes("tv")) return "tv";
+  if (text.includes("radio")) return "radio";
+  if (text.includes("rrss") || text.includes("redes")) return "digital_rrss";
+  return "digital";
+}
+
 interface RowError {
   row: number;
   reason: string;
@@ -208,6 +219,23 @@ export async function POST(request: NextRequest) {
       notes: r.notes,
     }));
     await insertBatch("shows", records);
+  } else if (targetType === "press_mentions") {
+    const records = validRows.map((r) => ({
+      organization_id: orgId,
+      project_id: projectId,
+      mention_date: r.mentionDate,
+      outlet: r.outlet,
+      type: normalizePressType(r.type as string),
+      // Heurística: "Prensa propia..." es autopublicado, no cobertura
+      // ganada — el resto se marca 'earned' por defecto y se puede
+      // corregir a mano (ej. partners de ticketing) desde el módulo.
+      source: String(r.outlet ?? "").toLowerCase().includes("propia") ? "own" : "earned",
+      title: r.title,
+      reference_url: r.referenceUrl,
+      social_url: r.socialUrl,
+      notes: r.notes,
+    }));
+    await insertBatch("press_mentions", records);
   }
 
   return NextResponse.json({

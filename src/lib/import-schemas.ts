@@ -1,4 +1,4 @@
-export type ImportTargetType = "social_followers" | "contacts" | "companies" | "spotify_stats" | "shows";
+export type ImportTargetType = "social_followers" | "contacts" | "companies" | "spotify_stats" | "shows" | "press_mentions";
 
 export interface ImportField {
   key: string;
@@ -65,6 +65,19 @@ export const IMPORT_TARGETS: Record<ImportTargetType, { label: string; descripti
       { key: "fee", label: "Fee (CLP)", type: "number", required: false },
       { key: "ticketIncome", label: "Ingreso por tickets (CLP)", type: "number", required: false },
       { key: "expenses", label: "Gastos (CLP)", type: "number", required: false },
+      { key: "notes", label: "Notas", type: "text", required: false },
+    ],
+  },
+  press_mentions: {
+    label: "Menciones de prensa",
+    description: "Cobertura mediática — radio, TV, digital. La campaña se asigna después de importar, desde el módulo de Prensa.",
+    fields: [
+      { key: "mentionDate", label: "Fecha", type: "date", required: false },
+      { key: "outlet", label: "Medio", type: "text", required: true },
+      { key: "type", label: "Tipo (Radio/TV/Digital)", type: "text", required: true },
+      { key: "title", label: "Descripción", type: "text", required: true },
+      { key: "referenceUrl", label: "Link de referencia", type: "text", required: false },
+      { key: "socialUrl", label: "Link RRSS / YouTube", type: "text", required: false },
       { key: "notes", label: "Notas", type: "text", required: false },
     ],
   },
