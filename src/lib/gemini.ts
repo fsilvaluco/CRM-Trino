@@ -83,11 +83,61 @@ const RESPONSE_SCHEMA = {
   ],
 };
 
+interface SuggestMappingField {
+  key: string;
+  label: string;
+}
+
 /**
- * Lee un pantallazo de Spotify for Artists y extrae las métricas visibles.
- * SIEMPRE se revisa/edita en el front antes de guardar — esto nunca
- * escribe directo a la base.
+ * Sugiere qué columna del archivo corresponde a cada campo destino,
+ * mirando los encabezados y unas filas de ejemplo. Es solo una sugerencia
+ * inicial — el usuario la revisa y puede cambiar cualquier mapeo antes de
+ * importar, así que un error acá no corrompe datos, solo obliga a un ajuste
+ * manual.
  */
+export async function suggestColumnMapping(
+  targetFields: SuggestMappingField[],
+  headers: string[],
+  sampleRows: Record<string, string>[]
+): Promise<Record<string, string | null>> {
+  const fallback: Record<string, string | null> = Object.fromEntries(targetFields.map((f) => [f.key, null]));
+  if (!apiKey) return fallback;
+
+  const prompt = `Tengo un archivo (CSV/Excel) con estas columnas: ${JSON.stringify(headers)}
+
+Filas de ejemplo:
+${JSON.stringify(sampleRows.slice(0, 5), null, 2)}
+
+Necesito mapear cada uno de estos campos destino a la columna del archivo que mejor corresponda:
+${targetFields.map((f) => `- "${f.key}" (${f.label})`).join("\n")}
+
+Responde con un objeto JSON donde cada clave es el "key" del campo destino y el valor es el nombre EXACTO de la columna del archivo que corresponde, o null si ninguna columna corresponde a ese campo. No inventes columnas que no estén en la lista de encabezados.`;
+
+  const res = await fetch(`${API_URL}?key=${apiKey}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: { responseMimeType: "application/json", temperature: 0 },
+    }),
+  });
+
+  if (!res.ok) {
+    console.error("[gemini] mapping suggestion failed", { status: res.status });
+    return fallback;
+  }
+
+  const data = await res.json();
+  const text: string | undefined = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) return fallback;
+
+  try {
+    const parsed = JSON.parse(text);
+    return { ...fallback, ...parsed };
+  } catch {
+    return fallback;
+  }
+}
 export async function extractSpotifyStatsFromScreenshot(
   imageBase64: string,
   mediaType: "image/jpeg" | "image/png" | "image/webp"

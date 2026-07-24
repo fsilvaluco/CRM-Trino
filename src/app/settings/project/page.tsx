@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Briefcase,
@@ -41,6 +42,9 @@ export default function ProjectSettingsPage() {
           Pipeline, integraciones, región y preferencias
           {activeProject ? ` — ${activeProject.name}` : ""}.
         </p>
+        <Link href="/settings/import" className="text-xs text-muted-foreground underline hover:text-foreground">
+          Importar datos masivos (CSV/Excel)
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
