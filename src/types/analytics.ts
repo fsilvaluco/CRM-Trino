@@ -89,6 +89,25 @@ export interface ShopifySalesMonth {
   ordersCount: number;
 }
 
+// ── Spotify (estadísticas detalladas) ────────────────────────────────────────
+// Complementa SocialMetric (que solo guarda seguidores). Siempre pasa por
+// confirmación del usuario antes de guardarse, sea de pantallazo o manual.
+
+export interface SpotifyStatsSnapshot {
+  id: string;
+  periodStart: string;
+  periodEnd: string;
+  listeners: number | null;
+  monthlyActiveListeners: number | null;
+  streams: number | null;
+  streamsPerListener: number | null;
+  saves: number | null;
+  playlistAdds: number | null;
+  followers: number | null;
+  source: "manual" | "screenshot";
+  createdAt: string;
+}
+
 // ── Zod schemas & inferred input types ───────────────────────────────────────
 
 export const createShowSchema = z.object({
@@ -124,3 +143,19 @@ export const createMerchSnapshotSchema = z.object({
 });
 
 export type CreateMerchSnapshotInput = z.infer<typeof createMerchSnapshotSchema>;
+
+export const createSpotifyStatsSchema = z.object({
+  projectId: z.string().uuid("El proyecto es requerido"),
+  periodStart: z.string().min(1, "La fecha de inicio es requerida"),
+  periodEnd: z.string().min(1, "La fecha de fin es requerida"),
+  listeners: z.coerce.number().int().nonnegative().optional().nullable(),
+  monthlyActiveListeners: z.coerce.number().int().nonnegative().optional().nullable(),
+  streams: z.coerce.number().int().nonnegative().optional().nullable(),
+  streamsPerListener: z.coerce.number().nonnegative().optional().nullable(),
+  saves: z.coerce.number().int().nonnegative().optional().nullable(),
+  playlistAdds: z.coerce.number().int().nonnegative().optional().nullable(),
+  followers: z.coerce.number().int().nonnegative().optional().nullable(),
+  source: z.enum(["manual", "screenshot"]).default("manual"),
+});
+
+export type CreateSpotifyStatsInput = z.infer<typeof createSpotifyStatsSchema>;
