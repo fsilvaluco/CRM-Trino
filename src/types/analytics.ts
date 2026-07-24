@@ -38,7 +38,7 @@ export interface ShowRating {
 
 // ── Social Metrics ────────────────────────────────────────────────────────────
 
-export type SocialPlatform = "instagram" | "tiktok" | "youtube";
+export type SocialPlatform = "instagram" | "tiktok" | "youtube" | "spotify" | "facebook";
 
 export interface SocialMetric {
   id: string;
@@ -106,7 +106,7 @@ export type CreateShowInput = z.infer<typeof createShowSchema>;
 
 export const createSocialMetricSchema = z.object({
   projectId: z.string().uuid("El proyecto es requerido"),
-  platform: z.enum(["instagram", "tiktok", "youtube"], {
+  platform: z.enum(["instagram", "tiktok", "youtube", "spotify", "facebook"], {
     error: "La plataforma debe ser instagram, tiktok o youtube",
   }),
   followers: z.coerce.number().int().positive("Los seguidores deben ser un entero positivo"),

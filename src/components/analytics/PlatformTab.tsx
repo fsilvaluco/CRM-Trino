@@ -10,9 +10,10 @@ import { cn } from "@/lib/utils";
 import type { SocialMetric } from "@/types/analytics";
 import { RegisterSnapshotSheet } from "@/components/analytics/RegisterSnapshotSheet";
 import { MetaIntegrationCard } from "@/components/analytics/MetaIntegrationCard";
+import { FacebookIntegrationCard } from "@/components/analytics/FacebookIntegrationCard";
 import { useProject } from "@/lib/project-context";
 
-type Platform = "instagram" | "tiktok" | "youtube";
+type Platform = "instagram" | "tiktok" | "youtube" | "spotify" | "facebook";
 
 interface MetaIntegration {
   connected: boolean;
@@ -25,7 +26,7 @@ interface PlatformTabProps {
   platform: Platform;
   metrics: SocialMetric[];
   onRefresh: () => void;
-  /** Solo Instagram tiene conexión automática hoy. */
+  /** Instagram y Facebook se conectan vía Meta; el resto es manual. */
   integration?: MetaIntegration;
   comingSoon?: boolean;
 }
@@ -34,12 +35,16 @@ const PLATFORM_COLOR: Record<Platform, string> = {
   instagram: "#3b82f6",
   tiktok: "#ec4899",
   youtube: "#ef4444",
+  spotify: "#22c55e",
+  facebook: "#1d4ed8",
 };
 
 const PLATFORM_LABEL: Record<Platform, string> = {
   instagram: "Instagram",
   tiktok: "TikTok",
   youtube: "YouTube",
+  spotify: "Spotify",
+  facebook: "Facebook",
 };
 
 interface Period {
@@ -180,9 +185,12 @@ export function PlatformTab({ platform, metrics, onRefresh, integration, comingS
         </div>
       )}
 
-      {integration && (
-        <MetaIntegrationCard integration={integration} onRefresh={onRefresh} projectId={activeProject?.id} />
-      )}
+      {integration &&
+        (platform === "facebook" ? (
+          <FacebookIntegrationCard integration={integration} onRefresh={onRefresh} projectId={activeProject?.id} />
+        ) : (
+          <MetaIntegrationCard integration={integration} onRefresh={onRefresh} projectId={activeProject?.id} />
+        ))}
 
       {/* Stat cards */}
       <div className="grid grid-cols-3 gap-4">

@@ -26,7 +26,7 @@ import { toast } from "sonner";
 import { useProject } from "@/lib/project-context";
 
 const socialSchema = z.object({
-  platform: z.enum(["instagram", "tiktok", "youtube"], {
+  platform: z.enum(["instagram", "tiktok", "youtube", "spotify", "facebook"], {
     error: "Selecciona una plataforma",
   }),
   followers: z.string().min(1, "Ingresa la cantidad de seguidores"),
@@ -41,7 +41,7 @@ interface RegisterSnapshotSheetProps {
   onRegistered: () => void;
   /** Si se pasa, la plataforma queda fija (no seleccionable) — usado en los
    * tabs de Instagram/TikTok/YouTube para no tener que elegirla cada vez. */
-  lockedPlatform?: "instagram" | "tiktok" | "youtube";
+  lockedPlatform?: "instagram" | "tiktok" | "youtube" | "spotify" | "facebook";
 }
 
 export function RegisterSnapshotSheet({
@@ -51,7 +51,7 @@ export function RegisterSnapshotSheet({
   lockedPlatform,
 }: RegisterSnapshotSheetProps) {
   const [submitting, setSubmitting] = useState(false);
-  const [platform, setPlatform] = useState<"instagram" | "tiktok" | "youtube" | "">(
+  const [platform, setPlatform] = useState<"instagram" | "tiktok" | "youtube" | "spotify" | "facebook" | "">(
     lockedPlatform ?? ""
   );
   const { activeProject } = useProject();
@@ -118,7 +118,7 @@ export function RegisterSnapshotSheet({
               <Select
                 value={platform}
                 onValueChange={(v) => {
-                  const val = v as "instagram" | "tiktok" | "youtube";
+                  const val = v as "instagram" | "tiktok" | "youtube" | "spotify" | "facebook";
                   setPlatform(val);
                   setValue("platform", val);
                 }}
@@ -130,6 +130,8 @@ export function RegisterSnapshotSheet({
                   <SelectItem value="instagram">Instagram</SelectItem>
                   <SelectItem value="tiktok">TikTok</SelectItem>
                   <SelectItem value="youtube">YouTube</SelectItem>
+                  <SelectItem value="spotify">Spotify</SelectItem>
+                  <SelectItem value="facebook">Facebook</SelectItem>
                 </SelectContent>
               </Select>
             )}

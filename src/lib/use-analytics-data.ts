@@ -18,6 +18,12 @@ export interface ShopifyIntegration {
   collectionTitle?: string | null;
 }
 
+export interface FacebookIntegration {
+  connected: boolean;
+  accountName?: string;
+  lastSyncAt?: string;
+}
+
 export function useAnalyticsData() {
   const [shows, setShows] = useState<Show[]>([]);
   const [social, setSocial] = useState<SocialMetric[]>([]);
@@ -26,6 +32,7 @@ export function useAnalyticsData() {
   const [shopifySales, setShopifySales] = useState<ShopifySalesMonth[]>([]);
   const [metaIntegration, setMetaIntegration] = useState<MetaIntegration>({ connected: false });
   const [shopifyIntegration, setShopifyIntegration] = useState<ShopifyIntegration>({ connected: false });
+  const [facebookIntegration, setFacebookIntegration] = useState<FacebookIntegration>({ connected: false });
   const [loading, setLoading] = useState(true);
   const { activeProject, isAllProjects } = useProject();
 
@@ -40,21 +47,23 @@ export function useAnalyticsData() {
       }
       const qs = params.toString() ? `?${params.toString()}` : "";
 
-      const [showsRes, socialRes, merchRes, statusRes, shopifyRes, shopifyStatusRes] = await Promise.all([
+      const [showsRes, socialRes, merchRes, statusRes, shopifyRes, shopifyStatusRes, facebookStatusRes] = await Promise.all([
         fetch(`/api/analytics/shows${qs}`),
         fetch(`/api/analytics/social${qs}`),
         fetch(`/api/analytics/merch${qs}`),
         fetch(`/api/integrations/meta/status${qs}`),
         fetch(`/api/analytics/shopify${qs}`),
         fetch(`/api/integrations/shopify/status${qs}`),
+        fetch(`/api/integrations/facebook/status${qs}`),
       ]);
-      const [showsData, socialData, merchData, statusData, shopifyData, shopifyStatusData] = await Promise.all([
+      const [showsData, socialData, merchData, statusData, shopifyData, shopifyStatusData, facebookStatusData] = await Promise.all([
         showsRes.ok ? showsRes.json() : [],
         socialRes.ok ? socialRes.json() : [],
         merchRes.ok ? merchRes.json() : [],
         statusRes.ok ? statusRes.json() : { connected: false },
         shopifyRes.ok ? shopifyRes.json() : { products: [], salesByMonth: [] },
         shopifyStatusRes.ok ? shopifyStatusRes.json() : { connected: false },
+        facebookStatusRes.ok ? facebookStatusRes.json() : { connected: false },
       ]);
       setShows(Array.isArray(showsData) ? showsData : []);
       setSocial(Array.isArray(socialData) ? socialData : []);
@@ -63,6 +72,7 @@ export function useAnalyticsData() {
       setShopifyProducts(Array.isArray(shopifyData?.products) ? shopifyData.products : []);
       setShopifySales(Array.isArray(shopifyData?.salesByMonth) ? shopifyData.salesByMonth : []);
       setShopifyIntegration(shopifyStatusData);
+      setFacebookIntegration(facebookStatusData);
     } finally {
       setLoading(false);
     }
@@ -81,6 +91,7 @@ export function useAnalyticsData() {
     shopifySales,
     metaIntegration,
     shopifyIntegration,
+    facebookIntegration,
     loading,
     refresh: loadAll,
   };

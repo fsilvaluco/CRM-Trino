@@ -15,6 +15,8 @@ import {
   Music2,
   PlayCircle,
   ShoppingBag,
+  Disc3,
+  ThumbsUp,
 } from "lucide-react";
 import { type LucideIcon } from "lucide-react";
 
@@ -53,8 +55,10 @@ export const navConfig: NavItem[] = [
       { type: "leaf", href: "/analytics", label: "Resumen", icon: ClipboardList },
       { type: "leaf", href: "/analytics/shows", label: "Shows", icon: Music },
       { type: "leaf", href: "/analytics/instagram", label: "Instagram", icon: Camera },
+      { type: "leaf", href: "/analytics/spotify", label: "Spotify", icon: Disc3 },
       { type: "leaf", href: "/analytics/tiktok", label: "TikTok", icon: Music2 },
       { type: "leaf", href: "/analytics/youtube", label: "YouTube", icon: PlayCircle },
+      { type: "leaf", href: "/analytics/facebook", label: "Facebook", icon: ThumbsUp },
       { type: "leaf", href: "/analytics/shopify", label: "Merch", icon: ShoppingBag },
     ],
   },
