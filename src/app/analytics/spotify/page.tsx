@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Music, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AnalyticsPageHeader } from "@/components/analytics/AnalyticsPageHeader";
-import { PlatformTab } from "@/components/analytics/PlatformTab";
+import { SpotifyOverviewCards } from "@/components/analytics/SpotifyOverviewCards";
 import { SpotifyStatsSheet } from "@/components/analytics/SpotifyStatsSheet";
 import { SpotifyStatsTable } from "@/components/analytics/SpotifyStatsTable";
 import { SpotifyStatsCharts } from "@/components/analytics/SpotifyStatsCharts";
@@ -33,9 +33,9 @@ export default function AnalyticsSpotifyPage() {
         <div className="h-64 rounded-lg bg-muted animate-pulse" />
       ) : (
         <>
-          <PlatformTab platform="spotify" metrics={social} onRefresh={refresh} comingSoon />
+          <SpotifyOverviewCards snapshots={spotifyStats} followerMetrics={social} />
 
-          <SpotifyStatsCharts snapshots={spotifyStats} />
+          <SpotifyStatsCharts snapshots={spotifyStats} followerMetrics={social} />
 
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium">Estadísticas detalladas</p>
