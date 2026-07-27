@@ -14,6 +14,9 @@ const createLeadCandidateSchema = z.object({
   projectId: z
     .union([z.string().uuid(), z.null(), z.undefined()])
     .transform((v) => v || null),
+  artistProjectId: z
+    .union([z.string().uuid(), z.null(), z.undefined()])
+    .transform((v) => v || null),
 });
 
 function errorResponse(message: string, status: number, details?: unknown) {
@@ -28,6 +31,7 @@ function mapLeadCandidate(row: any) {
   return {
     id: row.id,
     projectId: row.project_id ?? null,
+    artistProjectId: row.artist_project_id ?? null,
     source: row.source,
     rawExcerpt: row.raw_excerpt,
     signalReason: row.signal_reason ?? null,
@@ -64,7 +68,22 @@ export async function GET(request: NextRequest) {
     .order("created_at", { ascending: false });
 
   if (status !== "all") query = query.eq("status", status);
-  if (projectIdParam) query = query.eq("project_id", projectIdParam);
+
+  if (projectIdParam) {
+    // Mismo patron que /api/pipeline: si projectIdParam es un sello (ej.
+    // Trino) con artistas debajo (ej. Gamuza), se incluyen tambien los
+    // leads anclados a esos artistas.
+    const { data: children } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("parent_project_id", projectIdParam);
+
+    const visibleIds = [projectIdParam, ...(children ?? []).map((c) => c.id)];
+
+    query = query.or(
+      `project_id.in.(${visibleIds.join(",")}),artist_project_id.in.(${visibleIds.join(",")})`
+    );
+  }
 
   // Si no es admin, solo ve leads de sus proyectos asignados (o sin proyecto asignado aun)
   if (!isAdmin && allowedProjectIds) {
@@ -110,11 +129,13 @@ export async function POST(request: NextRequest) {
     detectedPhone,
     detectedCompany,
     projectId,
+    artistProjectId,
   } = parsedBody.data;
 
   const insertPayload = {
     organization_id: orgId,
     project_id: projectId,
+    artist_project_id: artistProjectId,
     source,
     raw_excerpt: rawExcerpt,
     signal_reason: signalReason,

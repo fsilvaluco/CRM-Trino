@@ -52,7 +52,7 @@ function LeadCandidateCard({
         email: email.trim() || null,
         phone: phone.trim() || null,
         companyName: companyName.trim() || null,
-        projectId: lead.projectId ?? undefined,
+        projectId: lead.artistProjectId ?? lead.projectId ?? undefined,
       };
     }
 

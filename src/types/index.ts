@@ -56,6 +56,7 @@ export interface Contact {
 export interface LeadCandidate {
   id: string;
   projectId: string | null;
+  artistProjectId: string | null;
   source: "email" | "whatsapp";
   rawExcerpt: string;
   signalReason: string | null;

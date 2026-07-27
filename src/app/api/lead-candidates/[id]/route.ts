@@ -89,7 +89,10 @@ export async function PATCH(
     );
   }
 
-  const projectId = overrides?.projectId ?? lead.project_id;
+  // El contacto se ancla al artista (ej. Gamuza) cuando el lead esta ligado
+  // a uno; si es un trato general del sello (ej. servicio de podcast sin
+  // artista especifico), se ancla directo al sello (ej. SiSoy).
+  const projectId = overrides?.projectId ?? lead.artist_project_id ?? lead.project_id;
   if (!projectId) {
     return errorResponse(
       "Falta asignar un proyecto antes de aprobar",
