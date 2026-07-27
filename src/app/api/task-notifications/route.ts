@@ -25,7 +25,7 @@ export async function GET() {
       due_date,
       priority,
       status,
-      projects ( name ),
+      projects!tasks_project_id_fkey ( name ),
       subprojects ( name ),
       task_assignees!task_assignees_task_id_fkey ( user_id )
     `)

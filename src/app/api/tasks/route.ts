@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
       contacts ( name ),
       companies ( name ),
       deals ( title ),
-      projects ( name ),
+      projects!tasks_project_id_fkey ( name ),
       subprojects ( name ),
       task_assignees!task_assignees_task_id_fkey ( 
         user_id, 
