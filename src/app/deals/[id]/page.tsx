@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Calendar, DollarSign, Percent, CheckSquare, Clock } from "lucide-react";
 import { getLocaleSettings } from "@/lib/locale-server";
 import { formatCurrencyWith, formatDateWith, formatRelativeDateWith } from "@/lib/locale";
+import { DealDetailActions } from "@/components/deals/DealDetailActions";
 
 export const dynamic = "force-dynamic";
 
@@ -71,6 +72,7 @@ export default async function DealDetailPage({
             </Link>
           )}
         </div>
+        <DealDetailActions dealId={id} dealTitle={deal.title} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
