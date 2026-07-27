@@ -44,7 +44,22 @@ export async function GET(request: NextRequest) {
     .select("*, contacts ( name )")
     .is("deleted_at", null);
 
-  if (projectId) dealsQuery = dealsQuery.eq("project_id", projectId);
+  if (projectId) {
+    // Modelo "Sello": si projectId es un sello (ej. Trino) con proyectos de
+    // artista debajo (ej. Gamuza), hay que incluir tambien los tratos de esos
+    // hijos -- ya sea que esten archivados con project_id = hijo (legacy) o
+    // con project_id = sello + artist_project_id = hijo (modelo nuevo).
+    const { data: children } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("parent_project_id", projectId);
+
+    const visibleIds = [projectId, ...(children ?? []).map((c) => c.id)];
+
+    dealsQuery = dealsQuery.or(
+      `project_id.in.(${visibleIds.join(",")}),artist_project_id.in.(${visibleIds.join(",")})`
+    );
+  }
 
   let stagesQuery = supabase
     .from("pipeline_stages")

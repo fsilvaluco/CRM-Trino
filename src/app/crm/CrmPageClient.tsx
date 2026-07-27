@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus, Download } from "lucide-react";
 import { DealForm } from "@/components/deals/DealForm";
@@ -61,6 +61,7 @@ export default function CrmPageClient() {
   const [addToStageId, setAddToStageId] = useState<string | undefined>();
   const [editingDealId, setEditingDealId] = useState<string | undefined>();
   const { activeProject } = useProject();
+  const latestRequestedProjectId = useRef<string | null>(null);
 
   const handleAddDeal = (stageId: string) => {
     setAddToStageId(stageId);
@@ -75,10 +76,19 @@ export default function CrmPageClient() {
   };
 
   const loadData = useCallback(() => {
+    const requestedProjectId = activeProject?.id ?? null;
+    latestRequestedProjectId.current = requestedProjectId;
     const params = activeProject ? `?projectId=${activeProject.id}` : "";
     fetch(`/api/pipeline${params}`)
       .then((r) => r.json())
       .then((pipeline: PipelineStageRaw[]) => {
+        // Guarda contra condicion de carrera: si el usuario cambio de
+        // proyecto mientras este fetch estaba en vuelo, otra llamada mas
+        // reciente ya quedo en camino -- descartar esta respuesta obsoleta
+        // en vez de pisar los datos del proyecto que esta activo ahora.
+        if (latestRequestedProjectId.current !== requestedProjectId) {
+          return;
+        }
         // Build Kanban columns
         const cols: PipelineColumn[] = pipeline.map((stage) => ({
           id: stage.id,
