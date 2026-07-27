@@ -24,6 +24,88 @@ interface ClassifyResult {
   reasoning: string;
 }
 
+export interface EmailLeadCandidate {
+  signalReason: string;
+  detectedName: string | null;
+  detectedEmail: string | null;
+  detectedPhone: string | null;
+  detectedCompany: string | null;
+  artistProjectId: string | null;
+}
+
+interface DetectLeadsInput {
+  fromAddress: string;
+  subject: string;
+  snippet: string;
+  selloName: string;
+  artistProjects: Array<{ id: string; name: string }>;
+}
+
+/**
+ * Analiza un correo (solo remitente, asunto y el snippet corto que Gmail
+ * ya genera -- nunca el cuerpo completo) y devuelve 0, 1 o VARIOS leads
+ * candidatos. Puede devolver varios cuando el mismo correo menciona mas
+ * de una linea de negocio (ej: un matrimonio que pide el artista Y un
+ * servicio de sonido por separado).
+ */
+export async function detectLeadsInEmail(
+  input: DetectLeadsInput
+): Promise<EmailLeadCandidate[]> {
+  const anthropic = getClient();
+  if (!anthropic) return [];
+
+  const artistList = input.artistProjects.length
+    ? input.artistProjects.map((p) => `- ${p.name} (id: ${p.id})`).join("\n")
+    : "(sin artistas asociados)";
+
+  const prompt = `Eres un asistente que revisa correos de una agencia de management musical/eventos (${input.selloName}) para detectar oportunidades de negocio (leads) reales.
+
+Correo a analizar:
+- De: ${input.fromAddress}
+- Asunto: ${input.subject}
+- Fragmento: ${input.snippet}
+
+Artistas/proyectos asociados a ${input.selloName} (usa el id EXACTO si el correo menciona a uno de ellos; si no aplica a ninguno, usa null):
+${artistList}
+
+Instrucciones:
+- Solo marca como lead correos que sugieran una oportunidad comercial real (cotizacion, propuesta de show/evento, contratacion, interes concreto). Ignora spam, newsletters, correos internos, o conversaciones ya cerradas/administrativas.
+- Si el correo menciona VARIAS lineas de negocio distintas (ej: contratar un artista Y por separado un servicio de sonido o podcast), devuelve un lead SEPARADO por cada linea -- no los mezcles en uno solo.
+- No inventes datos que no estan en el texto. Si no sabes el nombre, telefono o empresa, usa null.
+
+Responde SOLO con JSON valido, sin texto adicional, con este formato exacto:
+{
+  "leads": [
+    {
+      "signalReason": "<breve razon en espanol, ej: 'Cotizacion para matrimonio'>",
+      "detectedName": "<nombre o null>",
+      "detectedEmail": "<email o null>",
+      "detectedPhone": "<telefono o null>",
+      "detectedCompany": "<empresa o null>",
+      "artistProjectId": "<id de la lista o null>"
+    }
+  ]
+}
+
+Si no es un lead, responde: {"leads": []}`;
+
+  const response = await anthropic.messages.create({
+    model: "claude-sonnet-4-6-20250514",
+    max_tokens: 800,
+    messages: [{ role: "user", content: prompt }],
+  });
+
+  try {
+    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return [];
+    const parsed = JSON.parse(jsonMatch[0]) as { leads?: EmailLeadCandidate[] };
+    return Array.isArray(parsed.leads) ? parsed.leads : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function classifyLead(
   contactInfo: {
     name: string;

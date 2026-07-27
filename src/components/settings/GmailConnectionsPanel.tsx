@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Mail, Plus, Trash2, Loader2 } from "lucide-react";
+import { Mail, Plus, Trash2, Loader2, Play } from "lucide-react";
 import { useProject } from "@/lib/project-context";
 
 interface GmailConnection {
@@ -22,6 +22,7 @@ export function GmailConnectionsPanel() {
   const [connections, setConnections] = useState<GmailConnection[]>([]);
   const [loading, setLoading] = useState(true);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [runningId, setRunningId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!activeProject) {
@@ -68,6 +69,27 @@ export function GmailConnectionsPanel() {
       return;
     }
     window.location.href = `/api/integrations/gmail/connect?projectId=${activeProject.id}`;
+  };
+
+  const handleRunNow = async (id: string) => {
+    setRunningId(id);
+    try {
+      const res = await fetch(`/api/integrations/gmail/connections/${id}/run`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "No se pudo correr el detector");
+        return;
+      }
+      if (data.leadsCreated > 0) {
+        toast.success(
+          `Revisados ${data.messagesScanned} correos, ${data.leadsCreated} lead(s) nuevo(s) en la bandeja`
+        );
+      } else {
+        toast.info(`Revisados ${data.messagesScanned} correos, sin leads nuevos`);
+      }
+    } finally {
+      setRunningId(null);
+    }
   };
 
   const handleDisconnect = async (id: string, email: string) => {
@@ -141,19 +163,37 @@ export function GmailConnectionsPanel() {
                   {c.status === "active" ? "Activa" : c.status === "revoked" ? "Revocada" : "Error"}
                 </Badge>
               </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="cursor-pointer text-destructive hover:text-destructive"
-                disabled={removingId === c.id}
-                onClick={() => handleDisconnect(c.id, c.emailAddress)}
-              >
-                {removingId === c.id ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Trash2 className="h-4 w-4" />
-                )}
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="cursor-pointer"
+                  disabled={runningId === c.id}
+                  onClick={() => handleRunNow(c.id)}
+                >
+                  {runningId === c.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Play className="h-4 w-4 mr-1" />
+                      Probar ahora
+                    </>
+                  )}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="cursor-pointer text-destructive hover:text-destructive"
+                  disabled={removingId === c.id}
+                  onClick={() => handleDisconnect(c.id, c.emailAddress)}
+                >
+                  {removingId === c.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
             </div>
           ))}
         </div>
