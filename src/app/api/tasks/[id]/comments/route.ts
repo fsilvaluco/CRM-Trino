@@ -57,7 +57,7 @@ export async function POST(
     return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
   }
 
-  const { content, author } = body;
+  const { content, author, mentionedUserIds } = body;
 
   if (!content || content.trim() === "") {
     return NextResponse.json({ error: "El contenido es requerido" }, { status: 400 });
@@ -125,6 +125,24 @@ export async function POST(
       .single();
 
     if (!result.error) {
+      // Crear una notificacion de mencion por cada persona etiquetada con @
+      if (Array.isArray(mentionedUserIds) && mentionedUserIds.length > 0) {
+        const uniqueMentioned = Array.from(new Set(mentionedUserIds)).filter(
+          (uid) => uid !== user.id
+        );
+        if (uniqueMentioned.length > 0) {
+          await supabase.from("mentions").insert(
+            uniqueMentioned.map((mentionedUserId) => ({
+              organization_id: orgId,
+              mentioned_user_id: mentionedUserId,
+              mentioned_by: user.id,
+              task_id: id,
+              comment_id: result.data.id,
+              snippet: trimmedContent.slice(0, 200),
+            }))
+          );
+        }
+      }
       return NextResponse.json(mapTaskComment(result.data), { status: 201 });
     }
 

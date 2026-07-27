@@ -20,7 +20,8 @@ import {
   SelectValue,  // still used for Status and Priority selects
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Send, User, Calendar, X } from "lucide-react";
+import { Send, User, Calendar, X, ChevronDown } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import type { TaskStatus, TaskPriority, TaskComment } from "@/types";
@@ -154,6 +155,8 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = 
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [newComment, setNewComment] = useState("");
+  const [mentionedIds, setMentionedIds] = useState<Set<string>>(new Set());
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [submittingComment, setSubmittingComment] = useState(false);
 
   // Relation options
@@ -164,6 +167,7 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = 
   const [orgMembers, setOrgMembers] = useState<Array<{ user_id: string; profiles: { full_name: string | null; email: string | null; avatar_url: string | null } }>>([]);
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
   const [assigneeSearch, setAssigneeSearch] = useState("");
+  const [assigneePopoverOpen, setAssigneePopoverOpen] = useState(false);
 
   // Description auto-save
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
@@ -459,6 +463,22 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = 
     }, 1500);
   };
 
+  const handleCommentChange = (value: string) => {
+    setNewComment(value);
+    // Detecta un "@algo" activo al final del texto escrito hasta ahora
+    // (simplificacion: no maneja edicion a mitad de texto, solo el caso
+    // comun de escribir @ y seguir tipeando al final).
+    const match = value.match(/@([^\s@]*)$/);
+    setMentionQuery(match ? match[1] : null);
+  };
+
+  const handleSelectMention = (member: { user_id: string; profiles: { full_name: string | null; email: string | null } }) => {
+    const name = member.profiles?.full_name || member.profiles?.email || "Usuario";
+    setNewComment((prev) => prev.replace(/@([^\s@]*)$/, `@${name} `));
+    setMentionedIds((prev) => new Set(prev).add(member.user_id));
+    setMentionQuery(null);
+  };
+
   const handleAddComment = async () => {
     if (!newComment.trim() || !taskId) return;
     setSubmittingComment(true);
@@ -466,7 +486,10 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = 
       const res = await fetch(`/api/tasks/${taskId}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: newComment.trim() }),
+        body: JSON.stringify({
+          content: newComment.trim(),
+          mentionedUserIds: Array.from(mentionedIds),
+        }),
       });
       if (!res.ok) throw new Error();
       const comment = await res.json();
@@ -474,6 +497,8 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = 
         prev ? { ...prev, comments: [...prev.comments, comment] } : prev
       );
       setNewComment("");
+      setMentionedIds(new Set());
+      setMentionQuery(null);
     } catch {
       toast.error("Error al agregar comentario");
     } finally {
@@ -579,63 +604,83 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = 
                 </FieldRow>
 
                 <FieldRow label="Responsables">
-                  <div className="space-y-2">
-                    {selectedAssignees.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5">
-                        {selectedAssignees.map((userId) => {
-                          const member = orgMembers.find((item) => item.user_id === userId);
-                          if (!member) return null;
-                          const fullName = member.profiles?.full_name;
-                          const email = member.profiles?.email;
-                          const displayName = fullName || email || "Usuario";
-                          const initials = fullName
-                            ? fullName.split(" ").map((part) => part[0]).join("").toUpperCase().slice(0, 2)
-                            : email
-                              ? email.slice(0, 2).toUpperCase()
-                              : "?";
-                          return (
-                            <span key={userId} className="inline-flex items-center gap-1 rounded bg-primary px-2 py-0.5 text-xs text-primary-foreground">
-                              <span className="font-semibold">{initials}</span>
-                              <span>{displayName}</span>
-                            </span>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    <Input
-                      value={assigneeSearch}
-                      onChange={(event) => setAssigneeSearch(event.target.value)}
-                      placeholder="Buscar responsable..."
-                      className="h-8 text-sm"
-                    />
-
-                    <div className="max-h-36 overflow-y-auto rounded border">
-                      {orgMembers
-                        .filter((member) => {
-                          const name = member.profiles?.full_name || member.profiles?.email || "";
-                          return name.toLowerCase().includes(assigneeSearch.toLowerCase());
-                        })
-                        .map((member) => {
-                          const checked = selectedAssignees.includes(member.user_id);
-                          const fullName = member.profiles?.full_name;
-                          const email = member.profiles?.email;
-                          const displayName = fullName || email || "Usuario";
-                          return (
-                            <label key={member.user_id} className="flex cursor-pointer items-center gap-2 border-b px-2 py-1.5 text-sm last:border-b-0 hover:bg-muted/40">
-                              <Checkbox
-                                checked={checked}
-                                onCheckedChange={(nextChecked) => handleToggleAssignee(member.user_id, Boolean(nextChecked))}
-                              />
-                              <span className="truncate">{displayName}</span>
-                            </label>
-                          );
-                        })}
-                      {orgMembers.length === 0 && (
-                        <div className="px-2 py-2 text-xs text-muted-foreground">No hay miembros disponibles en este proyecto</div>
+                  <Popover open={assigneePopoverOpen} onOpenChange={setAssigneePopoverOpen}>
+                    <PopoverTrigger
+                      render={
+                        <button
+                          type="button"
+                          className="flex w-full min-h-8 items-center justify-between gap-2 rounded border px-2 py-1.5 text-sm cursor-pointer hover:bg-muted/40"
+                        />
+                      }
+                    >
+                      {selectedAssignees.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedAssignees.map((userId) => {
+                            const member = orgMembers.find((item) => item.user_id === userId);
+                            if (!member) return null;
+                            const fullName = member.profiles?.full_name;
+                            const email = member.profiles?.email;
+                            const displayName = fullName || email || "Usuario";
+                            const initials = fullName
+                              ? fullName.split(" ").map((part) => part[0]).join("").toUpperCase().slice(0, 2)
+                              : email
+                                ? email.slice(0, 2).toUpperCase()
+                                : "?";
+                            return (
+                              <span key={userId} className="inline-flex items-center gap-1 rounded bg-primary px-2 py-0.5 text-xs text-primary-foreground">
+                                <span className="font-semibold">{initials}</span>
+                                <span>{displayName}</span>
+                              </span>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">Buscar responsable...</span>
                       )}
-                    </div>
-                  </div>
+                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    </PopoverTrigger>
+                    <PopoverContent className="w-72 p-2" align="start">
+                      <Input
+                        value={assigneeSearch}
+                        onChange={(event) => setAssigneeSearch(event.target.value)}
+                        placeholder="Buscar por nombre o email..."
+                        className="h-8 text-sm mb-2"
+                        autoFocus
+                      />
+                      <div className="max-h-52 overflow-y-auto rounded border">
+                        {orgMembers
+                          .filter((member) => {
+                            const name = member.profiles?.full_name || "";
+                            const email = member.profiles?.email || "";
+                            const q = assigneeSearch.toLowerCase();
+                            return name.toLowerCase().includes(q) || email.toLowerCase().includes(q);
+                          })
+                          .map((member) => {
+                            const checked = selectedAssignees.includes(member.user_id);
+                            const fullName = member.profiles?.full_name;
+                            const email = member.profiles?.email;
+                            return (
+                              <label
+                                key={member.user_id}
+                                className="flex cursor-pointer items-center gap-2 border-b px-2 py-1.5 text-sm last:border-b-0 hover:bg-muted/40"
+                              >
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={(nextChecked) => handleToggleAssignee(member.user_id, Boolean(nextChecked))}
+                                />
+                                <div className="flex flex-col min-w-0">
+                                  <span className="truncate font-medium">{fullName || "Sin nombre"}</span>
+                                  {email && <span className="truncate text-xs text-muted-foreground">{email}</span>}
+                                </div>
+                              </label>
+                            );
+                          })}
+                        {orgMembers.length === 0 && (
+                          <div className="px-2 py-2 text-xs text-muted-foreground">No hay miembros disponibles en este proyecto</div>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 </FieldRow>
 
                 <FieldRow label="Contacto">
@@ -791,17 +836,46 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = 
                 </div>
 
                 {/* New comment input */}
-                <div className="flex gap-2 mt-2">
+                <div className="flex gap-2 mt-2 relative">
+                  {mentionQuery !== null && (
+                    <div className="absolute bottom-full left-0 mb-1 w-64 max-h-40 overflow-y-auto rounded border bg-popover shadow-md z-10">
+                      {orgMembers
+                        .filter((m) => {
+                          const name = m.profiles?.full_name || m.profiles?.email || "";
+                          return name.toLowerCase().includes(mentionQuery.toLowerCase());
+                        })
+                        .map((m) => (
+                          <button
+                            key={m.user_id}
+                            type="button"
+                            onClick={() => handleSelectMention(m)}
+                            className="flex w-full flex-col items-start px-2 py-1.5 text-sm hover:bg-muted/40 cursor-pointer text-left border-b last:border-b-0"
+                          >
+                            <span className="font-medium">{m.profiles?.full_name || "Sin nombre"}</span>
+                            {m.profiles?.email && (
+                              <span className="text-xs text-muted-foreground">{m.profiles.email}</span>
+                            )}
+                          </button>
+                        ))}
+                      {orgMembers.filter((m) => {
+                        const name = m.profiles?.full_name || m.profiles?.email || "";
+                        return name.toLowerCase().includes(mentionQuery.toLowerCase());
+                      }).length === 0 && (
+                        <p className="px-2 py-1.5 text-xs text-muted-foreground">Nadie coincide</p>
+                      )}
+                    </div>
+                  )}
                   <Textarea
                     value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="Escribe un comentario..."
+                    onChange={(e) => handleCommentChange(e.target.value)}
+                    placeholder="Escribe un comentario... (usa @ para etiquetar a alguien)"
                     className="text-sm min-h-[60px] resize-none"
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                         e.preventDefault();
                         handleAddComment();
                       }
+                      if (e.key === "Escape") setMentionQuery(null);
                     }}
                   />
                   <Button

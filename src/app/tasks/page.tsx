@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -148,6 +149,8 @@ function applyFilters(tasks: TaskItem[], f: TaskFilters, currentUserId?: string)
 export default function TasksPage() {
   const { activeProject } = useProject();
   const { markSeen } = useNotifications();
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
   useEffect(() => {
     markSeen("tasks");
@@ -159,6 +162,15 @@ export default function TasksPage() {
   const [showForm, setShowForm] = useState(false);
   const [activeTab, setActiveTab] = useState<"kanban" | "lista">("kanban");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fromUrl = searchParams.get("taskId");
+    if (fromUrl) {
+      setSelectedTaskId(fromUrl);
+      router.replace("/tasks");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Filters & sort
   const [filters, setFilters] = useState<TaskFilters>(DEFAULT_FILTERS);

@@ -10,11 +10,24 @@ import { useProject } from "@/lib/project-context";
 export function DriveLinkPanel() {
   const { activeProject, reloadProjects } = useProject();
   const [driveUrl, setDriveUrl] = useState("");
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // No confiar en activeProject.driveUrl del contexto (se cachea en
+  // localStorage y puede quedar desactualizado) -- siempre traer el valor
+  // real directo del API cuando se abre este panel o cambia el proyecto.
   useEffect(() => {
-    setDriveUrl(activeProject?.driveUrl ?? "");
-  }, [activeProject?.id, activeProject?.driveUrl]);
+    if (!activeProject) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    fetch(`/api/projects/${activeProject.id}`)
+      .then((r) => r.json())
+      .then((data) => setDriveUrl(data.driveUrl ?? ""))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [activeProject?.id]);
 
   if (!activeProject) {
     return (
@@ -32,11 +45,16 @@ export function DriveLinkPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ driveUrl: driveUrl.trim() || null }),
       });
+      const data = await res.json();
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         toast.error(data.error ?? "No se pudo guardar");
         return;
       }
+      // Confirmar con el valor que realmente quedo guardado (no solo el
+      // que había en el input), y refrescar el contexto global para que
+      // el ícono del header se actualice sin necesidad de refrescar la
+      // página.
+      setDriveUrl(data.driveUrl ?? "");
       toast.success("Link de Drive guardado");
       reloadProjects();
     } finally {
@@ -55,10 +73,11 @@ export function DriveLinkPanel() {
         <Input
           value={driveUrl}
           onChange={(e) => setDriveUrl(e.target.value)}
-          placeholder="https://drive.google.com/drive/folders/..."
+          placeholder={loading ? "Cargando..." : "https://drive.google.com/drive/folders/..."}
+          disabled={loading}
         />
       </div>
-      <Button onClick={handleSave} disabled={saving} className="cursor-pointer">
+      <Button onClick={handleSave} disabled={saving || loading} className="cursor-pointer">
         {saving ? "Guardando..." : "Guardar link de Drive"}
       </Button>
     </div>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Bell, AlertCircle, Clock, ArrowRight } from "lucide-react";
+import { Bell, AlertCircle, Clock, ArrowRight, AtSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -22,6 +22,15 @@ interface TaskNotification {
   daysUntilDue?: number;
 }
 
+interface Mention {
+  id: string;
+  taskId: string;
+  taskTitle: string | null;
+  mentionedByName: string;
+  snippet: string | null;
+  createdAt: string;
+}
+
 interface NotificationData {
   overdue: TaskNotification[];
   upcoming: TaskNotification[];
@@ -30,18 +39,21 @@ interface NotificationData {
 
 export function NotificationPopover() {
   const [data, setData] = useState<NotificationData | null>(null);
+  const [mentions, setMentions] = useState<Mention[]>([]);
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     // Cargar notificaciones al abrir el popover
     if (isOpen) {
       fetchNotifications();
+      fetchMentions();
     }
   }, [isOpen]);
 
   // Cargar notificaciones inicialmente para mostrar el badge
   useEffect(() => {
     fetchNotifications();
+    fetchMentions();
   }, []);
 
   const fetchNotifications = () => {
@@ -53,7 +65,20 @@ export function NotificationPopover() {
       .catch(() => {});
   };
 
-  const totalCount = data?.total || 0;
+  const fetchMentions = () => {
+    fetch("/api/mentions?unread=true")
+      .then((r) => r.json())
+      .then((json) => setMentions(Array.isArray(json) ? json : []))
+      .catch(() => {});
+  };
+
+  const handleMentionClick = async (mentionId: string) => {
+    setIsOpen(false);
+    setMentions((prev) => prev.filter((m) => m.id !== mentionId));
+    fetch(`/api/mentions/${mentionId}/read`, { method: "POST" }).catch(() => {});
+  };
+
+  const totalCount = (data?.total || 0) + mentions.length;
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -78,6 +103,40 @@ export function NotificationPopover() {
         </div>
 
         <div className="max-h-96 overflow-y-auto">
+          {/* Menciones */}
+          {mentions.length > 0 && (
+            <div className="border-b">
+              <div className="px-4 py-2 bg-blue-50 dark:bg-blue-950/20">
+                <h4 className="text-xs font-semibold text-blue-700 dark:text-blue-400 flex items-center gap-1.5">
+                  <AtSign className="h-3.5 w-3.5" />
+                  Te mencionaron ({mentions.length})
+                </h4>
+              </div>
+              {mentions.map((mention) => (
+                <Link
+                  key={mention.id}
+                  href={`/tasks?taskId=${mention.taskId}`}
+                  onClick={() => handleMentionClick(mention.id)}
+                  className="block px-4 py-3 hover:bg-muted/50 transition-colors border-b last:border-b-0"
+                >
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium line-clamp-1">
+                      {mention.mentionedByName} te etiquetó
+                    </p>
+                    <p className="text-xs text-muted-foreground line-clamp-2">
+                      {mention.snippet}
+                    </p>
+                    {mention.taskTitle && (
+                      <p className="text-xs text-muted-foreground line-clamp-1">
+                        En: {mention.taskTitle}
+                      </p>
+                    )}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+
           {/* Tareas atrasadas */}
           {data?.overdue && data.overdue.length > 0 && (
             <div className="border-b">
