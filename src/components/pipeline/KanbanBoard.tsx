@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -28,6 +28,18 @@ export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealCl
   const [columns, setColumns] = useState(initialColumns);
   const [activeId, setActiveId] = useState<string | null>(null);
   const columnsSnapshot = useRef<PipelineColumn[]>(initialColumns);
+
+  // El estado local (columns) existe para el drag-and-drop optimista --
+  // mover una carta antes de que el backend confirme. Pero eso significaba
+  // que, al cambiar de proyecto, el board nunca se enteraba de los datos
+  // nuevos porque useState(initialColumns) solo lee el valor una vez, al
+  // montar. Este efecto sincroniza el estado local cada vez que los datos
+  // reales cambian (cambio de proyecto, o recarga tras mover un deal),
+  // sin pisar un drag en progreso.
+  useEffect(() => {
+    setColumns(initialColumns);
+    columnsSnapshot.current = initialColumns;
+  }, [initialColumns]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
