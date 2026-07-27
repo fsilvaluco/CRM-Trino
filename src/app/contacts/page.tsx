@@ -3,14 +3,16 @@
 import { useState, useEffect } from "react";
 import { ContactsTable } from "@/components/contacts/ContactsTable";
 import { ContactForm } from "@/components/contacts/ContactForm";
+import { DuplicateContactsDialog } from "@/components/contacts/DuplicateContactsDialog";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Copy } from "lucide-react";
 import type { Contact } from "@/types";
 import { useProject } from "@/lib/project-context";
 
 export default function ContactsPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [showDuplicates, setShowDuplicates] = useState(false);
   const [loading, setLoading] = useState(true);
   const { activeProject } = useProject();
 
@@ -44,10 +46,20 @@ export default function ContactsPage() {
             Gestiona tus leads y prospectos
           </p>
         </div>
-        <Button onClick={() => setShowForm(true)} className="cursor-pointer">
-          <Plus className="h-4 w-4 mr-2" />
-          Nuevo Contacto
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setShowDuplicates(true)}
+            className="cursor-pointer"
+          >
+            <Copy className="h-4 w-4 mr-2" />
+            Quitar duplicados
+          </Button>
+          <Button onClick={() => setShowForm(true)} className="cursor-pointer">
+            <Plus className="h-4 w-4 mr-2" />
+            Nuevo Contacto
+          </Button>
+        </div>
       </div>
 
       {loading ? (
@@ -61,6 +73,11 @@ export default function ContactsPage() {
       )}
 
       <ContactForm open={showForm} onClose={handleCloseForm} />
+      <DuplicateContactsDialog
+        open={showDuplicates}
+        onClose={() => setShowDuplicates(false)}
+        onMerged={loadContacts}
+      />
     </div>
   );
 }

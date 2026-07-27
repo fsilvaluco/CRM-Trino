@@ -1,0 +1,95 @@
+import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/supabase-server";
+
+export async function POST(request: NextRequest) {
+  const { supabase, orgId, isAdmin, error } = await requireAuth();
+  if (error) return error;
+  if (!isAdmin) return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
+
+  let body: { primaryContactId?: string; mergeContactIds?: string[] };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
+  }
+
+  const { primaryContactId, mergeContactIds } = body;
+
+  if (!primaryContactId || !Array.isArray(mergeContactIds) || mergeContactIds.length === 0) {
+    return NextResponse.json(
+      { error: "Faltan primaryContactId o mergeContactIds" },
+      { status: 400 }
+    );
+  }
+
+  const idsToMerge = mergeContactIds.filter((id) => id !== primaryContactId);
+  if (idsToMerge.length === 0) {
+    return NextResponse.json({ error: "No hay contactos distintos para fusionar" }, { status: 400 });
+  }
+
+  // Verificar que todos pertenecen a esta organizacion antes de tocar nada
+  const { data: allContacts, error: checkErr } = await supabase
+    .from("contacts")
+    .select("id, notes")
+    .eq("organization_id", orgId!)
+    .in("id", [primaryContactId, ...idsToMerge]);
+
+  if (checkErr || !allContacts || allContacts.length !== idsToMerge.length + 1) {
+    return NextResponse.json({ error: "Alguno de los contactos no existe en tu organizacion" }, { status: 404 });
+  }
+
+  // Mover referencias al contacto principal
+  const tables: Array<{ table: string; column: string }> = [
+    { table: "deals", column: "contact_id" },
+    { table: "tasks", column: "contact_id" },
+    { table: "activities", column: "contact_id" },
+  ];
+
+  for (const { table, column } of tables) {
+    const { error: moveErr } = await supabase
+      .from(table)
+      .update({ [column]: primaryContactId })
+      .in(column, idsToMerge);
+
+    if (moveErr) {
+      return NextResponse.json(
+        { error: `No se pudo mover referencias en ${table}: ${moveErr.message}` },
+        { status: 500 }
+      );
+    }
+  }
+
+  // lead_candidates.resulting_contact_id no tiene FK obligatoria pero se
+  // actualiza igual para mantener trazabilidad
+  await supabase
+    .from("lead_candidates")
+    .update({ resulting_contact_id: primaryContactId })
+    .in("resulting_contact_id", idsToMerge);
+
+  // Combinar notas de los contactos fusionados en el principal
+  const primary = allContacts.find((c) => c.id === primaryContactId);
+  const mergedNotes = allContacts
+    .filter((c) => idsToMerge.includes(c.id) && c.notes)
+    .map((c) => c.notes)
+    .join("\n");
+
+  if (mergedNotes) {
+    const combined = primary?.notes ? `${primary.notes}\n${mergedNotes}` : mergedNotes;
+    await supabase.from("contacts").update({ notes: combined }).eq("id", primaryContactId);
+  }
+
+  // Archivar (soft-delete) los contactos fusionados
+  const { error: deleteErr } = await supabase
+    .from("contacts")
+    .update({ deleted_at: new Date().toISOString() })
+    .in("id", idsToMerge);
+
+  if (deleteErr) {
+    return NextResponse.json(
+      { error: `Se movieron las referencias pero no se pudieron archivar los duplicados: ${deleteErr.message}` },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({ success: true, primaryContactId, mergedCount: idsToMerge.length });
+}

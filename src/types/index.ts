@@ -50,7 +50,10 @@ export interface Contact {
   temperature: Temperature;
   score: number;
   notes: string | null;
+  projectId: string | null;
+  projectName: string | null;
   artistProjectId: string | null;
+  artistProjectName: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

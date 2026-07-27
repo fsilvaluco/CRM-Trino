@@ -80,7 +80,7 @@ export function ContactsTable({ contacts }: ContactsTableProps) {
               <TableHead>Nombre</TableHead>
               <TableHead className="hidden sm:table-cell">Empresa</TableHead>
               <TableHead className="hidden md:table-cell">Fuente</TableHead>
-              <TableHead className="hidden md:table-cell">Score</TableHead>
+              <TableHead className="hidden md:table-cell">Proyecto</TableHead>
               <TableHead className="hidden lg:table-cell">Fecha</TableHead>
             </TableRow>
           </TableHeader>
@@ -105,18 +105,8 @@ export function ContactsTable({ contacts }: ContactsTableProps) {
                 <TableCell className="hidden md:table-cell text-sm">
                   {SOURCE_LABELS[contact.source as LeadSource] || contact.source}
                 </TableCell>
-                <TableCell className="hidden md:table-cell">
-                  <div className="flex items-center gap-1">
-                    <div className="h-2 w-16 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-primary"
-                        style={{ width: `${contact.score}%` }}
-                      />
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {contact.score}
-                    </span>
-                  </div>
+                <TableCell className="hidden md:table-cell text-sm">
+                  {contact.artistProjectName ?? contact.projectName ?? "-"}
                 </TableCell>
                 <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
                   {formatDate(contact.createdAt)}

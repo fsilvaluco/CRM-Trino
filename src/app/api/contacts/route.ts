@@ -56,6 +56,12 @@ function mapContact(row: any) {
   const joinedCompanyName = Array.isArray(row.companies)
     ? row.companies[0]?.name ?? null
     : row.companies?.name ?? null;
+  const joinedProjectName = Array.isArray(row.project)
+    ? row.project[0]?.name ?? null
+    : row.project?.name ?? null;
+  const joinedArtistProjectName = Array.isArray(row.artist_project)
+    ? row.artist_project[0]?.name ?? null
+    : row.artist_project?.name ?? null;
 
   return {
     id: row.id,
@@ -68,7 +74,10 @@ function mapContact(row: any) {
     temperature: row.temperature,
     score: row.score,
     notes: row.notes ?? null,
+    projectId: row.project_id ?? null,
+    projectName: joinedProjectName,
     artistProjectId: row.artist_project_id ?? null,
+    artistProjectName: joinedArtistProjectName,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -102,7 +111,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from("contacts")
-    .select("*, companies(name)")
+    .select("*, companies(name), project:projects!contacts_project_id_fkey(name), artist_project:projects!contacts_artist_project_id_fkey(name)")
     .eq("organization_id", orgId!)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
