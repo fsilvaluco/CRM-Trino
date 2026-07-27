@@ -19,6 +19,7 @@ import {
   ThumbsUp,
   Newspaper,
   Inbox,
+  Plug,
 } from "lucide-react";
 import { type LucideIcon } from "lucide-react";
 
@@ -111,6 +112,12 @@ export const settingsConfig: NavLeaf[] = [
     label: "Equipo y Acceso",
     icon: ShieldCheck,
     adminOnly: true,
+  },
+  {
+    type: "leaf",
+    href: "/settings/integrations",
+    label: "Integraciones",
+    icon: Plug,
   },
 ];
 
