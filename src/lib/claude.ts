@@ -51,8 +51,8 @@ interface DetectLeadsInput {
 export async function detectLeadsInEmail(
   input: DetectLeadsInput
 ): Promise<EmailLeadCandidate[]> {
-  const anthropic = getClient();
-  if (!anthropic) return [];
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return [];
 
   const artistList = input.artistProjects.length
     ? input.artistProjects.map((p) => `- ${p.name} (id: ${p.id})`).join("\n")
@@ -89,17 +89,31 @@ Responde SOLO con JSON valido, sin texto adicional, con este formato exacto:
 
 Si no es un lead, responde: {"leads": []}`;
 
-  const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-6-20250514",
-    max_tokens: 800,
-    messages: [{ role: "user", content: prompt }],
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+      temperature: 0,
+    }),
   });
 
+  if (!res.ok) {
+    console.error("[detectLeadsInEmail] OpenAI error", await res.text());
+    return [];
+  }
+
   try {
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return [];
-    const parsed = JSON.parse(jsonMatch[0]) as { leads?: EmailLeadCandidate[] };
+    const data = (await res.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const text = data.choices?.[0]?.message?.content ?? "";
+    const parsed = JSON.parse(text) as { leads?: EmailLeadCandidate[] };
     return Array.isArray(parsed.leads) ? parsed.leads : [];
   } catch {
     return [];
