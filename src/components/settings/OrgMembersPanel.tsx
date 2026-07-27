@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MemberAccessSheet } from "@/components/settings/MemberAccessSheet";
+import { useProject } from "@/lib/project-context";
 import {
   Table,
   TableBody,
@@ -36,12 +37,14 @@ const ROLE_LABELS: Record<string, string> = {
   owner: "Propietario",
   admin: "Admin",
   member: "Miembro",
+  artist: "Artista",
 };
 
 const ROLE_BADGE_CLASSNAMES: Record<string, string> = {
   owner: "bg-violet-500/15 text-violet-300 border-violet-500/40",
   admin: "bg-blue-500/15 text-blue-300 border-blue-500/40",
   member: "bg-slate-500/15 text-slate-300 border-slate-500/40",
+  artist: "bg-emerald-500/15 text-emerald-300 border-emerald-500/40",
 };
 
 const STATUS_LABELS: Record<Member["status"], string> = {
@@ -51,6 +54,7 @@ const STATUS_LABELS: Record<Member["status"], string> = {
 
 export function OrgMembersPanel() {
   const router = useRouter();
+  const { activeProject } = useProject();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -59,24 +63,31 @@ export function OrgMembersPanel() {
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [accessSheetOpen, setAccessSheetOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const latestRequestedProjectId = useRef<string | null>(null);
 
   const loadMembers = useCallback(async () => {
+    const requestedProjectId = activeProject?.id ?? null;
+    latestRequestedProjectId.current = requestedProjectId;
     setLoading(true);
     try {
-      const res = await fetch("/api/org-members");
+      const params = requestedProjectId ? `?projectId=${requestedProjectId}` : "";
+      const res = await fetch(`/api/org-members${params}`);
       if (!res.ok) {
         const data = await res.json();
         toast.error("Error cargando usuarios: " + (data.error ?? res.statusText));
         return;
       }
       const data: Member[] = await res.json();
+      // Misma guarda anti-condicion-de-carrera que en el CRM: si el usuario
+      // cambio de proyecto mientras este fetch estaba en vuelo, descartar.
+      if (latestRequestedProjectId.current !== requestedProjectId) return;
       setMembers(data);
     } catch {
       toast.error("Error cargando usuarios");
     } finally {
-      setLoading(false);
+      if (latestRequestedProjectId.current === requestedProjectId) setLoading(false);
     }
-  }, []);
+  }, [activeProject?.id]);
 
   useEffect(() => {
     loadMembers();
@@ -261,7 +272,7 @@ export function OrgMembersPanel() {
               <ChevronDown className="h-3.5 w-3.5" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {["admin", "member"].map((r) => (
+              {["admin", "member", "artist"].map((r) => (
                 <DropdownMenuItem key={r} onClick={() => setInviteRole(r)}>
                   {ROLE_LABELS[r]}
                 </DropdownMenuItem>

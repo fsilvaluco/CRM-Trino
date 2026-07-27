@@ -3,9 +3,9 @@ import { requireAuth } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
 
 type MemberStatus = "pending" | "active";
-type MemberRole = "owner" | "admin" | "member";
+type MemberRole = "owner" | "admin" | "member" | "artist";
 
-const ASSIGNABLE_MEMBER_ROLES = new Set<MemberRole>(["admin", "member"]);
+const ASSIGNABLE_MEMBER_ROLES = new Set<MemberRole>(["admin", "member", "artist"]);
 
 function isMissingStatusColumn(message: string | undefined): boolean {
   if (!message) return false;
@@ -31,11 +31,18 @@ async function findAuthUserByEmail(admin: ReturnType<typeof createAdminClient>, 
   return { user: null, error: null as string | null };
 }
 
-// GET /api/org-members → lista todos los usuarios de la organización
-export async function GET() {
+// GET /api/org-members?projectId=X → lista usuarios de la organización.
+// Si se pasa projectId, se filtra a owner/admin (gestionan todo) mas los
+// usuarios (member/artist) que tengan asignacion en project_members para
+// ese proyecto especifico -- asi "Equipo y Acceso" refleja solo a quien
+// realmente trabaja en el proyecto activo, no a toda la organizacion.
+export async function GET(request: NextRequest) {
   const { supabase, orgId, isAdmin, error } = await requireAuth();
   if (error) return error;
   if (!isAdmin) return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
+
+  const { searchParams } = new URL(request.url);
+  const projectId = searchParams.get("projectId");
 
   const admin = createAdminClient();
 
@@ -94,7 +101,24 @@ export async function GET() {
     },
   }));
 
-  return NextResponse.json(result);
+  if (!projectId) {
+    return NextResponse.json(result);
+  }
+
+  // owner/admin siempre se muestran (gestionan accesos de todo el proyecto).
+  // member/artist solo se muestran si estan asignados a este proyecto.
+  const { data: assignedRows } = await supabase
+    .from("project_members")
+    .select("user_id")
+    .eq("project_id", projectId);
+
+  const assignedUserIds = new Set((assignedRows ?? []).map((r) => r.user_id));
+
+  const filtered = result.filter(
+    (m) => m.role === "owner" || m.role === "admin" || assignedUserIds.has(m.user_id)
+  );
+
+  return NextResponse.json(filtered);
 }
 
 // POST /api/org-members → { email, role } → invitar usuario nuevo
@@ -106,7 +130,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const { email, role = "member" } = body as { email: string; role?: string };
   const normalizedEmail = email?.trim().toLowerCase();
-  const allowedRoles = new Set(["admin", "member"]);
+  const allowedRoles = new Set(["admin", "member", "artist"]);
   if (!normalizedEmail) return NextResponse.json({ error: "Email requerido" }, { status: 400 });
   if (!allowedRoles.has(role)) return NextResponse.json({ error: "Rol inválido" }, { status: 400 });
 

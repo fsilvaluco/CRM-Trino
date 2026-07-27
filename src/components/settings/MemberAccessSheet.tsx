@@ -266,11 +266,22 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
                       {isOwner && <SelectItem value="owner">Propietario</SelectItem>}
                       <SelectItem value="admin">Admin</SelectItem>
                       <SelectItem value="member">Miembro</SelectItem>
+                      <SelectItem value="artist">Artista</SelectItem>
                     </SelectContent>
                   </Select>
                   {isOwner && (
                     <p className="text-xs text-muted-foreground mt-1">
                       El rol de owner no se puede cambiar desde este panel.
+                    </p>
+                  )}
+                  {!isOwner && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {selectedRole === "admin" &&
+                        "Gestiona permisos, crea proyectos y tiene acceso total a tratos y tareas."}
+                      {selectedRole === "member" &&
+                        "Trabaja en la app: crea tratos, contactos, empresas y tareas."}
+                      {selectedRole === "artist" &&
+                        "Ve sus propios tratos (solo lectura) y puede editar sus tareas. Si el proyecto es autogestionado, tambien puede editar sus tratos."}
                     </p>
                   )}
                 </FieldRow>
