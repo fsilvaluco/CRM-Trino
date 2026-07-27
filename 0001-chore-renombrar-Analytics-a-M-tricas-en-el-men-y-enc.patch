@@ -1,0 +1,43 @@
+From f87698838c2c26e4239f3a360e864870f7f3f20a Mon Sep 17 00:00:00 2001
+From: Agencia Katarsis <agenciakatarsisair1@MacBook-Air-de-Agencia.local>
+Date: Wed, 22 Jul 2026 06:27:02 +0000
+Subject: [PATCH] =?UTF-8?q?chore:=20renombrar=20Analytics=20a=20M=C3=A9tri?=
+ =?UTF-8?q?cas=20en=20el=20men=C3=BA=20y=20encabezado?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/app/analytics/page.tsx          | 2 +-
+ src/components/layout/nav-config.ts | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/app/analytics/page.tsx b/src/app/analytics/page.tsx
+index 11bc93f..033dac3 100644
+--- a/src/app/analytics/page.tsx
++++ b/src/app/analytics/page.tsx
+@@ -103,7 +103,7 @@ export default function AnalyticsPage() {
+       {/* Header */}
+       <div className="flex items-center justify-between">
+         <div>
+-          <h1 className="text-2xl font-bold tracking-tight">Analytics</h1>
++          <h1 className="text-2xl font-bold tracking-tight">Métricas</h1>
+           <p className="text-muted-foreground text-sm">Shows, redes sociales y merch</p>
+         </div>
+         <BarChart2 className="h-6 w-6 text-muted-foreground/40" />
+diff --git a/src/components/layout/nav-config.ts b/src/components/layout/nav-config.ts
+index fd75edd..c0d0f99 100644
+--- a/src/components/layout/nav-config.ts
++++ b/src/components/layout/nav-config.ts
+@@ -58,7 +58,7 @@ export const navConfig: NavItem[] = [
+   {
+     type: "leaf",
+     href: "/analytics",
+-    label: "Analytics",
++    label: "Métricas",
+     icon: BarChart2,
+   },
+   {
+-- 
+2.43.0
+

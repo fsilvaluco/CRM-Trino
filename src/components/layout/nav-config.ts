@@ -18,6 +18,7 @@ import {
   Disc3,
   ThumbsUp,
   Newspaper,
+  Inbox,
 } from "lucide-react";
 import { type LucideIcon } from "lucide-react";
 
@@ -72,6 +73,7 @@ export const navConfig: NavItem[] = [
       { type: "leaf", href: "/crm", label: "Tratos", icon: Kanban },
       { type: "leaf", href: "/contacts", label: "Contactos", icon: Users },
       { type: "leaf", href: "/companies", label: "Empresas", icon: Building2 },
+      { type: "leaf", href: "/lead-candidates", label: "Bandeja de Leads", icon: Inbox },
     ],
   },
   {

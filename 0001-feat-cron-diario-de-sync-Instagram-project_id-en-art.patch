@@ -1,0 +1,193 @@
+From 7f428ad90cd79e493981b507a16638bac292e12b Mon Sep 17 00:00:00 2001
+From: Agencia Katarsis <agenciakatarsisair1@MacBook-Air-de-Agencia.local>
+Date: Wed, 22 Jul 2026 04:15:05 +0000
+Subject: [PATCH] feat: cron diario de sync Instagram + project_id en
+ artist_integrations
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- Agrega project_id a artist_integrations (migración 011) para que el
+  cron sepa a qué proyecto atribuir cada sync sin depender de sesión de
+  usuario
+- Callback de OAuth ahora persiste project_id al conectar
+- Nuevo endpoint POST /api/cron/sync-instagram protegido con CRON_SECRET,
+  recorre todas las integraciones de Instagram activas y sincroniza cada
+  una, sin cortar el batch si una falla
+- Documenta CRON_SECRET en .env.example y env.d.ts
+---
+ .env.example                                  |  7 ++
+ .../011_artist_integrations_project_id.sql    | 21 +++++
+ src/app/api/cron/sync-instagram/route.ts      | 91 +++++++++++++++++++
+ .../api/integrations/meta/callback/route.ts   |  1 +
+ src/env.d.ts                                  |  1 +
+ 5 files changed, 121 insertions(+)
+ create mode 100644 scripts/migrations/011_artist_integrations_project_id.sql
+ create mode 100644 src/app/api/cron/sync-instagram/route.ts
+
+diff --git a/.env.example b/.env.example
+index 2129908..d2da4e4 100644
+--- a/.env.example
++++ b/.env.example
+@@ -24,3 +24,10 @@
+ # RESEND_API_KEY=re_...
+ # DIGEST_EMAIL=tu@email.com
+ # DIGEST_FROM=Auto-CRM <onboarding@resend.dev>
++
++# =============================================================================
++# CRON: sync diario de Instagram (4am) — /api/cron/sync-instagram
++# Genera un secret random (ej: openssl rand -hex 32) y configuralo también
++# en el Railway Cron Job que llama a este endpoint.
++# =============================================================================
++# CRON_SECRET=
+diff --git a/scripts/migrations/011_artist_integrations_project_id.sql b/scripts/migrations/011_artist_integrations_project_id.sql
+new file mode 100644
+index 0000000..ff654bb
+--- /dev/null
++++ b/scripts/migrations/011_artist_integrations_project_id.sql
+@@ -0,0 +1,21 @@
++-- El cron diario de sync (Fase 1.1 del plan maestro) necesita saber a qué
++-- project_id atribuir las métricas de cada integración, sin depender de que
++-- un usuario esté logueado pasando el projectId en el body del request.
++--
++-- Hoy artist_integrations solo guarda organization_id + platform; el
++-- project_id se recibe en el callback de OAuth pero nunca se persiste.
++-- Esta migración agrega la columna y permite que el callback la guarde.
++
++ALTER TABLE artist_integrations
++  ADD COLUMN IF NOT EXISTS project_id UUID REFERENCES projects(id);
++
++CREATE INDEX IF NOT EXISTS idx_artist_integrations_project_id
++  ON artist_integrations(project_id);
++
++-- Nota: no hacemos backfill automático porque no hay forma confiable de
++-- inferir a qué proyecto pertenecía cada integración conectada antes de
++-- esta migración (project_id nunca se guardó). Las integraciones
++-- existentes (ej. lasagradaoficial) deben reconectarse una vez, o se les
++-- puede asignar manualmente:
++--   UPDATE artist_integrations SET project_id = '<uuid-del-proyecto>'
++--   WHERE organization_id = '<uuid-org>' AND platform = 'instagram';
+diff --git a/src/app/api/cron/sync-instagram/route.ts b/src/app/api/cron/sync-instagram/route.ts
+new file mode 100644
+index 0000000..443968c
+--- /dev/null
++++ b/src/app/api/cron/sync-instagram/route.ts
+@@ -0,0 +1,91 @@
++import { NextRequest, NextResponse } from "next/server";
++import { createAdminClient } from "@/lib/supabase-admin";
++import { syncInstagram } from "@/lib/meta-sync";
++
++export const dynamic = "force-dynamic";
++export const maxDuration = 60;
++
++interface SyncResult {
++  organizationId: string;
++  projectId: string | null;
++  accountName: string | null;
++  ok: boolean;
++  followers?: number;
++  error?: string;
++}
++
++/**
++ * Cron diario (4:00 AM Santiago) — sincroniza TODAS las integraciones de
++ * Instagram activas, sin depender de sesión de usuario. Pensado para ser
++ * invocado por un servicio de cron externo (Railway Cron o cron-job.org)
++ * vía POST con el header Authorization: Bearer <CRON_SECRET>.
++ *
++ * No hacer sync on-demand por carga de página ni cada hora: rate limits de
++ * Meta y no aporta valor real (decisión tomada — ver plan maestro Fase 1.1).
++ */
++export async function POST(request: NextRequest) {
++  const secret = process.env.CRON_SECRET;
++  if (!secret) {
++    return NextResponse.json(
++      { error: "CRON_SECRET no configurado en el servidor" },
++      { status: 500 }
++    );
++  }
++
++  const authHeader = request.headers.get("authorization");
++  if (authHeader !== `Bearer ${secret}`) {
++    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
++  }
++
++  const supabase = createAdminClient();
++
++  const { data: integrations, error: fetchError } = await supabase
++    .from("artist_integrations")
++    .select("organization_id, project_id, account_id, account_name, access_token, platform")
++    .eq("platform", "instagram");
++
++  if (fetchError) {
++    console.error("[cron/sync-instagram] failed to list integrations", fetchError);
++    return NextResponse.json({ error: fetchError.message }, { status: 500 });
++  }
++
++  const results: SyncResult[] = [];
++
++  for (const integration of integrations ?? []) {
++    const { organization_id: organizationId, project_id: projectId, account_id: igUserId, account_name: accountName, access_token: accessToken } = integration;
++
++    if (!projectId) {
++      results.push({
++        organizationId,
++        projectId: null,
++        accountName,
++        ok: false,
++        error: "Sin project_id asignado — reconectar la integración o asignarlo manualmente",
++      });
++      continue;
++    }
++
++    try {
++      const result = await syncInstagram(supabase, organizationId, accessToken, igUserId, projectId);
++      results.push({ organizationId, projectId, accountName, ok: true, followers: result.followers });
++    } catch (err) {
++      const message = err instanceof Error ? err.message : "Error desconocido";
++      console.error("[cron/sync-instagram] sync failed", { organizationId, projectId, accountName, message });
++      results.push({ organizationId, projectId, accountName, ok: false, error: message });
++    }
++  }
++
++  const succeeded = results.filter((r) => r.ok).length;
++  const failed = results.length - succeeded;
++
++  console.log("[cron/sync-instagram] run complete", { total: results.length, succeeded, failed });
++
++  return NextResponse.json({
++    ok: true,
++    ranAt: new Date().toISOString(),
++    total: results.length,
++    succeeded,
++    failed,
++    results,
++  });
++}
+diff --git a/src/app/api/integrations/meta/callback/route.ts b/src/app/api/integrations/meta/callback/route.ts
+index 619ea28..87c2b77 100644
+--- a/src/app/api/integrations/meta/callback/route.ts
++++ b/src/app/api/integrations/meta/callback/route.ts
+@@ -185,6 +185,7 @@ export async function GET(request: NextRequest) {
+       {
+         organization_id: orgId,
+         platform: "instagram",
++        project_id: decodedProjectId,
+         access_token: pageAccessToken,
+         token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
+         account_id: igUserId,
+diff --git a/src/env.d.ts b/src/env.d.ts
+index 742c9ba..e5d78e5 100644
+--- a/src/env.d.ts
++++ b/src/env.d.ts
+@@ -7,6 +7,7 @@ declare namespace NodeJS {
+     readonly RESEND_API_KEY?: string;
+     readonly DIGEST_EMAIL?: string;
+     readonly DIGEST_FROM?: string;
++    readonly CRON_SECRET?: string;
+     readonly NODE_ENV: "development" | "production" | "test";
+     readonly [key: string]: string | undefined;
+   }
+-- 
+2.43.0
+

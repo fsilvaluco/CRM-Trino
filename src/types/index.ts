@@ -53,6 +53,27 @@ export interface Contact {
   updatedAt: Date;
 }
 
+export interface LeadCandidate {
+  id: string;
+  projectId: string | null;
+  source: "email" | "whatsapp";
+  rawExcerpt: string;
+  signalReason: string | null;
+  threadReference: string | null;
+  detectedName: string | null;
+  detectedEmail: string | null;
+  detectedPhone: string | null;
+  detectedCompany: string | null;
+  status: "pending_review" | "approved" | "rejected";
+  reviewedBy: string | null;
+  reviewedAt: Date | null;
+  resultingContactId: string | null;
+  resultingCompanyId: string | null;
+  resultingTaskId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface Deal {
   id: string;
   title: string;

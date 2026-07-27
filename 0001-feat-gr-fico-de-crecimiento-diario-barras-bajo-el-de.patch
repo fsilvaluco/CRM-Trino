@@ -1,0 +1,114 @@
+From f40743e7bcf2443b825bb32b8442c345279da555 Mon Sep 17 00:00:00 2001
+From: Agencia Katarsis <agenciakatarsisair1@MacBook-Air-de-Agencia.local>
+Date: Wed, 22 Jul 2026 07:57:55 +0000
+Subject: [PATCH] =?UTF-8?q?feat:=20gr=C3=A1fico=20de=20crecimiento=20diari?=
+ =?UTF-8?q?o=20(barras)=20bajo=20el=20de=20seguidores?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Complementa el gráfico de línea (total acumulado) con uno de barras que
+muestra cuánto se ganó o perdió CADA día — verde si sube, rojo si baja.
+Es más accionable que el total: dice en qué día pasó algo.
+
+Cálculo: delta contra el día calendario inmediatamente anterior, SOLO
+cuando ambos días tienen dato real. Si hay un hueco (sync que falló, o
+recién empezando a acumular historial), la barra queda vacía en vez de
+mostrar como 'crecimiento de un día' algo que en realidad ocurrió a lo
+largo de varios días sin registro.
+
+Mismo período/eje X que el gráfico de línea (reutiliza chartData y
+tickInterval). Con el historial disperso que hay hoy (2 días con datos,
+no consecutivos) el gráfico simplemente no se muestra todavía — no hay
+ningún par de días consecutivos del cual derivar un delta real. Va a
+empezar a poblarse solo en cuanto el cron acumule días seguidos.
+---
+ src/components/analytics/PlatformTab.tsx | 58 +++++++++++++++++++++++-
+ 1 file changed, 57 insertions(+), 1 deletion(-)
+
+diff --git a/src/components/analytics/PlatformTab.tsx b/src/components/analytics/PlatformTab.tsx
+index 91426f5..b5158c4 100644
+--- a/src/components/analytics/PlatformTab.tsx
++++ b/src/components/analytics/PlatformTab.tsx
+@@ -1,7 +1,7 @@
+ "use client";
+ 
+ import { useState, useMemo } from "react";
+-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
++import { LineChart, Line, BarChart, Bar, Cell, ReferenceLine, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+ import { Plus, BarChart2, Clock, TrendingUp, TrendingDown, Users } from "lucide-react";
+ import { format, subDays, startOfDay, eachDayOfInterval } from "date-fns";
+ import { es } from "date-fns/locale";
+@@ -155,6 +155,21 @@ export function PlatformTab({ platform, metrics, onRefresh, integration, comingS
+ 
+   const hasAnyDataInPeriod = chartData.some((d) => d.followers != null);
+ 
++  /** Crecimiento diario = delta contra el día calendario anterior. Solo se
++   * calcula cuando AMBOS días tienen dato — si hay un hueco (sync que
++   * falló, o historial recién empezando), la barra queda vacía en vez de
++   * mostrar un salto que en realidad ocurrió a lo largo de varios días. */
++  const growthData = useMemo(() => {
++    return chartData.map((d, i) => {
++      if (i === 0 || d.followers == null) return { label: d.label, delta: null as number | null };
++      const prev = chartData[i - 1].followers;
++      if (prev == null) return { label: d.label, delta: null };
++      return { label: d.label, delta: d.followers - prev };
++    });
++  }, [chartData]);
++
++  const hasGrowthData = growthData.some((d) => d.delta != null);
++
+   return (
+     <div className="space-y-6">
+       {comingSoon && (
+@@ -277,6 +292,47 @@ export function PlatformTab({ platform, metrics, onRefresh, integration, comingS
+         </div>
+       )}
+ 
++      {hasGrowthData && (
++        <div className="rounded-xl border bg-card p-4">
++          <p className="text-xs font-medium text-muted-foreground mb-4">
++            Crecimiento diario — {PLATFORM_LABEL[platform]}
++          </p>
++          <ResponsiveContainer width="100%" height={180}>
++            <BarChart data={growthData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
++              <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
++              <XAxis
++                dataKey="label"
++                tick={{ fontSize: 11 }}
++                interval={tickInterval(growthData.length)}
++                minTickGap={8}
++              />
++              <YAxis tick={{ fontSize: 11 }} width={40} allowDecimals={false} />
++              <ReferenceLine y={0} className="stroke-border" />
++              <Tooltip
++                formatter={(v) => {
++                  const n = Number(v ?? 0);
++                  return [`${n >= 0 ? "+" : ""}${NUM.format(n)}`, "Variación"];
++                }}
++              />
++              <Bar dataKey="delta" radius={[3, 3, 3, 3]}>
++                {growthData.map((d, i) => (
++                  <Cell
++                    key={i}
++                    fill={
++                      d.delta == null
++                        ? "transparent"
++                        : d.delta >= 0
++                        ? "#16a34a"
++                        : "#dc2626"
++                    }
++                  />
++                ))}
++              </Bar>
++            </BarChart>
++          </ResponsiveContainer>
++        </div>
++      )}
++
+       <RegisterSnapshotSheet
+         open={sheetOpen}
+         onOpenChange={setSheetOpen}
+-- 
+2.43.0
+

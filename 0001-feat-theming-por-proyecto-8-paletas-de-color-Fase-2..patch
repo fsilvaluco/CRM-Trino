@@ -1,0 +1,515 @@
+From 9fa86848c5bcfd5576cdfbde183afc265915e260 Mon Sep 17 00:00:00 2001
+From: Agencia Katarsis <agenciakatarsisair1@MacBook-Air-de-Agencia.local>
+Date: Wed, 22 Jul 2026 06:20:26 +0000
+Subject: [PATCH] =?UTF-8?q?feat:=20theming=20por=20proyecto=20=E2=80=94=20?=
+ =?UTF-8?q?8=20paletas=20de=20color=20(Fase=202.3)?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- Migración 014: projects.theme_color con constraint a las 8 paletas;
+  Gamuza -> verde y Simplemente Yo -> morado por defecto
+- lib/theme-palettes.ts: definición central de las 8 paletas (verde,
+  morado, rojo, naranjo, celeste, crema, azul, rosa) y helper para
+  aplicarlas como CSS custom properties sobre <html>
+- project-context.tsx: trae theme_color de projects y aplica la paleta
+  automáticamente cada vez que cambia el proyecto activo; vuelve a azul
+  en 'Todos los proyectos'
+- Nuevo endpoint PATCH /api/projects/[id]/theme — admin puede cambiar
+  cualquier proyecto, un miembro (artista) solo el/los suyo(s)
+- ThemeColorPicker: grid de 8 swatches con estado seleccionado; se
+  agregó tanto en Configuración del Proyecto (admin) como en un item
+  'Color de {proyecto}' del selector del header (accesible a
+  cualquier miembro, no solo admin) para cumplir 'admin asigna,
+  artista puede cambiarlo'
+---
+ .../migrations/014_projects_theme_color.sql   |  24 ++++
+ src/app/api/projects/[id]/theme/route.ts      |  48 ++++++++
+ src/app/settings/project/page.tsx             |  15 +++
+ src/components/layout/ProjectSelector.tsx     |  23 +++-
+ src/components/settings/ThemeColorPicker.tsx  |  89 ++++++++++++++
+ src/lib/project-context.tsx                   |  28 ++++-
+ src/lib/theme-palettes.ts                     | 116 ++++++++++++++++++
+ 7 files changed, 338 insertions(+), 5 deletions(-)
+ create mode 100644 scripts/migrations/014_projects_theme_color.sql
+ create mode 100644 src/app/api/projects/[id]/theme/route.ts
+ create mode 100644 src/components/settings/ThemeColorPicker.tsx
+ create mode 100644 src/lib/theme-palettes.ts
+
+diff --git a/scripts/migrations/014_projects_theme_color.sql b/scripts/migrations/014_projects_theme_color.sql
+new file mode 100644
+index 0000000..e73d273
+--- /dev/null
++++ b/scripts/migrations/014_projects_theme_color.sql
+@@ -0,0 +1,24 @@
++-- Theming por artista (Fase 2.3 del plan maestro): cada proyecto puede
++-- elegir una de 8 paletas de color para sentir el espacio como propio y
++-- para que el color mismo confirme en qué proyecto está parado el usuario.
++
++ALTER TABLE projects
++  ADD COLUMN IF NOT EXISTS theme_color TEXT NOT NULL DEFAULT 'azul';
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_constraint
++    WHERE conrelid = 'projects'::regclass
++      AND conname = 'projects_theme_color_check'
++  ) THEN
++    ALTER TABLE projects
++      ADD CONSTRAINT projects_theme_color_check
++      CHECK (theme_color IN ('verde', 'morado', 'rojo', 'naranjo', 'celeste', 'crema', 'azul', 'rosa'));
++  END IF;
++END $$;
++
++-- Gamuza → verde, Simplemente Yo → morado (pedido explícito, ver plan maestro).
++-- Ajusta los nombres si difieren del registro real en tu base.
++UPDATE projects SET theme_color = 'verde' WHERE name ILIKE 'Gamuza';
++UPDATE projects SET theme_color = 'morado' WHERE name ILIKE 'Simplemente Yo';
+diff --git a/src/app/api/projects/[id]/theme/route.ts b/src/app/api/projects/[id]/theme/route.ts
+new file mode 100644
+index 0000000..9964b55
+--- /dev/null
++++ b/src/app/api/projects/[id]/theme/route.ts
+@@ -0,0 +1,48 @@
++import { NextRequest, NextResponse } from "next/server";
++import { requireAuth } from "@/lib/supabase-server";
++import { THEME_COLOR_KEYS } from "@/lib/theme-palettes";
++
++export async function PATCH(
++  request: NextRequest,
++  { params }: { params: Promise<{ id: string }> }
++) {
++  const { id } = await params;
++  const { supabase, isAdmin, allowedProjectIds, error } = await requireAuth();
++  if (error) return error;
++
++  // Admin puede cambiar el color de cualquier proyecto de la organización.
++  // Un artista (member) solo puede cambiar el de un proyecto al que
++  // pertenece — no le da acceso a proyectos ajenos, solo a elegir su color.
++  const canEditThisProject = isAdmin || (allowedProjectIds !== null && allowedProjectIds.includes(id));
++  if (!canEditThisProject) {
++    return NextResponse.json({ error: "Sin permisos sobre este proyecto" }, { status: 403 });
++  }
++
++  let body: unknown;
++  try {
++    body = await request.json();
++  } catch {
++    return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
++  }
++
++  const themeColor = (body as { themeColor?: string })?.themeColor;
++  if (!themeColor || !THEME_COLOR_KEYS.includes(themeColor as (typeof THEME_COLOR_KEYS)[number])) {
++    return NextResponse.json(
++      { error: `themeColor debe ser una de: ${THEME_COLOR_KEYS.join(", ")}` },
++      { status: 400 }
++    );
++  }
++
++  const { data, error: dbError } = await supabase
++    .from("projects")
++    .update({ theme_color: themeColor, updated_at: new Date().toISOString() })
++    .eq("id", id)
++    .select("id, name, theme_color")
++    .single();
++
++  if (dbError || !data) {
++    return NextResponse.json({ error: dbError?.message ?? "Proyecto no encontrado" }, { status: 404 });
++  }
++
++  return NextResponse.json({ id: data.id, name: data.name, themeColor: data.theme_color });
++}
+diff --git a/src/app/settings/project/page.tsx b/src/app/settings/project/page.tsx
+index 9fdbae9..90eba16 100644
+--- a/src/app/settings/project/page.tsx
++++ b/src/app/settings/project/page.tsx
+@@ -10,12 +10,14 @@ import {
+   Bell,
+   Copy,
+   Globe,
++  Palette,
+ } from "lucide-react";
+ import { toast } from "sonner";
+ import { NotificationToggle } from "@/components/shared/NotificationToggle";
+ import { PipelineStagesEditor } from "@/components/settings/PipelineStagesEditor";
+ import { LocaleSettingsPanel } from "@/components/settings/LocaleSettingsPanel";
+ import { BusinessSettingsPanel } from "@/components/settings/BusinessSettingsPanel";
++import { ThemeColorPicker } from "@/components/settings/ThemeColorPicker";
+ import { useProject } from "@/lib/project-context";
+ 
+ const commands = [
+@@ -41,6 +43,19 @@ export default function ProjectSettingsPage() {
+       </div>
+ 
+       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
++        {/* Color del proyecto */}
++        <Card>
++          <CardHeader>
++            <CardTitle className="text-base flex items-center gap-2">
++              <Palette className="h-4 w-4" />
++              Color del proyecto
++            </CardTitle>
++          </CardHeader>
++          <CardContent>
++            <ThemeColorPicker />
++          </CardContent>
++        </Card>
++
+         {/* Región */}
+         <Card>
+           <CardHeader>
+diff --git a/src/components/layout/ProjectSelector.tsx b/src/components/layout/ProjectSelector.tsx
+index 03b29c7..44c2dfa 100644
+--- a/src/components/layout/ProjectSelector.tsx
++++ b/src/components/layout/ProjectSelector.tsx
+@@ -3,7 +3,7 @@
+ import { useState } from "react";
+ import { useProject } from "@/lib/project-context";
+ import { ProjectForm } from "@/components/projects/ProjectForm";
+-import { ChevronDown, Layers, FolderOpen, Plus } from "lucide-react";
++import { ChevronDown, Layers, FolderOpen, Plus, Palette } from "lucide-react";
+ import {
+   DropdownMenu,
+   DropdownMenuContent,
+@@ -11,10 +11,13 @@ import {
+   DropdownMenuSeparator,
+   DropdownMenuTrigger,
+ } from "@/components/ui/dropdown-menu";
++import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
++import { ThemeColorPicker } from "@/components/settings/ThemeColorPicker";
+ 
+ export function ProjectSelector() {
+   const { activeProject, setActiveProject, projects, reloadProjects, isAllProjects } = useProject();
+   const [showForm, setShowForm] = useState(false);
++  const [showThemePicker, setShowThemePicker] = useState(false);
+ 
+   const label =
+     projects.length === 0
+@@ -84,10 +87,28 @@ export function ProjectSelector() {
+                 <Plus className="h-4 w-4" />
+                 Nuevo proyecto
+               </DropdownMenuItem>
++              {!isAllProjects && activeProject && (
++                <DropdownMenuItem
++                  className="gap-2 cursor-pointer text-muted-foreground"
++                  onClick={() => setShowThemePicker(true)}
++                >
++                  <Palette className="h-4 w-4" />
++                  Color de {activeProject.name}
++                </DropdownMenuItem>
++              )}
+             </>
+           )}
+         </DropdownMenuContent>
+       </DropdownMenu>
++
++      <Dialog open={showThemePicker} onOpenChange={setShowThemePicker}>
++        <DialogContent className="max-w-sm">
++          <DialogHeader>
++            <DialogTitle>Color del proyecto</DialogTitle>
++          </DialogHeader>
++          <ThemeColorPicker />
++        </DialogContent>
++      </Dialog>
+     </>
+   );
+ }
+diff --git a/src/components/settings/ThemeColorPicker.tsx b/src/components/settings/ThemeColorPicker.tsx
+new file mode 100644
+index 0000000..695e2fd
+--- /dev/null
++++ b/src/components/settings/ThemeColorPicker.tsx
+@@ -0,0 +1,89 @@
++"use client";
++
++import { useState } from "react";
++import { Check, Loader2, Palette } from "lucide-react";
++import { toast } from "sonner";
++import { useProject } from "@/lib/project-context";
++import { THEME_PALETTES, THEME_COLOR_KEYS, type ThemeColorKey } from "@/lib/theme-palettes";
++import { cn } from "@/lib/utils";
++
++export function ThemeColorPicker() {
++  const { activeProject, setActiveProject } = useProject();
++  const [saving, setSaving] = useState<ThemeColorKey | null>(null);
++
++  if (!activeProject) {
++    return (
++      <p className="text-sm text-muted-foreground">
++        Selecciona un proyecto para elegir su color.
++      </p>
++    );
++  }
++
++  const currentColor = (activeProject.themeColor as ThemeColorKey) ?? "azul";
++
++  const handleSelect = async (colorKey: ThemeColorKey) => {
++    if (colorKey === currentColor || saving) return;
++    setSaving(colorKey);
++    try {
++      const res = await fetch(`/api/projects/${activeProject.id}/theme`, {
++        method: "PATCH",
++        headers: { "Content-Type": "application/json" },
++        body: JSON.stringify({ themeColor: colorKey }),
++      });
++      const data = await res.json().catch(() => null);
++      if (!res.ok) {
++        toast.error(data?.error ?? "No se pudo cambiar el color");
++        return;
++      }
++      // Actualiza el contexto de inmediato (aplica el CSS al toque, sin
++      // esperar el próximo reloadProjects).
++      setActiveProject({ ...activeProject, themeColor: colorKey });
++      toast.success(`Color de ${activeProject.name} actualizado`);
++    } finally {
++      setSaving(null);
++    }
++  };
++
++  return (
++    <div className="space-y-3">
++      <p className="text-sm text-muted-foreground flex items-center gap-1.5">
++        <Palette className="h-3.5 w-3.5" />
++        Elige el color de <span className="font-medium text-foreground">{activeProject.name}</span>
++      </p>
++      <div className="grid grid-cols-4 gap-3">
++        {THEME_COLOR_KEYS.map((key) => {
++          const palette = THEME_PALETTES[key];
++          const isSelected = key === currentColor;
++          const isSaving = saving === key;
++          return (
++            <button
++              key={key}
++              type="button"
++              onClick={() => handleSelect(key)}
++              disabled={saving !== null}
++              className={cn(
++                "flex flex-col items-center gap-1.5 rounded-lg p-2 transition-colors",
++                "hover:bg-muted disabled:cursor-not-allowed"
++              )}
++            >
++              <span
++                className={cn(
++                  "h-10 w-10 rounded-full flex items-center justify-center ring-2 ring-offset-2 ring-offset-background transition-all",
++                  isSelected ? "ring-foreground" : "ring-transparent"
++                )}
++                style={{ backgroundColor: palette.primary }}
++              >
++                {isSaving ? (
++                  <Loader2 className="h-4 w-4 animate-spin" style={{ color: palette.primaryForeground }} />
++                ) : (
++                  isSelected && <Check className="h-4 w-4" style={{ color: palette.primaryForeground }} />
++                )}
++              </span>
++              <span className="text-xs text-muted-foreground">{palette.label}</span>
++            </button>
++          );
++        })}
++      </div>
++    </div>
++  );
++}
+diff --git a/src/lib/project-context.tsx b/src/lib/project-context.tsx
+index 1e28bb7..b4802f5 100644
+--- a/src/lib/project-context.tsx
++++ b/src/lib/project-context.tsx
+@@ -3,10 +3,12 @@
+ import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from "react";
+ import { useAuth } from "@/lib/auth-context";
+ import { supabase } from "@/lib/supabase";
++import { applyProjectThemeColor, resetProjectThemeColor } from "@/lib/theme-palettes";
+ 
+ export interface ProjectOption {
+   id: string;
+   name: string;
++  themeColor?: string;
+ }
+ 
+ export type OrgRole = "owner" | "admin" | "member";
+@@ -107,7 +109,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
+         // Owner/admin: ve todos los proyectos de la organización
+         const { data, error: projectsError } = await supabase
+           .from("projects")
+-          .select("id, name")
++          .select("id, name, theme_color")
+           .eq("organization_id", memberRow.organization_id)
+           .order("created_at", { ascending: false });
+ 
+@@ -115,7 +117,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
+           throw projectsError;
+         }
+ 
+-        list = (data ?? []).map((p: { id: string; name: string }) => ({ id: p.id, name: p.name }));
++        list = (data ?? []).map((p: { id: string; name: string; theme_color?: string }) => ({
++          id: p.id,
++          name: p.name,
++          themeColor: p.theme_color,
++        }));
+       } else {
+         // Member: solo los proyectos asignados en project_members
+         const { data: memberships, error: membershipsError } = await supabase
+@@ -141,7 +147,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
+ 
+         const { data, error: projectsError } = await supabase
+           .from("projects")
+-          .select("id, name")
++          .select("id, name, theme_color")
+           .in("id", projectIds)
+           .order("created_at", { ascending: false });
+ 
+@@ -149,7 +155,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
+           throw projectsError;
+         }
+ 
+-        list = (data ?? []).map((p: { id: string; name: string }) => ({ id: p.id, name: p.name }));
++        list = (data ?? []).map((p: { id: string; name: string; theme_color?: string }) => ({
++          id: p.id,
++          name: p.name,
++          themeColor: p.theme_color,
++        }));
+       }
+ 
+       setProjects(list);
+@@ -214,6 +224,16 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
+     }
+   }, []);
+ 
++  // Theming por proyecto: aplica la paleta del proyecto activo, o vuelve al
++  // azul por defecto en "Todos los proyectos" (solo admin puede estar ahí).
++  useEffect(() => {
++    if (activeProject) {
++      applyProjectThemeColor(activeProject.themeColor);
++    } else {
++      resetProjectThemeColor();
++    }
++  }, [activeProject]);
++
+   const isAdmin = orgRole === "owner" || orgRole === "admin";
+ 
+   const contextValue = useMemo(
+diff --git a/src/lib/theme-palettes.ts b/src/lib/theme-palettes.ts
+new file mode 100644
+index 0000000..d8ce792
+--- /dev/null
++++ b/src/lib/theme-palettes.ts
+@@ -0,0 +1,116 @@
++export type ThemeColorKey =
++  | "verde"
++  | "morado"
++  | "rojo"
++  | "naranjo"
++  | "celeste"
++  | "crema"
++  | "azul"
++  | "rosa";
++
++export interface ThemePalette {
++  key: ThemeColorKey;
++  label: string;
++  /** Color principal — botones, links, acentos */
++  primary: string;
++  /** Texto sobre el color principal (blanco salvo paletas muy claras) */
++  primaryForeground: string;
++  /** Variante para hover/anillo de foco */
++  ring: string;
++  /** Acento del sidebar (fondo oscuro fijo — solo cambia el detalle activo) */
++  sidebarPrimary: string;
++}
++
++export const THEME_PALETTES: Record<ThemeColorKey, ThemePalette> = {
++  verde: {
++    key: "verde",
++    label: "Verde",
++    primary: "#22c55e",
++    primaryForeground: "#ffffff",
++    ring: "#22c55e",
++    sidebarPrimary: "#22c55e",
++  },
++  morado: {
++    key: "morado",
++    label: "Morado",
++    primary: "#a855f7",
++    primaryForeground: "#ffffff",
++    ring: "#a855f7",
++    sidebarPrimary: "#a855f7",
++  },
++  rojo: {
++    key: "rojo",
++    label: "Rojo",
++    primary: "#ef4444",
++    primaryForeground: "#ffffff",
++    ring: "#ef4444",
++    sidebarPrimary: "#ef4444",
++  },
++  naranjo: {
++    key: "naranjo",
++    label: "Naranjo",
++    primary: "#f97316",
++    primaryForeground: "#ffffff",
++    ring: "#f97316",
++    sidebarPrimary: "#f97316",
++  },
++  celeste: {
++    key: "celeste",
++    label: "Celeste",
++    primary: "#38bdf8",
++    primaryForeground: "#ffffff",
++    ring: "#38bdf8",
++    sidebarPrimary: "#38bdf8",
++  },
++  crema: {
++    key: "crema",
++    label: "Crema",
++    primary: "#d8c9a0",
++    // Crema es la única paleta clara: texto oscuro para mantener contraste
++    // legible sobre botones/badges (ver plan maestro 2.3).
++    primaryForeground: "#4a3f2a",
++    ring: "#c4b48a",
++    sidebarPrimary: "#d8c9a0",
++  },
++  azul: {
++    key: "azul",
++    label: "Azul",
++    primary: "#3b82f6",
++    primaryForeground: "#ffffff",
++    ring: "#3b82f6",
++    sidebarPrimary: "#3b82f6",
++  },
++  rosa: {
++    key: "rosa",
++    label: "Rosa",
++    primary: "#ec4899",
++    primaryForeground: "#ffffff",
++    ring: "#ec4899",
++    sidebarPrimary: "#ec4899",
++  },
++};
++
++export const THEME_COLOR_KEYS = Object.keys(THEME_PALETTES) as ThemeColorKey[];
++
++export function isThemeColorKey(value: string | null | undefined): value is ThemeColorKey {
++  return !!value && value in THEME_PALETTES;
++}
++
++/** Aplica la paleta como CSS custom properties sobre <html>. Idempotente. */
++export function applyProjectThemeColor(themeColor: string | null | undefined) {
++  if (typeof document === "undefined") return;
++  const root = document.documentElement;
++  const key = isThemeColorKey(themeColor) ? themeColor : "azul";
++  const palette = THEME_PALETTES[key];
++
++  root.style.setProperty("--primary", palette.primary);
++  root.style.setProperty("--primary-foreground", palette.primaryForeground);
++  root.style.setProperty("--ring", palette.ring);
++  root.style.setProperty("--sidebar-primary", palette.sidebarPrimary);
++  root.style.setProperty("--sidebar-ring", palette.ring);
++}
++
++/** Vuelve al azul por defecto — usar en "Todos los proyectos" o logout. */
++export function resetProjectThemeColor() {
++  applyProjectThemeColor("azul");
++}
+-- 
+2.43.0
+

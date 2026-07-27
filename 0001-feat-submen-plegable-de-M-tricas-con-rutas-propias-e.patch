@@ -1,0 +1,804 @@
+From 2d969f83be5b827e5bf8d5cdb82d4399b0b4f1c1 Mon Sep 17 00:00:00 2001
+From: Agencia Katarsis <agenciakatarsisair1@MacBook-Air-de-Agencia.local>
+Date: Wed, 22 Jul 2026 07:11:41 +0000
+Subject: [PATCH] =?UTF-8?q?feat:=20submen=C3=BA=20plegable=20de=20M=C3=A9t?=
+ =?UTF-8?q?ricas=20con=20rutas=20propias=20e=20=C3=ADconos?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Antes eran tabs dentro de una sola página (/analytics). Ahora es un
+grupo plegable en el sidebar, igual que CRM, con 6 rutas reales:
+
+  /analytics            Resumen (ícono: ClipboardList)
+  /analytics/shows      Shows (Music)
+  /analytics/instagram  Instagram (Camera)
+  /analytics/tiktok     TikTok (Music2)
+  /analytics/youtube    YouTube (PlayCircle)
+  /analytics/shopify    Shopify (ShoppingBag)
+
+- lib/use-analytics-data.ts: hook compartido que reemplaza el loadAll()
+  duplicado — cada página pide lo que necesita del mismo fetch
+- AnalyticsPageHeader: header consistente entre las 6 páginas
+- Redirects de OAuth de Meta (connect, callback, connect-instagram)
+  ahora apuntan a /analytics/instagram en vez de /analytics — el toast
+  de 'Instagram conectado' aparece en la página donde vive la tarjeta
+  de conexión, no en el Resumen
+
+Fix de bug de navegación (Sidebar + MobileNav): el helper isLeafActive
+usaba startsWith(href), lo que rompía en cuanto un hijo de grupo es
+prefijo de sus hermanos — el caso exacto de Métricas, donde 'Resumen'
+(/analytics) es prefijo de '/analytics/instagram', '/analytics/shows',
+etc. Sin el fix, Resumen quedaba marcado como activo en cualquier
+subruta de Métricas. Reemplazado por computeActiveHref() en
+nav-config.ts: calcula la coincidencia MÁS ESPECÍFICA (más larga) entre
+TODOS los hrefs del menú, no solo dentro de un grupo. Aplica también a
+CRM aunque ahí no había bug visible (sus hijos no comparten prefijo).
+
+Autoexpansión de grupos: si se navega a una subruta de un grupo desde
+fuera del sidebar, el grupo se abre solo (ajuste durante el render,
+no vía useEffect+setState, para cumplir la regla de lint
+react-hooks/set-state-in-effect).
+---
+ src/app/analytics/connect-instagram/page.tsx  |   2 +-
+ src/app/analytics/instagram/page.tsx          |  43 ++++++
+ src/app/analytics/page.tsx                    | 146 ++----------------
+ src/app/analytics/shopify/page.tsx            |  21 +++
+ src/app/analytics/shows/page.tsx              |  21 +++
+ src/app/analytics/tiktok/page.tsx             |  21 +++
+ src/app/analytics/youtube/page.tsx            |  21 +++
+ .../api/integrations/meta/callback/route.ts   |   2 +-
+ .../api/integrations/meta/connect/route.ts    |   2 +-
+ .../analytics/AnalyticsPageHeader.tsx         |  19 +++
+ src/components/layout/MobileNav.tsx           |  30 ++--
+ src/components/layout/Sidebar.tsx             |  36 +++--
+ src/components/layout/nav-config.ts           |  48 +++++-
+ src/lib/use-analytics-data.ts                 |  60 +++++++
+ 14 files changed, 304 insertions(+), 168 deletions(-)
+ create mode 100644 src/app/analytics/instagram/page.tsx
+ create mode 100644 src/app/analytics/shopify/page.tsx
+ create mode 100644 src/app/analytics/shows/page.tsx
+ create mode 100644 src/app/analytics/tiktok/page.tsx
+ create mode 100644 src/app/analytics/youtube/page.tsx
+ create mode 100644 src/components/analytics/AnalyticsPageHeader.tsx
+ create mode 100644 src/lib/use-analytics-data.ts
+
+diff --git a/src/app/analytics/connect-instagram/page.tsx b/src/app/analytics/connect-instagram/page.tsx
+index dc14c0e..e5c975f 100644
+--- a/src/app/analytics/connect-instagram/page.tsx
++++ b/src/app/analytics/connect-instagram/page.tsx
+@@ -57,7 +57,7 @@ export default function ConnectInstagramPage() {
+         return;
+       }
+       toast.success(`Instagram conectado: ${data.accountName}`);
+-      router.push("/analytics?connected=instagram");
++      router.push("/analytics/instagram?connected=instagram");
+     } finally {
+       setConfirmingId(null);
+     }
+diff --git a/src/app/analytics/instagram/page.tsx b/src/app/analytics/instagram/page.tsx
+new file mode 100644
+index 0000000..74edbea
+--- /dev/null
++++ b/src/app/analytics/instagram/page.tsx
+@@ -0,0 +1,43 @@
++"use client";
++
++import { useEffect } from "react";
++import { useSearchParams } from "next/navigation";
++import { Camera } from "lucide-react";
++import { toast } from "sonner";
++import { AnalyticsPageHeader } from "@/components/analytics/AnalyticsPageHeader";
++import { PlatformTab } from "@/components/analytics/PlatformTab";
++import { useAnalyticsData } from "@/lib/use-analytics-data";
++
++const ERROR_MESSAGES: Record<string, string> = {
++  meta_denied: "Conexión cancelada",
++  meta_state_mismatch: "Error de seguridad al conectar — intenta de nuevo",
++  meta_no_project: "Selecciona un proyecto antes de conectar",
++  meta_token_error: "Error al conectar con Meta — intenta de nuevo",
++  meta_no_ig_account: "No encontramos una cuenta de Instagram Business vinculada a tus páginas de Facebook",
++};
++
++export default function AnalyticsInstagramPage() {
++  const { social, metaIntegration, loading, refresh } = useAnalyticsData();
++  const searchParams = useSearchParams();
++
++  useEffect(() => {
++    const connected = searchParams.get("connected");
++    const error = searchParams.get("error");
++    if (connected === "instagram") {
++      toast.success("Instagram conectado correctamente");
++    } else if (error) {
++      toast.error(ERROR_MESSAGES[error] ?? "Error al conectar Instagram");
++    }
++  }, [searchParams]);
++
++  return (
++    <div className="space-y-6">
++      <AnalyticsPageHeader icon={Camera} title="Instagram" description="Seguidores y conexión de la cuenta" />
++      {loading ? (
++        <div className="h-64 rounded-lg bg-muted animate-pulse" />
++      ) : (
++        <PlatformTab platform="instagram" metrics={social} onRefresh={refresh} integration={metaIntegration} />
++      )}
++    </div>
++  );
++}
+diff --git a/src/app/analytics/page.tsx b/src/app/analytics/page.tsx
+index 4cb1d06..dee5b42 100644
+--- a/src/app/analytics/page.tsx
++++ b/src/app/analytics/page.tsx
+@@ -1,23 +1,9 @@
+ "use client";
+ 
+-import { useState, useEffect, useCallback } from "react";
+-import { useSearchParams } from "next/navigation";
+-import { useProject } from "@/lib/project-context";
+-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+-import { BarChart2, Music, Users, ShoppingBag, Camera, Clock } from "lucide-react";
+-import { toast } from "sonner";
+-import { ShowsTab } from "@/components/analytics/ShowsTab";
++import { ClipboardList, Music, Users } from "lucide-react";
++import { AnalyticsPageHeader } from "@/components/analytics/AnalyticsPageHeader";
+ import { ResumenTab } from "@/components/analytics/ResumenTab";
+-import { PlatformTab } from "@/components/analytics/PlatformTab";
+-import { MerchTab } from "@/components/analytics/MerchTab";
+-import type { Show, SocialMetric, MerchSnapshot } from "@/types/analytics";
+-
+-interface MetaIntegration {
+-  connected: boolean;
+-  accountName?: string;
+-  lastSyncAt?: string;
+-  tokenExpiresAt?: string;
+-}
++import { useAnalyticsData } from "@/lib/use-analytics-data";
+ 
+ const CLP = new Intl.NumberFormat("es-CL", {
+   style: "currency",
+@@ -25,63 +11,9 @@ const CLP = new Intl.NumberFormat("es-CL", {
+   maximumFractionDigits: 0,
+ });
+ 
+-export default function AnalyticsPage() {
+-  const [shows, setShows] = useState<Show[]>([]);
+-  const [social, setSocial] = useState<SocialMetric[]>([]);
+-  const [merch, setMerch] = useState<MerchSnapshot[]>([]);
+-  const [metaIntegration, setMetaIntegration] = useState<MetaIntegration>({ connected: false });
+-  const [loading, setLoading] = useState(true);
+-  const searchParams = useSearchParams();
+-  const { activeProject, isAllProjects } = useProject();
+-
+-  const loadAll = useCallback(async () => {
+-    setLoading(true);
+-    try {
+-      const params = new URLSearchParams();
+-      if (isAllProjects) {
+-        params.set("isAllProjects", "true");
+-      } else if (activeProject?.id) {
+-        params.set("projectId", activeProject.id);
+-      }
+-      const qs = params.toString() ? `?${params.toString()}` : "";
+-
+-      const [showsRes, socialRes, merchRes, statusRes] = await Promise.all([
+-        fetch(`/api/analytics/shows${qs}`),
+-        fetch(`/api/analytics/social${qs}`),
+-        fetch(`/api/analytics/merch${qs}`),
+-        fetch(`/api/integrations/meta/status${qs}`),
+-      ]);
+-      const [showsData, socialData, merchData, statusData] = await Promise.all([
+-        showsRes.ok ? showsRes.json() : [],
+-        socialRes.ok ? socialRes.json() : [],
+-        merchRes.ok ? merchRes.json() : [],
+-        statusRes.ok ? statusRes.json() : { connected: false },
+-      ]);
+-      setShows(Array.isArray(showsData) ? showsData : []);
+-      setSocial(Array.isArray(socialData) ? socialData : []);
+-      setMerch(Array.isArray(merchData) ? merchData : []);
+-      setMetaIntegration(statusData);
+-    } finally {
+-      setLoading(false);
+-    }
+-  }, [activeProject, isAllProjects]);
+-
+-  useEffect(() => {
+-    const id = window.setTimeout(() => void loadAll(), 0);
+-    return () => window.clearTimeout(id);
+-  }, [loadAll]);
++export default function AnalyticsResumenPage() {
++  const { shows, social, loading, refresh } = useAnalyticsData();
+ 
+-  useEffect(() => {
+-    const connected = searchParams.get("connected");
+-    const error = searchParams.get("error");
+-    if (connected === "instagram") {
+-      toast.success("Instagram conectado correctamente");
+-    } else if (error === "meta_denied") {
+-      toast.error("Conexión cancelada");
+-    }
+-  }, [searchParams]);
+-
+-  // KPI calculations
+   const totalShows = shows.length;
+ 
+   const utilidadAcumulada = shows.reduce((sum, s) => {
+@@ -101,16 +33,12 @@ export default function AnalyticsPage() {
+ 
+   return (
+     <div className="space-y-6">
+-      {/* Header */}
+-      <div className="flex items-center justify-between">
+-        <div>
+-          <h1 className="text-2xl font-bold tracking-tight">Métricas</h1>
+-          <p className="text-muted-foreground text-sm">Shows, redes sociales y merch</p>
+-        </div>
+-        <BarChart2 className="h-6 w-6 text-muted-foreground/40" />
+-      </div>
++      <AnalyticsPageHeader
++        icon={ClipboardList}
++        title="Resumen"
++        description="Vistazo general de shows, redes sociales y merch"
++      />
+ 
+-      {/* KPIs */}
+       {loading ? (
+         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+           {[...Array(4)].map((_, i) => (
+@@ -156,60 +84,10 @@ export default function AnalyticsPage() {
+         </div>
+       )}
+ 
+-      {/* Tabs */}
+       {loading ? (
+-        <div className="space-y-2">
+-          {[...Array(3)].map((_, i) => (
+-            <div key={i} className="h-16 rounded-lg bg-muted animate-pulse" />
+-          ))}
+-        </div>
++        <div className="h-64 rounded-lg bg-muted animate-pulse" />
+       ) : (
+-        <Tabs defaultValue="resumen">
+-          <TabsList>
+-            <TabsTrigger value="resumen">
+-              <BarChart2 className="h-3.5 w-3.5 mr-1.5" />
+-              Resumen
+-            </TabsTrigger>
+-            <TabsTrigger value="shows">
+-              <Music className="h-3.5 w-3.5 mr-1.5" />
+-              Shows ({shows.length})
+-            </TabsTrigger>
+-            <TabsTrigger value="instagram">
+-              <Camera className="h-3.5 w-3.5 mr-1.5" />
+-              Instagram
+-            </TabsTrigger>
+-            <TabsTrigger value="tiktok">
+-              <Clock className="h-3.5 w-3.5 mr-1.5" />
+-              TikTok
+-            </TabsTrigger>
+-            <TabsTrigger value="youtube">
+-              <Clock className="h-3.5 w-3.5 mr-1.5" />
+-              YouTube
+-            </TabsTrigger>
+-            <TabsTrigger value="shopify">
+-              <ShoppingBag className="h-3.5 w-3.5 mr-1.5" />
+-              Shopify
+-            </TabsTrigger>
+-          </TabsList>
+-          <TabsContent value="resumen" className="mt-4">
+-            <ResumenTab metrics={social} onRefresh={loadAll} />
+-          </TabsContent>
+-          <TabsContent value="shows" className="mt-4">
+-            <ShowsTab shows={shows} onRefresh={loadAll} />
+-          </TabsContent>
+-          <TabsContent value="instagram" className="mt-4">
+-            <PlatformTab platform="instagram" metrics={social} onRefresh={loadAll} integration={metaIntegration} />
+-          </TabsContent>
+-          <TabsContent value="tiktok" className="mt-4">
+-            <PlatformTab platform="tiktok" metrics={social} onRefresh={loadAll} comingSoon />
+-          </TabsContent>
+-          <TabsContent value="youtube" className="mt-4">
+-            <PlatformTab platform="youtube" metrics={social} onRefresh={loadAll} comingSoon />
+-          </TabsContent>
+-          <TabsContent value="shopify" className="mt-4">
+-            <MerchTab snapshots={merch} onRefresh={loadAll} />
+-          </TabsContent>
+-        </Tabs>
++        <ResumenTab metrics={social} onRefresh={refresh} />
+       )}
+     </div>
+   );
+diff --git a/src/app/analytics/shopify/page.tsx b/src/app/analytics/shopify/page.tsx
+new file mode 100644
+index 0000000..ae6f253
+--- /dev/null
++++ b/src/app/analytics/shopify/page.tsx
+@@ -0,0 +1,21 @@
++"use client";
++
++import { ShoppingBag } from "lucide-react";
++import { AnalyticsPageHeader } from "@/components/analytics/AnalyticsPageHeader";
++import { MerchTab } from "@/components/analytics/MerchTab";
++import { useAnalyticsData } from "@/lib/use-analytics-data";
++
++export default function AnalyticsShopifyPage() {
++  const { merch, loading, refresh } = useAnalyticsData();
++
++  return (
++    <div className="space-y-6">
++      <AnalyticsPageHeader icon={ShoppingBag} title="Shopify" description="Ventas y stock de merch" />
++      {loading ? (
++        <div className="h-64 rounded-lg bg-muted animate-pulse" />
++      ) : (
++        <MerchTab snapshots={merch} onRefresh={refresh} />
++      )}
++    </div>
++  );
++}
+diff --git a/src/app/analytics/shows/page.tsx b/src/app/analytics/shows/page.tsx
+new file mode 100644
+index 0000000..4ddcc47
+--- /dev/null
++++ b/src/app/analytics/shows/page.tsx
+@@ -0,0 +1,21 @@
++"use client";
++
++import { Music } from "lucide-react";
++import { AnalyticsPageHeader } from "@/components/analytics/AnalyticsPageHeader";
++import { ShowsTab } from "@/components/analytics/ShowsTab";
++import { useAnalyticsData } from "@/lib/use-analytics-data";
++
++export default function AnalyticsShowsPage() {
++  const { shows, loading, refresh } = useAnalyticsData();
++
++  return (
++    <div className="space-y-6">
++      <AnalyticsPageHeader icon={Music} title="Shows" description="Fechas, utilidad y vibe de cada show" />
++      {loading ? (
++        <div className="h-64 rounded-lg bg-muted animate-pulse" />
++      ) : (
++        <ShowsTab shows={shows} onRefresh={refresh} />
++      )}
++    </div>
++  );
++}
+diff --git a/src/app/analytics/tiktok/page.tsx b/src/app/analytics/tiktok/page.tsx
+new file mode 100644
+index 0000000..15c3965
+--- /dev/null
++++ b/src/app/analytics/tiktok/page.tsx
+@@ -0,0 +1,21 @@
++"use client";
++
++import { Music2 } from "lucide-react";
++import { AnalyticsPageHeader } from "@/components/analytics/AnalyticsPageHeader";
++import { PlatformTab } from "@/components/analytics/PlatformTab";
++import { useAnalyticsData } from "@/lib/use-analytics-data";
++
++export default function AnalyticsTikTokPage() {
++  const { social, loading, refresh } = useAnalyticsData();
++
++  return (
++    <div className="space-y-6">
++      <AnalyticsPageHeader icon={Music2} title="TikTok" description="Seguidores de TikTok" />
++      {loading ? (
++        <div className="h-64 rounded-lg bg-muted animate-pulse" />
++      ) : (
++        <PlatformTab platform="tiktok" metrics={social} onRefresh={refresh} comingSoon />
++      )}
++    </div>
++  );
++}
+diff --git a/src/app/analytics/youtube/page.tsx b/src/app/analytics/youtube/page.tsx
+new file mode 100644
+index 0000000..1dd8dd8
+--- /dev/null
++++ b/src/app/analytics/youtube/page.tsx
+@@ -0,0 +1,21 @@
++"use client";
++
++import { PlayCircle } from "lucide-react";
++import { AnalyticsPageHeader } from "@/components/analytics/AnalyticsPageHeader";
++import { PlatformTab } from "@/components/analytics/PlatformTab";
++import { useAnalyticsData } from "@/lib/use-analytics-data";
++
++export default function AnalyticsYouTubePage() {
++  const { social, loading, refresh } = useAnalyticsData();
++
++  return (
++    <div className="space-y-6">
++      <AnalyticsPageHeader icon={PlayCircle} title="YouTube" description="Suscriptores de YouTube" />
++      {loading ? (
++        <div className="h-64 rounded-lg bg-muted animate-pulse" />
++      ) : (
++        <PlatformTab platform="youtube" metrics={social} onRefresh={refresh} comingSoon />
++      )}
++    </div>
++  );
++}
+diff --git a/src/app/api/integrations/meta/callback/route.ts b/src/app/api/integrations/meta/callback/route.ts
+index f2acab6..36b83b5 100644
+--- a/src/app/api/integrations/meta/callback/route.ts
++++ b/src/app/api/integrations/meta/callback/route.ts
+@@ -28,7 +28,7 @@ interface InstagramUserResponse {
+   followers_count?: number;
+ }
+ 
+-const ANALYTICS_BASE = "/analytics";
++const ANALYTICS_BASE = "/analytics/instagram";
+ const GRAPH_BASE = "https://graph.facebook.com/v21.0";
+ 
+ export async function GET(request: NextRequest) {
+diff --git a/src/app/api/integrations/meta/connect/route.ts b/src/app/api/integrations/meta/connect/route.ts
+index e233ade..deb8cec 100644
+--- a/src/app/api/integrations/meta/connect/route.ts
++++ b/src/app/api/integrations/meta/connect/route.ts
+@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
+ 
+   if (!projectId) {
+     return NextResponse.redirect(
+-      new URL("/analytics?error=meta_no_project", process.env.NEXT_PUBLIC_SITE_URL)
++      new URL("/analytics/instagram?error=meta_no_project", process.env.NEXT_PUBLIC_SITE_URL)
+     );
+   }
+ 
+diff --git a/src/components/analytics/AnalyticsPageHeader.tsx b/src/components/analytics/AnalyticsPageHeader.tsx
+new file mode 100644
+index 0000000..7b710c1
+--- /dev/null
++++ b/src/components/analytics/AnalyticsPageHeader.tsx
+@@ -0,0 +1,19 @@
++import type { LucideIcon } from "lucide-react";
++
++interface AnalyticsPageHeaderProps {
++  icon: LucideIcon;
++  title: string;
++  description: string;
++}
++
++export function AnalyticsPageHeader({ icon: Icon, title, description }: AnalyticsPageHeaderProps) {
++  return (
++    <div className="flex items-center justify-between">
++      <div>
++        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
++        <p className="text-muted-foreground text-sm">{description}</p>
++      </div>
++      <Icon className="h-6 w-6 text-muted-foreground/40" />
++    </div>
++  );
++}
+diff --git a/src/components/layout/MobileNav.tsx b/src/components/layout/MobileNav.tsx
+index 9f58387..329ea99 100644
+--- a/src/components/layout/MobileNav.tsx
++++ b/src/components/layout/MobileNav.tsx
+@@ -7,14 +7,10 @@ import { ChevronDown, Briefcase } from "lucide-react";
+ import { cn } from "@/lib/utils";
+ import { useProject } from "@/lib/project-context";
+ import { useAuth } from "@/lib/auth-context";
+-import { navConfig, settingsConfig, type NavLeaf, type NavGroup } from "./nav-config";
++import { navConfig, settingsConfig, computeActiveHref, type NavLeaf, type NavGroup } from "./nav-config";
+ 
+-function isLeafActive(href: string, pathname: string) {
+-  return pathname === href || (href !== "/" && pathname.startsWith(href));
+-}
+-
+-function LeafLink({ item, pathname, indent = false }: { item: NavLeaf; pathname: string; indent?: boolean }) {
+-  const active = isLeafActive(item.href, pathname);
++function LeafLink({ item, activeHref, indent = false }: { item: NavLeaf; activeHref: string; indent?: boolean }) {
++  const active = item.href === activeHref;
+   return (
+     <Link
+       href={item.href}
+@@ -32,9 +28,15 @@ function LeafLink({ item, pathname, indent = false }: { item: NavLeaf; pathname:
+   );
+ }
+ 
+-function GroupNav({ item, pathname }: { item: NavGroup; pathname: string }) {
+-  const groupActive = item.children.some((c) => isLeafActive(c.href, pathname));
++function GroupNav({ item, activeHref }: { item: NavGroup; activeHref: string }) {
++  const groupActive = item.children.some((c) => c.href === activeHref);
+   const [open, setOpen] = useState(groupActive);
++  const [prevGroupActive, setPrevGroupActive] = useState(groupActive);
++
++  if (groupActive !== prevGroupActive) {
++    setPrevGroupActive(groupActive);
++    if (groupActive) setOpen(true);
++  }
+ 
+   return (
+     <div>
+@@ -54,7 +56,7 @@ function GroupNav({ item, pathname }: { item: NavGroup; pathname: string }) {
+       {open && (
+         <div className="mt-0.5 space-y-0.5">
+           {item.children.map((child) => (
+-            <LeafLink key={child.href} item={child} pathname={pathname} indent />
++            <LeafLink key={child.href} item={child} activeHref={activeHref} indent />
+           ))}
+         </div>
+       )}
+@@ -64,6 +66,7 @@ function GroupNav({ item, pathname }: { item: NavGroup; pathname: string }) {
+ 
+ export function MobileNav() {
+   const pathname = usePathname();
++  const activeHref = computeActiveHref(pathname);
+   useProject(); // mantiene suscripción al contexto de proyecto
+   const { orgRole } = useAuth();
+   const isAdmin = orgRole === "owner" || orgRole === "admin";
+@@ -78,9 +81,9 @@ export function MobileNav() {
+       <nav className="flex-1 px-3 py-4 space-y-1">
+         {navConfig.map((item) =>
+           item.type === "group" ? (
+-            <GroupNav key={item.label} item={item} pathname={pathname} />
++            <GroupNav key={item.label} item={item} activeHref={activeHref} />
+           ) : (
+-            <LeafLink key={item.href} item={item} pathname={pathname} />
++            <LeafLink key={item.href} item={item} activeHref={activeHref} />
+           )
+         )}
+ 
+@@ -92,7 +95,7 @@ export function MobileNav() {
+               </p>
+             </div>
+             {settingsConfig.map((item) => (
+-              <LeafLink key={item.href} item={item} pathname={pathname} />
++              <LeafLink key={item.href} item={item} activeHref={activeHref} />
+             ))}
+           </>
+         )}
+@@ -100,4 +103,3 @@ export function MobileNav() {
+     </div>
+   );
+ }
+-
+diff --git a/src/components/layout/Sidebar.tsx b/src/components/layout/Sidebar.tsx
+index c3bb551..5ef3d90 100644
+--- a/src/components/layout/Sidebar.tsx
++++ b/src/components/layout/Sidebar.tsx
+@@ -6,7 +6,7 @@ import { useState } from "react";
+ import { ChevronDown, ChevronRight, ChevronLeft, Briefcase } from "lucide-react";
+ import { cn } from "@/lib/utils";
+ import { useAuth } from "@/lib/auth-context";
+-import { navConfig, settingsConfig, type NavLeaf, type NavGroup } from "./nav-config";
++import { navConfig, settingsConfig, computeActiveHref, type NavLeaf, type NavGroup } from "./nav-config";
+ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+ 
+ interface SidebarProps {
+@@ -14,22 +14,18 @@ interface SidebarProps {
+   onToggle: () => void;
+ }
+ 
+-function isLeafActive(href: string, pathname: string) {
+-  return pathname === href || (href !== "/" && pathname.startsWith(href));
+-}
+-
+ function LeafLink({
+   item,
+-  pathname,
++  activeHref,
+   indent = false,
+   collapsed,
+ }: {
+   item: NavLeaf;
+-  pathname: string;
++  activeHref: string;
+   indent?: boolean;
+   collapsed: boolean;
+ }) {
+-  const active = isLeafActive(item.href, pathname);
++  const active = item.href === activeHref;
+   const baseClass = cn(
+     "flex items-center rounded-lg text-sm font-medium transition-colors cursor-pointer",
+     active
+@@ -68,17 +64,26 @@ function LeafLink({
+ 
+ function GroupNav({
+   item,
+-  pathname,
++  activeHref,
+   collapsed,
+ }: {
+   item: NavGroup;
+-  pathname: string;
++  activeHref: string;
+   collapsed: boolean;
+ }) {
+-  const groupActive = item.children.some((c) => isLeafActive(c.href, pathname));
++  const groupActive = item.children.some((c) => c.href === activeHref);
+   const [open, setOpen] = useState(groupActive);
++  const [prevGroupActive, setPrevGroupActive] = useState(groupActive);
+   const firstChildHref = item.children[0]?.href ?? "/";
+ 
++  // Autoexpande el grupo si un hijo pasa a estar activo por navegación
++  // externa al sidebar. Ajuste durante el render (no en un efecto) —
++  // patrón recomendado por React para sincronizar estado con props/derivados.
++  if (groupActive !== prevGroupActive) {
++    setPrevGroupActive(groupActive);
++    if (groupActive) setOpen(true);
++  }
++
+   const activeClass = groupActive
+     ? "bg-[var(--sidebar-accent)] text-[var(--sidebar-accent-foreground)]"
+     : "text-[var(--sidebar-foreground)]/70 hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-accent-foreground)]";
+@@ -128,7 +133,7 @@ function GroupNav({
+             <LeafLink
+               key={child.href}
+               item={child}
+-              pathname={pathname}
++              activeHref={activeHref}
+               indent
+               collapsed={false}
+             />
+@@ -141,6 +146,7 @@ function GroupNav({
+ 
+ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
+   const pathname = usePathname();
++  const activeHref = computeActiveHref(pathname);
+   const { orgRole } = useAuth();
+   const isAdmin = orgRole === "owner" || orgRole === "admin";
+ 
+@@ -178,14 +184,14 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
+             <GroupNav
+               key={item.label}
+               item={item}
+-              pathname={pathname}
++              activeHref={activeHref}
+               collapsed={collapsed}
+             />
+           ) : (
+             <LeafLink
+               key={(item as NavLeaf).href}
+               item={item as NavLeaf}
+-              pathname={pathname}
++              activeHref={activeHref}
+               collapsed={collapsed}
+             />
+           )
+@@ -206,7 +212,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
+               <LeafLink
+                 key={item.href}
+                 item={item}
+-                pathname={pathname}
++                activeHref={activeHref}
+                 collapsed={collapsed}
+               />
+             ))}
+diff --git a/src/components/layout/nav-config.ts b/src/components/layout/nav-config.ts
+index b5de7eb..9570f63 100644
+--- a/src/components/layout/nav-config.ts
++++ b/src/components/layout/nav-config.ts
+@@ -9,6 +9,12 @@ import {
+   Kanban,
+   ShieldCheck,
+   BarChart2,
++  ClipboardList,
++  Music,
++  Camera,
++  Music2,
++  PlayCircle,
++  ShoppingBag,
+ } from "lucide-react";
+ import { type LucideIcon } from "lucide-react";
+ 
+@@ -40,10 +46,17 @@ export const navConfig: NavItem[] = [
+     icon: LayoutDashboard,
+   },
+   {
+-    type: "leaf",
+-    href: "/analytics",
++    type: "group",
+     label: "Métricas",
+     icon: BarChart2,
++    children: [
++      { type: "leaf", href: "/analytics", label: "Resumen", icon: ClipboardList },
++      { type: "leaf", href: "/analytics/shows", label: "Shows", icon: Music },
++      { type: "leaf", href: "/analytics/instagram", label: "Instagram", icon: Camera },
++      { type: "leaf", href: "/analytics/tiktok", label: "TikTok", icon: Music2 },
++      { type: "leaf", href: "/analytics/youtube", label: "YouTube", icon: PlayCircle },
++      { type: "leaf", href: "/analytics/shopify", label: "Shopify", icon: ShoppingBag },
++    ],
+   },
+   {
+     type: "group",
+@@ -92,3 +105,34 @@ export const settingsConfig: NavLeaf[] = [
+     adminOnly: true,
+   },
+ ];
++
++/**
++ * Determina cuál href está "activo" para el pathname actual, usando la
++ * coincidencia MÁS ESPECÍFICA (más larga) entre todos los hrefs del menú.
++ *
++ * Necesario porque un grupo como Métricas tiene un hijo cuyo href
++ * ("/analytics") es prefijo de todos sus hermanos ("/analytics/instagram",
++ * "/analytics/shows", etc.) — con un simple `startsWith` ese hijo (Resumen)
++ * quedaría marcado como activo en cualquier subruta de Métricas, no solo
++ * en la suya.
++ */
++export function computeActiveHref(pathname: string): string {
++  const allHrefs: string[] = [];
++  for (const item of navConfig) {
++    if (item.type === "leaf") {
++      allHrefs.push(item.href);
++    } else {
++      allHrefs.push(...item.children.map((c) => c.href));
++    }
++  }
++  allHrefs.push(...settingsConfig.map((c) => c.href));
++
++  let best: string | null = null;
++  for (const href of allHrefs) {
++    const matches = pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
++    if (matches && (best === null || href.length > best.length)) {
++      best = href;
++    }
++  }
++  return best ?? "";
++}
+diff --git a/src/lib/use-analytics-data.ts b/src/lib/use-analytics-data.ts
+new file mode 100644
+index 0000000..e4fe45d
+--- /dev/null
++++ b/src/lib/use-analytics-data.ts
+@@ -0,0 +1,60 @@
++"use client";
++
++import { useState, useEffect, useCallback } from "react";
++import { useProject } from "@/lib/project-context";
++import type { Show, SocialMetric, MerchSnapshot } from "@/types/analytics";
++
++export interface MetaIntegration {
++  connected: boolean;
++  accountName?: string;
++  lastSyncAt?: string;
++  tokenExpiresAt?: string;
++}
++
++export function useAnalyticsData() {
++  const [shows, setShows] = useState<Show[]>([]);
++  const [social, setSocial] = useState<SocialMetric[]>([]);
++  const [merch, setMerch] = useState<MerchSnapshot[]>([]);
++  const [metaIntegration, setMetaIntegration] = useState<MetaIntegration>({ connected: false });
++  const [loading, setLoading] = useState(true);
++  const { activeProject, isAllProjects } = useProject();
++
++  const loadAll = useCallback(async () => {
++    setLoading(true);
++    try {
++      const params = new URLSearchParams();
++      if (isAllProjects) {
++        params.set("isAllProjects", "true");
++      } else if (activeProject?.id) {
++        params.set("projectId", activeProject.id);
++      }
++      const qs = params.toString() ? `?${params.toString()}` : "";
++
++      const [showsRes, socialRes, merchRes, statusRes] = await Promise.all([
++        fetch(`/api/analytics/shows${qs}`),
++        fetch(`/api/analytics/social${qs}`),
++        fetch(`/api/analytics/merch${qs}`),
++        fetch(`/api/integrations/meta/status${qs}`),
++      ]);
++      const [showsData, socialData, merchData, statusData] = await Promise.all([
++        showsRes.ok ? showsRes.json() : [],
++        socialRes.ok ? socialRes.json() : [],
++        merchRes.ok ? merchRes.json() : [],
++        statusRes.ok ? statusRes.json() : { connected: false },
++      ]);
++      setShows(Array.isArray(showsData) ? showsData : []);
++      setSocial(Array.isArray(socialData) ? socialData : []);
++      setMerch(Array.isArray(merchData) ? merchData : []);
++      setMetaIntegration(statusData);
++    } finally {
++      setLoading(false);
++    }
++  }, [activeProject, isAllProjects]);
++
++  useEffect(() => {
++    const id = window.setTimeout(() => void loadAll(), 0);
++    return () => window.clearTimeout(id);
++  }, [loadAll]);
++
++  return { shows, social, merch, metaIntegration, loading, refresh: loadAll };
++}
+-- 
+2.43.0
+

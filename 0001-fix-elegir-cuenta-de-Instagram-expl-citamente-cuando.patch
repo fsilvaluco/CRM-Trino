@@ -1,0 +1,581 @@
+From 0b160d46ffa18a50234d1e8cd51240095e5b4281 Mon Sep 17 00:00:00 2001
+From: Agencia Katarsis <agenciakatarsisair1@MacBook-Air-de-Agencia.local>
+Date: Wed, 22 Jul 2026 05:40:58 +0000
+Subject: [PATCH] =?UTF-8?q?fix:=20elegir=20cuenta=20de=20Instagram=20expl?=
+ =?UTF-8?q?=C3=ADcitamente=20cuando=20hay=20varias=20candidatas?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Facebook acumula el acceso otorgado a páginas entre reconexiones de
+distintos proyectos. El callback tomaba 'la primera página con Instagram
+que encontraba', lo que conectaba/sincronizaba la cuenta equivocada
+cuando el usuario no deseleccionaba manualmente páginas de conexiones
+anteriores.
+
+- callback ahora junta TODAS las páginas con Instagram Business vinculado
+  en vez de quedarse con la primera
+- Si hay exactamente 1 candidata: conecta directo (mismo comportamiento
+  de antes para el caso común)
+- Si hay más de 1: guarda las candidatas en meta_pending_connections
+  (vence a los 10 min) y redirige a /analytics/connect-instagram para
+  que el usuario elija explícitamente cuál cuenta va con este proyecto
+- Nuevos endpoints GET /api/integrations/meta/pending y
+  POST /api/integrations/meta/finalize
+- Lógica de upsert+sync extraída a lib/meta-connect.ts, compartida entre
+  el callback (caso simple) y finalize (caso con elección)
+- Migración 013: tabla meta_pending_connections con RLS por organización
+---
+ .../013_meta_pending_connections.sql          |  47 +++++++
+ src/app/analytics/connect-instagram/page.tsx  | 110 ++++++++++++++++
+ .../api/integrations/meta/callback/route.ts   | 123 ++++++++----------
+ .../api/integrations/meta/finalize/route.ts   |  56 ++++++++
+ .../api/integrations/meta/pending/route.ts    |  49 +++++++
+ src/lib/meta-connect.ts                       |  53 ++++++++
+ 6 files changed, 368 insertions(+), 70 deletions(-)
+ create mode 100644 scripts/migrations/013_meta_pending_connections.sql
+ create mode 100644 src/app/analytics/connect-instagram/page.tsx
+ create mode 100644 src/app/api/integrations/meta/finalize/route.ts
+ create mode 100644 src/app/api/integrations/meta/pending/route.ts
+ create mode 100644 src/lib/meta-connect.ts
+
+diff --git a/scripts/migrations/013_meta_pending_connections.sql b/scripts/migrations/013_meta_pending_connections.sql
+new file mode 100644
+index 0000000..13adb59
+--- /dev/null
++++ b/scripts/migrations/013_meta_pending_connections.sql
+@@ -0,0 +1,47 @@
++-- Cuando el usuario tiene varias páginas de Facebook con Instagram Business
++-- vinculado (algo cada vez más común porque Facebook acumula el acceso
++-- otorgado entre reconexiones de distintos proyectos), el callback de OAuth
++-- ya no puede seguir adivinando "la primera cuenta que encuentre" — eso fue
++-- justo el bug que mezcló las cuentas entre proyectos.
++--
++-- Esta tabla guarda temporalmente las cuentas candidatas para que el
++-- usuario elija explícitamente cuál conectar a cuál proyecto. Fila de vida
++-- corta: se borra al finalizar la selección o al expirar (10 minutos).
++
++CREATE TABLE IF NOT EXISTS meta_pending_connections (
++  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
++  organization_id UUID NOT NULL REFERENCES organizations(id),
++  project_id UUID NOT NULL REFERENCES projects(id),
++  candidates JSONB NOT NULL,
++  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
++);
++
++CREATE INDEX IF NOT EXISTS idx_meta_pending_connections_org
++  ON meta_pending_connections(organization_id);
++
++-- RLS: solo miembros de la organización pueden leer/escribir sus propias
++-- filas pendientes.
++ALTER TABLE meta_pending_connections ENABLE ROW LEVEL SECURITY;
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_policies
++    WHERE tablename = 'meta_pending_connections'
++      AND policyname = 'meta_pending_connections_org_access'
++  ) THEN
++    CREATE POLICY meta_pending_connections_org_access
++      ON meta_pending_connections
++      FOR ALL
++      USING (
++        organization_id IN (
++          SELECT organization_id FROM organization_members WHERE user_id = auth.uid()
++        )
++      )
++      WITH CHECK (
++        organization_id IN (
++          SELECT organization_id FROM organization_members WHERE user_id = auth.uid()
++        )
++      );
++  END IF;
++END $$;
+diff --git a/src/app/analytics/connect-instagram/page.tsx b/src/app/analytics/connect-instagram/page.tsx
+new file mode 100644
+index 0000000..dc14c0e
+--- /dev/null
++++ b/src/app/analytics/connect-instagram/page.tsx
+@@ -0,0 +1,110 @@
++"use client";
++
++import { useEffect, useState } from "react";
++import { useRouter, useSearchParams } from "next/navigation";
++import { Camera, Loader2 } from "lucide-react";
++import { Button } from "@/components/ui/button";
++import { Card } from "@/components/ui/card";
++import { toast } from "sonner";
++
++interface Candidate {
++  pageId: string;
++  pageName: string;
++  igUserId: string;
++  igUsername: string;
++}
++
++export default function ConnectInstagramPage() {
++  const router = useRouter();
++  const searchParams = useSearchParams();
++  const pendingId = searchParams.get("pending");
++
++  const [candidates, setCandidates] = useState<Candidate[]>([]);
++  const [loading, setLoading] = useState(true);
++  const [confirmingId, setConfirmingId] = useState<string | null>(null);
++  const [loadError, setLoadError] = useState<string | null>(null);
++
++  useEffect(() => {
++    if (!pendingId) {
++      setLoadError("Falta información de la conexión");
++      setLoading(false);
++      return;
++    }
++    fetch(`/api/integrations/meta/pending?id=${pendingId}`)
++      .then(async (res) => {
++        if (!res.ok) {
++          const data = await res.json().catch(() => null);
++          throw new Error(data?.error ?? "No se pudo cargar");
++        }
++        return res.json();
++      })
++      .then((data) => setCandidates(data.candidates ?? []))
++      .catch((err) => setLoadError(err.message))
++      .finally(() => setLoading(false));
++  }, [pendingId]);
++
++  const handleChoose = async (candidate: Candidate) => {
++    setConfirmingId(candidate.igUserId);
++    try {
++      const res = await fetch("/api/integrations/meta/finalize", {
++        method: "POST",
++        headers: { "Content-Type": "application/json" },
++        body: JSON.stringify({ pendingId, igUserId: candidate.igUserId }),
++      });
++      const data = await res.json().catch(() => null);
++      if (!res.ok) {
++        toast.error(data?.error ?? "Error al conectar");
++        return;
++      }
++      toast.success(`Instagram conectado: ${data.accountName}`);
++      router.push("/analytics?connected=instagram");
++    } finally {
++      setConfirmingId(null);
++    }
++  };
++
++  return (
++    <div className="max-w-lg mx-auto mt-16 space-y-6">
++      <div className="text-center space-y-2">
++        <Camera className="h-8 w-8 mx-auto text-muted-foreground" />
++        <h1 className="text-xl font-bold">Elige la cuenta de Instagram</h1>
++        <p className="text-sm text-muted-foreground">
++          Encontramos varias páginas de Facebook con Instagram vinculado. Elige cuál corresponde a este proyecto.
++        </p>
++      </div>
++
++      {loading && (
++        <div className="flex justify-center py-8">
++          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
++        </div>
++      )}
++
++      {loadError && !loading && (
++        <p className="text-sm text-destructive text-center">{loadError}</p>
++      )}
++
++      {!loading && !loadError && (
++        <div className="space-y-2">
++          {candidates.map((candidate) => (
++            <Card key={candidate.igUserId} className="p-4 flex items-center justify-between gap-4">
++              <div>
++                <p className="text-sm font-medium">@{candidate.igUsername}</p>
++                <p className="text-xs text-muted-foreground">Página de Facebook: {candidate.pageName}</p>
++              </div>
++              <Button
++                size="sm"
++                onClick={() => handleChoose(candidate)}
++                disabled={confirmingId !== null}
++              >
++                {confirmingId === candidate.igUserId && (
++                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
++                )}
++                Conectar esta cuenta
++              </Button>
++            </Card>
++          ))}
++        </div>
++      )}
++    </div>
++  );
++}
+diff --git a/src/app/api/integrations/meta/callback/route.ts b/src/app/api/integrations/meta/callback/route.ts
+index af6a0d0..f2acab6 100644
+--- a/src/app/api/integrations/meta/callback/route.ts
++++ b/src/app/api/integrations/meta/callback/route.ts
+@@ -1,6 +1,6 @@
+ import { NextRequest, NextResponse } from "next/server";
+ import { requireAuth } from "@/lib/supabase-server";
+-import { syncInstagram } from "@/lib/meta-sync";
++import { finalizeMetaConnection, type MetaAccountCandidate } from "@/lib/meta-connect";
+ 
+ interface TokenResponse {
+   access_token: string;
+@@ -10,6 +10,7 @@ interface TokenResponse {
+ 
+ interface FacebookPage {
+   id: string;
++  name: string;
+   access_token: string;
+ }
+ 
+@@ -77,10 +78,7 @@ export async function GET(request: NextRequest) {
+     });
+ 
+     const tokenRaw = await tokenRes.text();
+-    console.log("[meta/callback] step1 code->token", {
+-      status: tokenRes.status,
+-      body: tokenRaw,
+-    });
++    console.log("[meta/callback] step1 code->token", { status: tokenRes.status, body: tokenRaw });
+ 
+     if (!tokenRes.ok) {
+       console.error("[meta/callback] step1 failed", { status: tokenRes.status, body: tokenRaw });
+@@ -99,10 +97,7 @@ export async function GET(request: NextRequest) {
+ 
+     const longRes = await fetch(`${GRAPH_BASE}/oauth/access_token?${longParams.toString()}`);
+     const longRaw = await longRes.text();
+-    console.log("[meta/callback] step2 long-lived token", {
+-      status: longRes.status,
+-      body: longRaw,
+-    });
++    console.log("[meta/callback] step2 long-lived token", { status: longRes.status, body: longRaw });
+ 
+     if (!longRes.ok) {
+       console.error("[meta/callback] step2 failed", { status: longRes.status, body: longRaw });
+@@ -113,15 +108,13 @@ export async function GET(request: NextRequest) {
+     const longLivedToken = longLived.access_token;
+     const expiresIn = longLived.expires_in ?? 60 * 24 * 60 * 60;
+ 
+-    // Step 3: List the Facebook Pages the user manages
+-    const pagesRes = await fetch(
+-      `${GRAPH_BASE}/me/accounts?access_token=${longLivedToken}`
+-    );
++    // Step 3: List every Facebook Page currently granted to the app
++    // (Facebook accumulates grants across reconnections — this can include
++    // pages authorized for OTHER projects in previous connect attempts, not
++    // just the one(s) the user just checked).
++    const pagesRes = await fetch(`${GRAPH_BASE}/me/accounts?fields=id,name,access_token&access_token=${longLivedToken}`);
+     const pagesRaw = await pagesRes.text();
+-    console.log("[meta/callback] step3 me/accounts", {
+-      status: pagesRes.status,
+-      body: pagesRaw,
+-    });
++    console.log("[meta/callback] step3 me/accounts", { status: pagesRes.status, body: pagesRaw });
+ 
+     if (!pagesRes.ok) {
+       console.error("[meta/callback] step3 failed", { status: pagesRes.status, body: pagesRaw });
+@@ -130,82 +123,72 @@ export async function GET(request: NextRequest) {
+ 
+     const pages = JSON.parse(pagesRaw) as PagesResponse;
+ 
+-    // Step 4: Find the first Page with a linked Instagram Business account
+-    let igUserId: string | null = null;
+-    let pageAccessToken: string | null = null;
++    // Step 4: Collect ALL pages that have a linked Instagram Business
++    // account — NOT just the first one. Picking "the first match" is what
++    // caused the previous bug (wrong account getting connected/synced when
++    // more than one page had Instagram linked).
++    const candidates: MetaAccountCandidate[] = [];
+ 
+     for (const page of pages.data ?? []) {
+       const pageRes = await fetch(
+         `${GRAPH_BASE}/${page.id}?fields=instagram_business_account&access_token=${page.access_token}`
+       );
+-      const pageRaw = await pageRes.text();
+-      console.log("[meta/callback] step4 page instagram_business_account", {
+-        pageId: page.id,
+-        status: pageRes.status,
+-        body: pageRaw,
+-      });
+-
+       if (!pageRes.ok) continue;
++      const pageData = (await pageRes.json()) as PageIgAccountResponse;
++      const igUserId = pageData.instagram_business_account?.id;
++      if (!igUserId) continue;
+ 
+-      const pageData = JSON.parse(pageRaw) as PageIgAccountResponse;
++      const igRes = await fetch(`${GRAPH_BASE}/${igUserId}?fields=username&access_token=${page.access_token}`);
++      if (!igRes.ok) continue;
++      const igUser = (await igRes.json()) as InstagramUserResponse;
+ 
+-      if (pageData.instagram_business_account?.id) {
+-        igUserId = pageData.instagram_business_account.id;
+-        pageAccessToken = page.access_token;
+-        break;
+-      }
+-    }
+-
+-    if (!igUserId || !pageAccessToken) {
+-      console.error("[meta/callback] step4 no linked Instagram Business account found", {
+-        pageCount: pages.data?.length ?? 0,
++      candidates.push({
++        pageId: page.id,
++        pageName: page.name,
++        pageAccessToken: page.access_token,
++        igUserId,
++        igUsername: igUser.username,
+       });
+-      return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_no_ig_account`, process.env.NEXT_PUBLIC_SITE_URL));
+     }
+ 
+-    // Step 5: Fetch the Instagram Business account username and followers
+-    const igRes = await fetch(
+-      `${GRAPH_BASE}/${igUserId}?fields=followers_count,username&access_token=${pageAccessToken}`
+-    );
+-    const igRaw = await igRes.text();
+-    console.log("[meta/callback] step5 ig user lookup", {
+-      status: igRes.status,
+-      body: igRaw,
+-    });
++    console.log("[meta/callback] step4 candidates found", { count: candidates.length });
+ 
+-    if (!igRes.ok) {
+-      console.error("[meta/callback] step5 failed", { status: igRes.status, body: igRaw });
+-      return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, process.env.NEXT_PUBLIC_SITE_URL));
++    if (candidates.length === 0) {
++      return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_no_ig_account`, process.env.NEXT_PUBLIC_SITE_URL));
+     }
+ 
+-    const igUser = JSON.parse(igRaw) as InstagramUserResponse;
++    // Exactly one candidate: no ambiguity, connect it directly (fast path,
++    // same behavior as before for the common case).
++    if (candidates.length === 1) {
++      const result = await finalizeMetaConnection(supabase, orgId!, decodedProjectId, candidates[0], expiresIn);
++      if (!result.ok) {
++        return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, process.env.NEXT_PUBLIC_SITE_URL));
++      }
++      return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?connected=instagram`, process.env.NEXT_PUBLIC_SITE_URL));
++    }
+ 
+-    // Step 6: Upsert integration record
+-    const { error: upsertError } = await supabase.from("artist_integrations").upsert(
+-      {
++    // More than one candidate: don't guess. Store them temporarily and let
++    // the user pick which account belongs to this project.
++    const { data: pending, error: pendingError } = await supabase
++      .from("meta_pending_connections")
++      .insert({
+         organization_id: orgId,
+-        platform: "instagram",
+         project_id: decodedProjectId,
+-        access_token: pageAccessToken,
+-        token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
+-        account_id: igUserId,
+-        account_name: igUser.username,
+-        updated_at: new Date().toISOString(),
+-      },
+-      { onConflict: "organization_id,platform,project_id" }
+-    );
++        candidates: candidates.map((c) => ({ ...c, tokenExpiresIn: expiresIn })),
++      })
++      .select("id")
++      .single();
+ 
+-    if (upsertError) {
+-      console.error("[meta/callback] step6 upsert failed", upsertError);
++    if (pendingError || !pending) {
++      console.error("[meta/callback] failed to store pending connection", pendingError);
+       return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, process.env.NEXT_PUBLIC_SITE_URL));
+     }
+ 
+-    // Step 7: Immediate sync
+-    await syncInstagram(supabase, orgId!, pageAccessToken, igUserId, decodedProjectId);
++    return NextResponse.redirect(
++      new URL(`/analytics/connect-instagram?pending=${pending.id}`, process.env.NEXT_PUBLIC_SITE_URL)
++    );
+   } catch (err) {
+     console.error("[meta/callback] unexpected error", err);
+     return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, process.env.NEXT_PUBLIC_SITE_URL));
+   }
+-
+-  return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?connected=instagram`, process.env.NEXT_PUBLIC_SITE_URL));
+ }
+diff --git a/src/app/api/integrations/meta/finalize/route.ts b/src/app/api/integrations/meta/finalize/route.ts
+new file mode 100644
+index 0000000..c051238
+--- /dev/null
++++ b/src/app/api/integrations/meta/finalize/route.ts
+@@ -0,0 +1,56 @@
++import { NextRequest, NextResponse } from "next/server";
++import { requireAuth } from "@/lib/supabase-server";
++import { finalizeMetaConnection, type MetaAccountCandidate } from "@/lib/meta-connect";
++
++export async function POST(request: NextRequest) {
++  const { supabase, orgId, error } = await requireAuth();
++  if (error) return error;
++
++  let body: unknown;
++  try {
++    body = await request.json();
++  } catch {
++    body = {};
++  }
++
++  const pendingId = (body as { pendingId?: string })?.pendingId;
++  const igUserId = (body as { igUserId?: string })?.igUserId;
++
++  if (!pendingId || !igUserId) {
++    return NextResponse.json({ error: "Faltan datos" }, { status: 400 });
++  }
++
++  const { data: pending, error: fetchError } = await supabase
++    .from("meta_pending_connections")
++    .select("id, project_id, candidates")
++    .eq("id", pendingId)
++    .eq("organization_id", orgId!)
++    .maybeSingle();
++
++  if (fetchError || !pending) {
++    return NextResponse.json({ error: "No encontrado o expirado" }, { status: 404 });
++  }
++
++  const candidates = pending.candidates as (MetaAccountCandidate & { tokenExpiresIn: number })[];
++  const chosen = candidates.find((c) => c.igUserId === igUserId);
++
++  if (!chosen) {
++    return NextResponse.json({ error: "Cuenta no encontrada entre las opciones" }, { status: 400 });
++  }
++
++  const result = await finalizeMetaConnection(
++    supabase,
++    orgId!,
++    pending.project_id,
++    chosen,
++    chosen.tokenExpiresIn ?? 60 * 24 * 60 * 60
++  );
++
++  await supabase.from("meta_pending_connections").delete().eq("id", pendingId);
++
++  if (!result.ok) {
++    return NextResponse.json({ error: result.error }, { status: 500 });
++  }
++
++  return NextResponse.json({ ok: true, accountName: chosen.igUsername });
++}
+diff --git a/src/app/api/integrations/meta/pending/route.ts b/src/app/api/integrations/meta/pending/route.ts
+new file mode 100644
+index 0000000..cdaa235
+--- /dev/null
++++ b/src/app/api/integrations/meta/pending/route.ts
+@@ -0,0 +1,49 @@
++import { NextRequest, NextResponse } from "next/server";
++import { requireAuth } from "@/lib/supabase-server";
++
++export async function GET(request: NextRequest) {
++  const { supabase, orgId, error } = await requireAuth();
++  if (error) return error;
++
++  const { searchParams } = new URL(request.url);
++  const id = searchParams.get("id");
++  if (!id) {
++    return NextResponse.json({ error: "Falta id" }, { status: 400 });
++  }
++
++  const { data, error: fetchError } = await supabase
++    .from("meta_pending_connections")
++    .select("id, candidates, created_at")
++    .eq("id", id)
++    .eq("organization_id", orgId!)
++    .maybeSingle();
++
++  if (fetchError || !data) {
++    return NextResponse.json({ error: "No encontrado o expirado" }, { status: 404 });
++  }
++
++  // Vencido a los 10 minutos: evita que un link viejo reviva tokens stale.
++  const ageMs = Date.now() - new Date(data.created_at).getTime();
++  if (ageMs > 10 * 60 * 1000) {
++    await supabase.from("meta_pending_connections").delete().eq("id", id);
++    return NextResponse.json({ error: "El enlace expiró, vuelve a conectar" }, { status: 410 });
++  }
++
++  interface Candidate {
++    pageId: string;
++    pageName: string;
++    igUserId: string;
++    igUsername: string;
++  }
++
++  // No devolvemos los access_token al cliente — solo lo necesario para
++  // que el usuario elija visualmente.
++  const candidates = (data.candidates as (Candidate & Record<string, unknown>)[]).map((c) => ({
++    pageId: c.pageId,
++    pageName: c.pageName,
++    igUserId: c.igUserId,
++    igUsername: c.igUsername,
++  }));
++
++  return NextResponse.json({ id: data.id, candidates });
++}
+diff --git a/src/lib/meta-connect.ts b/src/lib/meta-connect.ts
+new file mode 100644
+index 0000000..728abde
+--- /dev/null
++++ b/src/lib/meta-connect.ts
+@@ -0,0 +1,53 @@
++import type { SupabaseClient } from "@supabase/supabase-js";
++import { syncInstagram } from "@/lib/meta-sync";
++
++export interface MetaAccountCandidate {
++  pageId: string;
++  pageName: string;
++  pageAccessToken: string;
++  igUserId: string;
++  igUsername: string;
++}
++
++/**
++ * Guarda la integración elegida y dispara el primer sync. Compartido entre
++ * el callback de OAuth (caso de una sola cuenta candidata, no requiere
++ * elegir) y el endpoint de finalize (caso de varias cuentas, el usuario
++ * elige una en /analytics/connect-instagram).
++ */
++export async function finalizeMetaConnection(
++  supabase: SupabaseClient,
++  orgId: string,
++  projectId: string,
++  candidate: MetaAccountCandidate,
++  tokenExpiresInSeconds: number
++): Promise<{ ok: true } | { ok: false; error: string }> {
++  const { error: upsertError } = await supabase.from("artist_integrations").upsert(
++    {
++      organization_id: orgId,
++      platform: "instagram",
++      project_id: projectId,
++      access_token: candidate.pageAccessToken,
++      token_expires_at: new Date(Date.now() + tokenExpiresInSeconds * 1000).toISOString(),
++      account_id: candidate.igUserId,
++      account_name: candidate.igUsername,
++      updated_at: new Date().toISOString(),
++    },
++    { onConflict: "organization_id,platform,project_id" }
++  );
++
++  if (upsertError) {
++    console.error("[meta-connect] upsert failed", upsertError);
++    return { ok: false, error: "No se pudo guardar la integración" };
++  }
++
++  try {
++    await syncInstagram(supabase, orgId, candidate.pageAccessToken, candidate.igUserId, projectId);
++  } catch (syncError) {
++    // No abortamos la conexión si el primer sync falla (ej. rate limit) —
++    // la integración queda guardada y el usuario puede sincronizar manual.
++    console.error("[meta-connect] initial sync failed", syncError);
++  }
++
++  return { ok: true };
++}
+-- 
+2.43.0
+

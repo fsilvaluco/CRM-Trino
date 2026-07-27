@@ -1,0 +1,48 @@
+From aab21b1f4e874e8b563d2897dc8a8fab0e6f800c Mon Sep 17 00:00:00 2001
+From: Agencia Katarsis <agenciakatarsisair1@MacBook-Air-de-Agencia.local>
+Date: Wed, 22 Jul 2026 06:48:56 +0000
+Subject: [PATCH] fix: activeProject quedaba con datos cacheados obsoletos
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+reloadProjects() comprobaba que el proyecto activo seguía existiendo en
+la lista fresca, pero devolvía la referencia vieja (prev) en vez de la
+versión actualizada. Resultado: cambios hechos fuera de la sesión del
+usuario (el cron actualizando avatar_url, otro admin cambiando el color)
+nunca se reflejaban hasta reseleccionar el proyecto a mano.
+
+Esto explica por qué el avatar no aparecía en el selector aunque el
+cron ya lo había guardado correctamente en la base (avatarStatus:
+'updated' confirmado).
+---
+ src/lib/project-context.tsx | 13 ++++++++++---
+ 1 file changed, 10 insertions(+), 3 deletions(-)
+
+diff --git a/src/lib/project-context.tsx b/src/lib/project-context.tsx
+index 0508f54..c1c7de1 100644
+--- a/src/lib/project-context.tsx
++++ b/src/lib/project-context.tsx
+@@ -186,9 +186,16 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
+           return prev;
+         }
+ 
+-        const stillExists = list.some((project) => project.id === prev.id);
+-        if (stillExists) {
+-          return prev;
++        // Importante: no basta con comprobar que el proyecto sigue
++        // existiendo — hay que devolver la versión FRESCA de la lista, no
++        // la referencia vieja en cache. Si no, cambios hechos server-side
++        // (ej. el cron actualizando el avatar_url, o cualquier admin
++        // cambiando el color) nunca se reflejan hasta que el usuario
++        // reselecciona el proyecto a mano.
++        const fresh = list.find((project) => project.id === prev.id);
++        if (fresh) {
++          localStorage.setItem(STORAGE_KEY, JSON.stringify(fresh));
++          return fresh;
+         }
+ 
+         localStorage.removeItem(STORAGE_KEY);
+-- 
+2.43.0
+

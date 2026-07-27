@@ -1,0 +1,138 @@
+From 0fd066c795f4ebf4008ccdf75d317ade556e49ed Mon Sep 17 00:00:00 2001
+From: Agencia Katarsis <agenciakatarsisair1@MacBook-Air-de-Agencia.local>
+Date: Wed, 22 Jul 2026 06:43:49 +0000
+Subject: [PATCH] debug: instrumentar sync de avatar de Instagram
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+El avatar no llegó tras el primer deploy — antes de asumir causa,
+agregamos visibilidad: syncInstagram ahora devuelve avatarStatus
+('updated' | 'skipped_manual_override' | 'no_profile_picture_url' |
+'update_failed') y si profile_picture_url vino en la respuesta de la
+Graph API. El cron expone ambos campos por cuenta en su JSON de
+respuesta, y se loguea también en consola (Railway logs) para
+diagnosticar sin adivinar.
+---
+ src/app/api/cron/sync-instagram/route.ts | 12 +++++++-
+ src/lib/meta-sync.ts                     | 39 +++++++++++++++++++++---
+ 2 files changed, 46 insertions(+), 5 deletions(-)
+
+diff --git a/src/app/api/cron/sync-instagram/route.ts b/src/app/api/cron/sync-instagram/route.ts
+index 443968c..67a6c35 100644
+--- a/src/app/api/cron/sync-instagram/route.ts
++++ b/src/app/api/cron/sync-instagram/route.ts
+@@ -11,6 +11,8 @@ interface SyncResult {
+   accountName: string | null;
+   ok: boolean;
+   followers?: number;
++  avatarStatus?: string;
++  hasProfilePictureUrl?: boolean;
+   error?: string;
+ }
+ 
+@@ -67,7 +69,15 @@ export async function POST(request: NextRequest) {
+ 
+     try {
+       const result = await syncInstagram(supabase, organizationId, accessToken, igUserId, projectId);
+-      results.push({ organizationId, projectId, accountName, ok: true, followers: result.followers });
++      results.push({
++        organizationId,
++        projectId,
++        accountName,
++        ok: true,
++        followers: result.followers,
++        avatarStatus: result.avatarStatus,
++        hasProfilePictureUrl: result.hasProfilePictureUrl,
++      });
+     } catch (err) {
+       const message = err instanceof Error ? err.message : "Error desconocido";
+       console.error("[cron/sync-instagram] sync failed", { organizationId, projectId, accountName, message });
+diff --git a/src/lib/meta-sync.ts b/src/lib/meta-sync.ts
+index d0ec4a7..2d4a680 100644
+--- a/src/lib/meta-sync.ts
++++ b/src/lib/meta-sync.ts
+@@ -8,13 +8,19 @@ interface InstagramMeResponse {
+   error?: { message: string };
+ }
+ 
++export type AvatarSyncStatus =
++  | "updated"
++  | "skipped_manual_override"
++  | "no_profile_picture_url"
++  | "update_failed";
++
+ export async function syncInstagram(
+   supabase: SupabaseClient,
+   orgId: string,
+   accessToken: string,
+   igUserId: string,
+   projectId: string
+-): Promise<{ followers: number; recordedAt: string }> {
++): Promise<{ followers: number; recordedAt: string; avatarStatus: AvatarSyncStatus; hasProfilePictureUrl: boolean }> {
+   const res = await fetch(
+     `https://graph.facebook.com/v21.0/${igUserId}?fields=followers_count,username,profile_picture_url&access_token=${accessToken}`
+   );
+@@ -29,6 +35,13 @@ export async function syncInstagram(
+     throw new Error(data.error.message);
+   }
+ 
++  console.log("[meta-sync] instagram graph response", {
++    projectId,
++    igUserId,
++    hasProfilePictureUrl: Boolean(data.profile_picture_url),
++    username: data.username,
++  });
++
+   const recordedAt = new Date().toISOString().split("T")[0];
+ 
+   const { error: insertError } = await supabase.from("social_metrics").insert({
+@@ -67,14 +80,22 @@ export async function syncInstagram(
+   // Ícono del proyecto: usa la foto de perfil de Instagram como default,
+   // pero NUNCA pisa una imagen que el usuario subió a mano
+   // (avatar_source = 'manual').
++  let avatarStatus: AvatarSyncStatus = "no_profile_picture_url";
++
+   if (data.profile_picture_url) {
+-    const { data: project } = await supabase
++    const { data: project, error: projectFetchError } = await supabase
+       .from("projects")
+       .select("avatar_source")
+       .eq("id", projectId)
+       .maybeSingle();
+ 
+-    if (!project || project.avatar_source !== "manual") {
++    if (projectFetchError) {
++      console.error("[meta-sync] projects avatar_source fetch failed", { projectId, projectFetchError });
++    }
++
++    if (project && project.avatar_source === "manual") {
++      avatarStatus = "skipped_manual_override";
++    } else {
+       const { error: avatarError } = await supabase
+         .from("projects")
+         .update({ avatar_url: data.profile_picture_url, avatar_source: "instagram" })
+@@ -82,9 +103,19 @@ export async function syncInstagram(
+ 
+       if (avatarError) {
+         console.error("[meta-sync] avatar_url update failed", { projectId, avatarError });
++        avatarStatus = "update_failed";
++      } else {
++        avatarStatus = "updated";
+       }
+     }
+   }
+ 
+-  return { followers: data.followers_count, recordedAt };
++  console.log("[meta-sync] avatar sync result", { projectId, avatarStatus });
++
++  return {
++    followers: data.followers_count,
++    recordedAt,
++    avatarStatus,
++    hasProfilePictureUrl: Boolean(data.profile_picture_url),
++  };
+ }
+-- 
+2.43.0
+

@@ -1,0 +1,215 @@
+From d602c04cd3ee111d13214bcf0c6ee144f65892b6 Mon Sep 17 00:00:00 2001
+From: Agencia Katarsis <agenciakatarsisair1@MacBook-Air-de-Agencia.local>
+Date: Wed, 22 Jul 2026 05:18:10 +0000
+Subject: [PATCH] =?UTF-8?q?fix:=20integraciones=20de=20Instagram=20por=20p?=
+ =?UTF-8?q?royecto=20+=20acceso=20a=20p=C3=A1ginas=20en=20portafolios?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- Migración 012: unique constraint pasa de (org, platform) a
+  (org, platform, project_id) — antes solo se permitía UNA conexión de
+  Instagram por organización y aparecía en todos los proyectos
+- status/sync/disconnect ahora filtran por project_id
+- Analytics page pasa projectId al endpoint de status
+- connect: agrega scope business_management (páginas dentro de
+  portafolios comerciales no eran accesibles sin él) y auth_type=rerequest
+  (fuerza a Facebook a mostrar el selector de activos en vez de la
+  pantalla de Reconectar con la config anterior congelada)
+---
+ .../012_artist_integrations_per_project.sql   | 40 +++++++++++++++++++
+ src/app/analytics/page.tsx                    |  2 +-
+ .../api/integrations/meta/callback/route.ts   |  2 +-
+ .../api/integrations/meta/connect/route.ts    | 10 ++++-
+ .../api/integrations/meta/disconnect/route.ts | 14 +++++--
+ src/app/api/integrations/meta/status/route.ts | 16 ++++++--
+ src/app/api/integrations/meta/sync/route.ts   |  3 +-
+ 7 files changed, 77 insertions(+), 10 deletions(-)
+ create mode 100644 scripts/migrations/012_artist_integrations_per_project.sql
+
+diff --git a/scripts/migrations/012_artist_integrations_per_project.sql b/scripts/migrations/012_artist_integrations_per_project.sql
+new file mode 100644
+index 0000000..d10487e
+--- /dev/null
++++ b/scripts/migrations/012_artist_integrations_per_project.sql
+@@ -0,0 +1,40 @@
++-- Bug: solo se permitía UNA integración de Instagram por organización.
++-- El unique constraint de la migración 010 era (organization_id, platform),
++-- por lo que conectar La Sagrada en el proyecto "Prueba 2" hacía que esa
++-- misma conexión apareciera en TODOS los proyectos (Simplemente Yo, Deni Li,
++-- etc.) — era literalmente el mismo registro.
++--
++-- Fix: el constraint pasa a (organization_id, platform, project_id) para que
++-- cada proyecto tenga su propia conexión de Instagram.
++
++-- 1. Eliminar el constraint antiguo
++ALTER TABLE artist_integrations
++  DROP CONSTRAINT IF EXISTS artist_integrations_org_platform_key;
++
++-- 2. Dedupe por (org, platform, project_id) conservando el más reciente
++DELETE FROM artist_integrations t
++WHERE t.ctid NOT IN (
++  SELECT DISTINCT ON (organization_id, platform, project_id) ctid
++  FROM artist_integrations
++  ORDER BY organization_id, platform, project_id, updated_at DESC NULLS LAST, ctid DESC
++);
++
++-- 3. Crear el nuevo constraint
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1
++    FROM pg_constraint
++    WHERE conrelid = 'artist_integrations'::regclass
++      AND contype = 'u'
++      AND conname = 'artist_integrations_org_platform_project_key'
++  ) THEN
++    ALTER TABLE artist_integrations
++      ADD CONSTRAINT artist_integrations_org_platform_project_key
++      UNIQUE (organization_id, platform, project_id);
++  END IF;
++END $$;
++
++-- Nota: filas con project_id NULL (integraciones conectadas antes de la
++-- migración 011) no participan bien del upsert por proyecto. Limpiarlas:
++DELETE FROM artist_integrations WHERE project_id IS NULL;
+diff --git a/src/app/analytics/page.tsx b/src/app/analytics/page.tsx
+index 4784fd0..11bc93f 100644
+--- a/src/app/analytics/page.tsx
++++ b/src/app/analytics/page.tsx
+@@ -48,7 +48,7 @@ export default function AnalyticsPage() {
+         fetch(`/api/analytics/shows${qs}`),
+         fetch(`/api/analytics/social${qs}`),
+         fetch(`/api/analytics/merch${qs}`),
+-        fetch("/api/integrations/meta/status"),
++        fetch(`/api/integrations/meta/status${qs}`),
+       ]);
+       const [showsData, socialData, merchData, statusData] = await Promise.all([
+         showsRes.ok ? showsRes.json() : [],
+diff --git a/src/app/api/integrations/meta/callback/route.ts b/src/app/api/integrations/meta/callback/route.ts
+index 87c2b77..af6a0d0 100644
+--- a/src/app/api/integrations/meta/callback/route.ts
++++ b/src/app/api/integrations/meta/callback/route.ts
+@@ -192,7 +192,7 @@ export async function GET(request: NextRequest) {
+         account_name: igUser.username,
+         updated_at: new Date().toISOString(),
+       },
+-      { onConflict: "organization_id,platform" }
++      { onConflict: "organization_id,platform,project_id" }
+     );
+ 
+     if (upsertError) {
+diff --git a/src/app/api/integrations/meta/connect/route.ts b/src/app/api/integrations/meta/connect/route.ts
+index 10a6989..e233ade 100644
+--- a/src/app/api/integrations/meta/connect/route.ts
++++ b/src/app/api/integrations/meta/connect/route.ts
+@@ -19,8 +19,16 @@ export async function GET(request: NextRequest) {
+   const params = new URLSearchParams({
+     client_id: process.env.META_APP_ID!,
+     redirect_uri: process.env.META_REDIRECT_URI!,
+-    scope: "instagram_basic,instagram_manage_insights,pages_read_engagement",
++    // business_management: necesario para acceder a páginas que viven dentro
++    // de portafolios comerciales (Business Portfolios) y no directamente en
++    // la cuenta personal del usuario. Sin esto, /me/accounts solo devuelve
++    // acceso completo a páginas con rol personal directo.
++    scope: "instagram_basic,instagram_manage_insights,pages_read_engagement,business_management",
+     response_type: "code",
++    // rerequest: fuerza a Facebook a mostrar de nuevo el selector de páginas
++    // y cuentas, en vez de la pantalla de "Reconectar" con la configuración
++    // anterior congelada.
++    auth_type: "rerequest",
+     state,
+   });
+ 
+diff --git a/src/app/api/integrations/meta/disconnect/route.ts b/src/app/api/integrations/meta/disconnect/route.ts
+index 6ff0818..14414b3 100644
+--- a/src/app/api/integrations/meta/disconnect/route.ts
++++ b/src/app/api/integrations/meta/disconnect/route.ts
+@@ -13,17 +13,24 @@ export async function DELETE(request: NextRequest) {
+   }
+ 
+   const projectId = (body as { projectId?: string })?.projectId;
++  if (!projectId) {
++    return NextResponse.json(
++      { error: "Selecciona un proyecto antes de desconectar" },
++      { status: 400 }
++    );
++  }
+ 
+   const { data: integration, error: fetchError } = await supabase
+     .from("artist_integrations")
+     .select("account_id")
+     .eq("organization_id", orgId!)
+     .eq("platform", "instagram")
+-    .single();
++    .eq("project_id", projectId)
++    .maybeSingle();
+ 
+   if (fetchError || !integration) {
+     return NextResponse.json(
+-      { error: "Sin integración de Instagram conectada" },
++      { error: "Sin integración de Instagram conectada en este proyecto" },
+       { status: 404 }
+     );
+   }
+@@ -32,7 +39,8 @@ export async function DELETE(request: NextRequest) {
+     .from("artist_integrations")
+     .delete()
+     .eq("organization_id", orgId!)
+-    .eq("platform", "instagram");
++    .eq("platform", "instagram")
++    .eq("project_id", projectId);
+ 
+   if (deleteIntegrationError) {
+     console.error("[meta/disconnect] artist_integrations delete failed", {
+diff --git a/src/app/api/integrations/meta/status/route.ts b/src/app/api/integrations/meta/status/route.ts
+index c07e47a..f4c7634 100644
+--- a/src/app/api/integrations/meta/status/route.ts
++++ b/src/app/api/integrations/meta/status/route.ts
+@@ -1,16 +1,26 @@
+-import { NextResponse } from "next/server";
++import { NextRequest, NextResponse } from "next/server";
+ import { requireAuth } from "@/lib/supabase-server";
+ 
+-export async function GET() {
++export async function GET(request: NextRequest) {
+   const { supabase, orgId, error } = await requireAuth();
+   if (error) return error;
+ 
++  const { searchParams } = new URL(request.url);
++  const projectId = searchParams.get("projectId");
++
++  // Las integraciones son por proyecto: sin proyecto activo (o en vista
++  // "Todos los proyectos") no hay una integración única que mostrar.
++  if (!projectId) {
++    return NextResponse.json({ connected: false });
++  }
++
+   const { data: integration } = await supabase
+     .from("artist_integrations")
+     .select("account_name, last_sync_at, token_expires_at")
+     .eq("organization_id", orgId!)
+     .eq("platform", "instagram")
+-    .single();
++    .eq("project_id", projectId)
++    .maybeSingle();
+ 
+   if (!integration) {
+     return NextResponse.json({ connected: false });
+diff --git a/src/app/api/integrations/meta/sync/route.ts b/src/app/api/integrations/meta/sync/route.ts
+index 2787efd..c16a95e 100644
+--- a/src/app/api/integrations/meta/sync/route.ts
++++ b/src/app/api/integrations/meta/sync/route.ts
+@@ -26,7 +26,8 @@ export async function POST(request: NextRequest) {
+     .select("*")
+     .eq("organization_id", orgId!)
+     .eq("platform", "instagram")
+-    .single();
++    .eq("project_id", projectId)
++    .maybeSingle();
+ 
+   if (dbError || !integration) {
+     return NextResponse.json(
+-- 
+2.43.0
+
