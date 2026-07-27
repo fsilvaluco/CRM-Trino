@@ -6,7 +6,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { DealForm } from "@/components/deals/DealForm";
 import { Inbox, Mail, MessageCircle, Check, X, Pencil } from "lucide-react";
 import { formatDate } from "@/lib/constants";
 import type { LeadCandidate } from "@/types";
@@ -24,12 +32,38 @@ const SOURCE_META: Record<
   whatsapp: { label: "WhatsApp", icon: MessageCircle },
 };
 
+interface ExistingContactMatch {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+}
+
+interface SuggestedDeal {
+  contactId: string;
+  companyId: string | null;
+  projectId: string | null;
+  artistProjectId: string | null;
+  title: string;
+  notes: string;
+}
+
+interface DuplicatePrompt {
+  leadId: string;
+  overrides: Record<string, unknown>;
+  existingContact: ExistingContactMatch;
+}
+
 function LeadCandidateCard({
   lead,
-  onDecisionMade,
+  onApproved,
+  onDuplicateFound,
+  onRejected,
 }: {
   lead: LeadCandidate;
-  onDecisionMade: () => void;
+  onApproved: (deal: SuggestedDeal) => void;
+  onDuplicateFound: (prompt: DuplicatePrompt) => void;
+  onRejected: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(lead.detectedName ?? "");
@@ -63,12 +97,28 @@ function LeadCandidateCard({
         body: JSON.stringify(payload),
       });
       const data = await res.json();
+
+      if (res.status === 409 && data?.requiresDuplicateResolution) {
+        onDuplicateFound({
+          leadId: lead.id,
+          overrides: payload.overrides as Record<string, unknown>,
+          existingContact: data.existingContact,
+        });
+        setSubmitting(false);
+        return;
+      }
+
       if (!res.ok) {
         setErrorMsg(data?.error?.message ?? "No se pudo procesar el lead");
         setSubmitting(false);
         return;
       }
-      onDecisionMade();
+
+      if (action === "approve") {
+        onApproved(data.suggestedDeal);
+      } else {
+        onRejected();
+      }
     } catch {
       setErrorMsg("Error de red, intenta de nuevo");
       setSubmitting(false);
@@ -173,25 +223,112 @@ export function LeadCandidatesInbox({
   leads,
   onDecisionMade,
 }: LeadCandidatesInboxProps) {
-  if (leads.length === 0) {
-    return (
-      <EmptyState
-        icon={Inbox}
-        title="Bandeja vacía"
-        description="No hay leads pendientes de revisión por ahora. Cuando el detector encuentre algo en mail o WhatsApp, aparecerá aquí."
-      />
-    );
+  const [duplicatePrompt, setDuplicatePrompt] = useState<DuplicatePrompt | null>(null);
+  const [resolvingDuplicate, setResolvingDuplicate] = useState(false);
+  const [dealFormOpen, setDealFormOpen] = useState(false);
+  const [dealPrefill, setDealPrefill] = useState<SuggestedDeal | null>(null);
+
+  function openDealFormFor(deal: SuggestedDeal) {
+    setDealPrefill(deal);
+    setDealFormOpen(true);
+    onDecisionMade(); // saca la card ya aprobada de la lista
+  }
+
+  async function resolveDuplicate(action: "update_existing" | "create_new") {
+    if (!duplicatePrompt) return;
+    setResolvingDuplicate(true);
+    try {
+      const res = await fetch(`/api/lead-candidates/${duplicatePrompt.leadId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "approve",
+          overrides: duplicatePrompt.overrides,
+          duplicateAction: action,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) return;
+      setDuplicatePrompt(null);
+      openDealFormFor(data.suggestedDeal);
+    } finally {
+      setResolvingDuplicate(false);
+    }
   }
 
   return (
-    <div className="space-y-4">
-      {leads.map((lead) => (
-        <LeadCandidateCard
-          key={lead.id}
-          lead={lead}
-          onDecisionMade={onDecisionMade}
+    <>
+      {leads.length === 0 ? (
+        <EmptyState
+          icon={Inbox}
+          title="Bandeja vacía"
+          description="No hay leads pendientes de revisión por ahora. Cuando el detector encuentre algo en mail o WhatsApp, aparecerá aquí."
         />
-      ))}
-    </div>
+      ) : (
+        <div className="space-y-4">
+          {leads.map((lead) => (
+            <LeadCandidateCard
+              key={lead.id}
+              lead={lead}
+              onApproved={openDealFormFor}
+              onDuplicateFound={setDuplicatePrompt}
+              onRejected={onDecisionMade}
+            />
+          ))}
+        </div>
+      )}
+
+      <Dialog open={!!duplicatePrompt} onOpenChange={(v) => !v && setDuplicatePrompt(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ya existe un contacto parecido</DialogTitle>
+            <DialogDescription>
+              Encontramos un contacto con el mismo email o teléfono:{" "}
+              <span className="font-medium text-foreground">
+                {duplicatePrompt?.existingContact.name}
+              </span>{" "}
+              ({duplicatePrompt?.existingContact.email || duplicatePrompt?.existingContact.phone})
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 pt-2">
+            <Button
+              className="cursor-pointer"
+              disabled={resolvingDuplicate}
+              onClick={() => resolveDuplicate("update_existing")}
+            >
+              Actualizar ese contacto existente
+            </Button>
+            <Button
+              variant="outline"
+              className="cursor-pointer"
+              disabled={resolvingDuplicate}
+              onClick={() => resolveDuplicate("create_new")}
+            >
+              Crear un contacto nuevo de todas formas
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <DealForm
+        open={dealFormOpen}
+        onClose={() => {
+          setDealFormOpen(false);
+          setDealPrefill(null);
+        }}
+        prefill={
+          dealPrefill
+            ? {
+                contactId: dealPrefill.contactId,
+                companyId: dealPrefill.companyId,
+                title: dealPrefill.title,
+                notes: dealPrefill.notes,
+                projectId: dealPrefill.projectId,
+                artistProjectId: dealPrefill.artistProjectId,
+              }
+            : undefined
+        }
+      />
+    </>
   );
 }

@@ -103,11 +103,21 @@ interface DealRecord {
   notes: string | null;
 }
 
+interface DealPrefill {
+  contactId?: string | null;
+  companyId?: string | null;
+  title?: string;
+  notes?: string;
+  projectId?: string | null;
+  artistProjectId?: string | null;
+}
+
 interface DealFormProps {
   open: boolean;
   onClose: () => void;
   initialStageId?: string;
   initialDealId?: string;
+  prefill?: DealPrefill;
 }
 
 function toDateInputValue(value: string | null): string {
@@ -115,7 +125,7 @@ function toDateInputValue(value: string | null): string {
   return value.slice(0, 10);
 }
 
-export function DealForm({ open, onClose, initialStageId, initialDealId }: DealFormProps) {
+export function DealForm({ open, onClose, initialStageId, initialDealId, prefill }: DealFormProps) {
   const router = useRouter();
   const { settings } = useLocale();
   const { activeProject, projects } = useProject();
@@ -167,11 +177,14 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
   const selectedTaxType = watch("taxType");
   const hasActiveProject = Boolean(activeProject?.id);
 
-  // Sync projectId when modal opens or active project changes
+  // Sync projectId when modal opens or active project changes -- salvo que
+  // venga un prefill con su propio projectId (ej. al aprobar un lead), que
+  // no debe ser pisado por el proyecto activo del usuario.
   useEffect(() => {
     if (!open) return;
+    if (prefill?.projectId) return;
     setValue("projectId", activeProject?.id || "");
-  }, [open, activeProject?.id, setValue]);
+  }, [open, activeProject?.id, setValue, prefill?.projectId]);
 
   useEffect(() => {
     const effectiveProjectId = selectedProjectId || activeProject?.id || "";
@@ -224,21 +237,21 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
     if (!initialDealId) {
       setIsLoadingDeal(false);
       setDealLoadError(null);
-      setAssociationType("contacto");
+      setAssociationType(prefill?.companyId && !prefill?.contactId ? "empresa" : "contacto");
       setAssociationQuery("");
       reset({
-        title: "",
+        title: prefill?.title ?? "",
         value: "",
         valueType: "fixed",
         percentageValue: "",
         taxType: "afecto",
-        associationId: "",
+        associationId: prefill?.contactId ?? prefill?.companyId ?? "",
         stageId: initialStageId || "",
         probability: "50",
         expectedClose: "",
-        notes: "",
-        projectId: activeProject?.id || "",
-        artistProjectId: "",
+        notes: prefill?.notes ?? "",
+        projectId: prefill?.projectId ?? activeProject?.id ?? "",
+        artistProjectId: prefill?.artistProjectId ?? "",
       });
       return;
     }
@@ -286,7 +299,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
       });
 
     return () => controller.abort();
-  }, [open, initialDealId, initialStageId, loadAttempt, reset, activeProject?.id]);
+  }, [open, initialDealId, initialStageId, loadAttempt, reset, activeProject?.id, prefill]);
 
   // Pre-select stage AFTER stagesList is populated
   useEffect(() => {

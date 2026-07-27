@@ -14,6 +14,10 @@ const patchLeadCandidateSchema = z.object({
       projectId: z.union([z.string().uuid(), z.null()]).optional(),
     })
     .optional(),
+  // Como resolver si se encuentra un contacto existente con el mismo
+  // email/telefono. Si no se manda y hay match, el endpoint responde 409
+  // pidiendo que el usuario decida.
+  duplicateAction: z.enum(["update_existing", "create_new"]).optional(),
 });
 
 function errorResponse(message: string, status: number, details?: unknown) {
@@ -58,7 +62,7 @@ export async function PATCH(
     return errorResponse("Este lead ya fue revisado", 409);
   }
 
-  const { action, overrides } = parsedBody.data;
+  const { action, overrides, duplicateAction } = parsedBody.data;
 
   // --- Rechazo: solo se marca, no se crea nada ---
   if (action === "reject") {
@@ -80,7 +84,8 @@ export async function PATCH(
     return NextResponse.json({ id: data.id, status: data.status });
   }
 
-  // --- Aprobacion: crea company (si falta) + contact + task ---
+  // --- Aprobacion: crea/reutiliza company + contact, y deja todo listo
+  //     para que el frontend abra el formulario de Deal pre-cargado.
   const name = overrides?.name ?? lead.detected_name;
   if (!name) {
     return errorResponse(
@@ -98,6 +103,40 @@ export async function PATCH(
       "Falta asignar un proyecto antes de aprobar",
       400
     );
+  }
+
+  const email = overrides?.email ?? lead.detected_email ?? null;
+  const phone = overrides?.phone ?? lead.detected_phone ?? null;
+
+  // --- Deteccion de duplicados por email o telefono (dentro de la org) ---
+  // Si el frontend todavia no dijo como resolverlo, se pregunta antes de
+  // crear nada.
+  if (!duplicateAction && (email || phone)) {
+    const orFilters = [
+      email ? `email.ilike.${email}` : null,
+      phone ? `phone.eq.${phone}` : null,
+    ]
+      .filter(Boolean)
+      .join(",");
+
+    const { data: existingMatch } = await supabase
+      .from("contacts")
+      .select("id, name, email, phone, company_id")
+      .eq("organization_id", orgId!)
+      .is("deleted_at", null)
+      .or(orFilters)
+      .limit(1)
+      .maybeSingle();
+
+    if (existingMatch) {
+      return NextResponse.json(
+        {
+          requiresDuplicateResolution: true,
+          existingContact: existingMatch,
+        },
+        { status: 409 }
+      );
+    }
   }
 
   let companyId: string | null = null;
@@ -133,45 +172,77 @@ export async function PATCH(
     }
   }
 
-  const { data: newContact, error: contactErr } = await supabase
-    .from("contacts")
-    .insert({
-      name,
-      email: overrides?.email ?? lead.detected_email ?? null,
-      phone: overrides?.phone ?? lead.detected_phone ?? null,
-      company_id: companyId,
-      source: lead.source === "whatsapp" ? "whatsapp" : "email",
-      temperature: "warm",
-      notes: lead.signal_reason
-        ? `Detectado automaticamente: ${lead.signal_reason}`
-        : "Detectado automaticamente",
-      organization_id: orgId,
-      created_by: user!.id,
-      project_id: projectId,
-    })
-    .select("id")
-    .single();
+  let contactId: string;
 
-  if (contactErr) {
-    return errorResponse("No se pudo crear el contacto", 500, contactErr.message);
-  }
+  if (duplicateAction === "update_existing") {
+    // Actualiza el contacto existente (busca de nuevo para tener su id real)
+    const orFilters = [
+      email ? `email.ilike.${email}` : null,
+      phone ? `phone.eq.${phone}` : null,
+    ]
+      .filter(Boolean)
+      .join(",");
 
-  const { data: newTask, error: taskErr } = await supabase
-    .from("tasks")
-    .insert({
-      title: `Dar seguimiento a ${name}`,
-      description: lead.signal_reason ?? "Nuevo lead detectado, requiere seguimiento.",
-      status: "pending",
-      priority: "medium",
-      contact_id: newContact.id,
-      company_id: companyId,
-      project_id: projectId,
-    })
-    .select("id")
-    .single();
+    const { data: existingMatch, error: findErr } = await supabase
+      .from("contacts")
+      .select("id, notes")
+      .eq("organization_id", orgId!)
+      .is("deleted_at", null)
+      .or(orFilters)
+      .limit(1)
+      .single();
 
-  if (taskErr) {
-    return errorResponse("Contacto creado, pero no se pudo crear la tarea", 500, taskErr.message);
+    if (findErr || !existingMatch) {
+      return errorResponse("No se encontro el contacto existente a actualizar", 404);
+    }
+
+    const appendedNote = lead.signal_reason
+      ? `Nuevo lead detectado: ${lead.signal_reason}`
+      : "Nuevo lead detectado automaticamente";
+    const mergedNotes = existingMatch.notes ? `${existingMatch.notes}\n${appendedNote}` : appendedNote;
+
+    const { error: updateContactErr } = await supabase
+      .from("contacts")
+      .update({
+        name,
+        email: email || undefined,
+        phone: phone || undefined,
+        company_id: companyId ?? undefined,
+        notes: mergedNotes,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", existingMatch.id);
+
+    if (updateContactErr) {
+      return errorResponse("No se pudo actualizar el contacto existente", 500, updateContactErr.message);
+    }
+
+    contactId = existingMatch.id;
+  } else {
+    const { data: newContact, error: contactErr } = await supabase
+      .from("contacts")
+      .insert({
+        name,
+        email: email || null,
+        phone: phone || null,
+        company_id: companyId,
+        source: lead.source === "whatsapp" ? "whatsapp" : "email",
+        temperature: "warm",
+        notes: lead.signal_reason
+          ? `Detectado automaticamente: ${lead.signal_reason}`
+          : "Detectado automaticamente",
+        organization_id: orgId,
+        created_by: user!.id,
+        project_id: projectId,
+      })
+      .select("id")
+      .single();
+
+    if (contactErr) {
+      return errorResponse("No se pudo crear el contacto", 500, contactErr.message);
+    }
+
+    contactId = newContact.id;
   }
 
   const { data: updatedLead, error: updateErr } = await supabase
@@ -180,23 +251,32 @@ export async function PATCH(
       status: "approved",
       reviewed_by: user!.id,
       reviewed_at: new Date().toISOString(),
-      resulting_contact_id: newContact.id,
+      resulting_contact_id: contactId,
       resulting_company_id: companyId,
-      resulting_task_id: newTask.id,
     })
     .eq("id", id)
     .select()
     .single();
 
   if (updateErr) {
-    return errorResponse("Se creo el contacto/tarea pero no se pudo actualizar el lead", 500, updateErr.message);
+    return errorResponse("Se creo/actualizo el contacto pero no se pudo actualizar el lead", 500, updateErr.message);
   }
 
+  // No se crea ninguna tarea/deal automatica -- el frontend usa esto para
+  // abrir el formulario de "Nuevo Deal" pre-cargado, que el usuario revisa
+  // y completa antes de guardar.
   return NextResponse.json({
     id: updatedLead.id,
     status: updatedLead.status,
-    resultingContactId: newContact.id,
+    resultingContactId: contactId,
     resultingCompanyId: companyId,
-    resultingTaskId: newTask.id,
+    suggestedDeal: {
+      contactId,
+      companyId,
+      projectId: lead.project_id,
+      artistProjectId: lead.artist_project_id,
+      title: lead.signal_reason || `Oportunidad con ${name}`,
+      notes: lead.raw_excerpt,
+    },
   });
 }
