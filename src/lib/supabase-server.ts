@@ -20,6 +20,18 @@ export async function createSupabaseServer() {
         getAll() {
           return cookieStore.getAll();
         },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch {
+            // Se puede ignorar si se llama desde un contexto que no permite
+            // escribir cookies (ej. Server Component) -- en Route Handlers
+            // (donde vive requireAuth) SI se puede escribir, asi que esto
+            // deberia funcionar en el caso real que nos importa.
+          }
+        },
       },
     }
   );
