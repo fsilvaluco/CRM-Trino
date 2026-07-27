@@ -11,6 +11,8 @@ function mapProject(row: any) {
     description: row.description ?? null,
     companyId: row.company_id ?? null,
     notes: row.notes ?? null,
+    parentProjectId: row.parent_project_id ?? null,
+    selfManaged: row.self_managed ?? false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     companyName: row.project_company?.name ?? row.companies?.name ?? null,
@@ -24,6 +26,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const companyId = searchParams.get("companyId");
   const status = searchParams.get("status");
+  const parentId = searchParams.get("parentId");
 
   let query = supabase
     .from("projects")
@@ -32,6 +35,7 @@ export async function GET(request: NextRequest) {
 
   if (companyId) query = query.eq("company_id", companyId);
   if (status) query = query.eq("status", status);
+  if (parentId) query = query.eq("parent_project_id", parentId);
   // Filtrar por proyectos accesibles si el usuario es member
   if (allowedProjectIds !== null) {
     if (allowedProjectIds.length === 0) return NextResponse.json([]);

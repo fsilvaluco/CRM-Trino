@@ -29,6 +29,7 @@ import { useProject } from "@/lib/project-context";
 const CREATE_CONTACT_VALUE = "__create_new_contact__";
 const CREATE_COMPANY_VALUE = "__create_new_company__";
 const NO_COMPANY_VALUE = "__no_company__";
+const NO_ARTIST_VALUE = "__no_artist__";
 
 type ApiErrorPayload = {
   error?: string | { message?: string };
@@ -57,6 +58,7 @@ const dealSchema = z
     expectedClose: z.string(),
     notes: z.string(),
     projectId: z.string().min(1, "El proyecto es requerido"),
+    artistProjectId: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.valueType === "fixed") {
@@ -95,6 +97,7 @@ interface DealRecord {
   stageId: string;
   companyId: string | null;
   projectId: string | null;
+  artistProjectId: string | null;
   expectedClose: string | null;
   probability: number;
   notes: string | null;
@@ -119,6 +122,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
   const [contactsList, setContacts] = useState<Array<{ id: string; name: string }>>([]);
   const [companiesList, setCompanies] = useState<Array<{ id: string; name: string }>>([]);
   const [stagesList, setStages] = useState<Array<{ id: string; name: string }>>([]);
+  const [artistProjects, setArtistProjects] = useState<Array<{ id: string; name: string }>>([]);
   const [isLoadingDeal, setIsLoadingDeal] = useState(false);
   const [dealLoadError, setDealLoadError] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -152,6 +156,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
       expectedClose: "",
       notes: "",
       projectId: activeProject?.id || "",
+      artistProjectId: "",
     },
   });
 
@@ -178,6 +183,21 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
       .then((d) => setStages(Array.isArray(d) ? d : []));
   }, [activeProject?.id, selectedProjectId]);
 
+  // Si el proyecto seleccionado es un sello (Trino, Katarsis, SiSoy) con
+  // artistas debajo, se ofrece elegir a cual beneficia el trato -- eso le
+  // da visibilidad de solo lectura en el pipeline del artista.
+  useEffect(() => {
+    const effectiveProjectId = selectedProjectId || activeProject?.id || "";
+    if (!effectiveProjectId) {
+      setArtistProjects([]);
+      return;
+    }
+    fetch(`/api/projects?parentId=${effectiveProjectId}`)
+      .then((r) => r.json())
+      .then((d) => setArtistProjects(Array.isArray(d) ? d : []))
+      .catch(() => setArtistProjects([]));
+  }, [activeProject?.id, selectedProjectId]);
+
   useEffect(() => {
     if (!open) {
       setIsLoadingDeal(false);
@@ -196,6 +216,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
         expectedClose: "",
         notes: "",
         projectId: activeProject?.id || "",
+        artistProjectId: "",
       });
       return;
     }
@@ -217,6 +238,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
         expectedClose: "",
         notes: "",
         projectId: activeProject?.id || "",
+        artistProjectId: "",
       });
       return;
     }
@@ -248,6 +270,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
           expectedClose: toDateInputValue(deal.expectedClose),
           notes: deal.notes || "",
           projectId: activeProject?.id || deal.projectId || "",
+          artistProjectId: deal.artistProjectId || "",
         });
       })
       .catch((error) => {
@@ -423,6 +446,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
           taxType: data.taxType,
           probability: parseInt(data.probability || "0"),
           projectId: data.projectId || null,
+          artistProjectId: data.artistProjectId || null,
         }),
       });
 
@@ -503,6 +527,37 @@ export function DealForm({ open, onClose, initialStageId, initialDealId }: DealF
               <p className="text-xs text-destructive">{errors.projectId.message}</p>
             )}
           </div>
+
+          {artistProjects.length > 0 && (
+            <div className="space-y-2">
+              <Label>Artista beneficiado</Label>
+              <Select
+                value={watch("artistProjectId") || ""}
+                onValueChange={(v) =>
+                  setValue("artistProjectId", !v || v === NO_ARTIST_VALUE ? "" : v)
+                }
+              >
+                <SelectTrigger className="cursor-pointer">
+                  <span className={watch("artistProjectId") ? "" : "text-muted-foreground"}>
+                    {artistProjects.find((p) => p.id === watch("artistProjectId"))?.name ??
+                      "Ninguno (trato general del sello)"}
+                  </span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_ARTIST_VALUE}>
+                    Ninguno (trato general del sello)
+                  </SelectItem>
+                  {artistProjects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                El trato lo sigues gestionando desde {projects.find((p) => p.id === selectedProjectId)?.name ?? "este proyecto"},
+                pero aparece tambien (solo lectura) en el pipeline del artista elegido.
+              </p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="deal-title">Titulo *</Label>

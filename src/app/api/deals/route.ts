@@ -13,6 +13,7 @@ function mapDeal(row: any) {
     stageId: row.stage_id,
     contactId: row.contact_id,
     companyId: row.company_id ?? null,
+    artistProjectId: row.artist_project_id ?? null,
     expectedClose: row.expected_close ?? null,
     probability: row.probability,
     notes: row.notes ?? null,
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
   }
 
-  const { title, value, valueType, percentageValue, taxType, stageId, contactId, companyId, expectedClose, probability, notes, projectId } = body;
+  const { title, value, valueType, percentageValue, taxType, stageId, contactId, companyId, expectedClose, probability, notes, projectId, artistProjectId } = body;
 
   const normalizedValueType = valueType === "percentage" ? "percentage" : "fixed";
   const normalizedTaxType = taxType === "exento" ? "exento" : "afecto";
@@ -149,6 +150,7 @@ export async function POST(request: NextRequest) {
       organization_id: orgId,
       created_by: user!.id,
       project_id: projectId || null,
+      artist_project_id: artistProjectId || null,
       ...(normalizedValueType === "percentage" ? { percentage_value: normalizedPercentageValue } : {}),
     })
     .select()

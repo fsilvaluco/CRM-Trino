@@ -14,6 +14,7 @@ function mapDeal(row: any) {
     contactId: row.contact_id,
     companyId: row.company_id ?? null,
     projectId: row.project_id ?? null,
+    artistProjectId: row.artist_project_id ?? null,
     expectedClose: row.expected_close ?? null,
     probability: row.probability,
     notes: row.notes ?? null,
@@ -111,6 +112,7 @@ export async function PUT(
   if (body.contactId !== undefined) updates.contact_id = body.contactId || null;
   if (body.companyId !== undefined) updates.company_id = body.companyId || null;
   if (body.projectId !== undefined) updates.project_id = body.projectId || null;
+  if (body.artistProjectId !== undefined) updates.artist_project_id = body.artistProjectId || null;
   if (body.expectedClose !== undefined) {
     updates.expected_close = body.expectedClose
       ? new Date(body.expectedClose).toISOString()
