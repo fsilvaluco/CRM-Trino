@@ -3,7 +3,7 @@ import { requireAuth } from "@/lib/supabase-server";
 
 // Modulos soportados hoy. Agregar aca cuando se sume el punto rojo a otra
 // pantalla -- cada uno necesita su propia cuenta de "nuevos desde ultima vista".
-const MODULES = ["lead_candidates"] as const;
+const MODULES = ["lead_candidates", "deals", "tasks"] as const;
 
 export async function GET() {
   const { supabase, user, orgId, error } = await requireAuth();
@@ -28,6 +28,30 @@ export async function GET() {
         .eq("organization_id", orgId!)
         .eq("status", "pending_review")
         .gt("created_at", lastSeenAt);
+
+      counts[moduleKey] = count ?? 0;
+    }
+
+    if (moduleKey === "deals") {
+      const { count } = await supabase
+        .from("deals")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", orgId!)
+        .is("deleted_at", null)
+        .gt("created_at", lastSeenAt)
+        .or(`created_by.is.null,created_by.neq.${user!.id}`);
+
+      counts[moduleKey] = count ?? 0;
+    }
+
+    if (moduleKey === "tasks") {
+      const { count } = await supabase
+        .from("tasks")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", orgId!)
+        .is("deleted_at", null)
+        .gt("created_at", lastSeenAt)
+        .or(`created_by.is.null,created_by.neq.${user!.id}`);
 
       counts[moduleKey] = count ?? 0;
     }

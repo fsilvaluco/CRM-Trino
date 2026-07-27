@@ -25,6 +25,7 @@ import { formatDate } from "@/lib/constants";
 import { toast } from "sonner";
 import type { TaskStatus, TaskPriority } from "@/types";
 import { useProject } from "@/lib/project-context";
+import { useNotifications } from "@/lib/notifications-context";
 import { useAuth } from "@/lib/auth-context";
 
 const PRIORITY_CONFIG: Record<TaskPriority, { label: string; className: string }> = {
@@ -146,6 +147,12 @@ function applyFilters(tasks: TaskItem[], f: TaskFilters, currentUserId?: string)
 
 export default function TasksPage() {
   const { activeProject } = useProject();
+  const { markSeen } = useNotifications();
+
+  useEffect(() => {
+    markSeen("tasks");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const { user } = useAuth();
   const [taskList, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState(true);

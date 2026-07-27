@@ -73,7 +73,7 @@ export const navConfig: NavItem[] = [
     label: "CRM",
     icon: Briefcase,
     children: [
-      { type: "leaf", href: "/crm", label: "Tratos", icon: Kanban },
+      { type: "leaf", href: "/crm", label: "Tratos", icon: Kanban, moduleKey: "deals" },
       { type: "leaf", href: "/contacts", label: "Contactos", icon: Users },
       { type: "leaf", href: "/companies", label: "Empresas", icon: Building2 },
       { type: "leaf", href: "/lead-candidates", label: "Bandeja de Leads", icon: Inbox, moduleKey: "lead_candidates" },
@@ -90,6 +90,7 @@ export const navConfig: NavItem[] = [
     href: "/tasks",
     label: "Tareas",
     icon: CheckSquare,
+    moduleKey: "tasks",
   },
   {
     type: "leaf",

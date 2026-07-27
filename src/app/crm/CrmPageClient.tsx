@@ -7,6 +7,7 @@ import { DealForm } from "@/components/deals/DealForm";
 import { CrmTabs } from "@/components/crm/CrmTabs";
 import type { PipelineColumn } from "@/types";
 import { useProject } from "@/lib/project-context";
+import { useNotifications } from "@/lib/notifications-context";
 
 // Shape returned by /api/pipeline per stage
 interface StageDeal {
@@ -62,6 +63,12 @@ export default function CrmPageClient() {
   const [editingDealId, setEditingDealId] = useState<string | undefined>();
   const { activeProject } = useProject();
   const latestRequestedProjectId = useRef<string | null>(null);
+  const { markSeen } = useNotifications();
+
+  useEffect(() => {
+    markSeen("deals");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleAddDeal = (stageId: string) => {
     setAddToStageId(stageId);
