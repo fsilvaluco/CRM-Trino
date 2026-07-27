@@ -56,27 +56,42 @@ function parseAddressList(value: string): string[] {
 /**
  * Lista mensajes recientes de la bandeja (solo inbox, no enviados) desde
  * un timestamp dado, y trae metadata liviana (headers + snippet) -- NUNCA
- * el cuerpo completo del correo. Limita a maxResults para acotar costo.
+ * el cuerpo completo del correo. Pagina con nextPageToken hasta cubrir
+ * hardCap mensajes, para que un rango largo (ej. 90 dias de prueba) no
+ * quede cortado en la primera pagina de resultados de Gmail.
  */
 export async function listRecentMessages(
   accessToken: string,
   sinceEpochSeconds: number,
-  maxResults = 20
+  hardCap = 20
 ): Promise<GmailMessageSummary[]> {
   const query = `in:inbox after:${sinceEpochSeconds}`;
-  const listUrl = `${GMAIL_API_BASE}/messages?q=${encodeURIComponent(query)}&maxResults=${maxResults}`;
+  const ids: Array<{ id: string; threadId: string }> = [];
+  let pageToken: string | undefined;
 
-  const listRes = await fetch(listUrl, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
+  do {
+    const pageSize = Math.min(100, hardCap - ids.length);
+    const listUrl =
+      `${GMAIL_API_BASE}/messages?q=${encodeURIComponent(query)}&maxResults=${pageSize}` +
+      (pageToken ? `&pageToken=${pageToken}` : "");
 
-  if (!listRes.ok) {
-    const raw = await listRes.text();
-    throw new Error(`Gmail list falló: ${raw}`);
-  }
+    const listRes = await fetch(listUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
 
-  const listData = (await listRes.json()) as { messages?: Array<{ id: string; threadId: string }> };
-  const ids = listData.messages ?? [];
+    if (!listRes.ok) {
+      const raw = await listRes.text();
+      throw new Error(`Gmail list falló: ${raw}`);
+    }
+
+    const listData = (await listRes.json()) as {
+      messages?: Array<{ id: string; threadId: string }>;
+      nextPageToken?: string;
+    };
+
+    ids.push(...(listData.messages ?? []));
+    pageToken = listData.nextPageToken;
+  } while (pageToken && ids.length < hardCap);
 
   const summaries: GmailMessageSummary[] = [];
 

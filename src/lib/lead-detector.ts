@@ -106,7 +106,12 @@ export async function runLeadDetectionForConnection(
     const messages = await listRecentMessages(
       accessToken,
       sinceEpoch,
-      options?.forceLookbackDays ? 100 : 20
+      options?.forceLookbackDays ? 300 : 20
+    );
+
+    console.log(
+      `[lead-detector] ${conn.email_address}: ${messages.length} correos desde ${new Date(sinceEpoch * 1000).toISOString()}`,
+      messages.map((m) => ({ subject: m.subject, from: m.from, date: m.internalDate }))
     );
 
     const { data: aliasRulesData } = await supabase
@@ -155,6 +160,10 @@ export async function runLeadDetectionForConnection(
         selloName,
         artistProjects,
       });
+
+      console.log(
+        `[lead-detector] "${message.subject}" de ${message.from} -> ${detected.length} lead(s) detectado(s)`
+      );
 
       for (const lead of detected) {
         const { error: insertErr } = await supabase

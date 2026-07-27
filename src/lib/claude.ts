@@ -52,7 +52,10 @@ export async function detectLeadsInEmail(
   input: DetectLeadsInput
 ): Promise<EmailLeadCandidate[]> {
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return [];
+  if (!apiKey) {
+    console.warn("[detectLeadsInEmail] OPENAI_API_KEY no configurada -- omitiendo clasificacion");
+    return [];
+  }
 
   const artistList = input.artistProjects.length
     ? input.artistProjects.map((p) => `- ${p.name} (id: ${p.id})`).join("\n")
