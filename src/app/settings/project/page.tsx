@@ -12,12 +12,14 @@ import {
   Copy,
   Globe,
   Palette,
+  FolderOpen,
 } from "lucide-react";
 import { toast } from "sonner";
 import { NotificationToggle } from "@/components/shared/NotificationToggle";
 import { PipelineStagesEditor } from "@/components/settings/PipelineStagesEditor";
 import { LocaleSettingsPanel } from "@/components/settings/LocaleSettingsPanel";
 import { BusinessSettingsPanel } from "@/components/settings/BusinessSettingsPanel";
+import { DriveLinkPanel } from "@/components/settings/DriveLinkPanel";
 import { ThemeColorPicker } from "@/components/settings/ThemeColorPicker";
 import { ProjectAvatarPicker } from "@/components/settings/ProjectAvatarPicker";
 import { useProject } from "@/lib/project-context";
@@ -85,6 +87,19 @@ export default function ProjectSettingsPage() {
           </CardHeader>
           <CardContent>
             <BusinessSettingsPanel />
+          </CardContent>
+        </Card>
+
+        {/* Google Drive */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <FolderOpen className="h-4 w-4" />
+              Google Drive
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DriveLinkPanel />
           </CardContent>
         </Card>
 
