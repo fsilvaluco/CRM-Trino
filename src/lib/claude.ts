@@ -27,8 +27,11 @@ interface ClassifyResult {
 export interface EmailLeadCandidate {
   signalReason: string;
   dealTitle: string;
-  summary: string;
+  taskTitle: string;
+  itemType: "deal" | "task" | "both";
+  intentSummary: string;
   detectedName: string | null;
+  detectedRole: string | null;
   detectedEmail: string | null;
   detectedPhone: string | null;
   detectedCompany: string | null;
@@ -74,21 +77,30 @@ Artistas/proyectos asociados a ${input.selloName} (usa el id EXACTO si el correo
 ${artistList}
 
 Instrucciones:
-- Solo marca como lead correos que sugieran una oportunidad comercial real (cotizacion, propuesta de show/evento, contratacion, interes concreto). Ignora spam, newsletters, correos internos, o conversaciones ya cerradas/administrativas.
+- Solo marca como lead correos que sugieran una oportunidad comercial real (cotizacion, propuesta de show/evento, contratacion, interes concreto) O que requieran una accion de seguimiento clara (coordinar reunion, responder algo pendiente). Ignora spam, newsletters, correos internos sin accion, o conversaciones ya cerradas.
 - Si el correo menciona VARIAS lineas de negocio distintas (ej: contratar un artista Y por separado un servicio de sonido o podcast), devuelve un lead SEPARADO por cada linea -- no los mezcles en uno solo.
-- No inventes datos que no estan en el texto. Si no sabes el nombre, telefono o empresa, usa null.
-- "dealTitle": un titulo corto y concreto para el trato, tipo "Artista en Evento/Lugar" (ej: "Gamuza en Festival Peñalolén", "Deni Li en matrimonio Las Rosas"). Si no hay nombre de evento/lugar, usa "Artista con Empresa/Persona".
-- "summary": 1-2 frases en tus propias palabras resumiendo la oportunidad (que se pide, cuando, donde, cualquier detalle util) -- NO copies el texto del correo tal cual, parafrasea.
-- "signalReason": una frase MUY corta (3-6 palabras) de por que se marco como lead, para mostrar como etiqueta (ej: "Cotizacion para festival").
+- No inventes datos que no estan en el texto. Si no sabes el nombre, telefono, cargo o empresa, usa null.
+- "itemType": decide que se sugiere crear:
+  - "deal" si es una oportunidad de negocio concreta (cotizacion, propuesta, contratacion).
+  - "task" si es solo algo que requiere seguimiento/coordinacion pero SIN que haya todavia una oportunidad comercial clara (ej: "coordinemos una reunion", "avance del EP", "recordatorio de pago").
+  - "both" si es una oportunidad de negocio Y ademas requiere una accion de seguimiento especifica mas alla de lo normal.
+- "dealTitle": (solo si itemType es "deal" o "both") titulo corto tipo "Artista en Evento/Lugar" (ej: "Gamuza en Festival Peñalolén"). Si no aplica, usa cadena vacia.
+- "taskTitle": (solo si itemType es "task" o "both") titulo corto de la tarea de seguimiento (ej: "Seguimiento Gamuza en Festival Peñalolén", "Reunion coordinacion EP"). Si no aplica, usa cadena vacia.
+- "detectedRole": el cargo o puesto de quien escribe, SOLO si aparece explicito en el correo o su firma (ej: "Produccion General", "Encargada Cultural"). Si no aparece, null -- no lo inventes.
+- "intentSummary": una frase corta en tus propias palabras (parafraseada, NO copiada) describiendo que quiere la persona -- ej: "tiene considerado a Gamuza en la agenda cultural de la comuna", "confirmar el siguiente paso del contrato".
+- "signalReason": 3-6 palabras para una etiqueta corta (ej: "Cotizacion para festival", "Coordinar reunion").
 
 Responde SOLO con JSON valido, sin texto adicional, con este formato exacto:
 {
   "leads": [
     {
-      "signalReason": "<3-6 palabras, ej: 'Cotizacion para festival'>",
-      "dealTitle": "<titulo corto tipo 'Artista en Evento/Lugar'>",
-      "summary": "<1-2 frases parafraseando la oportunidad>",
+      "signalReason": "<3-6 palabras>",
+      "itemType": "deal" | "task" | "both",
+      "dealTitle": "<titulo corto o vacio>",
+      "taskTitle": "<titulo corto o vacio>",
+      "intentSummary": "<frase parafraseada>",
       "detectedName": "<nombre o null>",
+      "detectedRole": "<cargo o null>",
       "detectedEmail": "<email o null>",
       "detectedPhone": "<telefono o null>",
       "detectedCompany": "<empresa o null>",
@@ -97,7 +109,7 @@ Responde SOLO con JSON valido, sin texto adicional, con este formato exacto:
   ]
 }
 
-Si no es un lead, responde: {"leads": []}`;
+Si no es un lead ni requiere seguimiento, responde: {"leads": []}`;
 
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",

@@ -174,6 +174,20 @@ export async function runLeadDetectionForConnection(
             ? lead.artistProjectId
             : null;
 
+        // Resumen final con formato fijo (mas confiable que pedirle al
+        // modelo que lo formatee el mismo): "Correo recibido el día X de
+        // parte de Nombre, cargo, con el motivo de <intencion>."
+        const receivedDate = new Date(Number(message.internalDate));
+        const dateStr = receivedDate.toLocaleDateString("es-CL", {
+          day: "numeric",
+          month: "long",
+          timeZone: "America/Santiago",
+        });
+        const roleStr = lead.detectedRole ? `, ${lead.detectedRole}` : "";
+        const summary = `Correo recibido el día ${dateStr} de parte de ${
+          lead.detectedName ?? "un contacto"
+        }${roleStr}, con el motivo de ${lead.intentSummary || lead.signalReason}.`;
+
         const { error: insertErr } = await supabase
           .from("lead_candidates")
           .upsert(
@@ -184,8 +198,11 @@ export async function runLeadDetectionForConnection(
               source: "email",
               raw_excerpt: message.snippet,
               signal_reason: lead.signalReason,
-              suggested_deal_title: lead.dealTitle,
-              summary: lead.summary,
+              item_type: lead.itemType,
+              suggested_deal_title: lead.dealTitle || null,
+              suggested_task_title: lead.taskTitle || null,
+              detected_role: lead.detectedRole,
+              summary,
               thread_reference: message.id,
               detected_name: lead.detectedName,
               detected_email: lead.detectedEmail ?? message.from.match(/[\w.+-]+@[\w-]+\.[\w.-]+/)?.[0] ?? null,

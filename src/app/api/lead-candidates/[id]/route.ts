@@ -263,13 +263,17 @@ export async function PATCH(
   }
 
   // No se crea ninguna tarea/deal automatica -- el frontend usa esto para
-  // abrir el formulario de "Nuevo Deal" pre-cargado, que el usuario revisa
-  // y completa antes de guardar.
+  // abrir el formulario correspondiente (Deal, Tarea, o elegir entre
+  // ambos), pre-cargado, que el usuario revisa antes de guardar.
+  const dueDate = new Date();
+  dueDate.setDate(dueDate.getDate() + 3);
+
   return NextResponse.json({
     id: updatedLead.id,
     status: updatedLead.status,
     resultingContactId: contactId,
     resultingCompanyId: companyId,
+    itemType: lead.item_type,
     suggestedDeal: {
       contactId,
       companyId,
@@ -277,6 +281,14 @@ export async function PATCH(
       artistProjectId: lead.artist_project_id,
       title: lead.suggested_deal_title || lead.signal_reason || `Oportunidad con ${name}`,
       notes: lead.summary || lead.raw_excerpt,
+    },
+    suggestedTask: {
+      contactId,
+      companyId,
+      projectId: lead.artist_project_id || lead.project_id,
+      title: lead.suggested_task_title || lead.signal_reason || `Seguimiento a ${name}`,
+      description: lead.summary || lead.raw_excerpt,
+      dueDate: dueDate.toISOString().slice(0, 10),
     },
   });
 }

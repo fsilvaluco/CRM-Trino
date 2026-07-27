@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { DealForm } from "@/components/deals/DealForm";
+import { TaskForm } from "@/components/tasks/TaskForm";
 import { Inbox, Mail, MessageCircle, Check, X, Pencil } from "lucide-react";
 import { formatDate } from "@/lib/constants";
 import type { LeadCandidate } from "@/types";
@@ -48,6 +49,21 @@ interface SuggestedDeal {
   notes: string;
 }
 
+interface SuggestedTask {
+  contactId: string;
+  companyId: string | null;
+  projectId: string | null;
+  title: string;
+  description: string;
+  dueDate: string;
+}
+
+interface ApprovalResult {
+  itemType: "deal" | "task" | "both";
+  suggestedDeal: SuggestedDeal;
+  suggestedTask: SuggestedTask;
+}
+
 interface DuplicatePrompt {
   leadId: string;
   overrides: Record<string, unknown>;
@@ -61,7 +77,7 @@ function LeadCandidateCard({
   onRejected,
 }: {
   lead: LeadCandidate;
-  onApproved: (deal: SuggestedDeal) => void;
+  onApproved: (result: ApprovalResult) => void;
   onDuplicateFound: (prompt: DuplicatePrompt) => void;
   onRejected: () => void;
 }) {
@@ -115,7 +131,11 @@ function LeadCandidateCard({
       }
 
       if (action === "approve") {
-        onApproved(data.suggestedDeal);
+        onApproved({
+          itemType: data.itemType,
+          suggestedDeal: data.suggestedDeal,
+          suggestedTask: data.suggestedTask,
+        });
       } else {
         onRejected();
       }
@@ -132,6 +152,17 @@ function LeadCandidateCard({
           <Badge variant="outline" className="flex items-center gap-1">
             <SourceIcon className="h-3 w-3" />
             {SOURCE_META[lead.source].label}
+          </Badge>
+          <Badge
+            className={
+              lead.itemType === "task"
+                ? "bg-sky-100 text-sky-800 hover:bg-sky-100"
+                : lead.itemType === "both"
+                  ? "bg-violet-100 text-violet-800 hover:bg-violet-100"
+                  : "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
+            }
+          >
+            {lead.itemType === "task" ? "Tarea" : lead.itemType === "both" ? "Trato + Tarea" : "Trato"}
           </Badge>
           {lead.signalReason && (
             <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
@@ -227,11 +258,31 @@ export function LeadCandidatesInbox({
   const [resolvingDuplicate, setResolvingDuplicate] = useState(false);
   const [dealFormOpen, setDealFormOpen] = useState(false);
   const [dealPrefill, setDealPrefill] = useState<SuggestedDeal | null>(null);
+  const [taskFormOpen, setTaskFormOpen] = useState(false);
+  const [taskPrefill, setTaskPrefill] = useState<SuggestedTask | null>(null);
+  const [chooserResult, setChooserResult] = useState<ApprovalResult | null>(null);
 
   function openDealFormFor(deal: SuggestedDeal) {
     setDealPrefill(deal);
     setDealFormOpen(true);
+  }
+
+  function openTaskFormFor(task: SuggestedTask) {
+    setTaskPrefill(task);
+    setTaskFormOpen(true);
+  }
+
+  function handleApproved(result: ApprovalResult) {
     onDecisionMade(); // saca la card ya aprobada de la lista
+
+    if (result.itemType === "deal") {
+      openDealFormFor(result.suggestedDeal);
+    } else if (result.itemType === "task") {
+      openTaskFormFor(result.suggestedTask);
+    } else {
+      // "both": preguntar cual de los dos quiere crear primero
+      setChooserResult(result);
+    }
   }
 
   async function resolveDuplicate(action: "update_existing" | "create_new") {
@@ -250,7 +301,11 @@ export function LeadCandidatesInbox({
       const data = await res.json();
       if (!res.ok) return;
       setDuplicatePrompt(null);
-      openDealFormFor(data.suggestedDeal);
+      handleApproved({
+        itemType: data.itemType,
+        suggestedDeal: data.suggestedDeal,
+        suggestedTask: data.suggestedTask,
+      });
     } finally {
       setResolvingDuplicate(false);
     }
@@ -270,7 +325,7 @@ export function LeadCandidatesInbox({
             <LeadCandidateCard
               key={lead.id}
               lead={lead}
-              onApproved={openDealFormFor}
+              onApproved={handleApproved}
               onDuplicateFound={setDuplicatePrompt}
               onRejected={onDecisionMade}
             />
@@ -310,6 +365,39 @@ export function LeadCandidatesInbox({
         </DialogContent>
       </Dialog>
 
+      {/* Cuando el correo sugiere trato Y tarea: dejar elegir cual crear primero */}
+      <Dialog open={!!chooserResult} onOpenChange={(v) => !v && setChooserResult(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>¿Qué quieres agregar?</DialogTitle>
+            <DialogDescription>
+              Este correo sugiere tanto una oportunidad de negocio como una tarea de seguimiento.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 pt-2">
+            <Button
+              className="cursor-pointer justify-start"
+              onClick={() => {
+                if (chooserResult) openDealFormFor(chooserResult.suggestedDeal);
+                setChooserResult(null);
+              }}
+            >
+              Agregar trato: &ldquo;{chooserResult?.suggestedDeal.title}&rdquo;
+            </Button>
+            <Button
+              variant="outline"
+              className="cursor-pointer justify-start"
+              onClick={() => {
+                if (chooserResult) openTaskFormFor(chooserResult.suggestedTask);
+                setChooserResult(null);
+              }}
+            >
+              Agregar tarea: &ldquo;{chooserResult?.suggestedTask.title}&rdquo;
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <DealForm
         open={dealFormOpen}
         onClose={() => {
@@ -317,6 +405,20 @@ export function LeadCandidatesInbox({
           setDealPrefill(null);
         }}
         prefill={dealPrefill ?? undefined}
+      />
+
+      <TaskForm
+        open={taskFormOpen}
+        onClose={() => {
+          setTaskFormOpen(false);
+          setTaskPrefill(null);
+        }}
+        preselectedContactId={taskPrefill?.contactId}
+        preselectedCompanyId={taskPrefill?.companyId ?? undefined}
+        preselectedProjectId={taskPrefill?.projectId ?? undefined}
+        prefillTitle={taskPrefill?.title}
+        prefillDescription={taskPrefill?.description}
+        prefillDueDate={taskPrefill?.dueDate}
       />
     </>
   );

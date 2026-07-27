@@ -47,6 +47,9 @@ interface TaskFormProps {
   preselectedCompanyId?: string;
   preselectedProjectId?: string;
   preselectedSubprojectId?: string;
+  prefillTitle?: string;
+  prefillDescription?: string;
+  prefillDueDate?: string;
 }
 
 export function TaskForm({
@@ -57,6 +60,9 @@ export function TaskForm({
   preselectedCompanyId,
   preselectedProjectId,
   preselectedSubprojectId,
+  prefillTitle,
+  prefillDescription,
+  prefillDueDate,
 }: TaskFormProps) {
   const { activeProject, projects } = useProject();
   const [contactsList, setContacts] = useState<Array<{ id: string; name: string }>>([]);
@@ -77,10 +83,10 @@ export function TaskForm({
   } = useForm<TaskFormData>({
     resolver: zodResolver(taskSchema),
     defaultValues: {
-      title: "",
-      description: "",
+      title: prefillTitle || "",
+      description: prefillDescription || "",
       priority: "medium",
-      dueDate: "",
+      dueDate: prefillDueDate || "",
       projectId: preselectedProjectId || activeProject?.id || "",
       contactId: preselectedContactId || "",
       companyId: preselectedCompanyId || "",
@@ -101,6 +107,27 @@ export function TaskForm({
       setValue("subprojectId", "");
     }
   }, [open, activeProject?.id, preselectedProjectId, setValue]);
+
+  // Aplica el prefill (titulo/descripcion/fecha) cada vez que el modal se
+  // abre. Depende solo de valores primitivos -- nunca de un objeto -- para
+  // evitar que un re-render con un objeto "igual pero nuevo" dispare un
+  // reset que borre lo que el usuario ya escribio (mismo bug que tuvimos
+  // en DealForm).
+  useEffect(() => {
+    if (!open) return;
+    reset({
+      title: prefillTitle || "",
+      description: prefillDescription || "",
+      priority: "medium",
+      dueDate: prefillDueDate || "",
+      projectId: preselectedProjectId || activeProject?.id || "",
+      contactId: preselectedContactId || "",
+      companyId: preselectedCompanyId || "",
+      dealId: preselectedDealId || "",
+      subprojectId: preselectedSubprojectId || "",
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, prefillTitle, prefillDescription, prefillDueDate]);
 
   useEffect(() => {
     if (!open) return;

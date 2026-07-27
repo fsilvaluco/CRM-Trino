@@ -32,6 +32,7 @@ function mapLeadCandidate(row: any) {
     id: row.id,
     projectId: row.project_id ?? null,
     artistProjectId: row.artist_project_id ?? null,
+    itemType: row.item_type ?? "deal",
     source: row.source,
     rawExcerpt: row.raw_excerpt,
     signalReason: row.signal_reason ?? null,

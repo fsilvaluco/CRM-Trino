@@ -62,6 +62,7 @@ export interface LeadCandidate {
   id: string;
   projectId: string | null;
   artistProjectId: string | null;
+  itemType: "deal" | "task" | "both";
   source: "email" | "whatsapp";
   rawExcerpt: string;
   signalReason: string | null;
