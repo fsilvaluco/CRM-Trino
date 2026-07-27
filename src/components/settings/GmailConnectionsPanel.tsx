@@ -23,6 +23,7 @@ export function GmailConnectionsPanel() {
   const [loading, setLoading] = useState(true);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [runningId, setRunningId] = useState<string | null>(null);
+  const [testDays, setTestDays] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     if (!activeProject) {
@@ -74,7 +75,12 @@ export function GmailConnectionsPanel() {
   const handleRunNow = async (id: string) => {
     setRunningId(id);
     try {
-      const res = await fetch(`/api/integrations/gmail/connections/${id}/run`, { method: "POST" });
+      const days = Number(testDays[id]);
+      const res = await fetch(`/api/integrations/gmail/connections/${id}/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(days > 0 ? { days } : {}),
+      });
       const data = await res.json();
       if (!res.ok) {
         toast.error(data.error ?? "No se pudo correr el detector");
@@ -164,6 +170,16 @@ export function GmailConnectionsPanel() {
                 </Badge>
               </div>
               <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min={1}
+                  max={90}
+                  placeholder="días"
+                  value={testDays[c.id] ?? ""}
+                  onChange={(e) => setTestDays((prev) => ({ ...prev, [c.id]: e.target.value }))}
+                  className="w-16 h-9 rounded border border-input bg-background px-2 text-sm"
+                  title="Dias hacia atras a revisar (solo para pruebas; vacio = normal)"
+                />
                 <Button
                   size="sm"
                   variant="outline"

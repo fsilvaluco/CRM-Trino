@@ -77,7 +77,8 @@ async function getValidAccessToken(
 }
 
 export async function runLeadDetectionForConnection(
-  connectionId: string
+  connectionId: string,
+  options?: { forceLookbackDays?: number }
 ): Promise<DetectorRunResult> {
   const supabase = createAdminClient();
 
@@ -96,11 +97,17 @@ export async function runLeadDetectionForConnection(
   try {
     const accessToken = await getValidAccessToken(supabase, conn);
 
-    const sinceEpoch = conn.last_sync_at
-      ? Math.floor(new Date(conn.last_sync_at).getTime() / 1000)
-      : Math.floor(Date.now() / 1000) - DEFAULT_LOOKBACK_SECONDS;
+    const sinceEpoch = options?.forceLookbackDays
+      ? Math.floor(Date.now() / 1000) - options.forceLookbackDays * 24 * 60 * 60
+      : conn.last_sync_at
+        ? Math.floor(new Date(conn.last_sync_at).getTime() / 1000)
+        : Math.floor(Date.now() / 1000) - DEFAULT_LOOKBACK_SECONDS;
 
-    const messages = await listRecentMessages(accessToken, sinceEpoch);
+    const messages = await listRecentMessages(
+      accessToken,
+      sinceEpoch,
+      options?.forceLookbackDays ? 100 : 20
+    );
 
     const { data: aliasRulesData } = await supabase
       .from("email_alias_rules")

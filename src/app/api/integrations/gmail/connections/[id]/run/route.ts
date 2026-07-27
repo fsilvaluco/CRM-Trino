@@ -27,7 +27,17 @@ export async function POST(
     return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
   }
 
-  const result = await runLeadDetectionForConnection(id);
+  let forceLookbackDays: number | undefined;
+  try {
+    const body = await _request.json();
+    if (typeof body?.days === "number" && body.days > 0) {
+      forceLookbackDays = Math.min(body.days, 90); // tope de seguridad
+    }
+  } catch {
+    // sin body -- comportamiento normal (incremental)
+  }
+
+  const result = await runLeadDetectionForConnection(id, { forceLookbackDays });
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: 500 });
