@@ -61,9 +61,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
   }
 
-  const { name, type, status, description, companyId, notes } = body as Record<string, string | undefined>;
+  const { name, type, status, description, companyId, notes, parentProjectId, selfManaged } =
+    body as Record<string, string | boolean | undefined>;
 
-  if (!name || name.trim() === "") {
+  if (!name || typeof name !== "string" || name.trim() === "") {
     return NextResponse.json({ error: "El nombre es requerido" }, { status: 400 });
   }
 
@@ -76,6 +77,8 @@ export async function POST(request: NextRequest) {
       description: description || null,
       company_id: companyId || null,
       notes: notes || null,
+      parent_project_id: parentProjectId || null,
+      self_managed: Boolean(selfManaged),
       organization_id: orgId,
       created_by: user!.id,
     })

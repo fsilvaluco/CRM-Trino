@@ -67,7 +67,15 @@ export async function PUT(
     return NextResponse.json({ error: "Proyecto no encontrado" }, { status: 404 });
   }
 
-  const { name, type, status, description, companyId, notes } = body as Record<string, string | undefined>;
+  const { name, type, status, description, companyId, notes, parentProjectId, selfManaged } =
+    body as Record<string, string | boolean | undefined>;
+
+  if (parentProjectId && parentProjectId === id) {
+    return NextResponse.json(
+      { error: "Un proyecto no puede ser sello de si mismo" },
+      { status: 400 }
+    );
+  }
 
   const { data, error: dbError } = await supabase
     .from("projects")
@@ -78,6 +86,8 @@ export async function PUT(
       description: description !== undefined ? description || null : existing.description,
       company_id: companyId !== undefined ? companyId || null : existing.company_id,
       notes: notes !== undefined ? notes || null : existing.notes,
+      parent_project_id: parentProjectId !== undefined ? parentProjectId || null : existing.parent_project_id,
+      self_managed: selfManaged !== undefined ? Boolean(selfManaged) : existing.self_managed,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id).select().single();

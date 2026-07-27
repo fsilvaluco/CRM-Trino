@@ -108,6 +108,8 @@ export interface Project {
   description: string | null;
   companyId: string | null;
   notes: string | null;
+  parentProjectId: string | null;
+  selfManaged: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

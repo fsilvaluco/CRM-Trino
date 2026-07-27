@@ -1,6 +1,7 @@
 "use client";
 
 
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -21,10 +22,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import type { Project } from "@/types";
 
 const PROJECT_TYPES = ["Teatro", "Música", "Personal", "Otro"] as const;
+const NO_SELLO_VALUE = "__no_sello__";
 
 const projectSchema = z.object({
   name: z.string().min(1, "El nombre es requerido"),
@@ -32,6 +35,8 @@ const projectSchema = z.object({
   status: z.enum(["active", "paused", "completed", "archived"]),
   description: z.string(),
   notes: z.string(),
+  parentProjectId: z.string(),
+  selfManaged: z.boolean(),
 });
 
 type ProjectFormData = z.infer<typeof projectSchema>;
@@ -44,6 +49,25 @@ interface ProjectFormProps {
 
 export function ProjectForm({ open, onClose, initialData }: ProjectFormProps) {
   const isEdit = Boolean(initialData?.id);
+  const [selloOptions, setSelloOptions] = useState<Array<{ id: string; name: string }>>([]);
+
+  useEffect(() => {
+    if (!open) return;
+    // Cualquier proyecto puede actuar como sello (Trino, Katarsis, SiSoy hoy
+    // lo son) -- se excluye el proyecto que se esta editando para que no
+    // pueda ser padre de si mismo.
+    fetch("/api/projects")
+      .then((r) => r.json())
+      .then((data) => {
+        const list = Array.isArray(data) ? data : [];
+        setSelloOptions(
+          list
+            .filter((p: { id: string }) => p.id !== initialData?.id)
+            .map((p: { id: string; name: string }) => ({ id: p.id, name: p.name }))
+        );
+      })
+      .catch(() => setSelloOptions([]));
+  }, [open, initialData?.id]);
 
   const {
     register,
@@ -60,6 +84,8 @@ export function ProjectForm({ open, onClose, initialData }: ProjectFormProps) {
       status: initialData?.status || "active",
       description: initialData?.description || "",
       notes: initialData?.notes || "",
+      parentProjectId: initialData?.parentProjectId || "",
+      selfManaged: initialData?.selfManaged ?? false,
     },
   });
 
@@ -77,6 +103,8 @@ export function ProjectForm({ open, onClose, initialData }: ProjectFormProps) {
           status: data.status,
           description: data.description || null,
           notes: data.notes || null,
+          parentProjectId: data.parentProjectId || null,
+          selfManaged: data.selfManaged,
         }),
       });
 
@@ -143,6 +171,42 @@ export function ProjectForm({ open, onClose, initialData }: ProjectFormProps) {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Sello / Agencia (opcional)</Label>
+            <Select
+              value={watch("parentProjectId") || ""}
+              onValueChange={(v) => setValue("parentProjectId", v === NO_SELLO_VALUE ? "" : (v ?? ""))}
+            >
+              <SelectTrigger className="cursor-pointer">
+                <span className={watch("parentProjectId") ? "" : "text-muted-foreground"}>
+                  {selloOptions.find((p) => p.id === watch("parentProjectId"))?.name ??
+                    "Ninguno (proyecto independiente)"}
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_SELLO_VALUE}>Ninguno (proyecto independiente)</SelectItem>
+                {selloOptions.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Si este proyecto es un artista gestionado por una agencia (ej: Trino), selecciona
+              cual. Sus tratos y tareas quedaran visibles en el pipeline del sello.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="project-self-managed"
+              checked={watch("selfManaged")}
+              onCheckedChange={(v) => setValue("selfManaged", v === true)}
+            />
+            <Label htmlFor="project-self-managed" className="cursor-pointer">
+              Autogestionado (puede editar sus propios tratos, no solo verlos)
+            </Label>
           </div>
 
           <div className="space-y-2">
