@@ -147,7 +147,7 @@ function applyFilters(tasks: TaskItem[], f: TaskFilters, currentUserId?: string)
 // ─── Page component ───────────────────────────────────────────────────────────
 
 export default function TasksPage() {
-  const { activeProject } = useProject();
+  const { activeProject, isAdmin } = useProject();
   const { markSeen } = useNotifications();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -331,7 +331,12 @@ export default function TasksPage() {
 
   const deleteTask = async (id: string) => {
     try {
-      await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Error al eliminar tarea");
+        return;
+      }
       toast.success("Tarea eliminada");
       loadTasks();
     } catch {
@@ -528,13 +533,20 @@ export default function TasksPage() {
                         </div>
                       </div>
 
-                      <button
-                        onClick={(e) => { e.stopPropagation(); deleteTask(task.id); }}
-                        className="text-muted-foreground hover:text-destructive transition-colors cursor-pointer shrink-0"
-                        title="Eliminar tarea"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      {isAdmin && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm(`¿Eliminar la tarea "${task.title}"? Esta accion no se puede deshacer.`)) {
+                              deleteTask(task.id);
+                            }
+                          }}
+                          className="text-muted-foreground hover:text-destructive transition-colors cursor-pointer shrink-0"
+                          title="Eliminar tarea"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
                     </li>
                   );
                 })}
@@ -586,6 +598,7 @@ export default function TasksPage() {
               open={true}
               onClose={() => setSelectedTaskId(null)}
               onUpdated={handleTaskUpdated}
+              onDeleted={loadTasks}
               panelMode={true}
               panelWidth={panelWidth}
             />
@@ -666,6 +679,7 @@ export default function TasksPage() {
               open={true}
               onClose={() => setSelectedTaskId(null)}
               onUpdated={handleTaskUpdated}
+              onDeleted={loadTasks}
               panelMode={true}
               panelWidth={panelWidth}
             />

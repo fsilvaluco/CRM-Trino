@@ -63,6 +63,7 @@ export async function GET(request: NextRequest) {
         profiles!task_assignees_user_id_fkey ( full_name, avatar_url, email ) 
       )
     `)
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
   if (status) query = query.eq("status", status);

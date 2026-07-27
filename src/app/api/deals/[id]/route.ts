@@ -152,8 +152,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, isAdmin, error } = await requireAuth();
   if (error) return error;
+  if (!isAdmin) {
+    return NextResponse.json({ error: "Solo Admin o Propietario pueden eliminar tratos" }, { status: 403 });
+  }
 
   const { data: existing, error: findErr } = await supabase
     .from("deals")

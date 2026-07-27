@@ -128,7 +128,7 @@ function toDateInputValue(value: string | null): string {
 export function DealForm({ open, onClose, initialStageId, initialDealId, prefill }: DealFormProps) {
   const router = useRouter();
   const { settings } = useLocale();
-  const { activeProject, projects } = useProject();
+  const { activeProject, projects, isAdmin } = useProject();
   const [contactsList, setContacts] = useState<Array<{ id: string; name: string }>>([]);
   const [companiesList, setCompanies] = useState<Array<{ id: string; name: string }>>([]);
   const [stagesList, setStages] = useState<Array<{ id: string; name: string }>>([]);
@@ -428,6 +428,24 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
   const filteredCompanies = companiesList.filter((company) =>
     company.name.toLowerCase().includes(associationQuery.toLowerCase())
   );
+
+  const handleDeleteDeal = async () => {
+    if (!initialDealId) return;
+    const title = watch("title") || "este deal";
+    if (!confirm(`¿Eliminar "${title}"? Esta accion no se puede deshacer.`)) return;
+    try {
+      const res = await fetch(`/api/deals/${initialDealId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "No se pudo eliminar el deal");
+        return;
+      }
+      toast.success("Deal eliminado");
+      onClose();
+    } catch {
+      toast.error("Error al eliminar el deal");
+    }
+  };
 
   const onSubmit = async (data: DealFormData) => {
     try {
@@ -877,13 +895,28 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
             <Textarea id="deal-notes" {...register("notes")} rows={2} />
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={onClose} className="cursor-pointer">
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={isSubmitting || isCreatingNested} className="cursor-pointer">
-              {isCreatingNested ? "Creando asociado..." : isSubmitting ? "Guardando..." : isEditing ? "Actualizar Deal" : "Crear Deal"}
-            </Button>
+          <div className="flex justify-between items-center gap-2 pt-2">
+            {isEditing && isAdmin ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="cursor-pointer text-destructive hover:text-destructive"
+                onClick={handleDeleteDeal}
+                disabled={isSubmitting || isCreatingNested}
+              >
+                Eliminar Deal
+              </Button>
+            ) : (
+              <span />
+            )}
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={onClose} className="cursor-pointer">
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isSubmitting || isCreatingNested} className="cursor-pointer">
+                {isCreatingNested ? "Creando asociado..." : isSubmitting ? "Guardando..." : isEditing ? "Actualizar Deal" : "Crear Deal"}
+              </Button>
+            </div>
           </div>
         </form>
         )}

@@ -20,12 +20,13 @@ import {
   SelectValue,  // still used for Status and Priority selects
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Send, User, Calendar, X, ChevronDown } from "lucide-react";
+import { Send, User, Calendar, X, ChevronDown, Trash2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import type { TaskStatus, TaskPriority, TaskComment } from "@/types";
 import { STATUS_LABELS } from "@/components/tasks/TaskKanbanBoard";
+import { useProject } from "@/lib/project-context";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -86,6 +87,7 @@ interface TaskDetailSheetProps {
   open: boolean;
   onClose: () => void;
   onUpdated: (patch: TaskPatch) => void;
+  onDeleted?: () => void;
   /** When true, renders as an inline resizable panel instead of a Sheet overlay */
   panelMode?: boolean;
   panelWidth?: number;
@@ -151,7 +153,8 @@ function FieldRow({ label, children }: { label: string; children: React.ReactNod
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = false, panelWidth = DEFAULT_PANEL_WIDTH }: TaskDetailSheetProps) {
+export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, panelMode = false, panelWidth = DEFAULT_PANEL_WIDTH }: TaskDetailSheetProps) {
+  const { isAdmin } = useProject();
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [newComment, setNewComment] = useState("");
@@ -479,6 +482,24 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = 
     setMentionQuery(null);
   };
 
+  const handleDeleteTask = async () => {
+    if (!taskId || !task) return;
+    if (!confirm(`¿Eliminar la tarea "${task.title}"? Esta accion no se puede deshacer.`)) return;
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "No se pudo eliminar la tarea");
+        return;
+      }
+      toast.success("Tarea eliminada");
+      onDeleted?.();
+      onClose();
+    } catch {
+      toast.error("Error al eliminar la tarea");
+    }
+  };
+
   const handleAddComment = async () => {
     if (!newComment.trim() || !taskId) return;
     setSubmittingComment(true);
@@ -538,6 +559,15 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, panelMode = 
                 if (val && val !== task.title) patch({ title: val });
               }}
             />
+            {isAdmin && (
+              <button
+                onClick={handleDeleteTask}
+                className="mt-1 shrink-0 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                title="Eliminar tarea"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
             <button
               onClick={onClose}
               className="mt-1 shrink-0 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"

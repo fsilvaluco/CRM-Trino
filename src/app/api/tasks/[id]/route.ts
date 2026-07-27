@@ -206,8 +206,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, isAdmin, error } = await requireAuth();
   if (error) return error;
+  if (!isAdmin) {
+    return NextResponse.json({ error: "Solo Admin o Propietario pueden eliminar tareas" }, { status: 403 });
+  }
 
   const { data: existing, error: findErr } = await supabase
     .from("tasks").select("id").eq("id", id).single();
@@ -216,7 +219,10 @@ export async function DELETE(
     return NextResponse.json({ error: "Tarea no encontrada" }, { status: 404 });
   }
 
-  const { error: dbError } = await supabase.from("tasks").delete().eq("id", id);
+  const { error: dbError } = await supabase
+    .from("tasks")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", id);
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
 
   return NextResponse.json({ success: true });

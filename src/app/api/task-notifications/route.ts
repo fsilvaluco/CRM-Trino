@@ -30,7 +30,8 @@ export async function GET() {
       task_assignees!task_assignees_task_id_fkey ( user_id )
     `)
     .neq("status", "done")
-    .not("due_date", "is", null);
+    .not("due_date", "is", null)
+    .is("deleted_at", null);
 
   // Filtrar por proyectos accesibles
   if (allowedProjectIds !== null) {
