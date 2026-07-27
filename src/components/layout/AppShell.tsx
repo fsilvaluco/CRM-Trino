@@ -58,6 +58,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [user, loading, isPublic, isGuestOnly, pathname, router]);
 
+  // El body no debe tener scroll propio mientras se muestra el shell
+  // autenticado -- "main" es el UNICO contenedor que scrollea. Sin esto,
+  // si algun contenido (ej. un Select/Popover mal posicionado) empuja el
+  // documento mas alto que el viewport, aparece un segundo scrollbar a
+  // nivel de pagina y el layout se corta raro. En paginas publicas (login,
+  // etc.) no se toca, porque esas usan su propio min-h-screen sin este
+  // shell.
+  useEffect(() => {
+    if (isPublic) return;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isPublic]);
+
   // Página pública (login): solo renderiza el children sin chrome
   if (isPublic) {
     return <>{children}</>;
