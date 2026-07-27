@@ -184,6 +184,8 @@ export async function runLeadDetectionForConnection(
               source: "email",
               raw_excerpt: message.snippet,
               signal_reason: lead.signalReason,
+              suggested_deal_title: lead.dealTitle,
+              summary: lead.summary,
               thread_reference: message.id,
               detected_name: lead.detectedName,
               detected_email: lead.detectedEmail ?? message.from.match(/[\w.+-]+@[\w-]+\.[\w.-]+/)?.[0] ?? null,

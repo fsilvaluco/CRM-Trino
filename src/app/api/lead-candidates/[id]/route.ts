@@ -275,8 +275,8 @@ export async function PATCH(
       companyId,
       projectId: lead.project_id,
       artistProjectId: lead.artist_project_id,
-      title: lead.signal_reason || `Oportunidad con ${name}`,
-      notes: lead.raw_excerpt,
+      title: lead.suggested_deal_title || lead.signal_reason || `Oportunidad con ${name}`,
+      notes: lead.summary || lead.raw_excerpt,
     },
   });
 }

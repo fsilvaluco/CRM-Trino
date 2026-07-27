@@ -316,18 +316,7 @@ export function LeadCandidatesInbox({
           setDealFormOpen(false);
           setDealPrefill(null);
         }}
-        prefill={
-          dealPrefill
-            ? {
-                contactId: dealPrefill.contactId,
-                companyId: dealPrefill.companyId,
-                title: dealPrefill.title,
-                notes: dealPrefill.notes,
-                projectId: dealPrefill.projectId,
-                artistProjectId: dealPrefill.artistProjectId,
-              }
-            : undefined
-        }
+        prefill={dealPrefill ?? undefined}
       />
     </>
   );

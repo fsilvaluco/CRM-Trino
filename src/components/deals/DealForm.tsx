@@ -299,7 +299,20 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
       });
 
     return () => controller.abort();
-  }, [open, initialDealId, initialStageId, loadAttempt, reset, activeProject?.id, prefill]);
+  }, [
+    open,
+    initialDealId,
+    initialStageId,
+    loadAttempt,
+    reset,
+    activeProject?.id,
+    prefill?.contactId,
+    prefill?.companyId,
+    prefill?.title,
+    prefill?.notes,
+    prefill?.projectId,
+    prefill?.artistProjectId,
+  ]);
 
   // Pre-select stage AFTER stagesList is populated
   useEffect(() => {

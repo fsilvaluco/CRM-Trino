@@ -26,6 +26,8 @@ interface ClassifyResult {
 
 export interface EmailLeadCandidate {
   signalReason: string;
+  dealTitle: string;
+  summary: string;
   detectedName: string | null;
   detectedEmail: string | null;
   detectedPhone: string | null;
@@ -75,12 +77,17 @@ Instrucciones:
 - Solo marca como lead correos que sugieran una oportunidad comercial real (cotizacion, propuesta de show/evento, contratacion, interes concreto). Ignora spam, newsletters, correos internos, o conversaciones ya cerradas/administrativas.
 - Si el correo menciona VARIAS lineas de negocio distintas (ej: contratar un artista Y por separado un servicio de sonido o podcast), devuelve un lead SEPARADO por cada linea -- no los mezcles en uno solo.
 - No inventes datos que no estan en el texto. Si no sabes el nombre, telefono o empresa, usa null.
+- "dealTitle": un titulo corto y concreto para el trato, tipo "Artista en Evento/Lugar" (ej: "Gamuza en Festival Peñalolén", "Deni Li en matrimonio Las Rosas"). Si no hay nombre de evento/lugar, usa "Artista con Empresa/Persona".
+- "summary": 1-2 frases en tus propias palabras resumiendo la oportunidad (que se pide, cuando, donde, cualquier detalle util) -- NO copies el texto del correo tal cual, parafrasea.
+- "signalReason": una frase MUY corta (3-6 palabras) de por que se marco como lead, para mostrar como etiqueta (ej: "Cotizacion para festival").
 
 Responde SOLO con JSON valido, sin texto adicional, con este formato exacto:
 {
   "leads": [
     {
-      "signalReason": "<breve razon en espanol, ej: 'Cotizacion para matrimonio'>",
+      "signalReason": "<3-6 palabras, ej: 'Cotizacion para festival'>",
+      "dealTitle": "<titulo corto tipo 'Artista en Evento/Lugar'>",
+      "summary": "<1-2 frases parafraseando la oportunidad>",
       "detectedName": "<nombre o null>",
       "detectedEmail": "<email o null>",
       "detectedPhone": "<telefono o null>",
