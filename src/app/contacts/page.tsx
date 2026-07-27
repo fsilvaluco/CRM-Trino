@@ -77,6 +77,7 @@ export default function ContactsPage() {
         open={showDuplicates}
         onClose={() => setShowDuplicates(false)}
         onMerged={loadContacts}
+        projectId={activeProject?.id}
       />
     </div>
   );

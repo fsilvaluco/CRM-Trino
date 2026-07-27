@@ -30,12 +30,43 @@ export async function POST(request: NextRequest) {
   // Verificar que todos pertenecen a esta organizacion antes de tocar nada
   const { data: allContacts, error: checkErr } = await supabase
     .from("contacts")
-    .select("id, notes")
+    .select("id, notes, project_id, artist_project_id")
     .eq("organization_id", orgId!)
     .in("id", [primaryContactId, ...idsToMerge]);
 
   if (checkErr || !allContacts || allContacts.length !== idsToMerge.length + 1) {
     return NextResponse.json({ error: "Alguno de los contactos no existe en tu organizacion" }, { status: 404 });
+  }
+
+  // Seguridad: no fusionar contactos de proyectos que no comparten
+  // jerarquia. Katarsis y Trino son proyectos distintos aunque sean la
+  // misma gente en la vida real -- solo se permite si estan en la misma
+  // "raiz" (mismo sello, o relacion sello-artista).
+  const involvedProjectIds = Array.from(
+    new Set(
+      allContacts.flatMap((c) => [c.project_id, c.artist_project_id].filter(Boolean))
+    )
+  ) as string[];
+
+  const { data: involvedProjects } = await supabase
+    .from("projects")
+    .select("id, parent_project_id")
+    .in("id", involvedProjectIds);
+
+  function rootOf(projectId: string): string {
+    const proj = involvedProjects?.find((p) => p.id === projectId);
+    return proj?.parent_project_id ?? projectId;
+  }
+
+  const roots = new Set(involvedProjectIds.map(rootOf));
+  if (roots.size > 1) {
+    return NextResponse.json(
+      {
+        error:
+          "No se pueden fusionar contactos de proyectos sin relacion sello-artista (ej. Katarsis y Trino son independientes).",
+      },
+      { status: 403 }
+    );
   }
 
   // Mover referencias al contacto principal

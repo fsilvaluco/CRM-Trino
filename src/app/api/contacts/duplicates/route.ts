@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -21,14 +21,19 @@ function mapRow(row: any) {
   };
 }
 
-// GET /api/contacts/duplicates -> agrupa por email o telefono (normalizados)
-// dentro de toda la organizacion -- los duplicados pueden estar en
-// proyectos distintos, asi que no se filtra por proyecto activo.
-export async function GET() {
+// GET /api/contacts/duplicates?projectId=X -> agrupa por email o telefono
+// (normalizados) SOLO dentro del proyecto activo y sus artistas (si es un
+// sello). Katarsis y Trino son proyectos distintos con contactos propios
+// -- aunque en la vida real sean la misma gente, en la app no se cruzan,
+// salvo la excepcion del sello con sus artistas (ej. Trino + Gamuza).
+export async function GET(request: NextRequest) {
   const { supabase, orgId, error } = await requireAuth();
   if (error) return error;
 
-  const { data, error: dbError } = await supabase
+  const { searchParams } = new URL(request.url);
+  const projectIdParam = searchParams.get("projectId");
+
+  let query = supabase
     .from("contacts")
     .select(
       "id, name, email, phone, created_at, project:projects!contacts_project_id_fkey(name), artist_project:projects!contacts_artist_project_id_fkey(name), companies(name)"
@@ -36,6 +41,21 @@ export async function GET() {
     .eq("organization_id", orgId!)
     .is("deleted_at", null)
     .order("created_at", { ascending: true });
+
+  if (projectIdParam) {
+    const { data: children } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("parent_project_id", projectIdParam);
+
+    const visibleIds = [projectIdParam, ...(children ?? []).map((c) => c.id)];
+
+    query = query.or(
+      `project_id.in.(${visibleIds.join(",")}),artist_project_id.in.(${visibleIds.join(",")})`
+    );
+  }
+
+  const { data, error: dbError } = await query;
 
   if (dbError) {
     return NextResponse.json({ error: dbError.message }, { status: 500 });

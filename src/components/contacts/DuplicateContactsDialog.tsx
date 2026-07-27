@@ -35,9 +35,10 @@ interface DuplicateContactsDialogProps {
   open: boolean;
   onClose: () => void;
   onMerged: () => void;
+  projectId?: string;
 }
 
-export function DuplicateContactsDialog({ open, onClose, onMerged }: DuplicateContactsDialogProps) {
+export function DuplicateContactsDialog({ open, onClose, onMerged, projectId }: DuplicateContactsDialogProps) {
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState<DuplicateGroup[]>([]);
   // Por grupo (indexado por matchValue): id del contacto principal + set de ids marcados para fusionar
@@ -46,9 +47,15 @@ export function DuplicateContactsDialog({ open, onClose, onMerged }: DuplicateCo
   const [mergingGroup, setMergingGroup] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (!projectId) {
+      setGroups([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      const res = await fetch("/api/contacts/duplicates");
+      const params = `?projectId=${projectId}`;
+      const res = await fetch(`/api/contacts/duplicates${params}`);
       const data = await res.json();
       const loadedGroups: DuplicateGroup[] = data.groups ?? [];
       setGroups(loadedGroups);
@@ -67,7 +74,7 @@ export function DuplicateContactsDialog({ open, onClose, onMerged }: DuplicateCo
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [projectId]);
 
   useEffect(() => {
     if (open) load();
@@ -143,7 +150,11 @@ export function DuplicateContactsDialog({ open, onClose, onMerged }: DuplicateCo
           </DialogDescription>
         </DialogHeader>
 
-        {loading ? (
+        {!projectId ? (
+          <p className="text-sm text-muted-foreground py-6 text-center">
+            Selecciona un proyecto (arriba a la izquierda) para buscar duplicados dentro de él.
+          </p>
+        ) : loading ? (
           <div className="space-y-3 py-4">
             {[...Array(2)].map((_, i) => (
               <div key={i} className="h-24 bg-muted rounded-lg animate-pulse" />
