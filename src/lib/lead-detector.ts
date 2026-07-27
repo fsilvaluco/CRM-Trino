@@ -166,13 +166,21 @@ export async function runLeadDetectionForConnection(
       );
 
       for (const lead of detected) {
+        // Defensa: si el modelo devuelve un artistProjectId que no esta en
+        // la lista que le pasamos (inventado o de otra org), lo ignoramos
+        // en vez de romper el insert por violacion de FK.
+        const validArtistProjectId =
+          lead.artistProjectId && artistProjects.some((p) => p.id === lead.artistProjectId)
+            ? lead.artistProjectId
+            : null;
+
         const { error: insertErr } = await supabase
           .from("lead_candidates")
           .upsert(
             {
               organization_id: conn.organization_id,
               project_id: targetProjectId,
-              artist_project_id: lead.artistProjectId,
+              artist_project_id: validArtistProjectId,
               source: "email",
               raw_excerpt: message.snippet,
               signal_reason: lead.signalReason,
@@ -186,7 +194,11 @@ export async function runLeadDetectionForConnection(
             { onConflict: "organization_id,source,thread_reference", ignoreDuplicates: true }
           );
 
-        if (!insertErr) leadsCreated += 1;
+        if (insertErr) {
+          console.error(`[lead-detector] FALLO al insertar lead para mensaje ${message.id}:`, insertErr);
+        } else {
+          leadsCreated += 1;
+        }
       }
     }
 
