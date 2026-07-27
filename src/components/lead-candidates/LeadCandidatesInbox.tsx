@@ -18,6 +18,7 @@ import { DealForm } from "@/components/deals/DealForm";
 import { TaskForm } from "@/components/tasks/TaskForm";
 import { Inbox, Mail, MessageCircle, Check, X, Pencil } from "lucide-react";
 import { formatDate } from "@/lib/constants";
+import { toast } from "sonner";
 import type { LeadCandidate } from "@/types";
 
 interface LeadCandidatesInboxProps {
@@ -58,10 +59,17 @@ interface SuggestedTask {
   dueDate: string;
 }
 
+interface ExistingOpenTask {
+  id: string;
+  title: string;
+}
+
 interface ApprovalResult {
   itemType: "deal" | "task" | "both";
   suggestedDeal: SuggestedDeal;
   suggestedTask: SuggestedTask;
+  existingOpenTasks: ExistingOpenTask[];
+  taskUpdate: { summary: string; authorName: string };
 }
 
 interface DuplicatePrompt {
@@ -135,6 +143,8 @@ function LeadCandidateCard({
           itemType: data.itemType,
           suggestedDeal: data.suggestedDeal,
           suggestedTask: data.suggestedTask,
+          existingOpenTasks: data.existingOpenTasks ?? [],
+          taskUpdate: data.taskUpdate,
         });
       } else {
         onRejected();
@@ -275,13 +285,40 @@ export function LeadCandidatesInbox({
   function handleApproved(result: ApprovalResult) {
     onDecisionMade(); // saca la card ya aprobada de la lista
 
-    if (result.itemType === "deal") {
+    const hasDeal = result.itemType === "deal" || result.itemType === "both";
+    const hasTask = result.itemType === "task" || result.itemType === "both";
+    const hasExistingTasks = hasTask && result.existingOpenTasks.length > 0;
+
+    if (hasDeal && !hasTask) {
       openDealFormFor(result.suggestedDeal);
-    } else if (result.itemType === "task") {
+    } else if (hasTask && !hasDeal && !hasExistingTasks) {
       openTaskFormFor(result.suggestedTask);
     } else {
-      // "both": preguntar cual de los dos quiere crear primero
+      // Necesita elegir: "both", o una tarea que podria ser actualizacion
+      // de algo que ya se estaba siguiendo con este mismo contacto.
       setChooserResult(result);
+    }
+  }
+
+  async function handleTaskUpdate(taskId: string, result: ApprovalResult) {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: result.taskUpdate.summary,
+          author: result.taskUpdate.authorName,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "No se pudo agregar la actualizacion a la tarea");
+        return;
+      }
+      toast.success("Actualización agregada a la tarea");
+      setChooserResult(null);
+    } catch {
+      toast.error("Error de red al actualizar la tarea");
     }
   }
 
@@ -305,6 +342,8 @@ export function LeadCandidatesInbox({
         itemType: data.itemType,
         suggestedDeal: data.suggestedDeal,
         suggestedTask: data.suggestedTask,
+        existingOpenTasks: data.existingOpenTasks ?? [],
+        taskUpdate: data.taskUpdate,
       });
     } finally {
       setResolvingDuplicate(false);
@@ -365,35 +404,55 @@ export function LeadCandidatesInbox({
         </DialogContent>
       </Dialog>
 
-      {/* Cuando el correo sugiere trato Y tarea: dejar elegir cual crear primero */}
+      {/* Cuando hay que elegir: trato vs tarea, o actualizar una tarea existente vs crear nueva */}
       <Dialog open={!!chooserResult} onOpenChange={(v) => !v && setChooserResult(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>¿Qué quieres agregar?</DialogTitle>
+            <DialogTitle>¿Qué quieres hacer con este correo?</DialogTitle>
             <DialogDescription>
-              Este correo sugiere tanto una oportunidad de negocio como una tarea de seguimiento.
+              {chooserResult && chooserResult.existingOpenTasks.length > 0
+                ? "Encontramos tareas abiertas con este mismo contacto -- puede ser el avance de algo que ya se estaba siguiendo."
+                : "Este correo sugiere tanto una oportunidad de negocio como una tarea de seguimiento."}
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2 pt-2">
-            <Button
-              className="cursor-pointer justify-start"
-              onClick={() => {
-                if (chooserResult) openDealFormFor(chooserResult.suggestedDeal);
-                setChooserResult(null);
-              }}
-            >
-              Agregar trato: &ldquo;{chooserResult?.suggestedDeal.title}&rdquo;
-            </Button>
-            <Button
-              variant="outline"
-              className="cursor-pointer justify-start"
-              onClick={() => {
-                if (chooserResult) openTaskFormFor(chooserResult.suggestedTask);
-                setChooserResult(null);
-              }}
-            >
-              Agregar tarea: &ldquo;{chooserResult?.suggestedTask.title}&rdquo;
-            </Button>
+            {chooserResult && (chooserResult.itemType === "deal" || chooserResult.itemType === "both") && (
+              <Button
+                className="cursor-pointer justify-start"
+                onClick={() => {
+                  openDealFormFor(chooserResult.suggestedDeal);
+                  setChooserResult(null);
+                }}
+              >
+                Agregar trato: &ldquo;{chooserResult.suggestedDeal.title}&rdquo;
+              </Button>
+            )}
+
+            {chooserResult &&
+              (chooserResult.itemType === "task" || chooserResult.itemType === "both") &&
+              chooserResult.existingOpenTasks.map((t) => (
+                <Button
+                  key={t.id}
+                  variant="outline"
+                  className="cursor-pointer justify-start"
+                  onClick={() => handleTaskUpdate(t.id, chooserResult)}
+                >
+                  Actualización de tarea: &ldquo;{t.title}&rdquo;
+                </Button>
+              ))}
+
+            {chooserResult && (chooserResult.itemType === "task" || chooserResult.itemType === "both") && (
+              <Button
+                variant="outline"
+                className="cursor-pointer justify-start"
+                onClick={() => {
+                  openTaskFormFor(chooserResult.suggestedTask);
+                  setChooserResult(null);
+                }}
+              >
+                Crear tarea nueva: &ldquo;{chooserResult.suggestedTask.title}&rdquo;
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>

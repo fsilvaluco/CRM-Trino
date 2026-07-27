@@ -262,6 +262,23 @@ export async function PATCH(
     return errorResponse("Se creo/actualizo el contacto pero no se pudo actualizar el lead", 500, updateErr.message);
   }
 
+  // Si el lead sugiere una tarea, buscar tareas ABIERTAS ya existentes para
+  // este mismo contacto -- si el correo es en realidad el avance de algo
+  // que ya se estaba siguiendo, conviene comentar la tarea existente en vez
+  // de crear una duplicada.
+  let existingOpenTasks: Array<{ id: string; title: string }> = [];
+  if (lead.item_type === "task" || lead.item_type === "both") {
+    const { data: openTasks } = await supabase
+      .from("tasks")
+      .select("id, title")
+      .eq("contact_id", contactId)
+      .not("status", "in", "(listo,descartado)")
+      .order("created_at", { ascending: false })
+      .limit(5);
+
+    existingOpenTasks = openTasks ?? [];
+  }
+
   // No se crea ninguna tarea/deal automatica -- el frontend usa esto para
   // abrir el formulario correspondiente (Deal, Tarea, o elegir entre
   // ambos), pre-cargado, que el usuario revisa antes de guardar.
@@ -289,6 +306,11 @@ export async function PATCH(
       title: lead.suggested_task_title || lead.signal_reason || `Seguimiento a ${name}`,
       description: lead.summary || lead.raw_excerpt,
       dueDate: dueDate.toISOString().slice(0, 10),
+    },
+    existingOpenTasks,
+    taskUpdate: {
+      summary: lead.summary || lead.raw_excerpt,
+      authorName: lead.detected_name || "Email entrante",
     },
   });
 }
