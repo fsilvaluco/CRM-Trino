@@ -117,6 +117,7 @@ export interface Project {
   notes: string | null;
   parentProjectId: string | null;
   selfManaged: boolean;
+  driveUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

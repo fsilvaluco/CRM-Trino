@@ -13,6 +13,7 @@ function mapProject(row: any) {
     notes: row.notes ?? null,
     parentProjectId: row.parent_project_id ?? null,
     selfManaged: row.self_managed ?? false,
+    driveUrl: row.drive_url ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     companyName: row.project_company?.name ?? row.companies?.name ?? null,
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
   }
 
-  const { name, type, status, description, companyId, notes, parentProjectId, selfManaged } =
+  const { name, type, status, description, companyId, notes, parentProjectId, selfManaged, driveUrl } =
     body as Record<string, string | boolean | undefined>;
 
   if (!name || typeof name !== "string" || name.trim() === "") {
@@ -79,6 +80,7 @@ export async function POST(request: NextRequest) {
       notes: notes || null,
       parent_project_id: parentProjectId || null,
       self_managed: Boolean(selfManaged),
+      drive_url: driveUrl || null,
       organization_id: orgId,
       created_by: user!.id,
     })

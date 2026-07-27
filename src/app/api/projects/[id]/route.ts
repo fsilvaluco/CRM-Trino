@@ -36,6 +36,9 @@ export async function GET(
     description: project.description ?? null,
     companyId: project.company_id ?? null,
     notes: project.notes ?? null,
+    parentProjectId: project.parent_project_id ?? null,
+    selfManaged: project.self_managed ?? false,
+    driveUrl: project.drive_url ?? null,
     createdAt: project.created_at,
     updatedAt: project.updated_at,
     subprojects: subs ?? [],
@@ -67,7 +70,7 @@ export async function PUT(
     return NextResponse.json({ error: "Proyecto no encontrado" }, { status: 404 });
   }
 
-  const { name, type, status, description, companyId, notes, parentProjectId, selfManaged } =
+  const { name, type, status, description, companyId, notes, parentProjectId, selfManaged, driveUrl } =
     body as Record<string, string | boolean | undefined>;
 
   if (parentProjectId && parentProjectId === id) {
@@ -88,6 +91,7 @@ export async function PUT(
       notes: notes !== undefined ? notes || null : existing.notes,
       parent_project_id: parentProjectId !== undefined ? parentProjectId || null : existing.parent_project_id,
       self_managed: selfManaged !== undefined ? Boolean(selfManaged) : existing.self_managed,
+      drive_url: driveUrl !== undefined ? driveUrl || null : existing.drive_url,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id).select().single();

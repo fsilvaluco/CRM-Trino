@@ -37,6 +37,7 @@ const projectSchema = z.object({
   notes: z.string(),
   parentProjectId: z.string(),
   selfManaged: z.boolean(),
+  driveUrl: z.string(),
 });
 
 type ProjectFormData = z.infer<typeof projectSchema>;
@@ -86,6 +87,7 @@ export function ProjectForm({ open, onClose, initialData }: ProjectFormProps) {
       notes: initialData?.notes || "",
       parentProjectId: initialData?.parentProjectId || "",
       selfManaged: initialData?.selfManaged ?? false,
+      driveUrl: initialData?.driveUrl || "",
     },
   });
 
@@ -105,6 +107,7 @@ export function ProjectForm({ open, onClose, initialData }: ProjectFormProps) {
           notes: data.notes || null,
           parentProjectId: data.parentProjectId || null,
           selfManaged: data.selfManaged,
+          driveUrl: data.driveUrl || null,
         }),
       });
 
@@ -207,6 +210,18 @@ export function ProjectForm({ open, onClose, initialData }: ProjectFormProps) {
             <Label htmlFor="project-self-managed" className="cursor-pointer">
               Autogestionado (puede editar sus propios tratos, no solo verlos)
             </Label>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Link de Drive (opcional)</Label>
+            <Input
+              {...register("driveUrl")}
+              placeholder="https://drive.google.com/drive/folders/..."
+            />
+            <p className="text-xs text-muted-foreground">
+              Carpeta o unidad compartida de Google Drive de este proyecto. Aparece como botón
+              rápido arriba en la app para cualquiera con acceso al proyecto.
+            </p>
           </div>
 
           <div className="space-y-2">

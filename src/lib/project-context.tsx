@@ -11,6 +11,7 @@ export interface ProjectOption {
   themeColor?: string;
   avatarUrl?: string | null;
   avatarSource?: string | null;
+  driveUrl?: string | null;
 }
 
 export type OrgRole = "owner" | "admin" | "member";
@@ -111,7 +112,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         // Owner/admin: ve todos los proyectos de la organización
         const { data, error: projectsError } = await supabase
           .from("projects")
-          .select("id, name, theme_color, avatar_url, avatar_source")
+          .select("id, name, theme_color, avatar_url, avatar_source, drive_url")
           .eq("organization_id", memberRow.organization_id)
           .order("created_at", { ascending: false });
 
@@ -120,12 +121,13 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         }
 
         list = (data ?? []).map(
-          (p: { id: string; name: string; theme_color?: string; avatar_url?: string | null; avatar_source?: string | null }) => ({
+          (p: { id: string; name: string; theme_color?: string; avatar_url?: string | null; avatar_source?: string | null; drive_url?: string | null }) => ({
             id: p.id,
             name: p.name,
             themeColor: p.theme_color,
             avatarUrl: p.avatar_url,
             avatarSource: p.avatar_source,
+            driveUrl: p.drive_url,
           })
         );
       } else {
@@ -153,7 +155,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
         const { data, error: projectsError } = await supabase
           .from("projects")
-          .select("id, name, theme_color, avatar_url, avatar_source")
+          .select("id, name, theme_color, avatar_url, avatar_source, drive_url")
           .in("id", projectIds)
           .order("created_at", { ascending: false });
 
@@ -162,12 +164,13 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         }
 
         list = (data ?? []).map(
-          (p: { id: string; name: string; theme_color?: string; avatar_url?: string | null; avatar_source?: string | null }) => ({
+          (p: { id: string; name: string; theme_color?: string; avatar_url?: string | null; avatar_source?: string | null; drive_url?: string | null }) => ({
             id: p.id,
             name: p.name,
             themeColor: p.theme_color,
             avatarUrl: p.avatar_url,
             avatarSource: p.avatar_source,
+            driveUrl: p.drive_url,
           })
         );
       }
