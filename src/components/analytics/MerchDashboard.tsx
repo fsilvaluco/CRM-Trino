@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, Fragment } from "react";
 import {
   BarChart,
   Bar,
@@ -10,7 +10,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { Package, ShoppingBag, TrendingUp, CalendarRange } from "lucide-react";
+import { Package, ShoppingBag, TrendingUp, CalendarRange, ChevronRight, ArrowUpDown } from "lucide-react";
 import { format } from "date-fns";
 import {
   Table,
@@ -20,6 +20,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { ShopifyProduct, ShopifySalesMonth } from "@/types/analytics";
@@ -55,6 +62,55 @@ export function MerchDashboard({ products, salesByMonth }: MerchDashboardProps) 
   }, [salesByMonth]);
 
   const [selectedYear, setSelectedYear] = useState<number>(years[0]);
+
+  // ── Catálogo: filtro de estado, orden por columna, expandir variantes ──
+  const [statusFilter, setStatusFilter] = useState<"all" | "available" | "unavailable">("all");
+  type SortKey = "title" | "available" | "inventoryQuantity" | "price";
+  const [sortKey, setSortKey] = useState<SortKey>("title");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [expandedProductIds, setExpandedProductIds] = useState<Set<string>>(new Set());
+
+  function toggleExpanded(id: string) {
+    setExpandedProductIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  const visibleProducts = useMemo(() => {
+    const filtered = products.filter((p) => {
+      if (statusFilter === "available") return p.available;
+      if (statusFilter === "unavailable") return !p.available;
+      return true;
+    });
+
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      switch (sortKey) {
+        case "title":
+          return a.title.localeCompare(b.title) * dir;
+        case "available":
+          return (Number(a.available) - Number(b.available)) * dir;
+        case "inventoryQuantity":
+          return (a.inventoryQuantity - b.inventoryQuantity) * dir;
+        case "price":
+          return ((a.price ?? -1) - (b.price ?? -1)) * dir;
+        default:
+          return 0;
+      }
+    });
+  }, [products, statusFilter, sortKey, sortDir]);
 
   // Siempre 12 barras: los meses sin ventas se muestran en cero en vez de
   // desaparecer, para que el año se lea completo y se noten los huecos.
@@ -207,40 +263,139 @@ export function MerchDashboard({ products, salesByMonth }: MerchDashboardProps) 
 
       {/* Catálogo / inventario */}
       <div className="rounded-xl border bg-card">
-        <div className="p-4 pb-0">
+        <div className="p-4 pb-3 flex items-center justify-between gap-4 flex-wrap">
           <p className="text-xs font-medium text-muted-foreground">Catálogo de la colección conectada</p>
+          <Select value={statusFilter} onValueChange={(v) => v && setStatusFilter(v as typeof statusFilter)}>
+            <SelectTrigger className="h-8 w-44 text-xs cursor-pointer">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los estados</SelectItem>
+              <SelectItem value="available">Solo disponibles</SelectItem>
+              <SelectItem value="unavailable">Solo sin stock</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        {products.length > 0 ? (
+        {visibleProducts.length > 0 ? (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Producto</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className="text-right">Inventario</TableHead>
-                <TableHead className="text-right">Precio</TableHead>
+                <SortableHead label="Producto" active={sortKey === "title"} dir={sortDir} onClick={() => toggleSort("title")} />
+                <SortableHead label="Estado" active={sortKey === "available"} dir={sortDir} onClick={() => toggleSort("available")} />
+                <SortableHead
+                  label="Inventario"
+                  align="right"
+                  active={sortKey === "inventoryQuantity"}
+                  dir={sortDir}
+                  onClick={() => toggleSort("inventoryQuantity")}
+                />
+                <SortableHead
+                  label="Precio"
+                  align="right"
+                  active={sortKey === "price"}
+                  dir={sortDir}
+                  onClick={() => toggleSort("price")}
+                />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {[...products]
-                .sort((a, b) => a.title.localeCompare(b.title))
-                .map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-medium">{p.title}</TableCell>
-                    <TableCell>
-                      <Badge variant={p.available ? "default" : "secondary"}>
-                        {p.available ? "Disponible" : "Sin stock / inactivo"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">{NUM.format(p.inventoryQuantity)}</TableCell>
-                    <TableCell className="text-right">{p.price != null ? CLP.format(p.price / 100) : "—"}</TableCell>
-                  </TableRow>
-                ))}
+              {visibleProducts.map((p) => {
+                const hasVariants = p.variants.length > 1;
+                const expanded = expandedProductIds.has(p.id);
+                return (
+                  <Fragment key={p.id}>
+                    <TableRow
+                      className={hasVariants ? "cursor-pointer" : undefined}
+                      onClick={hasVariants ? () => toggleExpanded(p.id) : undefined}
+                    >
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-1.5">
+                          {hasVariants ? (
+                            <ChevronRight
+                              className={cn(
+                                "h-3.5 w-3.5 text-muted-foreground transition-transform shrink-0",
+                                expanded && "rotate-90"
+                              )}
+                            />
+                          ) : (
+                            <span className="w-3.5 shrink-0" />
+                          )}
+                          {p.title}
+                          {hasVariants && (
+                            <span className="text-xs text-muted-foreground font-normal">
+                              ({p.variants.length} variantes)
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={p.available ? "default" : "secondary"}>
+                          {p.available ? "Disponible" : "Sin stock / inactivo"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">{NUM.format(p.inventoryQuantity)}</TableCell>
+                      <TableCell className="text-right">{p.price != null ? CLP.format(p.price / 100) : "—"}</TableCell>
+                    </TableRow>
+                    {hasVariants && expanded &&
+                      p.variants.map((v) => (
+                        <TableRow key={v.id} className="bg-muted/30">
+                          <TableCell className="pl-9 text-sm text-muted-foreground">{v.title}</TableCell>
+                          <TableCell>
+                            <Badge variant={v.available ? "default" : "secondary"} className="opacity-80">
+                              {v.available ? "Disponible" : "Sin stock"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right text-sm text-muted-foreground">
+                            {NUM.format(v.inventoryQuantity)}
+                          </TableCell>
+                          <TableCell className="text-right text-sm text-muted-foreground">
+                            {v.price != null ? CLP.format(v.price / 100) : "—"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </Fragment>
+                );
+              })}
             </TableBody>
           </Table>
         ) : (
-          <p className="p-4 text-sm text-muted-foreground">Sin productos sincronizados todavía</p>
+          <p className="p-4 text-sm text-muted-foreground">
+            {products.length === 0
+              ? "Sin productos sincronizados todavía"
+              : "Ningún producto coincide con el filtro seleccionado"}
+          </p>
         )}
       </div>
     </div>
+  );
+}
+
+function SortableHead({
+  label,
+  align,
+  active,
+  dir,
+  onClick,
+}: {
+  label: string;
+  align?: "right";
+  active: boolean;
+  dir: "asc" | "desc";
+  onClick: () => void;
+}) {
+  return (
+    <TableHead className={align === "right" ? "text-right" : undefined}>
+      <button
+        onClick={onClick}
+        className={cn(
+          "inline-flex items-center gap-1 cursor-pointer select-none hover:text-foreground",
+          align === "right" && "flex-row-reverse",
+          active ? "text-foreground font-medium" : "text-muted-foreground"
+        )}
+      >
+        {label}
+        <ArrowUpDown className={cn("h-3 w-3", active && dir === "desc" && "rotate-180")} />
+      </button>
+    </TableHead>
   );
 }

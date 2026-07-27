@@ -18,6 +18,15 @@ function mapProduct(row: any): ShopifyProduct {
     price: row.price,
     imageUrl: row.image_url,
     updatedAt: row.updated_at,
+    variants: (row.shopify_product_variants ?? []).map((v: any) => ({
+      id: v.id,
+      shopifyVariantId: Number(v.shopify_variant_id),
+      title: v.title,
+      sku: v.sku,
+      price: v.price,
+      inventoryQuantity: v.inventory_quantity,
+      available: v.available,
+    })),
   };
 }
 
@@ -44,7 +53,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ products: [], salesByMonth: [] });
   }
 
-  let productsQuery = supabase.from("shopify_products").select("*").eq("organization_id", orgId!);
+  let productsQuery = supabase
+    .from("shopify_products")
+    .select("*, shopify_product_variants(*)")
+    .eq("organization_id", orgId!);
   let salesQuery = supabase
     .from("shopify_sales_monthly")
     .select("*")

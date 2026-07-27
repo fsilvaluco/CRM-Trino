@@ -66,6 +66,16 @@ export interface MerchSnapshot {
 // Datos de solo lectura: se llenan desde el sync con Shopify, nunca desde un
 // formulario en la UI.
 
+export interface ShopifyProductVariant {
+  id: string;
+  shopifyVariantId: number;
+  title: string;
+  sku: string | null;
+  price: number | null;
+  inventoryQuantity: number;
+  available: boolean;
+}
+
 export interface ShopifyProduct {
   id: string;
   shopifyProductId: number;
@@ -77,6 +87,7 @@ export interface ShopifyProduct {
   price: number | null;
   imageUrl: string | null;
   updatedAt: string;
+  variants: ShopifyProductVariant[];
 }
 
 export interface ShopifySalesMonth {

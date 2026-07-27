@@ -6,6 +6,8 @@ const SHOPIFY_API_VERSION = "2024-10";
 
 interface ShopifyVariant {
   id: number;
+  title: string; // ej. "Small / Negro"
+  sku: string | null;
   price: string; // string decimal, ej "12990.00"
   inventory_quantity: number | null;
 }
@@ -235,6 +237,56 @@ export async function syncShopify(
     .eq("organization_id", organizationId)
     .eq("project_id", projectId)
     .not("shopify_product_id", "in", `(${currentIds.length > 0 ? currentIds.join(",") : "0"})`);
+
+  // ── Variantes (talla, color, diseño) ────────────────────────────────────
+  // Necesitamos el id real (UUID) de cada producto ya guardado para poder
+  // enlazar sus variantes por FK.
+  const { data: savedProducts } = await supabase
+    .from("shopify_products")
+    .select("id, shopify_product_id")
+    .eq("organization_id", organizationId)
+    .eq("project_id", projectId)
+    .in("shopify_product_id", currentIds.length > 0 ? currentIds : [0]);
+
+  const productDbIdByShopifyId = new Map(
+    (savedProducts ?? []).map((p) => [p.shopify_product_id, p.id])
+  );
+
+  const variantRows = products.flatMap((p) => {
+    const productDbId = productDbIdByShopifyId.get(p.id);
+    if (!productDbId) return [];
+    return p.variants.map((v) => ({
+      organization_id: organizationId,
+      project_id: projectId,
+      product_id: productDbId,
+      shopify_variant_id: v.id,
+      title: v.title,
+      sku: v.sku ?? null,
+      price: v.price ? Math.round(Number(v.price) * 100) : null,
+      inventory_quantity: v.inventory_quantity ?? 0,
+      available: (v.inventory_quantity ?? 0) > 0 && p.status === "active",
+      updated_at: new Date().toISOString(),
+    }));
+  });
+
+  if (variantRows.length > 0) {
+    const { error: variantsError } = await supabase
+      .from("shopify_product_variants")
+      .upsert(variantRows, { onConflict: "organization_id,project_id,shopify_variant_id" });
+    if (variantsError) {
+      throw new Error(`No se pudieron guardar las variantes: ${variantsError.message}`);
+    }
+  }
+
+  // Limpieza de variantes que ya no existen (producto eliminado, variante
+  // eliminada, etc.) -- mismo criterio que para productos.
+  const currentVariantIds = variantRows.map((r) => r.shopify_variant_id);
+  await supabase
+    .from("shopify_product_variants")
+    .delete()
+    .eq("organization_id", organizationId)
+    .eq("project_id", projectId)
+    .not("shopify_variant_id", "in", `(${currentVariantIds.length > 0 ? currentVariantIds.join(",") : "0"})`);
 
   // ── Ventas por mes ─────────────────────────────────────────────────────
   const since = new Date();
