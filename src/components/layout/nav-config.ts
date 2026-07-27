@@ -30,6 +30,8 @@ export interface NavLeaf {
   icon: LucideIcon;
   /** If set, this link only renders when the user satisfies the condition */
   adminOnly?: boolean;
+  /** Si esta seteado, muestra un punto rojo cuando hay items nuevos sin ver en este modulo */
+  moduleKey?: string;
 }
 
 export interface NavGroup {
@@ -74,7 +76,7 @@ export const navConfig: NavItem[] = [
       { type: "leaf", href: "/crm", label: "Tratos", icon: Kanban },
       { type: "leaf", href: "/contacts", label: "Contactos", icon: Users },
       { type: "leaf", href: "/companies", label: "Empresas", icon: Building2 },
-      { type: "leaf", href: "/lead-candidates", label: "Bandeja de Leads", icon: Inbox },
+      { type: "leaf", href: "/lead-candidates", label: "Bandeja de Leads", icon: Inbox, moduleKey: "lead_candidates" },
     ],
   },
   {

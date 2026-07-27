@@ -8,8 +8,11 @@ import { cn } from "@/lib/utils";
 import { useProject } from "@/lib/project-context";
 import { useAuth } from "@/lib/auth-context";
 import { navConfig, settingsConfig, computeActiveHref, type NavLeaf, type NavGroup } from "./nav-config";
+import { useNotifications } from "@/lib/notifications-context";
 
 function LeafLink({ item, activeHref, indent = false }: { item: NavLeaf; activeHref: string; indent?: boolean }) {
+  const { unseenCounts } = useNotifications();
+  const hasUnseen = item.moduleKey ? (unseenCounts[item.moduleKey] ?? 0) > 0 : false;
   const active = item.href === activeHref;
   return (
     <Link
@@ -24,6 +27,7 @@ function LeafLink({ item, activeHref, indent = false }: { item: NavLeaf; activeH
     >
       <item.icon className="h-5 w-5 shrink-0" />
       {item.label}
+      {hasUnseen && <span className="h-2 w-2 rounded-full bg-red-500 shrink-0" />}
     </Link>
   );
 }

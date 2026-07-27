@@ -34,6 +34,7 @@ export interface Company {
   phone: string | null;
   address: string | null;
   notes: string | null;
+  artistProjectId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -49,6 +50,7 @@ export interface Contact {
   temperature: Temperature;
   score: number;
   notes: string | null;
+  artistProjectId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

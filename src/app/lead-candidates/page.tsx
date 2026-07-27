@@ -3,12 +3,19 @@
 import { useState, useEffect } from "react";
 import { LeadCandidatesInbox } from "@/components/lead-candidates/LeadCandidatesInbox";
 import { useProject } from "@/lib/project-context";
+import { useNotifications } from "@/lib/notifications-context";
 import type { LeadCandidate } from "@/types";
 
 export default function LeadCandidatesPage() {
   const [leads, setLeads] = useState<LeadCandidate[]>([]);
   const [loading, setLoading] = useState(true);
   const { activeProject } = useProject();
+  const { markSeen } = useNotifications();
+
+  useEffect(() => {
+    markSeen("lead_candidates");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadLeads = () => {
     const params = activeProject ? `?projectId=${activeProject.id}` : "";

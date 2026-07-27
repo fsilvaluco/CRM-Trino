@@ -1,11 +1,19 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -17,6 +25,8 @@ import { toast } from "sonner";
 import type { Company } from "@/types";
 import { useProject } from "@/lib/project-context";
 
+const NO_ARTIST_VALUE = "__no_artist__";
+
 const companySchema = z.object({
   name: z.string().min(1, "El nombre es requerido"),
   industry: z.string(),
@@ -25,6 +35,7 @@ const companySchema = z.object({
   phone: z.string(),
   address: z.string(),
   notes: z.string(),
+  artistProjectId: z.string(),
 });
 
 type CompanyFormData = z.infer<typeof companySchema>;
@@ -38,10 +49,24 @@ interface CompanyFormProps {
 export function CompanyForm({ open, onClose, initialData }: CompanyFormProps) {
   const isEdit = Boolean(initialData?.id);
   const { activeProject } = useProject();
+  const [artistProjects, setArtistProjects] = useState<Array<{ id: string; name: string }>>([]);
+
+  useEffect(() => {
+    if (!open || !activeProject) {
+      setArtistProjects([]);
+      return;
+    }
+    fetch(`/api/projects?parentId=${activeProject.id}`)
+      .then((r) => r.json())
+      .then((d) => setArtistProjects(Array.isArray(d) ? d : []))
+      .catch(() => setArtistProjects([]));
+  }, [open, activeProject]);
 
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors, isSubmitting },
     reset,
   } = useForm<CompanyFormData>({
@@ -54,6 +79,7 @@ export function CompanyForm({ open, onClose, initialData }: CompanyFormProps) {
       phone: initialData?.phone || "",
       address: initialData?.address || "",
       notes: initialData?.notes || "",
+      artistProjectId: initialData?.artistProjectId || "",
     },
   });
 
@@ -74,6 +100,7 @@ export function CompanyForm({ open, onClose, initialData }: CompanyFormProps) {
           address: data.address || null,
           notes: data.notes || null,
           projectId: activeProject?.id ?? null,
+          artistProjectId: data.artistProjectId || null,
         }),
       });
 
@@ -129,6 +156,31 @@ export function CompanyForm({ open, onClose, initialData }: CompanyFormProps) {
             <Label>Direccion</Label>
             <Input {...register("address")} placeholder="Calle, ciudad, pais" />
           </div>
+
+          {artistProjects.length > 0 && (
+            <div className="space-y-2">
+              <Label>Artista beneficiado (opcional)</Label>
+              <Select
+                value={watch("artistProjectId") || NO_ARTIST_VALUE}
+                onValueChange={(v) =>
+                  setValue("artistProjectId", !v || v === NO_ARTIST_VALUE ? "" : v)
+                }
+              >
+                <SelectTrigger className="cursor-pointer">
+                  <SelectValue placeholder="Ninguno" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_ARTIST_VALUE}>Ninguno (empresa general)</SelectItem>
+                  {artistProjects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Si eliges un artista, esta empresa tambien va a aparecer en su pipeline.
+              </p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label>Notas</Label>

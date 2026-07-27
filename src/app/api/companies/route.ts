@@ -12,6 +12,7 @@ function mapCompany(row: any) {
     phone: row.phone ?? null,
     address: row.address ?? null,
     notes: row.notes ?? null,
+    artistProjectId: row.artist_project_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     contactCount: Array.isArray(row.contacts) ? (row.contacts[0]?.count ?? 0) : 0,
@@ -51,7 +52,18 @@ export async function GET(request: NextRequest) {
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
-  if (projectIdParam) query = query.eq("project_id", projectIdParam);
+  if (projectIdParam) {
+    const { data: children } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("parent_project_id", projectIdParam);
+
+    const visibleIds = [projectIdParam, ...(children ?? []).map((c) => c.id)];
+
+    query = query.or(
+      `project_id.in.(${visibleIds.join(",")}),artist_project_id.in.(${visibleIds.join(",")})`
+    );
+  }
   if (search) query = query.ilike("name", `%${search}%`);
 
   const { data, error: dbError } = await query;
@@ -74,7 +86,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
   }
 
-  const { name, industry, website, email, phone, address, notes, projectId } = body;
+  const { name, industry, website, email, phone, address, notes, projectId, artistProjectId } = body;
 
   if (!name || name.trim() === "") {
     return NextResponse.json({ error: "El nombre es requerido" }, { status: 400 });
@@ -93,6 +105,7 @@ export async function POST(request: NextRequest) {
       organization_id: orgId,
       created_by: user!.id,
       project_id: projectId || null,
+      artist_project_id: artistProjectId || null,
     })
     .select()
     .single();

@@ -6,6 +6,7 @@ import { useState } from "react";
 import { ChevronDown, ChevronRight, ChevronLeft, Briefcase } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
+import { useNotifications } from "@/lib/notifications-context";
 import { navConfig, settingsConfig, computeActiveHref, type NavLeaf, type NavGroup } from "./nav-config";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -25,6 +26,8 @@ function LeafLink({
   indent?: boolean;
   collapsed: boolean;
 }) {
+  const { unseenCounts } = useNotifications();
+  const hasUnseen = item.moduleKey ? (unseenCounts[item.moduleKey] ?? 0) > 0 : false;
   const active = item.href === activeHref;
   const baseClass = cn(
     "flex items-center rounded-lg text-sm font-medium transition-colors cursor-pointer",
@@ -40,11 +43,14 @@ function LeafLink({
           render={
             <Link
               href={item.href}
-              className={cn(baseClass, "justify-center px-2 py-2.5")}
+              className={cn(baseClass, "justify-center px-2 py-2.5 relative")}
             />
           }
         >
           <item.icon className="h-5 w-5 shrink-0" />
+          {hasUnseen && (
+            <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500" />
+          )}
         </TooltipTrigger>
         <TooltipContent side="right">{item.label}</TooltipContent>
       </Tooltip>
@@ -58,6 +64,7 @@ function LeafLink({
     >
       <item.icon className="h-5 w-5 shrink-0" />
       {item.label}
+      {hasUnseen && <span className="h-2 w-2 rounded-full bg-red-500 shrink-0" />}
     </Link>
   );
 }

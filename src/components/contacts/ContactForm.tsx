@@ -31,6 +31,7 @@ import { useProject } from "@/lib/project-context";
 
 const NEW_COMPANY_VALUE = "__new__";
 const NO_COMPANY_VALUE = "__no_company__";
+const NO_ARTIST_VALUE = "__no_artist__";
 const uuidSchema = z.string().uuid("Company ID invalido");
 
 const contactSchema = z
@@ -46,6 +47,7 @@ const contactSchema = z
     newCompanyName: z.string(),
     source: z.string(),
     notes: z.string(),
+    artistProjectId: z.string(),
   })
   .superRefine((data, ctx) => {
     if (data.companyId === NEW_COMPANY_VALUE && data.newCompanyName.trim() === "") {
@@ -77,6 +79,7 @@ interface ContactFormProps {
     score?: number;
     source?: string;
     notes?: string;
+    artistProjectId?: string | null;
   };
 }
 
@@ -86,6 +89,7 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
   const { settings } = useLocale();
   const { activeProject } = useProject();
   const [companiesList, setCompanies] = useState<CompanyOption[]>([]);
+  const [artistProjects, setArtistProjects] = useState<CompanyOption[]>([]);
 
   useEffect(() => {
     if (open) {
@@ -95,6 +99,17 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
         .then((d) => setCompanies(Array.isArray(d) ? d : []))
         .catch(() => {});
     }
+  }, [open, activeProject]);
+
+  useEffect(() => {
+    if (!open || !activeProject) {
+      setArtistProjects([]);
+      return;
+    }
+    fetch(`/api/projects?parentId=${activeProject.id}`)
+      .then((r) => r.json())
+      .then((d) => setArtistProjects(Array.isArray(d) ? d : []))
+      .catch(() => setArtistProjects([]));
   }, [open, activeProject]);
 
   const {
@@ -114,6 +129,7 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
       newCompanyName: "",
       source: initialData?.source || "otro",
       notes: initialData?.notes || "",
+      artistProjectId: initialData?.artistProjectId || "",
     },
   });
 
@@ -188,6 +204,7 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
           score: initialData?.score ?? 0,
           notes: data.notes || null,
           projectId: activeProject.id,
+          artistProjectId: data.artistProjectId || null,
         }),
       });
 
@@ -294,6 +311,31 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
                 {errors.newCompanyName && (
                   <p className="text-xs text-destructive">{errors.newCompanyName.message}</p>
                 )}
+            </div>
+          )}
+
+          {artistProjects.length > 0 && (
+            <div className="space-y-2">
+              <Label>Artista beneficiado (opcional)</Label>
+              <Select
+                value={watch("artistProjectId") || NO_ARTIST_VALUE}
+                onValueChange={(v) =>
+                  setValue("artistProjectId", !v || v === NO_ARTIST_VALUE ? "" : v)
+                }
+              >
+                <SelectTrigger className="cursor-pointer">
+                  <SelectValue placeholder="Ninguno" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_ARTIST_VALUE}>Ninguno (contacto general)</SelectItem>
+                  {artistProjects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Si eliges un artista, este contacto tambien va a aparecer en su pipeline.
+              </p>
             </div>
           )}
 

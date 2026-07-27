@@ -14,6 +14,7 @@ function mapContact(row: any) {
     phone: row.phone ?? null,
     company: joinedCompanyName,
     companyId: row.company_id ?? null,
+    artistProjectId: row.artist_project_id ?? null,
     source: row.source,
     temperature: row.temperature,
     score: row.score,
@@ -32,6 +33,7 @@ function mapDeal(row: any) {
     stageId: row.stage_id,
     contactId: row.contact_id,
     companyId: row.company_id ?? null,
+    artistProjectId: row.artist_project_id ?? null,
     probability: row.probability,
     notes: row.notes ?? null,
     createdAt: row.created_at,
@@ -127,6 +129,7 @@ export async function PUT(
   if (body.temperature !== undefined) updates.temperature = body.temperature;
   if (body.score !== undefined) updates.score = Math.max(0, Math.min(100, body.score));
   if (body.notes !== undefined) updates.notes = body.notes;
+  if (body.artistProjectId !== undefined) updates.artist_project_id = body.artistProjectId || null;
 
   const { data, error: dbError } = await supabase
     .from("contacts")

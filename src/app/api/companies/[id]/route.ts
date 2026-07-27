@@ -12,6 +12,7 @@ function mapCompany(row: any) {
     phone: row.phone ?? null,
     address: row.address ?? null,
     notes: row.notes ?? null,
+    artistProjectId: row.artist_project_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -30,6 +31,7 @@ function mapContact(row: any) {
     temperature: row.temperature,
     score: row.score,
     notes: row.notes ?? null,
+    artistProjectId: row.artist_project_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -46,6 +48,7 @@ function mapDeal(row: any) {
     companyId: row.company_id ?? null,
     probability: row.probability,
     notes: row.notes ?? null,
+    artistProjectId: row.artist_project_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -113,7 +116,7 @@ export async function PUT(
     return NextResponse.json({ error: "Empresa no encontrada" }, { status: 404 });
   }
 
-  const { name, industry, website, email, phone, address, notes } = body;
+  const { name, industry, website, email, phone, address, notes, artistProjectId } = body;
 
   const { data, error: dbError } = await supabase
     .from("companies")
@@ -125,6 +128,7 @@ export async function PUT(
       ...(phone !== undefined && { phone: phone || null }),
       ...(address !== undefined && { address: address || null }),
       ...(notes !== undefined && { notes: notes || null }),
+      ...(artistProjectId !== undefined && { artist_project_id: artistProjectId || null }),
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)

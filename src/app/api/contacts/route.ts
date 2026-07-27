@@ -34,6 +34,9 @@ const createContactSchema = z.object({
     return trimmedValue === "" ? null : trimmedValue;
   }),
   projectId: z.string().uuid("El proyecto debe ser un UUID valido"),
+  artistProjectId: z
+    .union([z.string().uuid(), z.literal(""), z.null(), z.undefined()])
+    .transform((v) => (v ? v : null)),
 });
 
 function errorResponse(message: string, status: number, details?: unknown) {
@@ -65,6 +68,7 @@ function mapContact(row: any) {
     temperature: row.temperature,
     score: row.score,
     notes: row.notes ?? null,
+    artistProjectId: row.artist_project_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -103,7 +107,18 @@ export async function GET(request: NextRequest) {
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
-  if (projectIdParam) query = query.eq("project_id", projectIdParam);
+  if (projectIdParam) {
+    const { data: children } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("parent_project_id", projectIdParam);
+
+    const visibleIds = [projectIdParam, ...(children ?? []).map((c) => c.id)];
+
+    query = query.or(
+      `project_id.in.(${visibleIds.join(",")}),artist_project_id.in.(${visibleIds.join(",")})`
+    );
+  }
   if (temperature) query = query.eq("temperature", temperature);
   if (source) query = query.eq("source", source);
   if (search) {
@@ -137,7 +152,7 @@ export async function POST(request: NextRequest) {
     return errorResponse("Payload invalido", 400, parsedBody.error.flatten());
   }
 
-  const { name, email, phone, companyId, source, temperature, score, notes, projectId } =
+  const { name, email, phone, companyId, source, temperature, score, notes, projectId, artistProjectId } =
     parsedBody.data;
 
   if (!isAdmin && allowedProjectIds && !allowedProjectIds.includes(String(projectId))) {
@@ -176,6 +191,7 @@ export async function POST(request: NextRequest) {
     organization_id: orgId,
     created_by: user!.id,
     project_id: String(projectId),
+    artist_project_id: artistProjectId,
   };
 
   const { data, error: dbError } = await supabase

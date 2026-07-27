@@ -8,6 +8,7 @@ import { ThemeInitializer } from "@/components/layout/ThemeInitializer";
 import { AuthProvider } from "@/lib/auth-context";
 import { AppShell } from "@/components/layout/AppShell";
 import { ProjectProvider } from "@/lib/project-context";
+import { NotificationsProvider } from "@/lib/notifications-context";
 import { UpdateNotifier } from "@/components/layout/UpdateNotifier";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +35,7 @@ export default function RootLayout({
         <TooltipProvider>
           <AuthProvider>
             <ProjectProvider>
+              <NotificationsProvider>
               <LocaleProvider>
                 <ThemeInitializer />
                 <AppShell>
@@ -42,6 +44,7 @@ export default function RootLayout({
                 <Toaster />
                 <UpdateNotifier />
               </LocaleProvider>
+              </NotificationsProvider>
             </ProjectProvider>
           </AuthProvider>
         </TooltipProvider>
