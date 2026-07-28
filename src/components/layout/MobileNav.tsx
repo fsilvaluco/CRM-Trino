@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { ChevronDown, Briefcase } from "lucide-react";
+import { ChevronDown } from "lucide-react";
+import { THEME_PALETTES, type ThemeColorKey } from "@/lib/theme-palettes";
 import { cn } from "@/lib/utils";
 import { useProject } from "@/lib/project-context";
 import { navConfig, settingsConfig, computeActiveHref, type NavLeaf, type NavGroup } from "./nav-config";
@@ -70,12 +71,29 @@ function GroupNav({ item, activeHref }: { item: NavGroup; activeHref: string }) 
 export function MobileNav() {
   const pathname = usePathname();
   const activeHref = computeActiveHref(pathname);
-  const { isAdmin } = useProject(); // fuente unica de isAdmin, igual que Sidebar
+  const { isAdmin, activeProject } = useProject(); // fuente unica de isAdmin, igual que Sidebar
 
   return (
     <div className="flex flex-col h-full bg-[var(--sidebar)] text-[var(--sidebar-foreground)]">
       <div className="flex h-16 items-center gap-2 px-6 border-b border-[var(--sidebar-border)]">
-        <Briefcase className="h-6 w-6 text-[var(--sidebar-primary)]" />
+        <span
+          aria-label="Artist Pro"
+          className="h-6 w-6 shrink-0"
+          style={{
+            backgroundColor:
+              activeProject?.themeColor && activeProject.themeColor in THEME_PALETTES
+                ? THEME_PALETTES[activeProject.themeColor as ThemeColorKey].primary
+                : "var(--sidebar-primary)",
+            WebkitMaskImage: "url(/logo-icon.png)",
+            maskImage: "url(/logo-icon.png)",
+            WebkitMaskSize: "contain",
+            maskSize: "contain",
+            WebkitMaskRepeat: "no-repeat",
+            maskRepeat: "no-repeat",
+            WebkitMaskPosition: "center",
+            maskPosition: "center",
+          }}
+        />
         <span className="text-lg font-bold tracking-tight">Artist Pro</span>
       </div>
 

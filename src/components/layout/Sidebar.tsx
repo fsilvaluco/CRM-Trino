@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { ChevronDown, ChevronRight, ChevronLeft, Briefcase } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { THEME_PALETTES, type ThemeColorKey } from "@/lib/theme-palettes";
 import { useProject } from "@/lib/project-context";
 import { useNotifications } from "@/lib/notifications-context";
 import { navConfig, settingsConfig, computeActiveHref, type NavLeaf, type NavGroup } from "./nav-config";
@@ -160,7 +161,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   // que el menu mostrara "Admin" cuando en realidad los botones de
   // eliminar (que si usan project-context) lo ocultaban correctamente.
   // Ahora ambos usan exactamente la misma fuente.
-  const { isAdmin } = useProject();
+  const { isAdmin, activeProject } = useProject();
 
   return (
     <aside
@@ -176,7 +177,24 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           collapsed ? "justify-center" : "gap-2 px-6"
         )}
       >
-        <Briefcase className="h-6 w-6 text-[var(--sidebar-primary)] shrink-0" />
+        <span
+          aria-label="Artist Pro"
+          className="h-6 w-6 shrink-0"
+          style={{
+            backgroundColor:
+              activeProject?.themeColor && activeProject.themeColor in THEME_PALETTES
+                ? THEME_PALETTES[activeProject.themeColor as ThemeColorKey].primary
+                : "var(--sidebar-primary)",
+            WebkitMaskImage: "url(/logo-icon.png)",
+            maskImage: "url(/logo-icon.png)",
+            WebkitMaskSize: "contain",
+            maskSize: "contain",
+            WebkitMaskRepeat: "no-repeat",
+            maskRepeat: "no-repeat",
+            WebkitMaskPosition: "center",
+            maskPosition: "center",
+          }}
+        />
         {!collapsed && (
           <span className="text-lg font-bold tracking-tight whitespace-nowrap">
             Artist Pro
