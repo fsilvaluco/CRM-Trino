@@ -65,9 +65,9 @@ export function MerchDashboard({ products, salesByMonth }: MerchDashboardProps) 
 
   // ── Catálogo: filtro de estado, orden por columna, expandir variantes ──
   const [statusFilter, setStatusFilter] = useState<"all" | "available" | "unavailable">("all");
-  type SortKey = "title" | "available" | "inventoryQuantity" | "price";
-  const [sortKey, setSortKey] = useState<SortKey>("title");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  type SortKey = "title" | "available" | "cost" | "inventoryQuantity" | "price" | "totalValue";
+  const [sortKey, setSortKey] = useState<SortKey>("available");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [expandedProductIds, setExpandedProductIds] = useState<Set<string>>(new Set());
 
   function toggleExpanded(id: string) {
@@ -102,10 +102,16 @@ export function MerchDashboard({ products, salesByMonth }: MerchDashboardProps) 
           return a.title.localeCompare(b.title) * dir;
         case "available":
           return (Number(a.available) - Number(b.available)) * dir;
+        case "cost":
+          return ((a.cost ?? -1) - (b.cost ?? -1)) * dir;
         case "inventoryQuantity":
           return (a.inventoryQuantity - b.inventoryQuantity) * dir;
         case "price":
           return ((a.price ?? -1) - (b.price ?? -1)) * dir;
+        case "totalValue":
+          return (
+            a.inventoryQuantity * (a.price ?? 0) - b.inventoryQuantity * (b.price ?? 0)
+          ) * dir;
         default:
           return 0;
       }
@@ -283,6 +289,13 @@ export function MerchDashboard({ products, salesByMonth }: MerchDashboardProps) 
                 <SortableHead label="Producto" active={sortKey === "title"} dir={sortDir} onClick={() => toggleSort("title")} />
                 <SortableHead label="Estado" active={sortKey === "available"} dir={sortDir} onClick={() => toggleSort("available")} />
                 <SortableHead
+                  label="Costo"
+                  align="right"
+                  active={sortKey === "cost"}
+                  dir={sortDir}
+                  onClick={() => toggleSort("cost")}
+                />
+                <SortableHead
                   label="Inventario"
                   align="right"
                   active={sortKey === "inventoryQuantity"}
@@ -295,6 +308,13 @@ export function MerchDashboard({ products, salesByMonth }: MerchDashboardProps) 
                   active={sortKey === "price"}
                   dir={sortDir}
                   onClick={() => toggleSort("price")}
+                />
+                <SortableHead
+                  label="Valor Inventario"
+                  align="right"
+                  active={sortKey === "totalValue"}
+                  dir={sortDir}
+                  onClick={() => toggleSort("totalValue")}
                 />
               </TableRow>
             </TableHeader>
@@ -333,8 +353,12 @@ export function MerchDashboard({ products, salesByMonth }: MerchDashboardProps) 
                           {p.available ? "Disponible" : "Sin stock / inactivo"}
                         </Badge>
                       </TableCell>
+                      <TableCell className="text-right">{p.cost != null ? CLP.format(p.cost / 100) : "—"}</TableCell>
                       <TableCell className="text-right">{NUM.format(p.inventoryQuantity)}</TableCell>
                       <TableCell className="text-right">{p.price != null ? CLP.format(p.price / 100) : "—"}</TableCell>
+                      <TableCell className="text-right font-medium">
+                        {p.price != null ? CLP.format((p.inventoryQuantity * p.price) / 100) : "—"}
+                      </TableCell>
                     </TableRow>
                     {hasVariants && expanded &&
                       p.variants.map((v) => (
@@ -346,10 +370,16 @@ export function MerchDashboard({ products, salesByMonth }: MerchDashboardProps) 
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right text-sm text-muted-foreground">
+                            {v.cost != null ? CLP.format(v.cost / 100) : "—"}
+                          </TableCell>
+                          <TableCell className="text-right text-sm text-muted-foreground">
                             {NUM.format(v.inventoryQuantity)}
                           </TableCell>
                           <TableCell className="text-right text-sm text-muted-foreground">
                             {v.price != null ? CLP.format(v.price / 100) : "—"}
+                          </TableCell>
+                          <TableCell className="text-right text-sm text-muted-foreground">
+                            {v.price != null ? CLP.format((v.inventoryQuantity * v.price) / 100) : "—"}
                           </TableCell>
                         </TableRow>
                       ))}

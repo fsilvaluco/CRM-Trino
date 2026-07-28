@@ -16,6 +16,7 @@ function mapProduct(row: any): ShopifyProduct {
     available: row.available,
     inventoryQuantity: row.inventory_quantity,
     price: row.price,
+    cost: row.cost ?? null,
     imageUrl: row.image_url,
     updatedAt: row.updated_at,
     variants: (row.shopify_product_variants ?? []).map((v: any) => ({
@@ -24,6 +25,7 @@ function mapProduct(row: any): ShopifyProduct {
       title: v.title,
       sku: v.sku,
       price: v.price,
+      cost: v.cost ?? null,
       inventoryQuantity: v.inventory_quantity,
       available: v.available,
     })),

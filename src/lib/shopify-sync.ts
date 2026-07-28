@@ -10,6 +10,7 @@ interface ShopifyVariant {
   sku: string | null;
   price: string; // string decimal, ej "12990.00"
   inventory_quantity: number | null;
+  inventory_item_id: number | null;
 }
 
 interface ShopifyProduct {
@@ -138,6 +139,33 @@ async function fetchCollectionProducts(
   return products;
 }
 
+/** Trae el costo unitario de cada variante via su inventory_item_id.
+ * Shopify no entrega esto en /products.json -- hay que pedirlo aparte a
+ * /inventory_items.json, en lotes de 100 ids (limite de la API). */
+async function fetchInventoryCosts(
+  shopDomain: string,
+  accessToken: string,
+  inventoryItemIds: number[]
+): Promise<Map<number, number>> {
+  const costByItemId = new Map<number, number>();
+  const uniqueIds = Array.from(new Set(inventoryItemIds));
+
+  for (let i = 0; i < uniqueIds.length; i += 100) {
+    const batch = uniqueIds.slice(i, i + 100);
+    const res = await fetch(
+      shopifyUrl(shopDomain, `/inventory_items.json?ids=${batch.join(",")}&limit=100`),
+      { headers: { "X-Shopify-Access-Token": accessToken } }
+    );
+    if (!res.ok) continue; // el costo es "nice to have" -- no bloquea el resto del sync
+    const data = await res.json();
+    for (const item of data.inventory_items ?? []) {
+      if (item.cost != null) costByItemId.set(item.id, Number(item.cost));
+    }
+  }
+
+  return costByItemId;
+}
+
 /** Trae órdenes desde `sinceIso` en adelante (paginado por cursor). Solo
  * pedimos los campos que necesitamos para no traer datos de clientes que no
  * usamos. status=any incluye canceladas — se descartan más abajo. */
@@ -192,6 +220,11 @@ export async function syncShopify(
   const products = await fetchCollectionProducts(shopDomain, accessToken, collectionId);
   const productIds = new Set(products.map((p) => p.id));
 
+  const allInventoryItemIds = products.flatMap((p) =>
+    p.variants.map((v) => v.inventory_item_id).filter((id): id is number => id != null)
+  );
+  const costByInventoryItemId = await fetchInventoryCosts(shopDomain, accessToken, allInventoryItemIds);
+
   // ── Productos + inventario ────────────────────────────────────────────
   const productRows = products.map((p) => {
     const inventoryQuantity = p.variants.reduce(
@@ -203,6 +236,10 @@ export async function syncShopify(
       if (!min || price < Number(min.price)) return v;
       return min;
     }, null);
+    const cheapestVariantCost =
+      cheapestVariant?.inventory_item_id != null
+        ? costByInventoryItemId.get(cheapestVariant.inventory_item_id)
+        : undefined;
 
     return {
       organization_id: organizationId,
@@ -213,6 +250,7 @@ export async function syncShopify(
       available: p.status === "active" && inventoryQuantity > 0,
       inventory_quantity: inventoryQuantity,
       price: cheapestVariant ? Math.round(Number(cheapestVariant.price) * 100) : null,
+      cost: cheapestVariantCost != null ? Math.round(cheapestVariantCost * 100) : null,
       image_url: p.image?.src ?? null,
       updated_at: new Date().toISOString(),
     };
@@ -255,18 +293,22 @@ export async function syncShopify(
   const variantRows = products.flatMap((p) => {
     const productDbId = productDbIdByShopifyId.get(p.id);
     if (!productDbId) return [];
-    return p.variants.map((v) => ({
-      organization_id: organizationId,
-      project_id: projectId,
-      product_id: productDbId,
-      shopify_variant_id: v.id,
-      title: v.title,
-      sku: v.sku ?? null,
-      price: v.price ? Math.round(Number(v.price) * 100) : null,
-      inventory_quantity: v.inventory_quantity ?? 0,
-      available: (v.inventory_quantity ?? 0) > 0 && p.status === "active",
-      updated_at: new Date().toISOString(),
-    }));
+    return p.variants.map((v) => {
+      const rawCost = v.inventory_item_id != null ? costByInventoryItemId.get(v.inventory_item_id) : undefined;
+      return {
+        organization_id: organizationId,
+        project_id: projectId,
+        product_id: productDbId,
+        shopify_variant_id: v.id,
+        title: v.title,
+        sku: v.sku ?? null,
+        price: v.price ? Math.round(Number(v.price) * 100) : null,
+        cost: rawCost != null ? Math.round(rawCost * 100) : null,
+        inventory_quantity: v.inventory_quantity ?? 0,
+        available: (v.inventory_quantity ?? 0) > 0 && p.status === "active",
+        updated_at: new Date().toISOString(),
+      };
+    });
   });
 
   if (variantRows.length > 0) {

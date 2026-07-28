@@ -72,6 +72,7 @@ export interface ShopifyProductVariant {
   title: string;
   sku: string | null;
   price: number | null;
+  cost: number | null;
   inventoryQuantity: number;
   available: boolean;
 }
@@ -85,6 +86,8 @@ export interface ShopifyProduct {
   inventoryQuantity: number;
   /** Precio de la variante más barata, en CLP cents */
   price: number | null;
+  /** Costo de esa misma variante, en CLP cents */
+  cost: number | null;
   imageUrl: string | null;
   updatedAt: string;
   variants: ShopifyProductVariant[];
