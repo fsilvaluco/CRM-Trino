@@ -17,6 +17,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const isPublic = PUBLIC_PATHS.includes(pathname) || PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
   const isGuestOnly = GUEST_ONLY_PATHS.includes(pathname);
+  // La raiz del dominio es especial: sin sesion muestra la landing publica
+  // (sin chrome de la app), CON sesion muestra el Dashboard normal -- no
+  // es "publica" en el sentido de las demas (login, etc.), porque su
+  // contenido depende de si hay usuario o no.
+  const isLandingRoot = pathname === "/";
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -32,7 +37,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!loading && !user && !isPublic) {
+    if (!loading && !user && !isPublic && !isLandingRoot) {
       router.replace("/login");
       return;
     }
@@ -56,7 +61,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         }
       })();
     }
-  }, [user, loading, isPublic, isGuestOnly, pathname, router]);
+  }, [user, loading, isPublic, isGuestOnly, isLandingRoot, pathname, router]);
 
   // El body no debe tener scroll propio mientras se muestra el shell
   // autenticado -- "main" es el UNICO contenedor que scrollea. Sin esto,
@@ -66,15 +71,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // etc.) no se toca, porque esas usan su propio min-h-screen sin este
   // shell.
   useEffect(() => {
-    if (isPublic) return;
+    if (isPublic || (isLandingRoot && !user)) return;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = "";
     };
-  }, [isPublic]);
+  }, [isPublic, isLandingRoot, user]);
 
-  // Página pública (login): solo renderiza el children sin chrome
-  if (isPublic) {
+  // Página pública (login), o la raíz sin sesión (landing): solo renderiza
+  // el children sin chrome.
+  if (isPublic || (isLandingRoot && !user)) {
     return <>{children}</>;
   }
 

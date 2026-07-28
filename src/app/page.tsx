@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useProject } from "@/lib/project-context";
 import { useAuth } from "@/lib/auth-context";
+import { Landing } from "@/components/landing/Landing";
 
 import { KPICards } from "@/components/dashboard/KPICards";
 import { PipelineChart } from "@/components/dashboard/PipelineChart";
@@ -132,6 +133,10 @@ export default function DashboardPage() {
   }, [loadDashboard]);
 
   const isFirstRun = !loading && stats.totalContacts === 0 && stats.activeDeals === 0;
+
+  if (!user) {
+    return <Landing />;
+  }
 
   return (
     <div className="space-y-6">
