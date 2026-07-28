@@ -182,7 +182,7 @@ export function ImportDocumentDialog({
         }
       }}
     >
-      <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-5xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-4 w-4" />
@@ -239,7 +239,7 @@ export function ImportDocumentDialog({
                       >
                         <SelectTrigger className="h-9 text-sm cursor-pointer">
                           <SelectValue placeholder="Sin campaña">
-                          {row.subprojectId ? campaigns.find((c) => c.id === row.subprojectId)?.name ?? "Sin campaña" : "Sin campaña"}
+                          <span className="truncate">{row.subprojectId ? campaigns.find((c) => c.id === row.subprojectId)?.name ?? "Sin campaña" : "Sin campaña"}</span>
                         </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
@@ -257,12 +257,14 @@ export function ImportDocumentDialog({
                       >
                         <SelectTrigger className="h-9 text-sm cursor-pointer">
                           <SelectValue placeholder="Sin responsable">
-                            {row.assigneeIds[0]
-                              ? (() => {
-                                  const m = members.find((mm) => mm.userId === row.assigneeIds[0]);
-                                  return m?.fullName || m?.email || "Sin responsable";
-                                })()
-                              : "Sin responsable"}
+                            <span className="truncate">
+                              {row.assigneeIds[0]
+                                ? (() => {
+                                    const m = members.find((mm) => mm.userId === row.assigneeIds[0]);
+                                    return m?.fullName || m?.email || "Sin responsable";
+                                  })()
+                                : "Sin responsable"}
+                            </span>
                           </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
