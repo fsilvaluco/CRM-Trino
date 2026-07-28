@@ -79,7 +79,13 @@ export default function ActivatePage() {
       }
 
       // Legacy path: direct token/hash links without callback.
-      const token = await establishSessionFromUrl({ allowedTypes: ["invite"] });
+      // "magiclink" se acepta ademas de "invite" porque el reenvio a un
+      // usuario que ya estaba "pendiente" (no confirmado) genera ese tipo
+      // en vez de "invite" -- Supabase no permite generar un link de tipo
+      // "invite" para alguien que ya existe, asi que el reenvio usa
+      // magiclink, pero para esta persona sigue siendo su primera vez
+      // activando la cuenta.
+      const token = await establishSessionFromUrl({ allowedTypes: ["invite", "magiclink"] });
       if (!mounted) return;
 
       if (!token.ok) {

@@ -63,7 +63,7 @@ export function buildInviteEmailHtml(params: {
       </div>
       <p style="font-size: 16px; color: #14162B; line-height: 1.5;">${projectLine}</p>
       ${roleLine ? `<p style="font-size: 14px; color: #14162B99; line-height: 1.5;">${roleLine}</p>` : ""}
-      <a href="${actionLink}"
+      <a href="${actionLink}" target="_blank" rel="noopener noreferrer"
         style="display: inline-block; margin-top: 20px; padding: 12px 24px; background: #4338CA; color: white; text-decoration: none; border-radius: 100px; font-size: 14px; font-weight: 600;">
         Aceptar invitación
       </a>
