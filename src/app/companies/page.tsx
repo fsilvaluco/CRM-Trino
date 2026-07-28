@@ -138,7 +138,7 @@ export default function CompaniesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
-  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortField, setSortField] = useState<SortField | null>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [colWidths, setColWidths] = useState<Record<ColKey, number>>(DEFAULT_WIDTHS);
   const resizingRef = useRef<{ col: ColKey; startX: number; startWidth: number } | null>(null);

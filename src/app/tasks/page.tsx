@@ -174,7 +174,7 @@ export default function TasksPage() {
 
   // Filters & sort
   const [filters, setFilters] = useState<TaskFilters>(DEFAULT_FILTERS);
-  const [sortBy, setSortBy] = useState<SortKey>("default");
+  const [sortBy, setSortBy] = useState<SortKey>("alpha_asc");
 
   // ── Resizable panel ──────────────────────────────────────────────────────
   const [panelWidth, setPanelWidth] = useState<number>(() => {

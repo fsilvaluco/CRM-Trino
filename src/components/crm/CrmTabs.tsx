@@ -12,6 +12,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { ArrowUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { KanbanBoard } from "@/components/pipeline/KanbanBoard";
 import { useLocale } from "@/lib/locale-context";
 import type { PipelineColumn } from "@/types";
@@ -44,6 +46,60 @@ export function CrmTabs({ columns, allDeals, onDealMoved, onAddDeal, onDealClick
   const [activeTab, setActiveTab] = useState<"kanban" | "lista">("kanban");
   const { formatCurrency, formatDate } = useLocale();
 
+  type SortKey = "title" | "contactName" | "value" | "stageName" | "probability" | "expectedClose";
+  const [sortKey, setSortKey] = useState<SortKey>("title");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  const dir = sortDir === "asc" ? 1 : -1;
+  const sortedDeals = [...allDeals].sort((a, b) => {
+    switch (sortKey) {
+      case "title":
+        return a.title.localeCompare(b.title, "es", { sensitivity: "base" }) * dir;
+      case "contactName":
+        return (a.contactName ?? "").localeCompare(b.contactName ?? "", "es", { sensitivity: "base" }) * dir;
+      case "stageName":
+        return (a.stageName ?? "").localeCompare(b.stageName ?? "", "es", { sensitivity: "base" }) * dir;
+      case "value":
+        return ((a.value ?? 0) - (b.value ?? 0)) * dir;
+      case "probability":
+        return (a.probability - b.probability) * dir;
+      case "expectedClose": {
+        const av = a.expectedClose ? new Date(a.expectedClose).getTime() : 0;
+        const bv = b.expectedClose ? new Date(b.expectedClose).getTime() : 0;
+        return (av - bv) * dir;
+      }
+      default:
+        return 0;
+    }
+  });
+
+  function SortableHead({ label, field, className }: { label: string; field: SortKey; className?: string }) {
+    const active = sortKey === field;
+    return (
+      <TableHead className={className}>
+        <button
+          onClick={() => toggleSort(field)}
+          className={cn(
+            "inline-flex items-center gap-1 cursor-pointer select-none hover:text-foreground",
+            active ? "text-foreground font-medium" : "text-muted-foreground"
+          )}
+        >
+          {label}
+          <ArrowUpDown className={cn("h-3 w-3", active && sortDir === "desc" && "rotate-180")} />
+        </button>
+      </TableHead>
+    );
+  }
+
   return (
     <Tabs
       value={activeTab}
@@ -71,16 +127,16 @@ export function CrmTabs({ columns, allDeals, onDealMoved, onAddDeal, onDealClick
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Titulo</TableHead>
-                  <TableHead>Contacto</TableHead>
-                  <TableHead>Valor</TableHead>
-                  <TableHead>Etapa</TableHead>
-                  <TableHead className="hidden md:table-cell">Probabilidad</TableHead>
-                  <TableHead className="hidden lg:table-cell">Cierre est.</TableHead>
+                  <SortableHead label="Titulo" field="title" />
+                  <SortableHead label="Contacto" field="contactName" />
+                  <SortableHead label="Valor" field="value" />
+                  <SortableHead label="Etapa" field="stageName" />
+                  <SortableHead label="Probabilidad" field="probability" className="hidden md:table-cell" />
+                  <SortableHead label="Cierre est." field="expectedClose" className="hidden lg:table-cell" />
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {allDeals.map((deal) => (
+                {sortedDeals.map((deal) => (
                   <TableRow
                     key={deal.id}
                     className="cursor-pointer hover:bg-muted/50"
