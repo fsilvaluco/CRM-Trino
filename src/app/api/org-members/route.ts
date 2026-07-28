@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
+import { sendEmail, buildInviteEmailHtml } from "@/lib/resend";
 
 type MemberStatus = "pending" | "active";
 type MemberRole = "owner" | "admin" | "member" | "artist";
@@ -129,14 +130,17 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(filtered);
 }
 
-// POST /api/org-members → { email, role } → invitar usuario nuevo
+// POST /api/org-members → { email, role, projectId? } → invitar usuario nuevo.
+// Si viene projectId, ademas de invitarlo a la organizacion, se le asigna
+// ese proyecto con el rol elegido de una -- y el correo menciona quien
+// invito y a que proyecto especifico.
 export async function POST(request: NextRequest) {
-  const { orgId, isAdmin, error } = await requireAuth();
+  const { supabase, orgId, isAdmin, user, error } = await requireAuth();
   if (error) return error;
   if (!isAdmin) return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
 
   const body = await request.json();
-  const { email, role = "member" } = body as { email: string; role?: string };
+  const { email, role = "member", projectId } = body as { email: string; role?: string; projectId?: string };
   const normalizedEmail = email?.trim().toLowerCase();
   const allowedRoles = new Set(["admin", "member", "artist"]);
   if (!normalizedEmail) return NextResponse.json({ error: "Email requerido" }, { status: 400 });
@@ -145,6 +149,41 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin;
   const redirectTo = `${siteUrl}/auth/callback?next=/auth/activate&flow=invite`;
+
+  // Nombre real de quien invita (para el correo) y del proyecto (si aplica)
+  const { data: inviterProfile } = await supabase.from("profiles").select("full_name, email").eq("id", user!.id).single();
+  const inviterName = inviterProfile?.full_name || inviterProfile?.email || "Alguien de tu equipo";
+
+  let projectName: string | null = null;
+  if (projectId) {
+    const { data: project } = await supabase.from("projects").select("name").eq("id", projectId).single();
+    projectName = project?.name ?? null;
+  }
+
+  async function sendInviteEmail(actionLink: string) {
+    try {
+      await sendEmail({
+        to: normalizedEmail,
+        subject: projectName ? `${inviterName} te invitó a ${projectName} en Artist Pro` : "Te invitaron a Artist Pro",
+        html: buildInviteEmailHtml({ inviterName, projectName, role, actionLink }),
+      });
+    } catch (err) {
+      // No bloqueante: si Resend falla, Supabase probablemente ya mando su
+      // propio correo generico igual (via inviteUserByEmail) -- no se pierde
+      // el invite, solo se pierde la version linda.
+      console.error("[org-members] fallo el correo personalizado (no bloqueante)", err);
+    }
+  }
+
+  async function assignProjectIfNeeded(userId: string) {
+    if (!projectId) return;
+    await supabase
+      .from("project_members")
+      .upsert(
+        { project_id: projectId, user_id: userId, organization_id: orgId, role },
+        { onConflict: "project_id,user_id" }
+      );
+  }
 
   const { user: existingUser, error: existingLookupError } = await findAuthUserByEmail(admin, normalizedEmail);
   if (existingLookupError) return NextResponse.json({ error: existingLookupError }, { status: 500 });
@@ -180,10 +219,14 @@ export async function POST(request: NextRequest) {
     }
 
     if (existingMember?.status === "pending") {
-      await admin.auth.admin.inviteUserByEmail(normalizedEmail, {
-        data: { invited_to_org: orgId },
-        redirectTo,
+      const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+        type: "magiclink",
+        email: normalizedEmail,
+        options: { redirectTo },
       });
+      if (linkError) return NextResponse.json({ error: linkError.message }, { status: 500 });
+      await sendInviteEmail(linkData.properties.action_link);
+      await assignProjectIfNeeded(existingUser.id);
 
       const upsertPending = await admin
         .from("organization_members")
@@ -212,9 +255,10 @@ export async function POST(request: NextRequest) {
   let alreadyExists = false;
 
   // Intentar invitar. Si el usuario ya existe, buscarlo por email
-  const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(normalizedEmail, {
-    data: { invited_to_org: orgId },
-    redirectTo,
+  const { data: inviteLinkData, error: inviteError } = await admin.auth.admin.generateLink({
+    type: "invite",
+    email: normalizedEmail,
+    options: { redirectTo, data: { invited_to_org: orgId } },
   });
 
   if (inviteError) {
@@ -226,8 +270,10 @@ export async function POST(request: NextRequest) {
     userId = existing.id;
     alreadyExists = true;
   } else {
-    userId = inviteData.user.id;
+    userId = inviteLinkData.user.id;
+    await sendInviteEmail(inviteLinkData.properties.action_link);
   }
+  await assignProjectIfNeeded(userId);
 
   // Registrar en organization_members
   const membershipStatus: MemberStatus = alreadyExists ? "active" : "pending";
@@ -252,39 +298,11 @@ export async function POST(request: NextRequest) {
 
   // Si el usuario ya estaba registrado, enviar email de notificación (no llega el de Supabase)
   if (alreadyExists) {
-    const apiKey = process.env.RESEND_API_KEY;
-    const from = process.env.DIGEST_FROM || "Artist Pro <onboarding@resend.dev>";
-
-    if (apiKey) {
-      const html = `
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 20px;">
-          <h1 style="color: #1e293b; font-size: 22px; margin-bottom: 4px;">Has sido añadido al CRM</h1>
-          <p style="color: #64748b; margin-top: 0; font-size: 15px;">
-            Un administrador te ha añadido como <strong>${role}</strong> a la organización.
-          </p>
-          <p style="color: #475569; font-size: 14px;">
-            Ya puedes acceder con tu cuenta existente:
-          </p>
-          <div style="text-align: center; margin: 28px 0;">
-            <a href="${siteUrl}/"
-               style="background: #2563eb; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 15px; font-weight: 600; display: inline-block;">
-              Acceder al CRM
-            </a>
-          </div>
-          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
-          <p style="color: #94a3b8; font-size: 12px; text-align: center;">Artist Pro</p>
-        </div>
-      `;
-
-      await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({ from, to: [email], subject: "Te han añadido al CRM", html }),
-      });
-    }
+    await sendEmail({
+      to: normalizedEmail,
+      subject: projectName ? `${inviterName} te agregó a ${projectName} en Artist Pro` : "Te agregaron a Artist Pro",
+      html: buildInviteEmailHtml({ inviterName, projectName, role, actionLink: `${siteUrl}/` }),
+    }).catch((err) => console.error("[org-members] fallo correo a usuario existente (no bloqueante)", err));
     // Si no hay RESEND_API_KEY, se añade igual pero sin email (no es bloqueante)
   }
 

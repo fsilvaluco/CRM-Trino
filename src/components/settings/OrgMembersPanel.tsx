@@ -101,7 +101,7 @@ export function OrgMembersPanel() {
       const res = await fetch("/api/org-members", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
+        body: JSON.stringify({ email: inviteEmail, role: inviteRole, projectId: activeProject?.id }),
       });
       const data = await res.json();
       if (!res.ok) { toast.error(data.error ?? "Error al invitar"); return; }
