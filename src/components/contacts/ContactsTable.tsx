@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Table,
@@ -13,10 +13,42 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { Search, Users, Download } from "lucide-react";
+import { Search, Users, Download, ArrowUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/constants";
 import { SOURCE_LABELS } from "@/lib/constants";
 import type { Contact, LeadSource } from "@/types";
+
+type SortKey = "name" | "company" | "source" | "project" | "date";
+
+function SortableHead({
+  label,
+  active,
+  dir,
+  onClick,
+  className,
+}: {
+  label: string;
+  active: boolean;
+  dir: "asc" | "desc";
+  onClick: () => void;
+  className?: string;
+}) {
+  return (
+    <TableHead className={className}>
+      <button
+        onClick={onClick}
+        className={cn(
+          "inline-flex items-center gap-1 cursor-pointer select-none hover:text-foreground",
+          active ? "text-foreground font-medium" : "text-muted-foreground"
+        )}
+      >
+        {label}
+        <ArrowUpDown className={cn("h-3 w-3", active && dir === "desc" && "rotate-180")} />
+      </button>
+    </TableHead>
+  );
+}
 
 interface ContactsTableProps {
   contacts: Contact[];
@@ -25,6 +57,17 @@ interface ContactsTableProps {
 export function ContactsTable({ contacts }: ContactsTableProps) {
   const router = useRouter();
   const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
 
   const filtered = contacts.filter((c) => {
     const matchesSearch =
@@ -35,6 +78,36 @@ export function ContactsTable({ contacts }: ContactsTableProps) {
 
     return matchesSearch;
   });
+
+  const sorted = useMemo(() => {
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      switch (sortKey) {
+        case "name":
+          return a.name.localeCompare(b.name, "es", { sensitivity: "base" }) * dir;
+        case "company": {
+          const ac = a.company || "";
+          const bc = b.company || "";
+          return ac.localeCompare(bc, "es", { sensitivity: "base" }) * dir;
+        }
+        case "source": {
+          const as = SOURCE_LABELS[a.source as LeadSource] || a.source || "";
+          const bs = SOURCE_LABELS[b.source as LeadSource] || b.source || "";
+          return as.localeCompare(bs, "es", { sensitivity: "base" }) * dir;
+        }
+        case "project": {
+          const ap = a.artistProjectName ?? a.projectName ?? "";
+          const bp = b.artistProjectName ?? b.projectName ?? "";
+          return ap.localeCompare(bp, "es", { sensitivity: "base" }) * dir;
+        }
+        case "date":
+          return (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) * dir;
+        default:
+          return 0;
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, sortKey, sortDir]);
 
   if (contacts.length === 0) {
     return (
@@ -77,15 +150,44 @@ export function ContactsTable({ contacts }: ContactsTableProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Nombre</TableHead>
-              <TableHead className="hidden sm:table-cell">Empresa</TableHead>
-              <TableHead className="hidden md:table-cell">Fuente</TableHead>
-              <TableHead className="hidden md:table-cell">Proyecto</TableHead>
-              <TableHead className="hidden lg:table-cell">Fecha</TableHead>
+              <SortableHead
+                label="Nombre"
+                active={sortKey === "name"}
+                dir={sortDir}
+                onClick={() => toggleSort("name")}
+              />
+              <SortableHead
+                label="Empresa"
+                active={sortKey === "company"}
+                dir={sortDir}
+                onClick={() => toggleSort("company")}
+                className="hidden sm:table-cell"
+              />
+              <SortableHead
+                label="Fuente"
+                active={sortKey === "source"}
+                dir={sortDir}
+                onClick={() => toggleSort("source")}
+                className="hidden md:table-cell"
+              />
+              <SortableHead
+                label="Proyecto"
+                active={sortKey === "project"}
+                dir={sortDir}
+                onClick={() => toggleSort("project")}
+                className="hidden md:table-cell"
+              />
+              <SortableHead
+                label="Fecha"
+                active={sortKey === "date"}
+                dir={sortDir}
+                onClick={() => toggleSort("date")}
+                className="hidden lg:table-cell"
+              />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((contact) => (
+            {sorted.map((contact) => (
               <TableRow
                 key={contact.id}
                 className="cursor-pointer hover:bg-muted/50"
