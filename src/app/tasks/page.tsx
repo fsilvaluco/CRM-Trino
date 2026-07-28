@@ -48,6 +48,7 @@ interface TaskItem {
   companyId: string | null;
   dealId: string | null;
   projectId: string | null;
+  artistProjectId?: string | null;
   subprojectId: string | null;
   completedAt: number | Date | null;
   createdAt: number | Date;
@@ -56,6 +57,9 @@ interface TaskItem {
   dealTitle?: string | null;
   projectName?: string | null;
   subprojectName?: string | null;
+  tagProjectName?: string | null;
+  tagProjectColor?: string | null;
+  tagProjectAvatarUrl?: string | null;
   assignees?: Array<{
     userId: string;
     assignedAt: string;
@@ -355,6 +359,9 @@ export default function TasksPage() {
     dueDate: t.dueDate,
     contactName: t.contactName,
     projectName: t.projectName,
+    tagProjectName: t.tagProjectName,
+    tagProjectColor: t.tagProjectColor,
+    tagProjectAvatarUrl: t.tagProjectAvatarUrl,
     assignees: t.assignees,
   }));
 
@@ -523,10 +530,10 @@ export default function TasksPage() {
                           )}
                           {task.contactName && <span>{task.contactName}</span>}
                           {task.companyName && <span>{task.companyName}</span>}
-                          {task.projectName && (
+                          {task.tagProjectName && (
                             <span className="flex items-center gap-1">
                               <Layers className="h-3 w-3" />
-                              {task.projectName}
+                              {task.tagProjectName}
                               {task.subprojectName && ` › ${task.subprojectName}`}
                             </span>
                           )}

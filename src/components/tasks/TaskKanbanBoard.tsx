@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { AlertCircle, Clock, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/constants";
+import { THEME_PALETTES, type ThemeColorKey } from "@/lib/theme-palettes";
 import type { TaskStatus, TaskPriority } from "@/types";
 
 // ─── Column definitions ──────────────────────────────────────────────────────
@@ -61,6 +62,9 @@ export interface TaskCard {
   dueDate: number | Date | null;
   contactName?: string | null;
   projectName?: string | null;
+  tagProjectName?: string | null;
+  tagProjectColor?: string | null;
+  tagProjectAvatarUrl?: string | null;
   assignees?: Array<{
     userId: string;
     profile?: {
@@ -69,6 +73,46 @@ export interface TaskCard {
       email: string | null;
     } | null;
   }>;
+}
+
+// ─── Etiqueta de proyecto (logo o iniciales con el color del proyecto) ────────
+
+function ProjectTag({
+  name,
+  color,
+  avatarUrl,
+}: {
+  name: string;
+  color?: string | null;
+  avatarUrl?: string | null;
+}) {
+  const palette = color && color in THEME_PALETTES ? THEME_PALETTES[color as ThemeColorKey] : null;
+  const hex = palette?.primary ?? "#94a3b8"; // gris neutro si el proyecto no tiene color asignado
+
+  const initials = name
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 3);
+
+  return (
+    <div className="flex items-center gap-1.5 mt-1">
+      {avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={avatarUrl} alt="" className="h-4 w-4 rounded-full object-cover shrink-0" style={{ boxShadow: `0 0 0 1px ${hex}` }} />
+      ) : (
+        <span
+          className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[8px] font-bold text-white"
+          style={{ backgroundColor: hex }}
+        >
+          {initials}
+        </span>
+      )}
+      <span className="text-xs text-muted-foreground truncate">{name}</span>
+    </div>
+  );
 }
 
 // ─── Draggable task card ──────────────────────────────────────────────────────
@@ -118,7 +162,7 @@ function DraggableTaskCard({
         </Badge>
       </div>
 
-      {(task.dueDate || task.contactName || task.projectName || (task.assignees && task.assignees.length > 0)) && (
+      {(task.dueDate || task.contactName || task.tagProjectName || (task.assignees && task.assignees.length > 0)) && (
         <div className="mt-2 space-y-0.5">
           {task.dueDate && (
             <p className={`text-xs flex items-center gap-1 ${isOverdue ? "text-destructive" : "text-muted-foreground"}`}>
@@ -129,8 +173,12 @@ function DraggableTaskCard({
           {task.contactName && (
             <p className="text-xs text-muted-foreground">{task.contactName}</p>
           )}
-          {task.projectName && (
-            <p className="text-xs text-muted-foreground">{task.projectName}</p>
+          {task.tagProjectName && (
+            <ProjectTag
+              name={task.tagProjectName}
+              color={task.tagProjectColor}
+              avatarUrl={task.tagProjectAvatarUrl}
+            />
           )}
           {task.assignees && task.assignees.length > 0 && (
             <div className="flex items-center gap-1 mt-1">

@@ -14,6 +14,7 @@ function mapTask(row: any) {
     companyId: row.company_id ?? null,
     dealId: row.deal_id ?? null,
     projectId: row.project_id ?? null,
+    artistProjectId: row.artist_project_id ?? null,
     subprojectId: row.subproject_id ?? null,
     completedAt: row.completed_at ?? null,
     createdAt: row.created_at,
@@ -23,6 +24,13 @@ function mapTask(row: any) {
     dealTitle: row.deals?.title ?? null,
     projectName: row.projects?.name ?? null,
     subprojectName: row.subprojects?.name ?? null,
+    // Para la etiqueta de la tarjeta de Kanban: el proyecto MAS ESPECIFICO
+    // -- si la tarea esta anclada a un artista, mostrar el artista (no el
+    // sello), porque eso es lo que realmente distingue una tarea de otra
+    // al ver el catalogo completo desde Trino.
+    tagProjectName: row.artist_project?.name ?? row.projects?.name ?? null,
+    tagProjectColor: row.artist_project?.theme_color ?? row.projects?.theme_color ?? null,
+    tagProjectAvatarUrl: row.artist_project?.avatar_url ?? row.projects?.avatar_url ?? null,
     assignees: row.task_assignees?.map((ta: any) => ({
       userId: ta.user_id,
       assignedAt: ta.assigned_at,
@@ -55,7 +63,8 @@ export async function GET(request: NextRequest) {
       contacts ( name ),
       companies ( name ),
       deals ( title ),
-      projects!tasks_project_id_fkey ( name ),
+      projects!tasks_project_id_fkey ( name, theme_color, avatar_url ),
+      artist_project:projects!tasks_artist_project_id_fkey ( name, theme_color, avatar_url ),
       subprojects ( name ),
       task_assignees!task_assignees_task_id_fkey ( 
         user_id, 
@@ -71,7 +80,18 @@ export async function GET(request: NextRequest) {
   if (contactId) query = query.eq("contact_id", contactId);
   if (companyId) query = query.eq("company_id", companyId);
   if (dealId) query = query.eq("deal_id", dealId);
-  if (projectId) query = query.eq("project_id", projectId);
+  if (projectId) {
+    const { data: children } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("parent_project_id", projectId);
+
+    const visibleIds = [projectId, ...(children ?? []).map((c) => c.id)];
+
+    query = query.or(
+      `project_id.in.(${visibleIds.join(",")}),artist_project_id.in.(${visibleIds.join(",")})`
+    );
+  }
   if (subprojectId) query = query.eq("subproject_id", subprojectId);
   // Filtrar por proyectos accesibles si el usuario es member
   if (allowedProjectIds !== null) {
@@ -97,7 +117,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
   }
 
-  const { title, description, priority, dueDate, contactId, companyId, dealId, projectId, subprojectId, assigneeIds } = body;
+  const { title, description, priority, dueDate, contactId, companyId, dealId, projectId, artistProjectId, subprojectId, assigneeIds } = body;
 
   if (!title || typeof title !== "string" || title.trim() === "") {
     return NextResponse.json({ error: "El titulo es requerido" }, { status: 400 });
@@ -115,6 +135,7 @@ export async function POST(request: NextRequest) {
       company_id: (typeof companyId === "string" ? companyId : null) || null,
       deal_id: (typeof dealId === "string" ? dealId : null) || null,
       project_id: (typeof projectId === "string" ? projectId : null) || null,
+      artist_project_id: (typeof artistProjectId === "string" ? artistProjectId : null) || null,
       subproject_id: (typeof subprojectId === "string" ? subprojectId : null) || null,
       completed_at: null,
       organization_id: orgId,

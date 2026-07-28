@@ -13,6 +13,7 @@ import {
   Globe,
   Palette,
   FolderOpen,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { NotificationToggle } from "@/components/shared/NotificationToggle";
@@ -20,6 +21,7 @@ import { PipelineStagesEditor } from "@/components/settings/PipelineStagesEditor
 import { LocaleSettingsPanel } from "@/components/settings/LocaleSettingsPanel";
 import { BusinessSettingsPanel } from "@/components/settings/BusinessSettingsPanel";
 import { DriveLinkPanel } from "@/components/settings/DriveLinkPanel";
+import { SelloPanel } from "@/components/settings/SelloPanel";
 import { ThemeColorPicker } from "@/components/settings/ThemeColorPicker";
 import { ProjectAvatarPicker } from "@/components/settings/ProjectAvatarPicker";
 import { useProject } from "@/lib/project-context";
@@ -100,6 +102,19 @@ export default function ProjectSettingsPage() {
           </CardHeader>
           <CardContent>
             <DriveLinkPanel />
+          </CardContent>
+        </Card>
+
+        {/* Sello / Agencia */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Sello / Agencia
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <SelloPanel />
           </CardContent>
         </Card>
 

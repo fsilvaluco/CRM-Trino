@@ -31,6 +31,7 @@ const taskSchema = z.object({
   priority: z.enum(["low", "medium", "high"]),
   dueDate: z.string(),
   projectId: z.string().min(1, "El proyecto es requerido"),
+  artistProjectId: z.string(),
   contactId: z.string(),
   companyId: z.string(),
   dealId: z.string(),
@@ -69,6 +70,7 @@ export function TaskForm({
   const [dealsList, setDeals] = useState<Array<{ id: string; title: string }>>([]);
   const [companiesList, setCompanies] = useState<Array<{ id: string; name: string }>>([]);
   const [subprojectsList, setSubprojects] = useState<Array<{ id: string; name: string }>>([]);
+  const [artistProjects, setArtistProjects] = useState<Array<{ id: string; name: string }>>([]);
   const [orgMembers, setOrgMembers] = useState<Array<{ user_id: string; profiles: { full_name: string | null; email: string | null; avatar_url: string | null } }>>([]);
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
   const [assigneeSearch, setAssigneeSearch] = useState("");
@@ -88,6 +90,7 @@ export function TaskForm({
       priority: "medium",
       dueDate: prefillDueDate || "",
       projectId: preselectedProjectId || activeProject?.id || "",
+      artistProjectId: "",
       contactId: preselectedContactId || "",
       companyId: preselectedCompanyId || "",
       dealId: preselectedDealId || "",
@@ -121,6 +124,7 @@ export function TaskForm({
       priority: "medium",
       dueDate: prefillDueDate || "",
       projectId: preselectedProjectId || activeProject?.id || "",
+      artistProjectId: "",
       contactId: preselectedContactId || "",
       companyId: preselectedCompanyId || "",
       dealId: preselectedDealId || "",
@@ -148,9 +152,16 @@ export function TaskForm({
         .then((r) => r.json())
         .then((d) => setSubprojects(Array.isArray(d) ? d : []))
         .catch(() => {});
+      // Si el proyecto es un sello con artistas debajo, ofrece anclar la
+      // tarea a un artista puntual (igual patron que en Deals).
+      fetch(`/api/projects?parentId=${effectiveProjectId}`)
+        .then((r) => r.json())
+        .then((d) => setArtistProjects(Array.isArray(d) ? d : []))
+        .catch(() => setArtistProjects([]));
     } else {
       setSubprojects([]);
       setValue("subprojectId", "");
+      setArtistProjects([]);
     }
     // Cargar miembros del proyecto activo (solo usuarios asignados al proyecto)
     if (effectiveProjectId) {
@@ -185,6 +196,7 @@ export function TaskForm({
           companyId: data.companyId || null,
           dealId: data.dealId || null,
           projectId: data.projectId || null,
+          artistProjectId: data.artistProjectId || null,
           subprojectId: data.subprojectId || null,
           assigneeIds: selectedAssignees.length > 0 ? selectedAssignees : null,
         }),
@@ -290,6 +302,29 @@ export function TaskForm({
               <p className="text-xs text-destructive">{errors.projectId.message}</p>
             )}
           </div>
+
+          {artistProjects.length > 0 && (
+            <div className="space-y-2">
+              <Label>Artista beneficiado</Label>
+              <Select
+                value={watch("artistProjectId") || ""}
+                onValueChange={(v) => setValue("artistProjectId", !v || v === "__none__" ? "" : v)}
+              >
+                <SelectTrigger className="cursor-pointer">
+                  <span className={watch("artistProjectId") ? "" : "text-muted-foreground"}>
+                    {artistProjects.find((p) => p.id === watch("artistProjectId"))?.name ??
+                      "Ninguna (tarea general del sello)"}
+                  </span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Ninguna (tarea general del sello)</SelectItem>
+                  {artistProjects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {!preselectedSubprojectId && subprojectsList.length > 0 && (
             <div className="space-y-2">

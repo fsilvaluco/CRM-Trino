@@ -41,6 +41,7 @@ interface TaskDetail {
   companyId: string | null;
   dealId: string | null;
   projectId: string | null;
+  artistProjectId: string | null;
   subprojectId: string | null;
   completedAt: string | number | null;
   contactName: string | null;
@@ -167,6 +168,7 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, p
   const [companies, setCompanies] = useState<Relation[]>([]);
   const [deals, setDeals] = useState<Relation[]>([]);
   const [subprojects, setSubprojects] = useState<Relation[]>([]);
+  const [artistProjects, setArtistProjects] = useState<Relation[]>([]);
   const [orgMembers, setOrgMembers] = useState<Array<{ user_id: string; profiles: { full_name: string | null; email: string | null; avatar_url: string | null } }>>([]);
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
   const [assigneeSearch, setAssigneeSearch] = useState("");
@@ -252,6 +254,7 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, p
     if (!task?.projectId) {
       setSubprojects([]);
       setOrgMembers([]);
+      setArtistProjects([]);
       return;
     }
     fetch(`/api/subprojects?projectId=${task.projectId}`)
@@ -267,6 +270,15 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, p
         setOrgMembers(Array.isArray(data) ? data : []);
       })
       .catch(() => setOrgMembers([]));
+
+    // Si el proyecto de la tarea es un sello con artistas debajo, ofrece
+    // anclarla tambien a un artista puntual -- igual patron que en Deals.
+    fetch(`/api/projects?parentId=${task.projectId}`)
+      .then((r) => r.json())
+      .then((data: Array<{ id: string; name: string }>) => {
+        setArtistProjects(Array.isArray(data) ? data : []);
+      })
+      .catch(() => setArtistProjects([]));
   }, [task?.projectId]);
 
   const patch = useCallback(async (fields: Record<string, unknown>) => {
@@ -790,6 +802,29 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, p
                     </SelectContent>
                   </Select>
                 </FieldRow>
+
+                {artistProjects.length > 0 && (
+                  <FieldRow label="Artista beneficiado">
+                    <Select
+                      value={task.artistProjectId ?? "__none__"}
+                      onValueChange={(v) => {
+                        void patch({ artistProjectId: v === "__none__" ? null : v });
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-sm">
+                        {task.artistProjectId
+                          ? <span>{artistProjects.find((p) => p.id === task.artistProjectId)?.name ?? task.artistProjectId}</span>
+                          : <span className="text-muted-foreground">Ninguna (tarea general del sello)</span>}
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Ninguna (tarea general del sello)</SelectItem>
+                        {artistProjects.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FieldRow>
+                )}
 
                 <FieldRow label="Campaña">
                   <Select
