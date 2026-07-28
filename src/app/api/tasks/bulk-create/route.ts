@@ -6,6 +6,7 @@ interface BulkTaskInput {
   dueDate: string | null;
   description: string;
   subprojectId: string | null;
+  assigneeIds?: string[];
 }
 
 export async function POST(request: NextRequest) {
@@ -23,29 +24,48 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Faltan projectId o tasks" }, { status: 400 });
   }
 
-  const rows = tasks
-    .filter((t) => t.title && t.title.trim().length > 0)
-    .map((t) => ({
-      organization_id: orgId,
-      project_id: projectId,
-      artist_project_id: artistProjectId || null,
-      subproject_id: t.subprojectId || null,
-      title: t.title.trim(),
-      description: t.description || null,
-      due_date: t.dueDate || null,
-      status: "sin_empezar",
-      priority: "medium",
-      created_by: user!.id,
-    }));
-
-  if (rows.length === 0) {
+  const validTasks = tasks.filter((t) => t.title && t.title.trim().length > 0);
+  if (validTasks.length === 0) {
     return NextResponse.json({ error: "Ninguna tarea tiene título" }, { status: 400 });
   }
+
+  const rows = validTasks.map((t) => ({
+    organization_id: orgId,
+    project_id: projectId,
+    artist_project_id: artistProjectId || null,
+    subproject_id: t.subprojectId || null,
+    title: t.title.trim(),
+    description: t.description || null,
+    due_date: t.dueDate || null,
+    status: "sin_empezar",
+    priority: "medium",
+    created_by: user!.id,
+  }));
 
   const { data, error: dbError } = await supabase.from("tasks").insert(rows).select("id");
 
   if (dbError) {
     return NextResponse.json({ error: `Error al crear tareas: ${dbError.message}` }, { status: 500 });
+  }
+
+  // Asignar responsables por tarea (en el mismo orden que se insertaron) --
+  // no bloqueante: si falla la asignacion de alguna, las tareas ya quedaron
+  // creadas igual.
+  if (data) {
+    const assigneeRows = validTasks.flatMap((t, i) =>
+      (t.assigneeIds ?? []).map((userId) => ({
+        task_id: data[i]?.id,
+        user_id: userId,
+        assigned_by: user!.id,
+      }))
+    ).filter((r) => r.task_id);
+
+    if (assigneeRows.length > 0) {
+      const { error: assignError } = await supabase.from("task_assignees").insert(assigneeRows);
+      if (assignError) {
+        console.error("[tasks/bulk-create] fallo asignar responsables (no bloqueante)", assignError);
+      }
+    }
   }
 
   return NextResponse.json({ created: data?.length ?? 0 });

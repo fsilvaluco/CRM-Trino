@@ -33,6 +33,13 @@ interface CandidateRow {
   dueDate: string;
   description: string;
   subprojectId: string;
+  assigneeIds: string[];
+}
+
+interface Member {
+  userId: string;
+  fullName: string | null;
+  email: string | null;
 }
 
 export function ImportDocumentDialog({
@@ -53,6 +60,7 @@ export function ImportDocumentDialog({
   const [rows, setRows] = useState<CandidateRow[] | null>(null);
   const [creating, setCreating] = useState(false);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
 
   useEffect(() => {
     if (!open || !projectId) return;
@@ -60,6 +68,21 @@ export function ImportDocumentDialog({
       .then((r) => r.json())
       .then((d) => setCampaigns(Array.isArray(d) ? d : []))
       .catch(() => setCampaigns([]));
+
+    fetch(`/api/project-members?projectId=${projectId}`)
+      .then((r) => r.json())
+      .then((d) =>
+        setMembers(
+          Array.isArray(d)
+            ? d.map((m: { user_id: string; profiles?: { full_name: string | null; email: string | null } }) => ({
+                userId: m.user_id,
+                fullName: m.profiles?.full_name ?? null,
+                email: m.profiles?.email ?? null,
+              }))
+            : []
+        )
+      )
+      .catch(() => setMembers([]));
   }, [open, projectId]);
 
   function reset() {
@@ -95,6 +118,7 @@ export function ImportDocumentDialog({
           dueDate: m.dueDate ?? "",
           description: m.description,
           subprojectId: campaigns.find((c) => c.name === m.suggestedCampaign)?.id ?? "",
+          assigneeIds: [],
         }))
       );
     } catch {
@@ -128,6 +152,7 @@ export function ImportDocumentDialog({
             dueDate: r.dueDate || null,
             description: r.description,
             subprojectId: r.subprojectId || null,
+            assigneeIds: r.assigneeIds,
           })),
         }),
       });
@@ -157,7 +182,7 @@ export function ImportDocumentDialog({
         }
       }}
     >
-      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-4 w-4" />
@@ -189,30 +214,30 @@ export function ImportDocumentDialog({
             </p>
             <div className="space-y-2">
               {rows.map((row, i) => (
-                <div key={i} className="flex gap-2 items-start border rounded-lg p-2">
+                <div key={i} className="flex gap-3 items-start border rounded-lg p-3">
                   <Checkbox
                     checked={row.include}
                     onCheckedChange={(v) => updateRow(i, { include: Boolean(v) })}
-                    className="mt-2"
+                    className="mt-2.5"
                   />
-                  <div className="flex-1 space-y-1.5 min-w-0">
+                  <div className="flex-1 space-y-2 min-w-0">
                     <Input
                       value={row.title}
                       onChange={(e) => updateRow(i, { title: e.target.value })}
-                      className="h-8 text-sm font-medium"
+                      className="h-9 text-sm font-medium"
                     />
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-3 gap-2">
                       <Input
                         type="date"
                         value={row.dueDate}
                         onChange={(e) => updateRow(i, { dueDate: e.target.value })}
-                        className="h-8 text-sm w-40"
+                        className="h-9 text-sm"
                       />
                       <Select
                         value={row.subprojectId || "__none__"}
                         onValueChange={(v) => updateRow(i, { subprojectId: !v || v === "__none__" ? "" : v })}
                       >
-                        <SelectTrigger className="h-8 text-sm flex-1 cursor-pointer">
+                        <SelectTrigger className="h-9 text-sm cursor-pointer">
                           <SelectValue placeholder="Sin campaña">
                           {row.subprojectId ? campaigns.find((c) => c.id === row.subprojectId)?.name ?? "Sin campaña" : "Sin campaña"}
                         </SelectValue>
@@ -224,11 +249,36 @@ export function ImportDocumentDialog({
                           ))}
                         </SelectContent>
                       </Select>
+                      <Select
+                        value={row.assigneeIds[0] || "__none__"}
+                        onValueChange={(v) =>
+                          updateRow(i, { assigneeIds: !v || v === "__none__" ? [] : [v] })
+                        }
+                      >
+                        <SelectTrigger className="h-9 text-sm cursor-pointer">
+                          <SelectValue placeholder="Sin responsable">
+                            {row.assigneeIds[0]
+                              ? (() => {
+                                  const m = members.find((mm) => mm.userId === row.assigneeIds[0]);
+                                  return m?.fullName || m?.email || "Sin responsable";
+                                })()
+                              : "Sin responsable"}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Sin responsable</SelectItem>
+                          {members.map((m) => (
+                            <SelectItem key={m.userId} value={m.userId}>
+                              {m.fullName || m.email || m.userId}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <Textarea
                       value={row.description}
                       onChange={(e) => updateRow(i, { description: e.target.value })}
-                      className="text-xs min-h-[40px]"
+                      className="text-xs min-h-[48px]"
                     />
                   </div>
                 </div>
