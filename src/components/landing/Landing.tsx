@@ -30,7 +30,7 @@ const FEATURES = [
 
 export function Landing() {
   return (
-    <div className="landing-root min-h-screen bg-[#FAFAFB] text-[#14162B] overflow-x-hidden">
+    <div className="landing-root min-h-screen w-full bg-[#FAFAFB] text-[#14162B] overflow-x-hidden">
       <style>{`
         .landing-root { font-family: var(--font-sans), system-ui, sans-serif; }
         .landing-display { font-family: var(--font-display), var(--font-sans), system-ui, sans-serif; }
