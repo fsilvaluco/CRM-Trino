@@ -139,6 +139,97 @@ export async function extractSpotifyStatsFromScreenshot(
   }
 }
 
+interface MilestoneExtraction {
+  title: string;
+  dueDate: string | null; // YYYY-MM-DD
+  description: string;
+  suggestedCampaign: string | null;
+}
+
+const MILESTONE_SCHEMA = {
+  name: "milestones_extraction",
+  strict: true,
+  schema: {
+    type: "object",
+    properties: {
+      milestones: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            dueDate: { type: ["string", "null"] },
+            description: { type: "string" },
+            suggestedCampaign: { type: ["string", "null"] },
+          },
+          required: ["title", "dueDate", "description", "suggestedCampaign"],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ["milestones"],
+    additionalProperties: false,
+  },
+};
+
+/**
+ * Lee un documento de texto libre (cronograma, contrato, plan de
+ * lanzamiento, etc.) y extrae cada fecha/hito como una tarea candidata.
+ * SIEMPRE se revisa/edita en el front antes de crear nada -- igual
+ * filosofia que el resto de las extracciones con IA de esta app.
+ */
+export async function extractMilestonesFromDocument(
+  documentText: string,
+  campaignNames: string[],
+  referenceYear: number
+): Promise<MilestoneExtraction[]> {
+  if (!apiKey) return [];
+
+  const prompt = `Este es un documento con un cronograma de hitos y fechas límite (lanzamiento musical, plan de distribución, contrato, etc). Extrae CADA fecha límite o hito mencionado como un item separado.
+
+Reglas:
+- Cada fecha mencionada con una acción asociada es un item -- no agrupes varias fechas en un solo item.
+- "title": resumen corto y accionable (ej. "Entregar videoclip oficial", "Depósito Cuota 1 del préstamo").
+- "dueDate": formato YYYY-MM-DD. Si el documento no menciona el año explícitamente, asume el año ${referenceYear} salvo que el contexto indique claramente otro año (ej. si dice "diciembre" pero ya se mencionó que ese hito es del año siguiente).
+- "description": 1-2 frases con el contexto relevante (quién participa, monto si es un pago, condición asociada).
+- "suggestedCampaign": si el documento menciona una fase/campaña explícita que calce con alguna de esta lista, usa EXACTAMENTE ese nombre: ${JSON.stringify(campaignNames)}. Si no calza con ninguna o no hay suficiente contexto, usa null -- no inventes una campaña que no esté en la lista.
+- Si una fecha es un rango o aproximada ("mediados de agosto", "fines de julio"), usa tu mejor estimación de fecha puntual (ej. "mediados de agosto" -> día 15 de ese mes).
+- No inventes hitos que no estén en el documento.
+
+Documento:
+"""
+${documentText}
+"""`;
+
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: MODEL,
+      temperature: 0,
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_schema", json_schema: MILESTONE_SCHEMA },
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    console.error("[openai] milestone extraction failed", { status: res.status, body });
+    throw new Error(`OpenAI respondió con error (status ${res.status})`);
+  }
+
+  const data = await res.json();
+  const text: string | undefined = data?.choices?.[0]?.message?.content;
+  if (!text) return [];
+
+  try {
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed.milestones) ? parsed.milestones : [];
+  } catch (err) {
+    console.error("[openai] failed to parse milestones JSON", { text, err });
+    return [];
+  }
+}
 interface SuggestMappingField {
   key: string;
   label: string;

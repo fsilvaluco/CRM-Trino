@@ -12,6 +12,7 @@ import { TaskKanbanBoard, STATUS_LABELS } from "@/components/tasks/TaskKanbanBoa
 import type { TaskCard } from "@/components/tasks/TaskKanbanBoard";
 import { TaskDetailSheet, DEFAULT_PANEL_WIDTH } from "@/components/tasks/TaskDetailSheet";
 import type { TaskPatch } from "@/components/tasks/TaskDetailSheet";
+import { ImportDocumentDialog } from "@/components/tasks/ImportDocumentDialog";
 import {
   TaskFilterBar,
   DEFAULT_FILTERS,
@@ -20,7 +21,7 @@ import {
 import type { TaskFilters, SortKey, FilterOptions } from "@/components/tasks/TaskFilterBar";
 import {
   CheckSquare, Plus, Circle, CheckCircle2, Clock,
-  Trash2, AlertCircle, Layers,
+  Trash2, AlertCircle, Layers, FileText,
 } from "lucide-react";
 import { formatDate } from "@/lib/constants";
 import { toast } from "sonner";
@@ -164,6 +165,7 @@ export default function TasksPage() {
   const [taskList, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
   const [activeTab, setActiveTab] = useState<"kanban" | "lista">("kanban");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
@@ -399,10 +401,16 @@ export default function TasksPage() {
           )}
         </p>
       </div>
-      <Button onClick={() => setShowForm(true)} className="cursor-pointer">
-        <Plus className="h-4 w-4 mr-2" />
-        Nueva Tarea
-      </Button>
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={() => setShowImportDialog(true)} className="cursor-pointer">
+          <FileText className="h-4 w-4 mr-2" />
+          Importar cronograma
+        </Button>
+        <Button onClick={() => setShowForm(true)} className="cursor-pointer">
+          <Plus className="h-4 w-4 mr-2" />
+          Nueva Tarea
+        </Button>
+      </div>
     </div>
   );
 
@@ -566,7 +574,17 @@ export default function TasksPage() {
   );
 
   const taskFormDialog = (
-    <TaskForm open={showForm} onClose={() => { setShowForm(false); loadTasks(); }} />
+    <>
+      <TaskForm open={showForm} onClose={() => { setShowForm(false); loadTasks(); }} />
+      {activeProject && (
+        <ImportDocumentDialog
+          open={showImportDialog}
+          onClose={() => setShowImportDialog(false)}
+          projectId={activeProject.id}
+          onImported={loadTasks}
+        />
+      )}
+    </>
   );
 
   // ── Vista Lista con tarea seleccionada: split layout ─────────────────────
