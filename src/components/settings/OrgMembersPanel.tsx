@@ -114,6 +114,18 @@ export function OrgMembersPanel() {
         toast.success(`Invitación enviada a ${inviteEmail}`);
       }
 
+      // Respaldo: copiar el link real al portapapeles ademas de mandar el
+      // correo -- si el correo no llega (SMTP mal configurado, va a spam,
+      // etc.) Francisco puede pasarselo el mismo por WhatsApp o donde sea.
+      if (data.inviteLink) {
+        try {
+          await navigator.clipboard.writeText(data.inviteLink);
+          toast.info("Link de invitación copiado al portapapeles (por si el correo no llega)");
+        } catch {
+          // clipboard puede fallar en algunos navegadores/contextos -- no bloqueante
+        }
+      }
+
       setInviteEmail("");
       await loadMembers();
       router.refresh();

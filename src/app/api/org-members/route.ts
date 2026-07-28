@@ -247,12 +247,18 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: upsertPending.error.message }, { status: 500 });
       }
 
-      return NextResponse.json({ ok: true, userId: existingUser.id, state: "already_invited" });
+      return NextResponse.json({
+        ok: true,
+        userId: existingUser.id,
+        state: "already_invited",
+        inviteLink: linkData.properties.action_link,
+      });
     }
   }
 
   let userId: string;
   let alreadyExists = false;
+  let inviteLink: string | null = null;
 
   // Intentar invitar. Si el usuario ya existe, buscarlo por email
   const { data: inviteLinkData, error: inviteError } = await admin.auth.admin.generateLink({
@@ -271,7 +277,8 @@ export async function POST(request: NextRequest) {
     alreadyExists = true;
   } else {
     userId = inviteLinkData.user.id;
-    await sendInviteEmail(inviteLinkData.properties.action_link);
+    inviteLink = inviteLinkData.properties.action_link;
+    await sendInviteEmail(inviteLink);
   }
   await assignProjectIfNeeded(userId);
 
@@ -311,6 +318,7 @@ export async function POST(request: NextRequest) {
     userId,
     notified: alreadyExists,
     state: alreadyExists ? "already_active" : "invited",
+    inviteLink,
   });
 }
 
