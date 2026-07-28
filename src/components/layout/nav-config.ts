@@ -20,6 +20,7 @@ import {
   Newspaper,
   Inbox,
   Plug,
+  CreditCard,
 } from "lucide-react";
 import { type LucideIcon } from "lucide-react";
 
@@ -121,6 +122,13 @@ export const settingsConfig: NavLeaf[] = [
     href: "/settings/integrations",
     label: "Integraciones",
     icon: Plug,
+  },
+  {
+    type: "leaf",
+    href: "/settings/billing",
+    label: "Facturación",
+    icon: CreditCard,
+    adminOnly: true,
   },
 ];
 
