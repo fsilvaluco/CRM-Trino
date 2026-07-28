@@ -14,6 +14,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useProject } from "@/lib/project-context";
 import { formatDate } from "@/lib/constants";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 
 interface InstagramPost {
   id: string;
@@ -30,6 +32,7 @@ interface InstagramPost {
   saved: number | null;
   shares: number | null;
   engagement: number;
+  updatedAt: string;
 }
 
 const NUM = new Intl.NumberFormat("es-CL");
@@ -67,10 +70,23 @@ export function InstagramPostsList() {
     return <div className="h-64 rounded-lg bg-muted animate-pulse" />;
   }
 
+  const lastSynced = posts.reduce<string | null>((latest, p) => {
+    if (!p.updatedAt) return latest;
+    if (!latest || p.updatedAt > latest) return p.updatedAt;
+    return latest;
+  }, null);
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Posts y Reels</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">Posts y Reels</CardTitle>
+          {lastSynced && (
+            <span className="text-xs text-muted-foreground">
+              Actualizado: {format(new Date(lastSynced), "d MMM HH:mm", { locale: es })}
+            </span>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         {posts.length === 0 ? (

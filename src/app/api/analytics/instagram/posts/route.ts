@@ -20,6 +20,7 @@ function mapPost(row: any) {
     saved: row.saved,
     shares: row.shares,
     engagement,
+    updatedAt: row.updated_at,
   };
 }
 

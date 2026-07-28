@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error: dbError } = await supabase
     .from("instagram_demographics")
-    .select("breakdown_type, breakdown_value, value")
+    .select("breakdown_type, breakdown_value, value, recorded_at")
     .eq("organization_id", orgId!)
     .eq("project_id", projectId);
 
@@ -26,10 +26,15 @@ export async function GET(request: NextRequest) {
     city: [],
   };
 
+  let lastRecordedAt: string | null = null;
+
   for (const row of data ?? []) {
     const key = row.breakdown_type as keyof typeof grouped;
     if (grouped[key]) {
       grouped[key].push({ label: row.breakdown_value, value: row.value });
+    }
+    if (row.recorded_at && (!lastRecordedAt || row.recorded_at > lastRecordedAt)) {
+      lastRecordedAt = row.recorded_at;
     }
   }
 
@@ -39,5 +44,5 @@ export async function GET(request: NextRequest) {
     grouped[key].sort((a, b) => b.value - a.value);
   }
 
-  return NextResponse.json(grouped);
+  return NextResponse.json({ ...grouped, lastRecordedAt });
 }

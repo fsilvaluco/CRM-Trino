@@ -14,12 +14,15 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useProject } from "@/lib/project-context";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 
 interface DemographicsData {
   gender: Array<{ label: string; value: number }>;
   age: Array<{ label: string; value: number }>;
   country: Array<{ label: string; value: number }>;
   city: Array<{ label: string; value: number }>;
+  lastRecordedAt: string | null;
 }
 
 const GENDER_LABELS: Record<string, string> = { M: "Hombre", F: "Mujer", U: "Desconocido" };
@@ -76,7 +79,13 @@ export function InstagramDemographics() {
   const countryTotal = data!.country.reduce((s, c) => s + c.value, 0);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div className="space-y-2">
+      {data!.lastRecordedAt && (
+        <p className="text-xs text-muted-foreground text-right">
+          Actualizado: {format(new Date(data!.lastRecordedAt), "d MMM HH:mm", { locale: es })}
+        </p>
+      )}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Género</CardTitle>
@@ -161,6 +170,7 @@ export function InstagramDemographics() {
           </div>
         </CardContent>
       </Card>
+    </div>
     </div>
   );
 }
