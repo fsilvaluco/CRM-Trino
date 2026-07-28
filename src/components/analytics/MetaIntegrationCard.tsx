@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { SocialLinkField } from "@/components/analytics/SocialLinkField";
 
 interface MetaIntegration {
   connected: boolean;
@@ -90,8 +91,16 @@ export function MetaIntegrationCard({ integration, onRefresh, projectId }: MetaI
         <div>
           <p className="text-sm font-medium leading-none mb-1">Instagram</p>
           {integration.connected ? (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
               {integration.accountName}
+              <SocialLinkField
+                projectId={projectId}
+                platform="instagram"
+                connected
+                derivedUrl={
+                  integration.accountName ? `https://instagram.com/${integration.accountName}` : null
+                }
+              />
               {integration.lastSyncAt && (
                 <>
                   {" · "}
@@ -101,9 +110,12 @@ export function MetaIntegrationCard({ integration, onRefresh, projectId }: MetaI
               )}
             </p>
           ) : (
-            <p className="text-xs text-muted-foreground">
-              Conecta tu cuenta para sincronizar seguidores automáticamente.
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-muted-foreground">
+                Conecta tu cuenta para sincronizar seguidores automáticamente.
+              </p>
+              <SocialLinkField projectId={projectId} platform="instagram" connected={false} />
+            </div>
           )}
         </div>
       </div>
