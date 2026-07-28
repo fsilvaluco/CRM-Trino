@@ -1,5 +1,21 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+// Sin esto, un solo fetch colgado (Meta no responde, glitch de red, etc.)
+// bloquea TODA la cadena de await para siempre -- fetch nativo de Node no
+// tiene timeout por defecto. Con hasta ~150 llamadas seguidas por cuenta
+// (posts + demografia), un solo cuelgue tumba el cron completo sin que
+// nunca vuelva una respuesta. Se vio exactamente esto: corridas normales
+// duraban 7-12s, la que fallo quedo pegada en 0 bytes por mas de 90s.
+async function fetchWithTimeout(url: string, timeoutMs = 8000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 interface InstagramMeResponse {
   id: string;
   followers_count: number;
@@ -21,7 +37,7 @@ export async function syncInstagram(
   igUserId: string,
   projectId: string
 ): Promise<{ followers: number; recordedAt: string; avatarStatus: AvatarSyncStatus; hasProfilePictureUrl: boolean }> {
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `https://graph.facebook.com/v21.0/${igUserId}?fields=followers_count,username,profile_picture_url&access_token=${accessToken}`
   );
 
@@ -144,17 +160,24 @@ async function fetchMediaInsights(
   accessToken: string
 ): Promise<Record<string, number>> {
   for (const metrics of [MEDIA_INSIGHTS_METRICS, MEDIA_INSIGHTS_METRICS_FALLBACK]) {
-    const res = await fetch(
-      `https://graph.facebook.com/v22.0/${mediaId}/insights?metric=${metrics.join(",")}&access_token=${accessToken}`
-    );
-    if (!res.ok) continue;
-    const data = await res.json();
-    if (data.error) continue;
-    const values: Record<string, number> = {};
-    for (const entry of data.data ?? []) {
-      values[entry.name] = entry.values?.[0]?.value ?? 0;
+    try {
+      const res = await fetchWithTimeout(
+        `https://graph.facebook.com/v22.0/${mediaId}/insights?metric=${metrics.join(",")}&access_token=${accessToken}`
+      );
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (data.error) continue;
+      const values: Record<string, number> = {};
+      for (const entry of data.data ?? []) {
+        values[entry.name] = entry.values?.[0]?.value ?? 0;
+      }
+      return values;
+    } catch {
+      // timeout u otro error de red en este intento -- probar el
+      // siguiente set de metricas (o rendirse si era el ultimo) en vez de
+      // tumbar el sync completo de la cuenta por un solo post.
+      continue;
     }
-    return values;
   }
   return {};
 }
@@ -170,7 +193,7 @@ export async function syncInstagramPosts(
   projectId: string,
   limit = 25
 ): Promise<{ postsCount: number }> {
-  const mediaRes = await fetch(
+  const mediaRes = await fetchWithTimeout(
     `https://graph.facebook.com/v22.0/${igUserId}/media?fields=id,media_type,caption,permalink,media_url,thumbnail_url,timestamp&limit=${limit}&access_token=${accessToken}`
   );
   if (!mediaRes.ok) {
@@ -237,30 +260,35 @@ export async function syncInstagramDemographics(
   let breakdownsSynced = 0;
 
   for (const { type, breakdown } of DEMOGRAPHIC_BREAKDOWNS) {
-    const res = await fetch(
-      `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=follower_demographics&period=lifetime&metric_type=total_value&breakdown=${breakdown}&access_token=${accessToken}`
-    );
-    if (!res.ok) continue; // demografia es "nice to have" -- no bloquea el resto del sync
-    const data = await res.json();
-    if (data.error) continue;
+    try {
+      const res = await fetchWithTimeout(
+        `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=follower_demographics&period=lifetime&metric_type=total_value&breakdown=${breakdown}&access_token=${accessToken}`
+      );
+      if (!res.ok) continue; // demografia es "nice to have" -- no bloquea el resto del sync
+      const data = await res.json();
+      if (data.error) continue;
 
-    const breakdowns = data.data?.[0]?.total_value?.breakdowns?.[0]?.results ?? [];
-    if (breakdowns.length === 0) continue;
+      const breakdowns = data.data?.[0]?.total_value?.breakdowns?.[0]?.results ?? [];
+      if (breakdowns.length === 0) continue;
 
-    const rows = breakdowns.map((b: { dimension_values: string[]; value: number }) => ({
-      organization_id: orgId,
-      project_id: projectId,
-      breakdown_type: type,
-      breakdown_value: b.dimension_values?.[0] ?? "Desconocido",
-      value: b.value,
-      recorded_at: new Date().toISOString(),
-    }));
+      const rows = breakdowns.map((b: { dimension_values: string[]; value: number }) => ({
+        organization_id: orgId,
+        project_id: projectId,
+        breakdown_type: type,
+        breakdown_value: b.dimension_values?.[0] ?? "Desconocido",
+        value: b.value,
+        recorded_at: new Date().toISOString(),
+      }));
 
-    const { error } = await supabase
-      .from("instagram_demographics")
-      .upsert(rows, { onConflict: "organization_id,project_id,breakdown_type,breakdown_value" });
+      const { error } = await supabase
+        .from("instagram_demographics")
+        .upsert(rows, { onConflict: "organization_id,project_id,breakdown_type,breakdown_value" });
 
-    if (!error) breakdownsSynced += rows.length;
+      if (!error) breakdownsSynced += rows.length;
+    } catch {
+      // timeout u otro error de red -- seguir con el siguiente breakdown
+      continue;
+    }
   }
 
   return { breakdownsSynced };
