@@ -6,7 +6,6 @@ import { useState } from "react";
 import { ChevronDown, Briefcase } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProject } from "@/lib/project-context";
-import { useAuth } from "@/lib/auth-context";
 import { navConfig, settingsConfig, computeActiveHref, type NavLeaf, type NavGroup } from "./nav-config";
 import { useNotifications } from "@/lib/notifications-context";
 
@@ -71,9 +70,7 @@ function GroupNav({ item, activeHref }: { item: NavGroup; activeHref: string }) 
 export function MobileNav() {
   const pathname = usePathname();
   const activeHref = computeActiveHref(pathname);
-  useProject(); // mantiene suscripción al contexto de proyecto
-  const { orgRole } = useAuth();
-  const isAdmin = orgRole === "owner" || orgRole === "admin";
+  const { isAdmin } = useProject(); // fuente unica de isAdmin, igual que Sidebar
 
   return (
     <div className="flex flex-col h-full bg-[var(--sidebar)] text-[var(--sidebar-foreground)]">

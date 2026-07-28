@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { ChevronDown, ChevronRight, ChevronLeft, Briefcase } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/lib/auth-context";
+import { useProject } from "@/lib/project-context";
 import { useNotifications } from "@/lib/notifications-context";
 import { navConfig, settingsConfig, computeActiveHref, type NavLeaf, type NavGroup } from "./nav-config";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -154,8 +154,13 @@ function GroupNav({
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const activeHref = computeActiveHref(pathname);
-  const { orgRole } = useAuth();
-  const isAdmin = orgRole === "owner" || orgRole === "admin";
+  // Antes esto se calculaba por separado desde useAuth().orgRole (con su
+  // propio cache en localStorage), lo que podia desincronizarse del
+  // isAdmin real que usa el resto de la app (project-context) -- causando
+  // que el menu mostrara "Admin" cuando en realidad los botones de
+  // eliminar (que si usan project-context) lo ocultaban correctamente.
+  // Ahora ambos usan exactamente la misma fuente.
+  const { isAdmin } = useProject();
 
   return (
     <aside
