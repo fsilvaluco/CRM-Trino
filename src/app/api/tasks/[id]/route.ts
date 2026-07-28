@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { createAdminClient } from "@/lib/supabase-admin";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapTask(row: any) {
@@ -219,7 +220,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Tarea no encontrada" }, { status: 404 });
   }
 
-  const { error: dbError } = await supabase
+  const { error: dbError } = await createAdminClient()
     .from("tasks")
     .update({ deleted_at: new Date().toISOString() })
     .eq("id", id);
