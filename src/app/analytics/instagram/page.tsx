@@ -6,6 +6,8 @@ import { Camera } from "lucide-react";
 import { toast } from "sonner";
 import { AnalyticsPageHeader } from "@/components/analytics/AnalyticsPageHeader";
 import { PlatformTab } from "@/components/analytics/PlatformTab";
+import { InstagramDemographics } from "@/components/analytics/InstagramDemographics";
+import { InstagramPostsList } from "@/components/analytics/InstagramPostsList";
 import { useAnalyticsData } from "@/lib/use-analytics-data";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -36,7 +38,11 @@ export default function AnalyticsInstagramPage() {
       {loading ? (
         <div className="h-64 rounded-lg bg-muted animate-pulse" />
       ) : (
-        <PlatformTab platform="instagram" metrics={social} onRefresh={refresh} integration={metaIntegration} />
+        <>
+          <PlatformTab platform="instagram" metrics={social} onRefresh={refresh} integration={metaIntegration} />
+          <InstagramDemographics />
+          <InstagramPostsList />
+        </>
       )}
     </div>
   );

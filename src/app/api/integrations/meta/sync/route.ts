@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
-import { syncInstagram } from "@/lib/meta-sync";
+import { syncInstagram, syncInstagramPosts, syncInstagramDemographics } from "@/lib/meta-sync";
 
 export async function POST(request: NextRequest) {
   const { supabase, orgId, error } = await requireAuth();
@@ -44,7 +44,41 @@ export async function POST(request: NextRequest) {
       integration.account_id,
       projectId
     );
-    return NextResponse.json({ ok: true, followers: result.followers, recordedAt: result.recordedAt });
+
+    let postsCount: number | undefined;
+    let demographicsSynced: number | undefined;
+    try {
+      const postsResult = await syncInstagramPosts(
+        supabase,
+        orgId!,
+        integration.access_token,
+        integration.account_id,
+        projectId
+      );
+      postsCount = postsResult.postsCount;
+    } catch (postsErr) {
+      console.error("[meta/sync] posts sync failed (no bloqueante)", { projectId, postsErr });
+    }
+    try {
+      const demoResult = await syncInstagramDemographics(
+        supabase,
+        orgId!,
+        integration.access_token,
+        integration.account_id,
+        projectId
+      );
+      demographicsSynced = demoResult.breakdownsSynced;
+    } catch (demoErr) {
+      console.error("[meta/sync] demographics sync failed (no bloqueante)", { projectId, demoErr });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      followers: result.followers,
+      recordedAt: result.recordedAt,
+      postsCount,
+      demographicsSynced,
+    });
   } catch (syncError: unknown) {
     const message = syncError instanceof Error ? syncError.message : "Error de sincronización";
     console.error("[meta/sync] failed", { orgId, projectId, message });

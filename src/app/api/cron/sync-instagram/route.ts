@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
-import { syncInstagram } from "@/lib/meta-sync";
+import { syncInstagram, syncInstagramPosts, syncInstagramDemographics } from "@/lib/meta-sync";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -13,6 +13,8 @@ interface SyncResult {
   followers?: number;
   avatarStatus?: string;
   hasProfilePictureUrl?: boolean;
+  postsCount?: number;
+  demographicsSynced?: number;
   error?: string;
 }
 
@@ -69,6 +71,24 @@ export async function POST(request: NextRequest) {
 
     try {
       const result = await syncInstagram(supabase, organizationId, accessToken, igUserId, projectId);
+
+      // Posts/reels y demografía son "nice to have": si fallan, no deben
+      // tumbar el resultado principal (seguidores) que ya se guardó bien.
+      let postsCount: number | undefined;
+      let demographicsSynced: number | undefined;
+      try {
+        const postsResult = await syncInstagramPosts(supabase, organizationId, accessToken, igUserId, projectId);
+        postsCount = postsResult.postsCount;
+      } catch (postsErr) {
+        console.error("[cron/sync-instagram] posts sync failed (no bloqueante)", { projectId, postsErr });
+      }
+      try {
+        const demoResult = await syncInstagramDemographics(supabase, organizationId, accessToken, igUserId, projectId);
+        demographicsSynced = demoResult.breakdownsSynced;
+      } catch (demoErr) {
+        console.error("[cron/sync-instagram] demographics sync failed (no bloqueante)", { projectId, demoErr });
+      }
+
       results.push({
         organizationId,
         projectId,
@@ -77,6 +97,8 @@ export async function POST(request: NextRequest) {
         followers: result.followers,
         avatarStatus: result.avatarStatus,
         hasProfilePictureUrl: result.hasProfilePictureUrl,
+        postsCount,
+        demographicsSynced,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Error desconocido";

@@ -119,3 +119,149 @@ export async function syncInstagram(
     hasProfilePictureUrl: Boolean(data.profile_picture_url),
   };
 }
+
+// ── Posts/Reels con metricas de Insights API ──────────────────────────────
+// Nota sobre metricas: Meta deprecó "impressions" y "video_views" en Graph
+// API v22 -- se reemplazan por "views". Si algun metric individual no
+// aplica a un tipo de media puntual, la llamada completa puede fallar; se
+// hace best-effort (se intenta con el set completo, y si falla se reintenta
+// con un set reducido) en vez de romper todo el sync por un solo post raro.
+const MEDIA_INSIGHTS_METRICS = ["views", "reach", "saved", "shares", "likes", "comments"];
+const MEDIA_INSIGHTS_METRICS_FALLBACK = ["views", "reach", "likes", "comments"];
+
+interface InstagramMediaItem {
+  id: string;
+  media_type?: string;
+  caption?: string;
+  permalink?: string;
+  media_url?: string;
+  thumbnail_url?: string;
+  timestamp?: string;
+}
+
+async function fetchMediaInsights(
+  mediaId: string,
+  accessToken: string
+): Promise<Record<string, number>> {
+  for (const metrics of [MEDIA_INSIGHTS_METRICS, MEDIA_INSIGHTS_METRICS_FALLBACK]) {
+    const res = await fetch(
+      `https://graph.facebook.com/v22.0/${mediaId}/insights?metric=${metrics.join(",")}&access_token=${accessToken}`
+    );
+    if (!res.ok) continue;
+    const data = await res.json();
+    if (data.error) continue;
+    const values: Record<string, number> = {};
+    for (const entry of data.data ?? []) {
+      values[entry.name] = entry.values?.[0]?.value ?? 0;
+    }
+    return values;
+  }
+  return {};
+}
+
+/** Sincroniza los posts/reels recientes (hasta 25) con sus metricas de
+ * Insights. "Reemplazado completo": pisa el estado actual de cada post, no
+ * es un historico dia a dia -- igual filosofia que el catalogo de Merch. */
+export async function syncInstagramPosts(
+  supabase: SupabaseClient,
+  orgId: string,
+  accessToken: string,
+  igUserId: string,
+  projectId: string,
+  limit = 25
+): Promise<{ postsCount: number }> {
+  const mediaRes = await fetch(
+    `https://graph.facebook.com/v22.0/${igUserId}/media?fields=id,media_type,caption,permalink,media_url,thumbnail_url,timestamp&limit=${limit}&access_token=${accessToken}`
+  );
+  if (!mediaRes.ok) {
+    throw new Error(`Error al listar posts de Instagram: ${mediaRes.status}`);
+  }
+  const mediaData = await mediaRes.json();
+  if (mediaData.error) throw new Error(mediaData.error.message);
+
+  const items: InstagramMediaItem[] = mediaData.data ?? [];
+
+  const rows = [];
+  for (const item of items) {
+    const insights = await fetchMediaInsights(item.id, accessToken);
+    rows.push({
+      organization_id: orgId,
+      project_id: projectId,
+      ig_media_id: item.id,
+      media_type: item.media_type ?? null,
+      caption: item.caption ?? null,
+      permalink: item.permalink ?? null,
+      media_url: item.media_url ?? null,
+      thumbnail_url: item.thumbnail_url ?? item.media_url ?? null,
+      posted_at: item.timestamp ?? null,
+      views: insights.views ?? null,
+      reach: insights.reach ?? null,
+      likes: insights.likes ?? null,
+      comments: insights.comments ?? null,
+      saved: insights.saved ?? null,
+      shares: insights.shares ?? null,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  if (rows.length > 0) {
+    const { error } = await supabase
+      .from("instagram_posts")
+      .upsert(rows, { onConflict: "organization_id,project_id,ig_media_id" });
+    if (error) {
+      throw new Error(`No se pudieron guardar los posts de Instagram: ${error.message}`);
+    }
+  }
+
+  return { postsCount: rows.length };
+}
+
+// ── Demografía de seguidores ───────────────────────────────────────────────
+// "follower_demographics" reemplazo a las metricas viejas audience_gender_age
+// / audience_country / audience_city. Requiere breakdown separado por
+// dimension -- no se puede pedir genero+edad+pais en una sola llamada.
+const DEMOGRAPHIC_BREAKDOWNS: Array<{ type: "gender" | "age" | "country" | "city"; breakdown: string }> = [
+  { type: "gender", breakdown: "gender" },
+  { type: "age", breakdown: "age" },
+  { type: "country", breakdown: "country" },
+  { type: "city", breakdown: "city" },
+];
+
+export async function syncInstagramDemographics(
+  supabase: SupabaseClient,
+  orgId: string,
+  accessToken: string,
+  igUserId: string,
+  projectId: string
+): Promise<{ breakdownsSynced: number }> {
+  let breakdownsSynced = 0;
+
+  for (const { type, breakdown } of DEMOGRAPHIC_BREAKDOWNS) {
+    const res = await fetch(
+      `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=follower_demographics&period=lifetime&metric_type=total_value&breakdown=${breakdown}&access_token=${accessToken}`
+    );
+    if (!res.ok) continue; // demografia es "nice to have" -- no bloquea el resto del sync
+    const data = await res.json();
+    if (data.error) continue;
+
+    const breakdowns = data.data?.[0]?.total_value?.breakdowns?.[0]?.results ?? [];
+    if (breakdowns.length === 0) continue;
+
+    const rows = breakdowns.map((b: { dimension_values: string[]; value: number }) => ({
+      organization_id: orgId,
+      project_id: projectId,
+      breakdown_type: type,
+      breakdown_value: b.dimension_values?.[0] ?? "Desconocido",
+      value: b.value,
+      recorded_at: new Date().toISOString(),
+    }));
+
+    const { error } = await supabase
+      .from("instagram_demographics")
+      .upsert(rows, { onConflict: "organization_id,project_id,breakdown_type,breakdown_value" });
+
+    if (!error) breakdownsSynced += rows.length;
+  }
+
+  return { breakdownsSynced };
+}
