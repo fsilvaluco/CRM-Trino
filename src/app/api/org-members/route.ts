@@ -215,7 +215,21 @@ export async function POST(request: NextRequest) {
     }
 
     if (existingMember?.status === "active") {
-      return NextResponse.json({ ok: true, userId: existingUser.id, state: "already_active" });
+      // Aunque ya este activo en la organizacion, si se le esta invitando
+      // desde OTRO proyecto hay que: (1) asignarle ese proyecto con el rol
+      // elegido, y (2) avisarle por correo -- antes esto no hacia nada,
+      // como si Facebook no pudiera invitarte a mas de un grupo.
+      await assignProjectIfNeeded(existingUser.id);
+
+      if (projectName) {
+        await sendEmail({
+          to: normalizedEmail,
+          subject: `${inviterName} te agregó a ${projectName} en Artist Pro`,
+          html: buildInviteEmailHtml({ inviterName, projectName, role, actionLink: `${siteUrl}/` }),
+        }).catch((err) => console.error("[org-members] fallo correo de nuevo proyecto (no bloqueante)", err));
+      }
+
+      return NextResponse.json({ ok: true, userId: existingUser.id, state: "already_active", notified: !!projectName });
     }
 
     if (existingMember?.status === "pending") {

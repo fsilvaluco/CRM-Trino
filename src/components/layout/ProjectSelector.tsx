@@ -17,7 +17,7 @@ import { ProjectAvatarPicker } from "@/components/settings/ProjectAvatarPicker";
 import { ProjectIcon } from "@/components/shared/ProjectIcon";
 
 export function ProjectSelector() {
-  const { activeProject, setActiveProject, projects, reloadProjects, isAllProjects } = useProject();
+  const { activeProject, setActiveProject, projects, reloadProjects, isAllProjects, isAdmin } = useProject();
   const [showForm, setShowForm] = useState(false);
   const [showPersonalize, setShowPersonalize] = useState(false);
 
@@ -81,22 +81,26 @@ export function ProjectSelector() {
                   {p.name}
                 </DropdownMenuItem>
               ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="gap-2 cursor-pointer text-muted-foreground"
-                onClick={() => setShowForm(true)}
-              >
-                <Plus className="h-4 w-4" />
-                Nuevo proyecto
-              </DropdownMenuItem>
-              {!isAllProjects && activeProject && (
-                <DropdownMenuItem
-                  className="gap-2 cursor-pointer text-muted-foreground"
-                  onClick={() => setShowPersonalize(true)}
-                >
-                  <Settings2 className="h-4 w-4" />
-                  Personalizar {activeProject.name}
-                </DropdownMenuItem>
+              {isAdmin && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="gap-2 cursor-pointer text-muted-foreground"
+                    onClick={() => setShowForm(true)}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Nuevo proyecto
+                  </DropdownMenuItem>
+                  {!isAllProjects && activeProject && (
+                    <DropdownMenuItem
+                      className="gap-2 cursor-pointer text-muted-foreground"
+                      onClick={() => setShowPersonalize(true)}
+                    >
+                      <Settings2 className="h-4 w-4" />
+                      Personalizar {activeProject.name}
+                    </DropdownMenuItem>
+                  )}
+                </>
               )}
             </>
           )}

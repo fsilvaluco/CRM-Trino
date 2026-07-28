@@ -107,7 +107,11 @@ export function OrgMembersPanel() {
       if (!res.ok) { toast.error(data.error ?? "Error al invitar"); return; }
 
       if (data.state === "already_active") {
-        toast.info("El usuario ya está activo en la organización");
+        toast.success(
+          data.notified
+            ? `${inviteEmail} ya tenía cuenta — se le agregó este proyecto y se le avisó por correo`
+            : `${inviteEmail} ya tenía cuenta — se le agregó este proyecto`
+        );
       } else if (data.state === "already_invited") {
         toast.success("Usuario ya invitado. Se volvió a intentar el envío de invitación.");
       } else {
