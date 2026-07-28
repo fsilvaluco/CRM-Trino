@@ -37,6 +37,7 @@ interface ProjectOption {
 interface ProjectMemberRow {
   user_id: string;
   project_id: string;
+  role: "admin" | "member" | "artist";
 }
 
 interface MemberAccessSheetProps {
@@ -45,6 +46,8 @@ interface MemberAccessSheetProps {
   onClose: () => void;
   onSaved: () => Promise<void> | void;
 }
+
+const ROLE_LABELS: Record<string, string> = { admin: "Admin", member: "Miembro", artist: "Artista" };
 
 function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -59,7 +62,8 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
   const [initialProjectIds, setInitialProjectIds] = useState<string[]>([]);
-  const [selectedRole, setSelectedRole] = useState<string>("member");
+  const [projectRoles, setProjectRoles] = useState<Record<string, "admin" | "member" | "artist">>({});
+  const [initialProjectRoles, setInitialProjectRoles] = useState<Record<string, string>>({});
   const [projectSearch, setProjectSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -111,16 +115,20 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
             }))
           : [];
 
-        const currentProjectIds = Array.isArray(membershipsJson)
-          ? (membershipsJson as ProjectMemberRow[])
-              .filter((row) => row.user_id === member.user_id)
-              .map((row) => row.project_id)
+        const currentMemberships = Array.isArray(membershipsJson)
+          ? (membershipsJson as ProjectMemberRow[]).filter((row) => row.user_id === member.user_id)
           : [];
+        const currentProjectIds = currentMemberships.map((row) => row.project_id);
+        const rolesMap: Record<string, "admin" | "member" | "artist"> = {};
+        currentMemberships.forEach((row) => {
+          rolesMap[row.project_id] = row.role ?? "member";
+        });
 
         setProjects(projectOptions);
         setInitialProjectIds(currentProjectIds);
         setSelectedProjectIds(currentProjectIds);
-        setSelectedRole(member.role);
+        setProjectRoles(rolesMap);
+        setInitialProjectRoles(rolesMap);
         setProjectSearch("");
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Error cargando accesos");
@@ -140,6 +148,13 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
       }
       return prev.filter((id) => id !== projectId);
     });
+    if (checked) {
+      setProjectRoles((prev) => (prev[projectId] ? prev : { ...prev, [projectId]: "member" }));
+    }
+  };
+
+  const setProjectRole = (projectId: string, role: "admin" | "member" | "artist") => {
+    setProjectRoles((prev) => ({ ...prev, [projectId]: role }));
   };
 
   const handleSave = async () => {
@@ -149,25 +164,29 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
     try {
       const requests: Array<Promise<Response>> = [];
 
-      if (!isOwner && selectedRole !== member.role) {
-        requests.push(
-          fetch("/api/org-members", {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId: member.user_id, role: selectedRole }),
-          })
-        );
-      }
-
       const toAdd = selectedProjectIds.filter((projectId) => !initialSet.has(projectId));
       const toRemove = initialProjectIds.filter((projectId) => !selectedSet.has(projectId));
+      const toUpdateRole = selectedProjectIds.filter(
+        (projectId) =>
+          initialSet.has(projectId) && projectRoles[projectId] !== initialProjectRoles[projectId]
+      );
 
       toAdd.forEach((projectId) => {
         requests.push(
           fetch("/api/project-members", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId: member.user_id, projectId }),
+            body: JSON.stringify({ userId: member.user_id, projectId, role: projectRoles[projectId] ?? "member" }),
+          })
+        );
+      });
+
+      toUpdateRole.forEach((projectId) => {
+        requests.push(
+          fetch("/api/project-members", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: member.user_id, projectId, role: projectRoles[projectId] }),
           })
         );
       });
@@ -250,82 +269,86 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
                   </Badge>
                 </FieldRow>
 
-                <FieldRow label="Rol actual">
-                  <Select
-                    value={selectedRole}
-                    disabled={isOwner || saving}
-                    onValueChange={(value) => {
-                      if (!value) return;
-                      setSelectedRole(value);
-                    }}
-                  >
-                    <SelectTrigger className="h-8 text-sm cursor-pointer">
-                      <SelectValue placeholder="Selecciona rol" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {isOwner && <SelectItem value="owner">Propietario</SelectItem>}
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="member">Miembro</SelectItem>
-                      <SelectItem value="artist">Artista</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {isOwner && (
+                {isOwner && (
+                  <FieldRow label="Rol">
+                    <Badge variant="outline">Propietario</Badge>
                     <p className="text-xs text-muted-foreground mt-1">
-                      El rol de owner no se puede cambiar desde este panel.
+                      Propietario tiene acceso total a todos los proyectos — no se gestiona por proyecto.
                     </p>
-                  )}
-                  {!isOwner && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {selectedRole === "admin" &&
-                        "Gestiona permisos, crea proyectos y tiene acceso total a tratos y tareas."}
-                      {selectedRole === "member" &&
-                        "Trabaja en la app: crea tratos, contactos, empresas y tareas."}
-                      {selectedRole === "artist" &&
-                        "Ve sus propios tratos (solo lectura) y puede editar sus tareas. Si el proyecto es autogestionado, tambien puede editar sus tratos."}
-                    </p>
-                  )}
-                </FieldRow>
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-xs text-muted-foreground font-medium">Proyectos asignados</p>
-                {projects.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No hay proyectos para asignar.</p>
-                ) : (
-                  <div className="space-y-3 rounded-lg border border-border/60 bg-card/50 p-3">
-                    <Input
-                      value={projectSearch}
-                      onChange={(event) => setProjectSearch(event.target.value)}
-                      placeholder="Buscar proyecto..."
-                      className="h-8"
-                    />
-                    <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
-                      {filteredProjects.length === 0 ? (
-                        <p className="text-xs text-muted-foreground py-2 px-1">
-                          No hay proyectos que coincidan con la búsqueda.
-                        </p>
-                      ) : (
-                        filteredProjects.map((project) => {
-                          const checked = selectedSet.has(project.id);
-                          return (
-                            <label
-                              key={project.id}
-                              className="flex items-center gap-3 rounded-md border border-border/60 px-3 py-2 text-sm hover:bg-muted/40"
-                            >
-                              <Checkbox
-                                checked={checked}
-                                disabled={saving}
-                                onCheckedChange={(value) => toggleProject(project.id, value === true)}
-                              />
-                              <span className="flex-1">{project.name}</span>
-                            </label>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
+                  </FieldRow>
                 )}
               </div>
+
+              {!isOwner && (
+                <p className="text-xs text-muted-foreground -mt-2">
+                  El rol de esta persona se define <span className="font-medium">por proyecto</span> — puede ser
+                  Admin en uno y Miembro o Artista en otro.
+                </p>
+              )}
+
+              {!isOwner && (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground font-medium">Proyectos asignados</p>
+                  {projects.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No hay proyectos para asignar.</p>
+                  ) : (
+                    <div className="space-y-3 rounded-lg border border-border/60 bg-card/50 p-3">
+                      <Input
+                        value={projectSearch}
+                        onChange={(event) => setProjectSearch(event.target.value)}
+                        placeholder="Buscar proyecto..."
+                        className="h-8"
+                      />
+                      <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
+                        {filteredProjects.length === 0 ? (
+                          <p className="text-xs text-muted-foreground py-2 px-1">
+                            No hay proyectos que coincidan con la búsqueda.
+                          </p>
+                        ) : (
+                          filteredProjects.map((project) => {
+                            const checked = selectedSet.has(project.id);
+                            const role = projectRoles[project.id] ?? "member";
+                            return (
+                              <div
+                                key={project.id}
+                                className="flex items-center gap-3 rounded-md border border-border/60 px-3 py-2 text-sm hover:bg-muted/40"
+                              >
+                                <Checkbox
+                                  checked={checked}
+                                  disabled={saving}
+                                  onCheckedChange={(value) => toggleProject(project.id, value === true)}
+                                />
+                                <span className="flex-1">{project.name}</span>
+                                {checked && (
+                                  <Select
+                                    value={role}
+                                    disabled={saving}
+                                    onValueChange={(v) => v && setProjectRole(project.id, v as "admin" | "member" | "artist")}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs w-28 cursor-pointer">
+                                      <SelectValue>{ROLE_LABELS[role]}</SelectValue>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="admin">Admin</SelectItem>
+                                      <SelectItem value="member">Miembro</SelectItem>
+                                      <SelectItem value="artist">Artista</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Admin: gestiona permisos y tiene acceso total dentro de ese proyecto. Miembro: crea
+                        tratos, contactos y tareas. Artista: solo lectura de sus tratos (o edición si el
+                        proyecto es autogestionado) y edición de sus tareas.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

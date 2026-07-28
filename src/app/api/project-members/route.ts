@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from("project_members")
-    .select("id, user_id, project_id, created_at")
+    .select("id, user_id, project_id, role, created_at")
     .eq("organization_id", orgId);
 
   if (projectId) {
@@ -90,14 +90,48 @@ export async function POST(request: NextRequest) {
   if (!isAdmin) return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
 
   const body = await request.json();
-  const { projectId, userId } = body as { projectId: string; userId: string };
+  const { projectId, userId, role } = body as { projectId: string; userId: string; role?: string };
   if (!projectId || !userId) {
     return NextResponse.json({ error: "projectId y userId requeridos" }, { status: 400 });
+  }
+  if (role && !["admin", "member", "artist"].includes(role)) {
+    return NextResponse.json({ error: "role invalido" }, { status: 400 });
   }
 
   const { error: dbError } = await supabase
     .from("project_members")
-    .upsert({ project_id: projectId, user_id: userId, organization_id: orgId }, { onConflict: "project_id,user_id" });
+    .upsert(
+      { project_id: projectId, user_id: userId, organization_id: orgId, role: role || "member" },
+      { onConflict: "project_id,user_id" }
+    );
+
+  if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
+
+  return NextResponse.json({ ok: true });
+}
+
+// PATCH /api/project-members → { projectId, userId, role } -- cambia el rol
+// de una asignacion YA existente, sin tocar si esta o no asignada.
+export async function PATCH(request: NextRequest) {
+  const { supabase, orgId, isAdmin, error } = await requireAuth();
+  if (error) return error;
+  if (!isAdmin) return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
+
+  const body = await request.json();
+  const { projectId, userId, role } = body as { projectId: string; userId: string; role: string };
+  if (!projectId || !userId || !role) {
+    return NextResponse.json({ error: "projectId, userId y role requeridos" }, { status: 400 });
+  }
+  if (!["admin", "member", "artist"].includes(role)) {
+    return NextResponse.json({ error: "role invalido" }, { status: 400 });
+  }
+
+  const { error: dbError } = await supabase
+    .from("project_members")
+    .update({ role })
+    .eq("project_id", projectId)
+    .eq("user_id", userId)
+    .eq("organization_id", orgId);
 
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
 

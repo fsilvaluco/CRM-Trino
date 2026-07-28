@@ -105,18 +105,26 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(result);
   }
 
-  // owner/admin siempre se muestran (gestionan accesos de todo el proyecto).
-  // member/artist solo se muestran si estan asignados a este proyecto.
+  // Solo Propietario es global (acceso a todo, sin necesidad de estar en
+  // project_members). Cualquier otro rol -- incluido Admin -- se define
+  // POR PROYECTO: una misma persona puede ser Admin en un proyecto y
+  // Miembro o Artista en otro. Por eso el rol que se muestra aqui viene
+  // de project_members.role, NO del rol global de organization_members.
   const { data: assignedRows } = await supabase
     .from("project_members")
-    .select("user_id")
+    .select("user_id, role")
     .eq("project_id", projectId);
 
-  const assignedUserIds = new Set((assignedRows ?? []).map((r) => r.user_id));
+  const roleByUserId = new Map((assignedRows ?? []).map((r) => [r.user_id, r.role]));
 
-  const filtered = result.filter(
-    (m) => m.role === "owner" || m.role === "admin" || assignedUserIds.has(m.user_id)
-  );
+  const filtered = result
+    .filter((m) => m.role === "owner" || roleByUserId.has(m.user_id))
+    .map((m) => ({
+      ...m,
+      // Para el propietario se mantiene "owner"; para cualquier otro, el
+      // rol EFECTIVO en este proyecto puntual.
+      role: m.role === "owner" ? "owner" : roleByUserId.get(m.user_id) ?? m.role,
+    }));
 
   return NextResponse.json(filtered);
 }
