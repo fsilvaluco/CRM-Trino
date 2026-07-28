@@ -49,9 +49,7 @@ export function Landing() {
       {/* Nav */}
       <nav className="max-w-6xl mx-auto flex items-center justify-between px-6 py-6">
         <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-lg bg-[#4338CA] flex items-center justify-center">
-            <span className="landing-display text-white text-sm font-bold">AP</span>
-          </div>
+          <img src="/logo-icon.png" alt="" className="h-8 w-8" />
           <span className="landing-display text-lg font-semibold">Artist Pro</span>
         </div>
         <Link

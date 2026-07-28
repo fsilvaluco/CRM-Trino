@@ -58,9 +58,7 @@ export function buildInviteEmailHtml(params: {
 
   return `
     <div style="font-family: -apple-system, Inter, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
-      <div style="width: 40px; height: 40px; border-radius: 10px; background: #4338CA; display: flex; align-items: center; justify-content: center; margin-bottom: 24px;">
-        <span style="color: white; font-weight: 700; font-size: 14px; line-height: 40px; text-align: center; display: block;">AP</span>
-      </div>
+      <img src="https://artistpro.app/logo-black.png" alt="Artist Pro" style="width: 120px; height: auto; margin-bottom: 20px;" />
       <p style="font-size: 16px; color: #14162B; line-height: 1.5;">${projectLine}</p>
       ${roleLine ? `<p style="font-size: 14px; color: #14162B99; line-height: 1.5;">${roleLine}</p>` : ""}
       <a href="${actionLink}" target="_blank" rel="noopener noreferrer"
