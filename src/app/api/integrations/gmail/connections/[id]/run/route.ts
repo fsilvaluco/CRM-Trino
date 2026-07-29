@@ -37,7 +37,7 @@ export async function POST(
     // sin body -- comportamiento normal (incremental)
   }
 
-  const result = await runLeadDetectionForConnection(id, { forceLookbackDays });
+  const result = await runLeadDetectionForConnection(id, { forceLookbackDays, trigger: "manual" });
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: 500 });

@@ -4,8 +4,19 @@ import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Mail, Plus, Trash2, Loader2, Play } from "lucide-react";
+import { Mail, Plus, Trash2, Loader2, Play, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
 import { useProject } from "@/lib/project-context";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+
+interface SyncRun {
+  id: string;
+  trigger: "cron" | "manual";
+  messagesScanned: number;
+  leadsCreated: number;
+  error: string | null;
+  ranAt: string;
+}
 
 interface GmailConnection {
   id: string;
@@ -15,6 +26,9 @@ interface GmailConnection {
   connectedByName: string | null;
   lastSyncAt: string | null;
   createdAt: string;
+  lastCronRun: SyncRun | null;
+  lastManualRun: SyncRun | null;
+  recentRuns: SyncRun[];
 }
 
 export function GmailConnectionsPanel() {
@@ -24,6 +38,13 @@ export function GmailConnectionsPanel() {
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [runningId, setRunningId] = useState<string | null>(null);
   const [testDays, setTestDays] = useState<Record<string, string>>({});
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  function formatRunDate(value: string) {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "";
+    return format(d, "d MMM yyyy, HH:mm", { locale: es });
+  }
 
   const load = useCallback(async () => {
     if (!activeProject) {
@@ -93,6 +114,7 @@ export function GmailConnectionsPanel() {
       } else {
         toast.info(`Revisados ${data.messagesScanned} correos, sin leads nuevos`);
       }
+      await load();
     } finally {
       setRunningId(null);
     }
@@ -148,8 +170,9 @@ export function GmailConnectionsPanel() {
           {connections.map((c) => (
             <div
               key={c.id}
-              className="flex items-center justify-between rounded-lg border p-3"
+              className="rounded-lg border p-3 space-y-2"
             >
+              <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Mail className="h-4 w-4 text-muted-foreground" />
                 <div>
@@ -209,6 +232,61 @@ export function GmailConnectionsPanel() {
                     <Trash2 className="h-4 w-4" />
                   )}
                 </Button>
+              </div>
+              </div>
+
+              {/* Log de la última corrida automática vs manual -- para
+                  poder comparar si el cron de Railway efectivamente corre
+                  y detecta lo mismo que "Probar ahora". */}
+              <div className="pl-7 space-y-1 text-xs text-muted-foreground">
+                {c.lastCronRun ? (
+                  <p className="flex items-center gap-1">
+                    {c.lastCronRun.error && <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />}
+                    <span className="font-medium">Último cron automático:</span>{" "}
+                    {formatRunDate(c.lastCronRun.ranAt)} ·{" "}
+                    {c.lastCronRun.error
+                      ? <span className="text-destructive">error: {c.lastCronRun.error}</span>
+                      : `${c.lastCronRun.messagesScanned} correo${c.lastCronRun.messagesScanned !== 1 ? "s" : ""} revisado${c.lastCronRun.messagesScanned !== 1 ? "s" : ""}, ${c.lastCronRun.leadsCreated} lead${c.lastCronRun.leadsCreated !== 1 ? "s" : ""} encontrado${c.lastCronRun.leadsCreated !== 1 ? "s" : ""}`}
+                  </p>
+                ) : (
+                  <p>El cron automático todavía no ha corrido para esta cuenta.</p>
+                )}
+                {c.lastManualRun && (
+                  <p>
+                    <span className="font-medium">Última prueba manual:</span>{" "}
+                    {formatRunDate(c.lastManualRun.ranAt)} ·{" "}
+                    {c.lastManualRun.error
+                      ? <span className="text-destructive">error: {c.lastManualRun.error}</span>
+                      : `${c.lastManualRun.messagesScanned} correo${c.lastManualRun.messagesScanned !== 1 ? "s" : ""} revisado${c.lastManualRun.messagesScanned !== 1 ? "s" : ""}, ${c.lastManualRun.leadsCreated} lead${c.lastManualRun.leadsCreated !== 1 ? "s" : ""} encontrado${c.lastManualRun.leadsCreated !== 1 ? "s" : ""}`}
+                  </p>
+                )}
+                {c.recentRuns.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}
+                    className="flex items-center gap-1 text-primary hover:underline cursor-pointer"
+                  >
+                    {expandedId === c.id ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                    Ver historial ({c.recentRuns.length})
+                  </button>
+                )}
+                {expandedId === c.id && (
+                  <div className="border rounded-md divide-y mt-1">
+                    {c.recentRuns.map((run) => (
+                      <div key={run.id} className="px-2 py-1.5 flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-1.5">
+                          <Badge variant="outline" className="text-[10px] px-1 py-0">
+                            {run.trigger === "cron" ? "Cron" : "Manual"}
+                          </Badge>
+                          {formatRunDate(run.ranAt)}
+                        </span>
+                        <span className={run.error ? "text-destructive" : ""}>
+                          {run.error ?? `${run.messagesScanned} correos, ${run.leadsCreated} leads`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ))}

@@ -78,9 +78,20 @@ async function getValidAccessToken(
 
 export async function runLeadDetectionForConnection(
   connectionId: string,
-  options?: { forceLookbackDays?: number }
+  options?: { forceLookbackDays?: number; trigger?: "cron" | "manual" }
 ): Promise<DetectorRunResult> {
   const supabase = createAdminClient();
+  const trigger = options?.trigger ?? "manual";
+
+  async function logRun(messagesScanned: number, leadsCreated: number, error?: string) {
+    await supabase.from("lead_sync_runs").insert({
+      connection_id: connectionId,
+      trigger,
+      messages_scanned: messagesScanned,
+      leads_created: leadsCreated,
+      error: error ?? null,
+    });
+  }
 
   const { data: connection, error: connErr } = await supabase
     .from("gmail_connections")
@@ -226,6 +237,8 @@ export async function runLeadDetectionForConnection(
       .update({ last_sync_at: new Date().toISOString(), status: "active" })
       .eq("id", conn.id);
 
+    await logRun(messages.length, leadsCreated);
+
     return {
       connectionId: conn.id,
       emailAddress: conn.email_address,
@@ -235,6 +248,7 @@ export async function runLeadDetectionForConnection(
   } catch (err) {
     const message = err instanceof Error ? err.message : "Error desconocido";
     await supabase.from("gmail_connections").update({ status: "error" }).eq("id", conn.id);
+    await logRun(0, 0, message);
     return { connectionId: conn.id, emailAddress: conn.email_address, messagesScanned: 0, leadsCreated: 0, error: message };
   }
 }
@@ -248,7 +262,7 @@ export async function runLeadDetectionForAllConnections(): Promise<DetectorRunRe
 
   const results: DetectorRunResult[] = [];
   for (const c of connections ?? []) {
-    results.push(await runLeadDetectionForConnection(c.id));
+    results.push(await runLeadDetectionForConnection(c.id, { trigger: "cron" }));
   }
   return results;
 }
