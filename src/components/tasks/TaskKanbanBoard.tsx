@@ -4,23 +4,17 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import {
   DndContext,
   DragOverlay,
-  closestCorners,
-  pointerWithin,
-  rectIntersection,
-  PointerSensor,
-  useSensor,
-  useSensors,
   useDroppable,
   useDraggable,
   type DragStartEvent,
   type DragEndEvent,
-  type CollisionDetection,
 } from "@dnd-kit/core";
 import { Badge } from "@/components/ui/badge";
 import { AlertCircle, Clock, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/constants";
 import { ProjectTag } from "@/components/shared/ProjectTag";
+import { useKanbanDnd } from "@/lib/hooks/use-kanban-dnd";
 import type { TaskStatus, TaskPriority } from "@/types";
 
 // ─── Column definitions ──────────────────────────────────────────────────────
@@ -256,22 +250,7 @@ export function TaskKanbanBoard({ tasks, onTaskMoved, onTaskClick }: TaskKanbanB
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks]);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
-  );
-
-  // Mismo fix que en el Kanban de Tratos: closestCorners solo falla al
-  // soltar sobre una columna vacia (termina en la columna vecina). Primero
-  // se prueba deteccion literal bajo el puntero.
-  const collisionDetectionStrategy: CollisionDetection = useCallback((args) => {
-    const pointerCollisions = pointerWithin(args);
-    if (pointerCollisions.length > 0) return pointerCollisions;
-
-    const rectCollisions = rectIntersection(args);
-    if (rectCollisions.length > 0) return rectCollisions;
-
-    return closestCorners(args);
-  }, []);
+  const { sensors, collisionDetectionStrategy } = useKanbanDnd();
 
   const getColumnForTask = useCallback(
     (status: TaskStatus) =>
