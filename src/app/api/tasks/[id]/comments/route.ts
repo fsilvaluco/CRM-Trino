@@ -70,7 +70,19 @@ export async function POST(
   }
 
   const trimmedContent = content.trim();
-  const normalizedAuthor = author?.trim() || "Usuario";
+  // Si no viene un "author" explicito (lo manda el detector de leads para
+  // atribuir el comentario a quien escribio el correo), usar el nombre
+  // real de la persona logueada -- antes esto quedaba en "Usuario" fijo
+  // para cualquier comentario escrito a mano en la app.
+  let normalizedAuthor = author?.trim();
+  if (!normalizedAuthor) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name, email")
+      .eq("id", user.id)
+      .single();
+    normalizedAuthor = profile?.full_name || profile?.email || "Usuario";
+  }
   const insertAttempts: Array<{ label: string; payload: Record<string, string | null> }> = [
     {
       label: "full",
