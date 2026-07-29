@@ -206,6 +206,10 @@ export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealCl
               percentageValue: d.percentageValue,
               contactName: d.contactName || (d.contact?.name ?? null),
               probability: d.probability,
+              expectedClose: d.expectedClose,
+              tagProjectName: d.tagProjectName,
+              tagProjectColor: d.tagProjectColor,
+              tagProjectAvatarUrl: d.tagProjectAvatarUrl,
             }))}
           />
         ))}
