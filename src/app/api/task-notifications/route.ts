@@ -1,116 +1,37 @@
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { getMyTaskNotifications, type MyTaskNotification } from "@/lib/task-notifications";
 
-interface TaskNotification {
-  id: string;
-  title: string;
-  dueDate: string;
-  priority: string;
-  projectName: string | null;
-  subprojectName: string | null;
-  daysOverdue?: number;
-  daysUntilDue?: number;
+export interface TaskNotificationWithRead extends MyTaskNotification {
+  read: boolean;
 }
 
 export async function GET() {
   const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
-  // Obtener todas las tareas asignadas al usuario actual (no completadas)
-  let query = supabase
-    .from("tasks")
-    .select(`
-      id,
-      title,
-      due_date,
-      priority,
-      status,
-      projects!tasks_project_id_fkey ( name ),
-      subprojects ( name ),
-      task_assignees!task_assignees_task_id_fkey ( user_id )
-    `)
-    .neq("status", "done")
-    .not("due_date", "is", null)
-    .is("deleted_at", null);
+  const { overdue, upcoming } = await getMyTaskNotifications(supabase, user!.id, allowedProjectIds);
 
-  // Filtrar por proyectos accesibles
-  if (allowedProjectIds !== null) {
-    if (allowedProjectIds.length === 0) {
-      return NextResponse.json({ overdue: [], upcoming: [] });
-    }
-    query = query.in("project_id", allowedProjectIds);
+  const allIds = [...overdue, ...upcoming].map((n) => n.id);
+  const readIds = new Set<string>();
+  if (allIds.length > 0) {
+    const { data: reads } = await supabase
+      .from("task_notification_reads")
+      .select("task_id")
+      .eq("user_id", user!.id)
+      .in("task_id", allIds);
+    for (const r of reads ?? []) readIds.add(r.task_id as string);
   }
 
-  const { data: tasks, error: tasksError } = await query;
-
-  if (tasksError) {
-    console.error("Error fetching tasks:", tasksError);
-    return NextResponse.json(
-      { error: "Error al obtener tareas" },
-      { status: 500 }
-    );
-  }
-
-  // Filtrar solo las tareas donde el usuario está asignado
-  const myTasks = (tasks || []).filter((task: any) =>
-    task.task_assignees?.some((ta: any) => ta.user_id === user!.id)
-  );
-
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const threeDaysFromNow = new Date(today);
-  threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
-
-  const overdue: TaskNotification[] = [];
-  const upcoming: TaskNotification[] = [];
-
-  for (const task of myTasks as any[]) {
-    const dueDate = new Date(task.due_date);
-    const dueDateOnly = new Date(
-      dueDate.getFullYear(),
-      dueDate.getMonth(),
-      dueDate.getDate()
-    );
-
-    // Manejar projects y subprojects como array u objeto
-    const projectName = Array.isArray(task.projects)
-      ? (task.projects[0]?.name ?? null)
-      : (task.projects?.name ?? null);
-    const subprojectName = Array.isArray(task.subprojects)
-      ? (task.subprojects[0]?.name ?? null)
-      : (task.subprojects?.name ?? null);
-
-    const notification: TaskNotification = {
-      id: task.id,
-      title: task.title,
-      dueDate: task.due_date,
-      priority: task.priority,
-      projectName,
-      subprojectName,
-    };
-
-    if (dueDateOnly < today) {
-      // Tarea atrasada
-      const diffTime = today.getTime() - dueDateOnly.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      notification.daysOverdue = diffDays;
-      overdue.push(notification);
-    } else if (dueDateOnly <= threeDaysFromNow) {
-      // Deadline cercano (hoy o próximos 3 días)
-      const diffTime = dueDateOnly.getTime() - today.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      notification.daysUntilDue = diffDays;
-      upcoming.push(notification);
-    }
-  }
-
-  // Ordenar por urgencia
-  overdue.sort((a, b) => (b.daysOverdue || 0) - (a.daysOverdue || 0));
-  upcoming.sort((a, b) => (a.daysUntilDue || 0) - (b.daysUntilDue || 0));
+  const withRead = (n: MyTaskNotification): TaskNotificationWithRead => ({ ...n, read: readIds.has(n.id) });
+  const overdueWithRead = overdue.map(withRead);
+  const upcomingWithRead = upcoming.map(withRead);
+  const unreadCount = [...overdueWithRead, ...upcomingWithRead].filter((n) => !n.read).length;
 
   return NextResponse.json({
-    overdue,
-    upcoming,
+    overdue: overdueWithRead,
+    upcoming: upcomingWithRead,
     total: overdue.length + upcoming.length,
+    unreadCount,
   });
 }
