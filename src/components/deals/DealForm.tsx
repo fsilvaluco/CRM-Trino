@@ -25,6 +25,8 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useLocale } from "@/lib/locale-context";
 import { useProject } from "@/lib/project-context";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 
 const CREATE_CONTACT_VALUE = "__create_new_contact__";
 const CREATE_COMPANY_VALUE = "__create_new_company__";
@@ -140,6 +142,9 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
   const [newContactEmail, setNewContactEmail] = useState("");
   const [newContactPhone, setNewContactPhone] = useState("");
   const [newContactCompanyId, setNewContactCompanyId] = useState(NO_COMPANY_VALUE);
+  const [comments, setComments] = useState<Array<{ id: string; content: string; author: string; createdAt: string }>>([]);
+  const [newComment, setNewComment] = useState("");
+  const [submittingComment, setSubmittingComment] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState("");
   const [isCreatingNested, setIsCreatingNested] = useState(false);
   const [associationType, setAssociationType] = useState<"contacto" | "empresa">("contacto");
@@ -180,6 +185,37 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
   // Sync projectId when modal opens or active project changes -- salvo que
   // venga un prefill con su propio projectId (ej. al aprobar un lead), que
   // no debe ser pisado por el proyecto activo del usuario.
+  useEffect(() => {
+    if (!open || !isEditing || !initialDealId) {
+      setComments([]);
+      return;
+    }
+    fetch(`/api/deals/${initialDealId}/comments`)
+      .then((r) => r.json())
+      .then((d) => setComments(Array.isArray(d) ? d : []))
+      .catch(() => setComments([]));
+  }, [open, isEditing, initialDealId]);
+
+  async function handleAddComment() {
+    if (!newComment.trim() || !initialDealId) return;
+    setSubmittingComment(true);
+    try {
+      const res = await fetch(`/api/deals/${initialDealId}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: newComment.trim() }),
+      });
+      if (!res.ok) throw new Error();
+      const comment = await res.json();
+      setComments((prev) => [...prev, comment]);
+      setNewComment("");
+    } catch {
+      toast.error("Error al agregar comentario");
+    } finally {
+      setSubmittingComment(false);
+    }
+  }
+
   useEffect(() => {
     if (!open) return;
     if (prefill?.projectId) return;
@@ -894,6 +930,52 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
             <Label htmlFor="deal-notes">Notas</Label>
             <Textarea id="deal-notes" {...register("notes")} rows={2} />
           </div>
+
+          {isEditing && (
+            <div className="space-y-2 border-t pt-3">
+              <Label>Comentarios ({comments.length})</Label>
+              {comments.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Sin comentarios aún.</p>
+              ) : (
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {comments.map((c) => (
+                    <div key={c.id} className="text-sm bg-muted/40 rounded-md px-3 py-2">
+                      <div className="flex items-center justify-between gap-2 mb-0.5">
+                        <span className="font-medium text-xs">{c.author}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {format(new Date(c.createdAt), "d MMM, HH:mm", { locale: es })}
+                        </span>
+                      </div>
+                      <p className="whitespace-pre-wrap">{c.content}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Textarea
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder="Escribe un comentario..."
+                  className="text-sm min-h-[44px] resize-none"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                      e.preventDefault();
+                      void handleAddComment();
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  className="shrink-0 self-end cursor-pointer"
+                  disabled={!newComment.trim() || submittingComment}
+                  onClick={() => void handleAddComment()}
+                >
+                  {submittingComment ? "..." : "Enviar"}
+                </Button>
+              </div>
+            </div>
+          )}
 
           <div className="flex justify-between items-center gap-2 pt-2">
             {isEditing && isAdmin ? (

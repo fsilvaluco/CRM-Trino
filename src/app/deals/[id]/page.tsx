@@ -9,6 +9,7 @@ import { ArrowLeft, Calendar, DollarSign, Percent, CheckSquare, Clock } from "lu
 import { getLocaleSettings } from "@/lib/locale-server";
 import { formatCurrencyWith, formatDateWith, formatRelativeDateWith } from "@/lib/locale";
 import { DealDetailActions } from "@/components/deals/DealDetailActions";
+import { DealComments } from "@/components/deals/DealComments";
 
 export const dynamic = "force-dynamic";
 
@@ -196,6 +197,8 @@ export default async function DealDetailPage({
             )}
           </CardContent>
         </Card>
+
+        <DealComments dealId={id} />
       </div>
     </div>
   );
