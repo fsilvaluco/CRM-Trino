@@ -72,7 +72,7 @@
   --chart-3: #ea580c;
   --chart-4: #8b5cf6;
   --chart-5: #64748b;
-  --radius: 0.5rem;
+  --radius: 0.75rem;
   --sidebar: #1e293b;
   --sidebar-foreground: #f8fafc;
   --sidebar-primary: #2563eb;
@@ -134,5 +134,9 @@
   }
   html {
     @apply font-sans;
+  }
+  h1, h2, h3, h4 {
+    font-family: var(--font-display), var(--font-sans), system-ui, sans-serif;
+    letter-spacing: -0.01em;
   }
 }
