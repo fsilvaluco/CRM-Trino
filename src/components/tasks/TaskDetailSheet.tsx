@@ -20,13 +20,14 @@ import {
   SelectValue,  // still used for Status and Priority selects
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Send, User, Calendar, X, ChevronDown, Trash2 } from "lucide-react";
+import { Calendar, X, ChevronDown, Trash2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import type { TaskStatus, TaskPriority, TaskComment } from "@/types";
 import { STATUS_LABELS } from "@/components/tasks/TaskKanbanBoard";
 import { useProject } from "@/lib/project-context";
+import { CommentsWithMentions } from "@/components/shared/CommentsWithMentions";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -113,34 +114,6 @@ const CREATE_NEW_SUBPROJECT = "__create_new_subproject__";
 
 // ─── Comment item ─────────────────────────────────────────────────────────────
 
-function CommentItem({ comment }: { comment: TaskComment }) {
-  const date = comment.createdAt instanceof Date
-    ? comment.createdAt
-    : new Date(
-        typeof comment.createdAt === "number" && comment.createdAt < 1e12
-          ? comment.createdAt * 1000
-          : comment.createdAt
-      );
-  const isValidDate = !Number.isNaN(date.getTime());
-
-  return (
-    <div className="flex gap-3">
-      <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center shrink-0 mt-0.5">
-        <User className="h-4 w-4 text-muted-foreground" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-sm font-medium">{comment.author}</span>
-          <span className="text-xs text-muted-foreground">
-            {isValidDate ? format(date, "d MMM yyyy, HH:mm", { locale: es }) : "Fecha no disponible"}
-          </span>
-        </div>
-        <p className="text-sm text-foreground whitespace-pre-wrap break-words">{comment.content}</p>
-      </div>
-    </div>
-  );
-}
-
 // ─── Field wrappers ───────────────────────────────────────────────────────────
 
 function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
@@ -158,10 +131,6 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, p
   const { isAdmin } = useProject();
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [loading, setLoading] = useState(false);
-  const [newComment, setNewComment] = useState("");
-  const [mentionedIds, setMentionedIds] = useState<Set<string>>(new Set());
-  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
-  const [submittingComment, setSubmittingComment] = useState(false);
 
   // Relation options
   const [contacts, setContacts] = useState<Relation[]>([]);
@@ -478,22 +447,6 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, p
     }, 1500);
   };
 
-  const handleCommentChange = (value: string) => {
-    setNewComment(value);
-    // Detecta un "@algo" activo al final del texto escrito hasta ahora
-    // (simplificacion: no maneja edicion a mitad de texto, solo el caso
-    // comun de escribir @ y seguir tipeando al final).
-    const match = value.match(/@([^\s@]*)$/);
-    setMentionQuery(match ? match[1] : null);
-  };
-
-  const handleSelectMention = (member: { user_id: string; profiles: { full_name: string | null; email: string | null } }) => {
-    const name = member.profiles?.full_name || member.profiles?.email || "Usuario";
-    setNewComment((prev) => prev.replace(/@([^\s@]*)$/, `@${name} `));
-    setMentionedIds((prev) => new Set(prev).add(member.user_id));
-    setMentionQuery(null);
-  };
-
   const handleDeleteTask = async () => {
     if (!taskId || !task) return;
     if (!confirm(`¿Eliminar la tarea "${task.title}"? Esta accion no se puede deshacer.`)) return;
@@ -512,16 +465,15 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, p
     }
   };
 
-  const handleAddComment = async () => {
-    if (!newComment.trim() || !taskId) return;
-    setSubmittingComment(true);
+  const handleAddComment = async (content: string, mentionedUserIds: string[]) => {
+    if (!taskId) return false;
     try {
       const res = await fetch(`/api/tasks/${taskId}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          content: newComment.trim(),
-          mentionedUserIds: Array.from(mentionedIds),
+          content,
+          mentionedUserIds,
         }),
       });
       if (!res.ok) throw new Error();
@@ -529,13 +481,10 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, p
       setTask((prev) =>
         prev ? { ...prev, comments: [...prev.comments, comment] } : prev
       );
-      setNewComment("");
-      setMentionedIds(new Set());
-      setMentionQuery(null);
+      return true;
     } catch {
       toast.error("Error al agregar comentario");
-    } finally {
-      setSubmittingComment(false);
+      return false;
     }
   };
 
@@ -891,68 +840,12 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, p
                 <p className="text-xs font-medium text-muted-foreground mb-4">
                   Comentarios ({task.comments.length})
                 </p>
-
-                <div className="space-y-4 mb-4">
-                  {task.comments.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Sin comentarios aún.</p>
-                  ) : (
-                    task.comments.map((c) => <CommentItem key={c.id} comment={c} />)
-                  )}
-                </div>
-
-                {/* New comment input */}
-                <div className="flex gap-2 mt-2 relative">
-                  {mentionQuery !== null && (
-                    <div className="absolute bottom-full left-0 mb-1 w-64 max-h-40 overflow-y-auto rounded border bg-popover shadow-md z-10">
-                      {orgMembers
-                        .filter((m) => {
-                          const name = m.profiles?.full_name || m.profiles?.email || "";
-                          return name.toLowerCase().includes(mentionQuery.toLowerCase());
-                        })
-                        .map((m) => (
-                          <button
-                            key={m.user_id}
-                            type="button"
-                            onClick={() => handleSelectMention(m)}
-                            className="flex w-full flex-col items-start px-2 py-1.5 text-sm hover:bg-muted/40 cursor-pointer text-left border-b last:border-b-0"
-                          >
-                            <span className="font-medium">{m.profiles?.full_name || "Sin nombre"}</span>
-                            {m.profiles?.email && (
-                              <span className="text-xs text-muted-foreground">{m.profiles.email}</span>
-                            )}
-                          </button>
-                        ))}
-                      {orgMembers.filter((m) => {
-                        const name = m.profiles?.full_name || m.profiles?.email || "";
-                        return name.toLowerCase().includes(mentionQuery.toLowerCase());
-                      }).length === 0 && (
-                        <p className="px-2 py-1.5 text-xs text-muted-foreground">Nadie coincide</p>
-                      )}
-                    </div>
-                  )}
-                  <Textarea
-                    value={newComment}
-                    onChange={(e) => handleCommentChange(e.target.value)}
-                    placeholder="Escribe un comentario... (usa @ para etiquetar a alguien)"
-                    className="text-sm min-h-[60px] resize-none"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                        e.preventDefault();
-                        handleAddComment();
-                      }
-                      if (e.key === "Escape") setMentionQuery(null);
-                    }}
-                  />
-                  <Button
-                    size="sm"
-                    className="shrink-0 self-end cursor-pointer"
-                    disabled={!newComment.trim() || submittingComment}
-                    onClick={handleAddComment}
-                  >
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">Cmd+Enter para enviar</p>
+                <CommentsWithMentions
+                  comments={task.comments}
+                  projectId={task.projectId}
+                  orgMembers={orgMembers}
+                  onSubmit={handleAddComment}
+                />
               </div>
             </div>
           </>

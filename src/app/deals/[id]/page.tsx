@@ -198,7 +198,7 @@ export default async function DealDetailPage({
           </CardContent>
         </Card>
 
-        <DealComments dealId={id} />
+        <DealComments dealId={id} projectId={deal.project_id ?? null} />
       </div>
     </div>
   );

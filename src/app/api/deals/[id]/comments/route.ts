@@ -48,7 +48,7 @@ export async function POST(
   }
 
   const body = await request.json().catch(() => ({}));
-  const { content, author } = body as { content?: string; author?: string };
+  const { content, author, mentionedUserIds } = body as { content?: string; author?: string; mentionedUserIds?: string[] };
 
   if (!content || content.trim() === "") {
     return NextResponse.json({ error: "El contenido es requerido" }, { status: 400 });
@@ -87,6 +87,26 @@ export async function POST(
 
   if (dbError) {
     return NextResponse.json({ error: `Error al crear comentario: ${dbError.message}` }, { status: 500 });
+  }
+
+  // Crear una notificacion de mencion por cada persona etiquetada con @
+  // (mismo patron que task_comments, usando deal_id/deal_comment_id).
+  if (Array.isArray(mentionedUserIds) && mentionedUserIds.length > 0) {
+    const uniqueMentioned = Array.from(new Set(mentionedUserIds)).filter(
+      (uid) => uid !== user.id
+    );
+    if (uniqueMentioned.length > 0) {
+      await supabase.from("mentions").insert(
+        uniqueMentioned.map((mentionedUserId) => ({
+          organization_id: orgId,
+          mentioned_user_id: mentionedUserId,
+          mentioned_by: user.id,
+          deal_id: id,
+          deal_comment_id: data.id,
+          snippet: content.trim().slice(0, 200),
+        }))
+      );
+    }
   }
 
   return NextResponse.json(mapDealComment(data), { status: 201 });

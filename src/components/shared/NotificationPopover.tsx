@@ -24,8 +24,10 @@ interface TaskNotification {
 
 interface Mention {
   id: string;
-  taskId: string;
+  taskId: string | null;
   taskTitle: string | null;
+  dealId: string | null;
+  dealTitle: string | null;
   mentionedByName: string;
   snippet: string | null;
   createdAt: string;
@@ -115,7 +117,7 @@ export function NotificationPopover() {
               {mentions.map((mention) => (
                 <Link
                   key={mention.id}
-                  href={`/tasks?taskId=${mention.taskId}`}
+                  href={mention.dealId ? `/deals/${mention.dealId}` : `/tasks?taskId=${mention.taskId}`}
                   onClick={() => handleMentionClick(mention.id)}
                   className="block px-4 py-3 hover:bg-muted/50 transition-colors border-b last:border-b-0"
                 >
@@ -126,7 +128,11 @@ export function NotificationPopover() {
                     <p className="text-xs text-muted-foreground line-clamp-2">
                       {mention.snippet}
                     </p>
-                    {mention.taskTitle && (
+                    {mention.dealTitle ? (
+                      <p className="text-xs text-muted-foreground line-clamp-1">
+                        En trato: {mention.dealTitle}
+                      </p>
+                    ) : mention.taskTitle && (
                       <p className="text-xs text-muted-foreground line-clamp-1">
                         En: {mention.taskTitle}
                       </p>

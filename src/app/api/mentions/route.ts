@@ -7,6 +7,8 @@ function mapMention(row: any) {
     id: row.id,
     taskId: row.task_id,
     taskTitle: row.tasks?.title ?? null,
+    dealId: row.deal_id,
+    dealTitle: row.deals?.title ?? null,
     mentionedByName: row.mentioned_by_profile?.full_name ?? row.mentioned_by_profile?.email ?? "Alguien",
     snippet: row.snippet,
     readAt: row.read_at,
@@ -23,7 +25,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from("mentions")
-    .select("*, tasks(title), mentioned_by_profile:profiles!mentions_mentioned_by_fkey(full_name, email)")
+    .select("*, tasks(title), deals(title), mentioned_by_profile:profiles!mentions_mentioned_by_fkey(full_name, email)")
     .eq("mentioned_user_id", user!.id)
     .order("created_at", { ascending: false })
     .limit(30);
