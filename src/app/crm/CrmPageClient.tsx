@@ -26,6 +26,9 @@ interface StageDeal {
   updatedAt: number;
   notes: string | null;
   contactName: string | null;
+  tagProjectName?: string | null;
+  tagProjectColor?: string | null;
+  tagProjectAvatarUrl?: string | null;
 }
 
 interface PipelineStageRaw {
@@ -120,6 +123,9 @@ export default function CrmPageClient() {
             createdAt: d.createdAt ? new Date(d.createdAt) : new Date(),
             updatedAt: d.updatedAt ? new Date(d.updatedAt) : new Date(),
             contactName: d.contactName,
+            tagProjectName: d.tagProjectName,
+            tagProjectColor: d.tagProjectColor,
+            tagProjectAvatarUrl: d.tagProjectAvatarUrl,
           })),
         }));
         setColumns(cols);
