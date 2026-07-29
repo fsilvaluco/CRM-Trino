@@ -99,6 +99,14 @@ export interface Deal {
   tagProjectName?: string | null;
   tagProjectColor?: string | null;
   tagProjectAvatarUrl?: string | null;
+  assignees?: Array<{
+    userId: string;
+    profile?: {
+      fullName: string | null;
+      avatarUrl: string | null;
+      email: string | null;
+    } | null;
+  }>;
 }
 
 export interface PipelineStage {

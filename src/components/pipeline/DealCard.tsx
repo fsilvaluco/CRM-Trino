@@ -6,6 +6,7 @@ import { useLocale } from "@/lib/locale-context";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { ProjectTag } from "@/components/shared/ProjectTag";
+import { AssigneeAvatarStack, type AssigneeRef } from "@/components/shared/AssigneeAvatarStack";
 import { Clock } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -22,6 +23,7 @@ interface DealCardProps {
   tagProjectName?: string | null;
   tagProjectColor?: string | null;
   tagProjectAvatarUrl?: string | null;
+  assignees?: AssigneeRef[];
   onClick?: () => void;
 }
 
@@ -37,6 +39,7 @@ export function DealCard({
   tagProjectName,
   tagProjectColor,
   tagProjectAvatarUrl,
+  assignees,
   onClick,
 }: DealCardProps) {
   const { formatCurrency } = useLocale();
@@ -103,6 +106,9 @@ export function DealCard({
         )}
         {tagProjectName && (
           <ProjectTag name={tagProjectName} color={tagProjectColor} avatarUrl={tagProjectAvatarUrl} />
+        )}
+        {assignees && assignees.length > 0 && (
+          <AssigneeAvatarStack assignees={assignees} />
         )}
       </div>
     </Card>

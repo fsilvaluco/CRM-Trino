@@ -14,6 +14,7 @@ import { AlertCircle, Clock, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/constants";
 import { ProjectTag } from "@/components/shared/ProjectTag";
+import { AssigneeAvatarStack } from "@/components/shared/AssigneeAvatarStack";
 import { useKanbanDnd } from "@/lib/hooks/use-kanban-dnd";
 import type { TaskStatus, TaskPriority } from "@/types";
 
@@ -140,32 +141,7 @@ function DraggableTaskCard({
             </div>
           )}
           {task.assignees && task.assignees.length > 0 && (
-            <div className="flex items-center gap-1 mt-1">
-              {task.assignees.slice(0, 3).map((assignee, idx) => {
-                const displayName = assignee.profile?.fullName || assignee.profile?.email || "?";
-                const initials = displayName
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")
-                  .toUpperCase()
-                  .slice(0, 2);
-                return (
-                  <div
-                    key={assignee.userId}
-                    className="w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-medium"
-                    style={{ marginLeft: idx > 0 ? "-8px" : "0" }}
-                    title={displayName}
-                  >
-                    {initials}
-                  </div>
-                );
-              })}
-              {task.assignees.length > 3 && (
-                <div className="w-6 h-6 rounded-full bg-muted text-muted-foreground text-xs flex items-center justify-center font-medium" style={{ marginLeft: "-8px" }}>
-                  +{task.assignees.length - 3}
-                </div>
-              )}
-            </div>
+            <AssigneeAvatarStack assignees={task.assignees} />
           )}
         </div>
       )}

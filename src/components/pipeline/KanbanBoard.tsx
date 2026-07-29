@@ -182,6 +182,7 @@ export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealCl
               tagProjectName: d.tagProjectName,
               tagProjectColor: d.tagProjectColor,
               tagProjectAvatarUrl: d.tagProjectAvatarUrl,
+              assignees: d.assignees,
             }))}
           />
         ))}
@@ -204,6 +205,7 @@ export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealCl
             tagProjectName={activeDeal.tagProjectName}
             tagProjectColor={activeDeal.tagProjectColor}
             tagProjectAvatarUrl={activeDeal.tagProjectAvatarUrl}
+            assignees={activeDeal.assignees}
           />
         ) : null}
       </DragOverlay>

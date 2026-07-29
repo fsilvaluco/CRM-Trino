@@ -21,6 +21,15 @@ function mapDeal(row: any) {
     notes: row.notes ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    assignees: row.deal_assignees?.map((da: any) => ({
+      userId: da.user_id,
+      assignedAt: da.assigned_at,
+      profile: da.profiles ? {
+        fullName: da.profiles.full_name,
+        avatarUrl: da.profiles.avatar_url,
+        email: da.profiles.email,
+      } : null,
+    })) ?? [],
   };
 }
 
@@ -34,7 +43,14 @@ export async function GET(
 
   const { data, error: dbError } = await supabase
     .from("deals")
-    .select("*")
+    .select(`
+      *,
+      deal_assignees!deal_assignees_deal_id_fkey (
+        user_id,
+        assigned_at,
+        profiles!deal_assignees_user_id_fkey ( full_name, avatar_url, email )
+      )
+    `)
     .eq("id", id)
     .is("deleted_at", null)
     .single();
@@ -51,7 +67,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, user, error } = await requireAuth();
   if (error) return error;
 
   let body;
@@ -124,11 +140,53 @@ export async function PUT(
   }
   if (body.notes !== undefined) updates.notes = body.notes;
 
+  const assigneeIds = Array.isArray(body.assigneeIds)
+    ? body.assigneeIds.filter((value: unknown): value is string => typeof value === "string" && value.length > 0)
+    : null;
+
+  if (assigneeIds) {
+    if (!user) {
+      return NextResponse.json({ error: "Usuario no autenticado" }, { status: 401 });
+    }
+    const uniqueAssigneeIds = [...new Set(assigneeIds)];
+    const { error: deleteAssigneesError } = await supabase
+      .from("deal_assignees")
+      .delete()
+      .eq("deal_id", id);
+
+    if (deleteAssigneesError) {
+      return NextResponse.json({ error: `Error al actualizar responsables: ${deleteAssigneesError.message}` }, { status: 500 });
+    }
+
+    if (uniqueAssigneeIds.length > 0) {
+      const { error: insertAssigneesError } = await supabase
+        .from("deal_assignees")
+        .insert(
+          uniqueAssigneeIds.map((assigneeId) => ({
+            deal_id: id,
+            user_id: assigneeId,
+            assigned_by: user!.id,
+          }))
+        );
+
+      if (insertAssigneesError) {
+        return NextResponse.json({ error: `Error al actualizar responsables: ${insertAssigneesError.message}` }, { status: 500 });
+      }
+    }
+  }
+
   const { data, error: dbError } = await supabase
     .from("deals")
     .update(updates)
     .eq("id", id)
-    .select()
+    .select(`
+      *,
+      deal_assignees!deal_assignees_deal_id_fkey (
+        user_id,
+        assigned_at,
+        profiles!deal_assignees_user_id_fkey ( full_name, avatar_url, email )
+      )
+    `)
     .single();
 
   if (dbError) {

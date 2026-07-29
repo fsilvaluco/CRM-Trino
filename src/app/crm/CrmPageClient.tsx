@@ -29,6 +29,14 @@ interface StageDeal {
   tagProjectName?: string | null;
   tagProjectColor?: string | null;
   tagProjectAvatarUrl?: string | null;
+  assignees?: Array<{
+    userId: string;
+    profile?: {
+      fullName: string | null;
+      avatarUrl: string | null;
+      email: string | null;
+    } | null;
+  }>;
 }
 
 interface PipelineStageRaw {
@@ -126,6 +134,7 @@ export default function CrmPageClient() {
             tagProjectName: d.tagProjectName,
             tagProjectColor: d.tagProjectColor,
             tagProjectAvatarUrl: d.tagProjectAvatarUrl,
+            assignees: d.assignees,
           })),
         }));
         setColumns(cols);

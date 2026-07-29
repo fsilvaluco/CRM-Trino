@@ -23,7 +23,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useProject } from "@/lib/project-context";
-import { Checkbox } from "@/components/ui/checkbox";
+import { AssigneeSelector } from "@/components/shared/AssigneeSelector";
 
 const taskSchema = z.object({
   title: z.string().min(1, "El titulo es requerido"),
@@ -73,7 +73,6 @@ export function TaskForm({
   const [artistProjects, setArtistProjects] = useState<Array<{ id: string; name: string }>>([]);
   const [orgMembers, setOrgMembers] = useState<Array<{ user_id: string; profiles: { full_name: string | null; email: string | null; avatar_url: string | null } }>>([]);
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
-  const [assigneeSearch, setAssigneeSearch] = useState("");
 
   const {
     register,
@@ -207,7 +206,6 @@ export function TaskForm({
       toast.success("Tarea creada");
       reset();
       setSelectedAssignees([]);
-      setAssigneeSearch("");
       onClose();
     } catch {
       toast.error("Error al crear la tarea");
@@ -417,108 +415,11 @@ export function TaskForm({
           )}
 
           {/* Assignees (Responsables) */}
-          {orgMembers.length > 0 && (
-            <div className="space-y-2">
-              <Label>Asignar a:</Label>
-              
-              {/* Selected assignees preview */}
-              {selectedAssignees.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 p-2 bg-muted/30 rounded-md">
-                  {selectedAssignees.map((userId) => {
-                    const member = orgMembers.find((m) => m.user_id === userId);
-                    if (!member) return null;
-                    const fullName = member.profiles?.full_name;
-                    const email = member.profiles?.email;
-                    const displayName = fullName || email || "Usuario";
-                    const initials = fullName
-                      ? fullName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
-                      : email
-                      ? email.slice(0, 2).toUpperCase()
-                      : "?";
-                    return (
-                      <div key={userId} className="flex items-center gap-1 bg-primary text-primary-foreground px-2 py-1 rounded-md text-xs">
-                        <span className="font-medium">{initials}</span>
-                        <span>{displayName}</span>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedAssignees(selectedAssignees.filter((id) => id !== userId))}
-                          className="ml-1 hover:opacity-70"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              
-              {/* Search input */}
-              <Input
-                type="text"
-                placeholder="Buscar personas..."
-                value={assigneeSearch}
-                onChange={(e) => setAssigneeSearch(e.target.value)}
-                className="text-sm"
-              />
-              
-              {/* Scrollable list */}
-              <div className="border rounded-md max-h-48 overflow-y-auto">
-                {orgMembers
-                  .filter((member) => {
-                    const name = member.profiles?.full_name || member.profiles?.email || "";
-                    return name.toLowerCase().includes(assigneeSearch.toLowerCase());
-                  })
-                  .map((member) => {
-                    const isChecked = selectedAssignees.includes(member.user_id);
-                    const fullName = member.profiles?.full_name;
-                    const email = member.profiles?.email;
-                    const displayName = fullName || email || "Usuario";
-                    const initials = fullName
-                      ? fullName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
-                      : email
-                      ? email.slice(0, 2).toUpperCase()
-                      : "?";
-                    return (
-                      <div
-                        key={member.user_id}
-                        className="flex items-center gap-2 p-2 hover:bg-muted/50 border-b last:border-b-0"
-                      >
-                        <Checkbox
-                          checked={isChecked}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setSelectedAssignees([...selectedAssignees, member.user_id]);
-                            } else {
-                              setSelectedAssignees(selectedAssignees.filter((id) => id !== member.user_id));
-                            }
-                          }}
-                        />
-                        <div className="w-7 h-7 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-medium">
-                          {initials}
-                        </div>
-                        <span className="text-sm flex-1">
-                          {displayName}
-                        </span>
-                      </div>
-                    );
-                  })}
-                {orgMembers.filter((member) => {
-                  const name = member.profiles?.full_name || member.profiles?.email || "";
-                  return name.toLowerCase().includes(assigneeSearch.toLowerCase());
-                }).length === 0 && (
-                  <div className="p-4 text-center text-sm text-muted-foreground">
-                    No se encontraron personas
-                  </div>
-                )}
-              </div>
-              
-              <p className="text-xs text-muted-foreground">
-                {selectedAssignees.length === 0
-                  ? "Sin asignar - selecciona personas de la lista"
-                  : `${selectedAssignees.length} persona${selectedAssignees.length > 1 ? "s" : ""} seleccionada${selectedAssignees.length > 1 ? "s" : ""}`}
-              </p>
-            </div>
-          )}
+          <AssigneeSelector
+            orgMembers={orgMembers}
+            selectedAssignees={selectedAssignees}
+            onChange={setSelectedAssignees}
+          />
           </div>
 
           <div className="mt-3 flex justify-end gap-2 border-t bg-background pt-3">

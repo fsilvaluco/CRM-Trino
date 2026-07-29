@@ -25,6 +25,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useLocale } from "@/lib/locale-context";
 import { useProject } from "@/lib/project-context";
+import { AssigneeSelector, type OrgMember } from "@/components/shared/AssigneeSelector";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -103,6 +104,7 @@ interface DealRecord {
   expectedClose: string | null;
   probability: number;
   notes: string | null;
+  assignees?: Array<{ userId: string }>;
 }
 
 interface DealPrefill {
@@ -149,6 +151,8 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
   const [isCreatingNested, setIsCreatingNested] = useState(false);
   const [associationType, setAssociationType] = useState<"contacto" | "empresa">("contacto");
   const [associationQuery, setAssociationQuery] = useState("");
+  const [orgMembers, setOrgMembers] = useState<OrgMember[]>([]);
+  const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
 
   const {
     register,
@@ -230,6 +234,14 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
     fetch(`/api/pipeline${params}`)
       .then((r) => r.json())
       .then((d) => setStages(Array.isArray(d) ? d : []));
+    if (effectiveProjectId) {
+      fetch(`/api/project-members?projectId=${effectiveProjectId}`)
+        .then((r) => r.json())
+        .then((d) => setOrgMembers(Array.isArray(d) ? d : []))
+        .catch(() => setOrgMembers([]));
+    } else {
+      setOrgMembers([]);
+    }
   }, [activeProject?.id, selectedProjectId]);
 
   // Si el proyecto seleccionado es un sello (Trino, Katarsis, SiSoy) con
@@ -253,6 +265,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
       setDealLoadError(null);
       setAssociationType("contacto");
       setAssociationQuery("");
+      setSelectedAssignees([]);
       reset({
         title: "",
         value: "",
@@ -275,6 +288,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
       setDealLoadError(null);
       setAssociationType(prefill?.companyId && !prefill?.contactId ? "empresa" : "contacto");
       setAssociationQuery("");
+      setSelectedAssignees([]);
       reset({
         title: prefill?.title ?? "",
         value: "",
@@ -307,6 +321,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
         if (controller.signal.aborted) return;
         setAssociationType(deal.contactId ? "contacto" : "empresa");
         setAssociationQuery("");
+        setSelectedAssignees((deal.assignees ?? []).map((a) => a.userId));
         reset({
           title: deal.title,
           value: (deal.value / 100).toFixed(2),
@@ -527,6 +542,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
           probability: parseInt(data.probability || "0"),
           projectId: data.projectId || null,
           artistProjectId: data.artistProjectId || null,
+          assigneeIds: selectedAssignees,
         }),
       });
 
@@ -534,6 +550,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
 
       toast.success(isEditing ? "Deal actualizado exitosamente" : "Deal creado exitosamente");
       reset();
+      setSelectedAssignees([]);
       resetInlineCreateState();
       onClose();
       router.refresh();
@@ -930,6 +947,12 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
             <Label htmlFor="deal-notes">Notas</Label>
             <Textarea id="deal-notes" {...register("notes")} rows={2} />
           </div>
+
+          <AssigneeSelector
+            orgMembers={orgMembers}
+            selectedAssignees={selectedAssignees}
+            onChange={setSelectedAssignees}
+          />
 
           {isEditing && (
             <div className="space-y-2 border-t pt-3">

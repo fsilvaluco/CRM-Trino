@@ -27,6 +27,15 @@ function mapDeal(row: any) {
     stageIsWon: row.pipeline_stages?.is_won ?? false,
     stageIsLost: row.pipeline_stages?.is_lost ?? false,
     companyName: row.companies?.name ?? null,
+    assignees: row.deal_assignees?.map((da: any) => ({
+      userId: da.user_id,
+      assignedAt: da.assigned_at,
+      profile: da.profiles ? {
+        fullName: da.profiles.full_name,
+        avatarUrl: da.profiles.avatar_url,
+        email: da.profiles.email,
+      } : null,
+    })) ?? [],
   };
 }
 
@@ -43,7 +52,12 @@ export async function GET(request: NextRequest) {
       *,
       contacts ( name, email ),
       pipeline_stages ( name, color, order, is_won, is_lost ),
-      companies ( name )
+      companies ( name ),
+      deal_assignees!deal_assignees_deal_id_fkey (
+        user_id,
+        assigned_at,
+        profiles!deal_assignees_user_id_fkey ( full_name, avatar_url, email )
+      )
     `)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
@@ -81,7 +95,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
   }
 
-  const { title, value, valueType, percentageValue, taxType, stageId, contactId, companyId, expectedClose, probability, notes, projectId, artistProjectId } = body;
+  const { title, value, valueType, percentageValue, taxType, stageId, contactId, companyId, expectedClose, probability, notes, projectId, artistProjectId, assigneeIds } = body;
 
   const normalizedValueType = valueType === "percentage" ? "percentage" : "fixed";
   const normalizedTaxType = taxType === "exento" ? "exento" : "afecto";
@@ -168,6 +182,23 @@ export async function POST(request: NextRequest) {
       { error: `Error al crear deal: ${dbError.message}` },
       { status: 500 }
     );
+  }
+
+  // Insert assignees if provided (mismo patron que tasks: no fatal si falla)
+  if (assigneeIds && Array.isArray(assigneeIds) && assigneeIds.length > 0 && data) {
+    const assigneesData = assigneeIds.map((userId: string) => ({
+      deal_id: data.id,
+      user_id: userId,
+      assigned_by: user!.id,
+    }));
+
+    const { error: assignError } = await supabase
+      .from("deal_assignees")
+      .insert(assigneesData);
+
+    if (assignError) {
+      console.error("Failed to assign users to deal:", assignError);
+    }
   }
 
   return NextResponse.json(mapDeal(data), { status: 201 });
