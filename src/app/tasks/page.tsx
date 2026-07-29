@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { TaskForm } from "@/components/tasks/TaskForm";
 import { TaskKanbanBoard, STATUS_LABELS } from "@/components/tasks/TaskKanbanBoard";
 import type { TaskCard } from "@/components/tasks/TaskKanbanBoard";
+import { TaskGanttView, type GanttTask } from "@/components/tasks/TaskGanttView";
 import { TaskDetailSheet, DEFAULT_PANEL_WIDTH } from "@/components/tasks/TaskDetailSheet";
 import type { TaskPatch } from "@/components/tasks/TaskDetailSheet";
 import { ImportDocumentDialog } from "@/components/tasks/ImportDocumentDialog";
@@ -166,7 +167,7 @@ export default function TasksPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
-  const [activeTab, setActiveTab] = useState<"kanban" | "lista">("kanban");
+  const [activeTab, setActiveTab] = useState<"kanban" | "lista" | "gantt">("kanban");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -367,6 +368,18 @@ export default function TasksPage() {
     assignees: t.assignees,
   }));
 
+  const ganttTasks: GanttTask[] = filteredAndSortedTasks.map((t) => ({
+    id: t.id,
+    title: t.title,
+    status: t.status,
+    priority: t.priority,
+    dueDate: t.dueDate,
+    subprojectId: t.subprojectId,
+    subprojectName: t.subprojectName ?? null,
+    tagProjectName: t.tagProjectName,
+    tagProjectColor: t.tagProjectColor,
+  }));
+
   const pendingCount = taskList.filter((t) => !DONE_STATUSES.includes(t.status)).length;
   const overdueCount = taskList.filter((t) => isOverdue(t.dueDate, t.status)).length;
   const activeFilterCount = countActiveFilters(filters);
@@ -427,10 +440,11 @@ export default function TasksPage() {
   );
 
   const tabsContent = (
-    <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "kanban" | "lista")}>
+    <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "kanban" | "lista" | "gantt")}>
       <TabsList>
         <TabsTrigger value="kanban" className="cursor-pointer">Kanban</TabsTrigger>
         <TabsTrigger value="lista" className="cursor-pointer">Lista</TabsTrigger>
+        <TabsTrigger value="gantt" className="cursor-pointer">Gantt</TabsTrigger>
       </TabsList>
 
       {/* ── KANBAN VIEW ── */}
@@ -569,6 +583,25 @@ export default function TasksPage() {
             )}
           </CardContent>
         </Card>
+      </TabsContent>
+
+      {/* ── GANTT VIEW ── */}
+      <TabsContent value="gantt" className="mt-4">
+        {filteredAndSortedTasks.length === 0 ? (
+          <EmptyState
+            icon={CheckSquare}
+            title={activeFilterCount > 0 ? "Sin resultados" : "Sin tareas"}
+            description={
+              activeFilterCount > 0
+                ? "Ninguna tarea coincide con los filtros activos."
+                : "Crea tu primera tarea para empezar."
+            }
+            actionLabel={activeFilterCount > 0 ? undefined : "Nueva Tarea"}
+            onAction={activeFilterCount > 0 ? undefined : () => setShowForm(true)}
+          />
+        ) : (
+          <TaskGanttView tasks={ganttTasks} onTaskClick={(id) => setSelectedTaskId(id)} />
+        )}
       </TabsContent>
     </Tabs>
   );
