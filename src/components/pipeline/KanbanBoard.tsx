@@ -224,6 +224,10 @@ export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealCl
               (activeDeal.contact?.name ?? null)
             }
             probability={activeDeal.probability}
+            expectedClose={activeDeal.expectedClose}
+            tagProjectName={activeDeal.tagProjectName}
+            tagProjectColor={activeDeal.tagProjectColor}
+            tagProjectAvatarUrl={activeDeal.tagProjectAvatarUrl}
           />
         ) : null}
       </DragOverlay>

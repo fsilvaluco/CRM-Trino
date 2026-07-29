@@ -96,6 +96,9 @@ export interface Deal {
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
+  tagProjectName?: string | null;
+  tagProjectColor?: string | null;
+  tagProjectAvatarUrl?: string | null;
 }
 
 export interface PipelineStage {

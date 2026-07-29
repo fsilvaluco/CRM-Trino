@@ -18,6 +18,10 @@ interface Deal {
   percentageValue: number | null;
   contactName: string | null;
   probability: number;
+  expectedClose?: string | Date | null;
+  tagProjectName?: string | null;
+  tagProjectColor?: string | null;
+  tagProjectAvatarUrl?: string | null;
 }
 
 interface KanbanColumnProps {

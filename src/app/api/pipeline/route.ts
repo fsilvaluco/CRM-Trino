@@ -28,6 +28,12 @@ function mapStage(stage: any, deals: any[]) {
         createdAt: d.created_at,
         updatedAt: d.updated_at,
         contactName: d.contacts?.name ?? null,
+        // Misma logica que en las tarjetas de tareas: el proyecto MAS
+        // ESPECIFICO -- si el deal esta anclado a un artista, mostrar el
+        // artista (no el sello).
+        tagProjectName: d.artist_project?.name ?? d.project?.name ?? null,
+        tagProjectColor: d.artist_project?.theme_color ?? d.project?.theme_color ?? null,
+        tagProjectAvatarUrl: d.artist_project?.avatar_url ?? d.project?.avatar_url ?? null,
       })),
   };
 }
@@ -41,7 +47,7 @@ export async function GET(request: NextRequest) {
 
   let dealsQuery = supabase
     .from("deals")
-    .select("*, contacts ( name )")
+    .select("*, contacts ( name ), project:projects!deals_project_id_fkey ( name, theme_color, avatar_url ), artist_project:projects!deals_artist_project_id_fkey ( name, theme_color, avatar_url )")
     .is("deleted_at", null);
 
   if (projectId) {
