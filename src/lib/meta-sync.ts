@@ -1,5 +1,30 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+// Corre `fn` sobre `items` con a lo mas `limit` llamadas en vuelo al mismo
+// tiempo. Antes esto se hacia con un for-of secuencial: con hasta ~30
+// llamadas por cuenta (posts + insights + demografia), cualquier lentitud
+// puntual de la API de Meta se acumulaba linealmente y el cron completo
+// (6 cuentas, corriendo una detras de otra) terminaba superando el limite
+// de 100s de Cloudflare -> 524 sin haber fallado realmente el trabajo, solo
+// tardando demasiado en total.
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (true) {
+      const i = next++;
+      if (i >= items.length) return;
+      results[i] = await fn(items[i]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 // Sin esto, un solo fetch colgado (Meta no responde, glitch de red, etc.)
 // bloquea TODA la cadena de await para siempre -- fetch nativo de Node no
 // tiene timeout por defecto. Con hasta ~150 llamadas seguidas por cuenta
@@ -204,10 +229,13 @@ export async function syncInstagramPosts(
 
   const items: InstagramMediaItem[] = mediaData.data ?? [];
 
-  const rows = [];
-  for (const item of items) {
-    const insights = await fetchMediaInsights(item.id, accessToken);
-    rows.push({
+  const insightsResults = await mapWithConcurrency(items, 5, (item) =>
+    fetchMediaInsights(item.id, accessToken)
+  );
+
+  const rows = items.map((item, i) => {
+    const insights = insightsResults[i];
+    return {
       organization_id: orgId,
       project_id: projectId,
       ig_media_id: item.id,
@@ -224,8 +252,8 @@ export async function syncInstagramPosts(
       saved: insights.saved ?? null,
       shares: insights.shares ?? null,
       updated_at: new Date().toISOString(),
-    });
-  }
+    };
+  });
 
   if (rows.length > 0) {
     const { error } = await supabase
@@ -257,19 +285,17 @@ export async function syncInstagramDemographics(
   igUserId: string,
   projectId: string
 ): Promise<{ breakdownsSynced: number }> {
-  let breakdownsSynced = 0;
-
-  for (const { type, breakdown } of DEMOGRAPHIC_BREAKDOWNS) {
+  const results = await mapWithConcurrency(DEMOGRAPHIC_BREAKDOWNS, 4, async ({ type, breakdown }) => {
     try {
       const res = await fetchWithTimeout(
         `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=follower_demographics&period=lifetime&metric_type=total_value&breakdown=${breakdown}&access_token=${accessToken}`
       );
-      if (!res.ok) continue; // demografia es "nice to have" -- no bloquea el resto del sync
+      if (!res.ok) return 0; // demografia es "nice to have" -- no bloquea el resto del sync
       const data = await res.json();
-      if (data.error) continue;
+      if (data.error) return 0;
 
       const breakdowns = data.data?.[0]?.total_value?.breakdowns?.[0]?.results ?? [];
-      if (breakdowns.length === 0) continue;
+      if (breakdowns.length === 0) return 0;
 
       const rows = breakdowns.map((b: { dimension_values: string[]; value: number }) => ({
         organization_id: orgId,
@@ -284,12 +310,12 @@ export async function syncInstagramDemographics(
         .from("instagram_demographics")
         .upsert(rows, { onConflict: "organization_id,project_id,breakdown_type,breakdown_value" });
 
-      if (!error) breakdownsSynced += rows.length;
+      return error ? 0 : rows.length;
     } catch {
-      // timeout u otro error de red -- seguir con el siguiente breakdown
-      continue;
+      // timeout u otro error de red -- este breakdown queda en 0, el resto sigue
+      return 0;
     }
-  }
+  });
 
-  return { breakdownsSynced };
+  return { breakdownsSynced: results.reduce((sum, n) => sum + n, 0) };
 }
