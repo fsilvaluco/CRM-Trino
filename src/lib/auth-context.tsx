@@ -153,6 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log(`[auth-context] event=${event} hasSession=${!!session}`, new Date().toISOString());
         // TOKEN_REFRESHED and other background refresh events only need a silent
         // session token update. Re-running full user/role resolution for these
         // events can trigger transient DB errors on tab resume that wipe auth state.

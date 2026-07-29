@@ -72,6 +72,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   const reloadProjects = useCallback(async () => {
     if (!userId) {
+      console.log("[project-context] orgRole -> null (reloadProjects sin userId)", new Date().toISOString());
       setProjects([]);
       setOrgRole(null);
       setActiveProjectState(null);
@@ -103,6 +104,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       }
 
       const role = memberRow.role as OrgRole;
+      console.log(`[project-context] orgRole -> ${role} (reloadProjects OK)`, new Date().toISOString());
       setOrgRole(role);
       const isAdmin = role === "owner" || role === "admin";
 
@@ -214,6 +216,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   // Cargar proyectos solo cuando el usuario esté autenticado
   useEffect(() => {
+    console.log(`[project-context] effect userId=${userId} authLoading=${authLoading}`, new Date().toISOString());
     if (authLoading) return;
 
     if (userId) {
@@ -233,6 +236,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     // valor antes de que se cumpla el tiempo, React cancela este timer solo
     // (por el cleanup de abajo) y nunca llega a borrar nada.
     const timerId = window.setTimeout(() => {
+      console.log("[project-context] orgRole -> null (timeout, sin userId sostenido 1.2s)", new Date().toISOString());
       setProjects([]);
       setOrgRole(null);
       setActiveProjectState(null);
