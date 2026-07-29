@@ -224,13 +224,21 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       return () => window.clearTimeout(timerId);
     }
 
+    // Antes esto se ejecutaba casi instantaneo (setTimeout de 0ms) -- si la
+    // sesion parpadeaba momentaneamente a null (ej. un refresco de token en
+    // segundo plano) mientras el usuario seguia realmente logueado, esto
+    // podia alcanzar a borrar orgRole/isAdmin antes de que la sesion real
+    // se restableciera, dejando a un Propietario/Admin viendo la app como
+    // si no tuviera permisos. Con mas margen, si userId vuelve a tener
+    // valor antes de que se cumpla el tiempo, React cancela este timer solo
+    // (por el cleanup de abajo) y nunca llega a borrar nada.
     const timerId = window.setTimeout(() => {
       setProjects([]);
       setOrgRole(null);
       setActiveProjectState(null);
       setLoading(false);
       localStorage.removeItem(STORAGE_KEY);
-    }, 0);
+    }, 1200);
 
     return () => window.clearTimeout(timerId);
   }, [authLoading, userId, reloadProjects]);
