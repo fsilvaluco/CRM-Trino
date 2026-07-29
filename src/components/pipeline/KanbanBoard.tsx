@@ -14,6 +14,7 @@ import {
 } from "@dnd-kit/core";
 import { KanbanColumn } from "./KanbanColumn";
 import { DealCard } from "./DealCard";
+import { DealCloseReasonDialog } from "@/components/deals/DealCloseReasonDialog";
 import { toast } from "sonner";
 import type { PipelineColumn } from "@/types";
 
@@ -27,6 +28,12 @@ interface KanbanBoardProps {
 export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealClick }: KanbanBoardProps) {
   const [columns, setColumns] = useState(initialColumns);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [closeDialog, setCloseDialog] = useState<{
+    dealId: string;
+    dealTitle: string;
+    currentValue: number | null;
+    outcome: "won" | "lost";
+  } | null>(null);
   const columnsSnapshot = useRef<PipelineColumn[]>(initialColumns);
 
   // El estado local (columns) existe para el drag-and-drop optimista --
@@ -126,6 +133,23 @@ export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealCl
           throw new Error("API error");
         }
         onMoveSuccess?.();
+
+        // Si la etapa destino es Ganado o Perdido, pedir el motivo/valor
+        // real de cierre -- se usa el snapshot pre-drag para encontrar el
+        // deal, porque el estado ya se actualizo de forma optimista.
+        if (overColumn.isWon || overColumn.isLost) {
+          const movedDeal = columnsSnapshot.current
+            .flatMap((col) => col.deals)
+            .find((d) => d.id === activeId);
+          if (movedDeal) {
+            setCloseDialog({
+              dealId: activeId,
+              dealTitle: movedDeal.title,
+              currentValue: movedDeal.value,
+              outcome: overColumn.isWon ? "won" : "lost",
+            });
+          }
+        }
       } catch {
         // Rollback to pre-drag state
         setColumns(columnsSnapshot.current);
@@ -136,6 +160,7 @@ export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealCl
   );
 
   return (
+    <>
     <DndContext
       sensors={sensors}
       collisionDetection={closestCorners}
@@ -182,5 +207,18 @@ export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealCl
         ) : null}
       </DragOverlay>
     </DndContext>
+
+    {closeDialog && (
+      <DealCloseReasonDialog
+        open
+        onClose={() => setCloseDialog(null)}
+        dealId={closeDialog.dealId}
+        dealTitle={closeDialog.dealTitle}
+        currentValue={closeDialog.currentValue != null ? Math.round(closeDialog.currentValue / 100) : null}
+        outcome={closeDialog.outcome}
+        onSaved={onMoveSuccess}
+      />
+    )}
+    </>
   );
 }
