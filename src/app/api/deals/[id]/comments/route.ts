@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { markEntityViewed } from "@/lib/entity-views";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapDealComment(row: any) {
@@ -88,6 +89,8 @@ export async function POST(
   if (dbError) {
     return NextResponse.json({ error: `Error al crear comentario: ${dbError.message}` }, { status: 500 });
   }
+
+  void markEntityViewed(supabase, user.id, "deal", id);
 
   // Crear una notificacion de mencion por cada persona etiquetada con @
   // (mismo patron que task_comments, usando deal_id/deal_comment_id).

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
+import { markEntityViewed } from "@/lib/entity-views";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapDeal(row: any) {
@@ -38,7 +39,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, user, error } = await requireAuth();
   if (error) return error;
 
   const { data, error: dbError } = await supabase
@@ -58,6 +59,8 @@ export async function GET(
   if (dbError || !data) {
     return NextResponse.json({ error: "Deal no encontrado" }, { status: 404 });
   }
+
+  if (user) void markEntityViewed(supabase, user.id, "deal", id);
 
   return NextResponse.json(mapDeal(data));
 }
@@ -202,6 +205,8 @@ export async function PUT(
       { status: 500 }
     );
   }
+
+  if (user) void markEntityViewed(supabase, user.id, "deal", id);
 
   return NextResponse.json(mapDeal(data));
 }

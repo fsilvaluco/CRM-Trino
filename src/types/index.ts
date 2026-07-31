@@ -96,6 +96,7 @@ export interface Deal {
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
+  hasUnseenActivity?: boolean;
   tagProjectName?: string | null;
   tagProjectColor?: string | null;
   tagProjectAvatarUrl?: string | null;

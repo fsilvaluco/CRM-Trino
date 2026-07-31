@@ -54,6 +54,7 @@ interface TaskItem {
   subprojectId: string | null;
   completedAt: number | Date | null;
   createdAt: number | Date;
+  hasUnseenActivity?: boolean;
   contactName?: string | null;
   companyName?: string | null;
   dealTitle?: string | null;
@@ -360,6 +361,7 @@ export default function TasksPage() {
     status: t.status,
     priority: t.priority,
     dueDate: t.dueDate,
+    hasUnseenActivity: t.hasUnseenActivity,
     contactName: t.contactName,
     projectName: t.projectName,
     tagProjectName: t.tagProjectName,
@@ -523,6 +525,12 @@ export default function TasksPage() {
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
+                          {task.hasUnseenActivity && (
+                            <span
+                              className="h-2 w-2 rounded-full bg-red-500 shrink-0"
+                              title="Actividad nueva sin ver"
+                            />
+                          )}
                           <span className={`text-sm font-medium ${done ? "line-through text-muted-foreground" : ""}`}>
                             {task.title}
                           </span>

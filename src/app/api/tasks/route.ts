@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { getViewedAtMap, getLatestCommentAtMap, isUnseen, latestActivityAt } from "@/lib/entity-views";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapTask(row: any) {
+function mapTask(row: any, hasUnseenActivity = false) {
   return {
     id: row.id,
     title: row.title,
@@ -40,11 +41,12 @@ function mapTask(row: any) {
         email: ta.profiles.email,
       } : null,
     })) ?? [],
+    hasUnseenActivity,
   };
 }
 
 export async function GET(request: NextRequest) {
-  const { supabase, allowedProjectIds, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
@@ -102,7 +104,27 @@ export async function GET(request: NextRequest) {
   const { data, error: dbError } = await query;
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
 
-  return NextResponse.json((data ?? []).map(mapTask));
+  const tasks = data ?? [];
+
+  // El punto rojo depende de quien esta preguntando -- si no hay usuario
+  // (no deberia pasar, requireAuth ya lo exige) simplemente no se calcula.
+  if (!user || tasks.length === 0) {
+    return NextResponse.json(tasks.map((t) => mapTask(t)));
+  }
+
+  const taskIds = tasks.map((t) => t.id as string);
+  const [viewedAtMap, lastCommentAtMap] = await Promise.all([
+    getViewedAtMap(supabase, user.id, "task", taskIds),
+    getLatestCommentAtMap(supabase, "task", taskIds),
+  ]);
+
+  return NextResponse.json(
+    tasks.map((t) => {
+      const lastActivity = latestActivityAt(t.updated_at, lastCommentAtMap.get(t.id));
+      const unseen = isUnseen(lastActivity, viewedAtMap.get(t.id));
+      return mapTask(t, unseen);
+    })
+  );
 }
 
 

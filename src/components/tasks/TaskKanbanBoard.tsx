@@ -58,6 +58,7 @@ export interface TaskCard {
   status: TaskStatus;
   priority: TaskPriority;
   dueDate: number | Date | null;
+  hasUnseenActivity?: boolean;
   contactName?: string | null;
   projectName?: string | null;
   tagProjectName?: string | null;
@@ -105,10 +106,16 @@ function DraggableTaskCard({
       {...listeners}
       {...attributes}
       onClick={() => onTaskClick?.(task.id)}
-      className={`bg-card border rounded-lg p-3 shadow-sm cursor-pointer active:cursor-grabbing select-none ${
+      className={`relative bg-card border rounded-lg p-3 shadow-sm cursor-pointer active:cursor-grabbing select-none ${
         isDragging ? "opacity-50" : ""
       }`}
     >
+      {task.hasUnseenActivity && (
+        <span
+          className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-card"
+          title="Actividad nueva sin ver"
+        />
+      )}
       <p className="text-sm font-medium leading-snug">{task.title}</p>
 
       <div className="flex items-center gap-1.5 mt-2 flex-wrap">

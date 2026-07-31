@@ -20,6 +20,7 @@ interface DealCardProps {
   contactName: string | null;
   probability: number;
   expectedClose?: string | Date | null;
+  hasUnseenActivity?: boolean;
   tagProjectName?: string | null;
   tagProjectColor?: string | null;
   tagProjectAvatarUrl?: string | null;
@@ -36,6 +37,7 @@ export function DealCard({
   contactName,
   probability,
   expectedClose,
+  hasUnseenActivity,
   tagProjectName,
   tagProjectColor,
   tagProjectAvatarUrl,
@@ -85,8 +87,14 @@ export function DealCard({
       {...listeners}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
-      className="p-3 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow"
+      className="relative p-3 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow"
     >
+      {hasUnseenActivity && (
+        <span
+          className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-card"
+          title="Actividad nueva sin ver"
+        />
+      )}
       <div className="space-y-2">
         <p className="text-sm font-medium leading-tight">{title}</p>
         <div className="flex items-center justify-between">

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { markEntityViewed } from "@/lib/entity-views";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapTaskComment(row: any) {
@@ -137,6 +138,8 @@ export async function POST(
       .single();
 
     if (!result.error) {
+      void markEntityViewed(supabase, user.id, "task", id);
+
       // Crear una notificacion de mencion por cada persona etiquetada con @
       if (Array.isArray(mentionedUserIds) && mentionedUserIds.length > 0) {
         const uniqueMentioned = Array.from(new Set(mentionedUserIds)).filter(

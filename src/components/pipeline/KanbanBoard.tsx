@@ -179,6 +179,7 @@ export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealCl
               contactName: d.contactName || (d.contact?.name ?? null),
               probability: d.probability,
               expectedClose: d.expectedClose,
+              hasUnseenActivity: d.hasUnseenActivity,
               tagProjectName: d.tagProjectName,
               tagProjectColor: d.tagProjectColor,
               tagProjectAvatarUrl: d.tagProjectAvatarUrl,
@@ -202,6 +203,7 @@ export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealCl
             }
             probability={activeDeal.probability}
             expectedClose={activeDeal.expectedClose}
+            hasUnseenActivity={activeDeal.hasUnseenActivity}
             tagProjectName={activeDeal.tagProjectName}
             tagProjectColor={activeDeal.tagProjectColor}
             tagProjectAvatarUrl={activeDeal.tagProjectAvatarUrl}

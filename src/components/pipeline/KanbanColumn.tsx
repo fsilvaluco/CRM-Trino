@@ -20,6 +20,7 @@ interface Deal {
   contactName: string | null;
   probability: number;
   expectedClose?: string | Date | null;
+  hasUnseenActivity?: boolean;
   tagProjectName?: string | null;
   tagProjectColor?: string | null;
   tagProjectAvatarUrl?: string | null;

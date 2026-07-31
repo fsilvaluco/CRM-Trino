@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { markEntityViewed, getViewedAtMap, getLatestCommentAtMap, isUnseen, latestActivityAt } from "@/lib/entity-views";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapStage(stage: any, deals: any[]) {
+function mapStage(stage: any, deals: any[], unseenMap: Map<string, boolean>) {
   return {
     id: stage.id,
     name: stage.name,
@@ -27,6 +28,7 @@ function mapStage(stage: any, deals: any[]) {
         notes: d.notes ?? null,
         createdAt: d.created_at,
         updatedAt: d.updated_at,
+        hasUnseenActivity: unseenMap.get(d.id) ?? false,
         contactName: d.contacts?.name ?? null,
         // Misma logica que en las tarjetas de tareas: el proyecto MAS
         // ESPECIFICO -- si el deal esta anclado a un artista, mostrar el
@@ -48,7 +50,7 @@ function mapStage(stage: any, deals: any[]) {
 }
 
 export async function GET(request: NextRequest) {
-  const { supabase, orgId, error } = await requireAuth();
+  const { supabase, orgId, user, error } = await requireAuth();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
@@ -89,8 +91,23 @@ export async function GET(request: NextRequest) {
   if (stagesErr) return NextResponse.json({ error: stagesErr.message }, { status: 500 });
   if (dealsErr) return NextResponse.json({ error: dealsErr.message }, { status: 500 });
 
+  const deals = allDeals ?? [];
+  const unseenMap = new Map<string, boolean>();
+
+  if (user && deals.length > 0) {
+    const dealIds = deals.map((d) => d.id as string);
+    const [viewedAtMap, lastCommentAtMap] = await Promise.all([
+      getViewedAtMap(supabase, user.id, "deal", dealIds),
+      getLatestCommentAtMap(supabase, "deal", dealIds),
+    ]);
+    for (const d of deals) {
+      const lastActivity = latestActivityAt(d.updated_at, lastCommentAtMap.get(d.id));
+      unseenMap.set(d.id, isUnseen(lastActivity, viewedAtMap.get(d.id)));
+    }
+  }
+
   const pipeline = (stages ?? []).map((stage) =>
-    mapStage(stage, allDeals ?? [])
+    mapStage(stage, deals, unseenMap)
   );
 
   return NextResponse.json(pipeline);
@@ -130,6 +147,8 @@ export async function PUT(request: NextRequest) {
     if (dbError) {
       return NextResponse.json({ error: dbError.message }, { status: 500 });
     }
+
+    if (user) void markEntityViewed(supabase, user.id, "deal", body.dealId);
 
     return NextResponse.json({
       id: data.id,

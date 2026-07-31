@@ -10,6 +10,7 @@ import { getLocaleSettings } from "@/lib/locale-server";
 import { formatCurrencyWith, formatDateWith, formatRelativeDateWith } from "@/lib/locale";
 import { DealDetailActions } from "@/components/deals/DealDetailActions";
 import { DealComments } from "@/components/deals/DealComments";
+import { markEntityViewed } from "@/lib/entity-views";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,10 @@ export default async function DealDetailPage({
     .single();
 
   if (!deal) notFound();
+
+  // Fire-and-forget: abrir esta página apaga el punto rojo para este
+  // usuario (mismo criterio que el sheet de tareas).
+  void markEntityViewed(supabase, user.id, "deal", id);
 
   const [{ data: contactData }, { data: stageData }, { data: dealTasks }] = await Promise.all([
     supabase.from("contacts").select("id, name").eq("id", deal.contact_id).single(),

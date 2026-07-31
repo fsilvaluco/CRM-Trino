@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
+import { markEntityViewed } from "@/lib/entity-views";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapTask(row: any) {
@@ -55,7 +56,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, user, error } = await requireAuth();
   if (error) return error;
 
   const { data: task, error: taskErr } = await supabase
@@ -79,6 +80,11 @@ export async function GET(
   if (taskErr || !task) {
     return NextResponse.json({ error: "Tarea no encontrada" }, { status: 404 });
   }
+
+  // Fire-and-forget: abrir el detalle apaga el punto rojo para este
+  // usuario. No se espera el resultado -- no es data critica y no debe
+  // demorar la respuesta.
+  if (user) void markEntityViewed(supabase, user.id, "task", id);
 
   const { data: comments } = await supabase
     .from("task_comments")
@@ -200,6 +206,8 @@ export async function PUT(
   if (dbError) {
     return NextResponse.json({ error: `Error al actualizar tarea: ${dbError.message}` }, { status: 500 });
   }
+
+  if (user) void markEntityViewed(supabase, user.id, "task", id);
 
   return NextResponse.json(mapTask(data));
 }
