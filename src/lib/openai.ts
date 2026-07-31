@@ -144,6 +144,7 @@ interface MilestoneExtraction {
   dueDate: string | null; // YYYY-MM-DD
   description: string;
   suggestedCampaign: string | null;
+  assigneeName: string | null;
 }
 
 const MILESTONE_SCHEMA = {
@@ -161,8 +162,9 @@ const MILESTONE_SCHEMA = {
             dueDate: { type: ["string", "null"] },
             description: { type: "string" },
             suggestedCampaign: { type: ["string", "null"] },
+            assigneeName: { type: ["string", "null"] },
           },
-          required: ["title", "dueDate", "description", "suggestedCampaign"],
+          required: ["title", "dueDate", "description", "suggestedCampaign", "assigneeName"],
           additionalProperties: false,
         },
       },
@@ -181,19 +183,27 @@ const MILESTONE_SCHEMA = {
 export async function extractMilestonesFromDocument(
   documentText: string,
   campaignNames: string[],
-  referenceYear: number
+  referenceYear: number,
+  memberNames: string[] = [],
+  referenceDate: string = new Date().toISOString().slice(0, 10)
 ): Promise<MilestoneExtraction[]> {
   if (!apiKey) return [];
 
-  const prompt = `Este es un documento con un cronograma de hitos y fechas límite (lanzamiento musical, plan de distribución, contrato, etc). Extrae CADA fecha límite o hito mencionado como un item separado.
+  const prompt = `Este documento puede ser un cronograma de hitos (lanzamiento musical, plan de distribución, contrato) O una nota/transcripción de una reunión (ej. notas de Gemini de Meet, con un resumen y luego la transcripción completa). Extrae CADA fecha límite, compromiso o "próximo paso" mencionado como un item separado -- tanto los que tienen fecha explícita como los compromisos claros sin fecha exacta (ej. "lo envío esta semana").
 
-Reglas:
-- Cada fecha mencionada con una acción asociada es un item -- no agrupes varias fechas en un solo item.
-- "title": resumen corto y accionable (ej. "Entregar videoclip oficial", "Depósito Cuota 1 del préstamo").
-- "dueDate": formato YYYY-MM-DD. Si el documento no menciona el año explícitamente, asume el año ${referenceYear} salvo que el contexto indique claramente otro año (ej. si dice "diciembre" pero ya se mencionó que ese hito es del año siguiente).
+Reglas para fechas:
+- "dueDate": formato YYYY-MM-DD, o null si es imposible estimar una fecha razonable.
+- Si el documento no menciona el año explícitamente, asume el año ${referenceYear} salvo que el contexto indique claramente otro año.
+- Si una fecha es un rango o aproximada ("mediados de agosto", "fines de julio"), usa tu mejor estimación de fecha puntual (ej. "mediados de agosto" -> día 15 de ese mes).
+- Este documento puede tener su propia fecha (ej. la fecha de una reunión, indicada al inicio como "jul 17, 2026" o similar). Si encuentras esa fecha, ÚSALA como ancla para resolver expresiones relativas ("esta semana", "el viernes que viene", "en una semana más", "el próximo lunes") -- no la fecha de hoy. Si el documento no trae ninguna fecha propia, usa ${referenceDate} como ancla.
+- Cuando el documento tiene tanto un resumen ("Próximos pasos") como una transcripción completa, usa la transcripción para desambiguar o encontrar contexto de fecha que el resumen no deja claro (ej. "el viernes" puede aclararse en la transcripción como "el viernes que viene"), pero no dupliques el mismo compromiso como dos items distintos si aparece en ambas partes -- es un solo item.
+
+Otras reglas:
+- Cada compromiso es un item -- no agrupes varios en uno solo.
+- "title": resumen corto y accionable (ej. "Entregar videoclip oficial", "Enviar máster sin voz").
 - "description": 1-2 frases con el contexto relevante (quién participa, monto si es un pago, condición asociada).
 - "suggestedCampaign": si el documento menciona una fase/campaña explícita que calce con alguna de esta lista, usa EXACTAMENTE ese nombre: ${JSON.stringify(campaignNames)}. Si no calza con ninguna o no hay suficiente contexto, usa null -- no inventes una campaña que no esté en la lista.
-- Si una fecha es un rango o aproximada ("mediados de agosto", "fines de julio"), usa tu mejor estimación de fecha puntual (ej. "mediados de agosto" -> día 15 de ese mes).
+- "assigneeName": si el compromiso tiene un responsable claro (ej. "[Denis] Enviar contenidos", o se deduce de la transcripción) y ese nombre calza con alguien de esta lista de integrantes del proyecto, usa EXACTAMENTE ese nombre: ${JSON.stringify(memberNames)}. Si no calza con nadie de la lista o no hay responsable claro, usa null -- no inventes ni adivines un integrante que no esté en la lista.
 - No inventes hitos que no estén en el documento.
 
 Documento:
@@ -230,6 +240,38 @@ ${documentText}
     return [];
   }
 }
+/**
+ * Dado un link de Google Docs, descarga el contenido como texto plano usando
+ * el endpoint de export de Google Docs (funciona sin login siempre que el
+ * doc esté compartido como "cualquiera con el link puede ver" -- que es el
+ * caso por defecto de las notas de Gemini de Meet). No sirve para docs
+ * restringidos a cuentas específicas; en ese caso hay que pegar el texto
+ * directamente.
+ */
+export async function fetchGoogleDocText(url: string): Promise<string> {
+  const match = url.match(/\/document\/d\/([a-zA-Z0-9_-]+)/);
+  if (!match) {
+    throw new Error("Ese link no parece ser de Google Docs. Pega el texto directamente.");
+  }
+  const docId = match[1];
+  const exportUrl = `https://docs.google.com/document/d/${docId}/export?format=txt`;
+
+  const res = await fetch(exportUrl, { redirect: "follow" });
+  if (!res.ok) {
+    throw new Error(
+      "No se pudo leer el documento (¿el link requiere acceso restringido? cambia el permiso a 'Cualquier persona con el link' o pega el texto directamente)"
+    );
+  }
+  const text = await res.text();
+  // Si Google redirige a una pantalla de login, el body es HTML, no texto plano.
+  if (text.trim().startsWith("<") || text.includes("accounts.google.com/ServiceLogin")) {
+    throw new Error(
+      "El documento requiere inicio de sesión para verlo. Cambia el permiso a 'Cualquier persona con el link' o pega el texto directamente."
+    );
+  }
+  return text;
+}
+
 interface SuggestMappingField {
   key: string;
   label: string;

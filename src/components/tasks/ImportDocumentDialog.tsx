@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { FileText, Sparkles } from "lucide-react";
+import { FileText, Sparkles, Link as LinkIcon, ClipboardPaste } from "lucide-react";
 
 interface Campaign {
   id: string;
@@ -55,7 +55,9 @@ export function ImportDocumentDialog({
   artistProjectId?: string | null;
   onImported: () => void;
 }) {
+  const [mode, setMode] = useState<"text" | "link">("link");
   const [documentText, setDocumentText] = useState("");
+  const [documentUrl, setDocumentUrl] = useState("");
   const [extracting, setExtracting] = useState(false);
   const [rows, setRows] = useState<CandidateRow[] | null>(null);
   const [creating, setCreating] = useState(false);
@@ -87,11 +89,16 @@ export function ImportDocumentDialog({
 
   function reset() {
     setDocumentText("");
+    setDocumentUrl("");
     setRows(null);
   }
 
   async function handleExtract() {
-    if (documentText.trim().length < 20) {
+    if (mode === "link" && documentUrl.trim().length < 10) {
+      toast.error("Pega el link del documento primero");
+      return;
+    }
+    if (mode === "text" && documentText.trim().length < 20) {
       toast.error("Pega el texto del documento primero");
       return;
     }
@@ -100,7 +107,9 @@ export function ImportDocumentDialog({
       const res = await fetch("/api/tasks/import-document", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ documentText, projectId }),
+        body: JSON.stringify(
+          mode === "link" ? { documentUrl, projectId } : { documentText, projectId }
+        ),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -108,18 +117,35 @@ export function ImportDocumentDialog({
         return;
       }
       if (!data.milestones || data.milestones.length === 0) {
-        toast.error("No se encontraron hitos con fecha en el documento");
+        toast.error("No se encontraron hitos ni compromisos en el documento");
         return;
       }
       setRows(
-        data.milestones.map((m: { title: string; dueDate: string | null; description: string; suggestedCampaign: string | null }) => ({
-          include: true,
-          title: m.title,
-          dueDate: m.dueDate ?? "",
-          description: m.description,
-          subprojectId: campaigns.find((c) => c.name === m.suggestedCampaign)?.id ?? "",
-          assigneeIds: [],
-        }))
+        data.milestones.map(
+          (m: {
+            title: string;
+            dueDate: string | null;
+            description: string;
+            suggestedCampaign: string | null;
+            assigneeName: string | null;
+          }) => {
+            const matchedMember = m.assigneeName
+              ? members.find(
+                  (mem) =>
+                    mem.fullName?.toLowerCase() === m.assigneeName?.toLowerCase() ||
+                    mem.email?.toLowerCase() === m.assigneeName?.toLowerCase()
+                )
+              : undefined;
+            return {
+              include: true,
+              title: m.title,
+              dueDate: m.dueDate ?? "",
+              description: m.description,
+              subprojectId: campaigns.find((c) => c.name === m.suggestedCampaign)?.id ?? "",
+              assigneeIds: matchedMember ? [matchedMember.userId] : [],
+            };
+          }
+        )
       );
     } catch {
       toast.error("Error de red al leer el documento");
@@ -189,19 +215,59 @@ export function ImportDocumentDialog({
             Importar cronograma desde documento
           </DialogTitle>
           <DialogDescription>
-            Pega el texto de un cronograma, contrato o plan de lanzamiento — la IA propone una tarea por
-            cada fecha límite que encuentre. Revisa y edita todo antes de crear nada.
+            Pega el link de un doc de Google (ej. notas de Gemini de una reunión) o el texto de un
+            cronograma/contrato — la IA propone una tarea por cada compromiso o fecha límite que
+            encuentre. Revisa y edita todo antes de crear nada.
           </DialogDescription>
         </DialogHeader>
 
         {!rows ? (
           <div className="space-y-3">
-            <Textarea
-              value={documentText}
-              onChange={(e) => setDocumentText(e.target.value)}
-              placeholder="Pega aquí el texto completo del documento..."
-              className="min-h-[240px] text-sm"
-            />
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={mode === "link" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setMode("link")}
+                className="cursor-pointer"
+              >
+                <LinkIcon className="h-3.5 w-3.5 mr-1.5" />
+                Link
+              </Button>
+              <Button
+                type="button"
+                variant={mode === "text" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setMode("text")}
+                className="cursor-pointer"
+              >
+                <ClipboardPaste className="h-3.5 w-3.5 mr-1.5" />
+                Pegar texto
+              </Button>
+            </div>
+
+            {mode === "link" ? (
+              <div className="space-y-1.5">
+                <Input
+                  value={documentUrl}
+                  onChange={(e) => setDocumentUrl(e.target.value)}
+                  placeholder="https://docs.google.com/document/d/..."
+                  className="text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Por ahora solo links de Google Docs, y el doc debe estar compartido como
+                  &quot;Cualquier persona con el link&quot;. Si no, pega el texto en la otra pestaña.
+                </p>
+              </div>
+            ) : (
+              <Textarea
+                value={documentText}
+                onChange={(e) => setDocumentText(e.target.value)}
+                placeholder="Pega aquí el texto completo del documento..."
+                className="min-h-[240px] text-sm"
+              />
+            )}
+
             <Button onClick={handleExtract} disabled={extracting} className="cursor-pointer">
               <Sparkles className="h-4 w-4 mr-1.5" />
               {extracting ? "Leyendo documento..." : "Extraer hitos"}
