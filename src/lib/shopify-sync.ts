@@ -21,10 +21,17 @@ interface ShopifyProduct {
   variants: ShopifyVariant[];
 }
 
+interface ShopifyDiscountAllocation {
+  amount: string; // string decimal, ej "6400.00" -- parte de este line item cubierta por un descuento
+}
+
 interface ShopifyLineItem {
   product_id: number | null;
+  variant_id: number | null;
+  sku: string | null;
   quantity: number;
-  price: string;
+  price: string; // precio de LISTA por unidad, sin descuento -- no usar directo para totales
+  discount_allocations?: ShopifyDiscountAllocation[];
 }
 
 interface ShopifyOrder {
@@ -168,7 +175,11 @@ async function fetchInventoryCosts(
 
 /** Trae órdenes desde `sinceIso` en adelante (paginado por cursor). Solo
  * pedimos los campos que necesitamos para no traer datos de clientes que no
- * usamos. status=any incluye canceladas — se descartan más abajo. */
+ * usamos. status=any incluye canceladas — se descartan más abajo.
+ *
+ * El parámetro `fields` de Shopify solo filtra a nivel de campo raíz: al
+ * pedir "line_items" igual vienen completos sus sub-campos nativos
+ * (variant_id, sku, discount_allocations), sin tener que listarlos aparte. */
 async function fetchOrdersSince(
   shopDomain: string,
   accessToken: string,
@@ -330,7 +341,7 @@ export async function syncShopify(
     .eq("project_id", projectId)
     .not("shopify_variant_id", "in", `(${currentVariantIds.length > 0 ? currentVariantIds.join(",") : "0"})`);
 
-  // ── Ventas por mes ─────────────────────────────────────────────────────
+  // ── Ventas por mes (agregado existente) y por día/variante (nuevo) ─────
   const since = new Date();
   since.setMonth(since.getMonth() - monthsBack);
   since.setDate(1);
@@ -338,6 +349,10 @@ export async function syncShopify(
   const orders = await fetchOrdersSince(shopDomain, accessToken, since.toISOString());
 
   const monthly = new Map<string, { units: number; total: number; orderIds: Set<number> }>();
+  const daily = new Map<
+    string,
+    { day: string; productId: number; variantId: number; sku: string | null; units: number; total: number }
+  >();
 
   orders.forEach((order, orderIdx) => {
     // Ventas "reales": excluimos canceladas; contamos pagadas y
@@ -347,18 +362,43 @@ export async function syncShopify(
       return;
     }
 
-    let orderHasMatchingItem = false;
     for (const item of order.line_items) {
       if (item.product_id == null || !productIds.has(item.product_id)) continue;
-      orderHasMatchingItem = true;
-      const key = monthKey(order.created_at);
-      const bucket = monthly.get(key) ?? { units: 0, total: 0, orderIds: new Set<number>() };
-      bucket.units += item.quantity;
-      bucket.total += Math.round(Number(item.price) * item.quantity * 100);
-      bucket.orderIds.add(orderIdx); // índice local basta, solo se usa para contar
-      monthly.set(key, bucket);
+
+      // Monto REAL transaccionado: precio de lista * cantidad, menos la
+      // parte de descuento que Shopify asignó a este line item puntual.
+      // Antes esto usaba item.price a secas -- por eso se veía el precio de
+      // lista (ej. $13.000) en vez de lo efectivamente pagado ($6.600).
+      const listAmount = Number(item.price) * item.quantity;
+      const discountAmount = (item.discount_allocations ?? []).reduce(
+        (sum, d) => sum + Number(d.amount),
+        0
+      );
+      const netAmount = Math.round((listAmount - discountAmount) * 100); // CLP cents
+
+      const monthBucketKey = monthKey(order.created_at);
+      const monthBucket = monthly.get(monthBucketKey) ?? { units: 0, total: 0, orderIds: new Set<number>() };
+      monthBucket.units += item.quantity;
+      monthBucket.total += netAmount;
+      monthBucket.orderIds.add(orderIdx); // índice local basta, solo se usa para contar
+      monthly.set(monthBucketKey, monthBucket);
+
+      if (item.variant_id != null) {
+        const day = order.created_at.slice(0, 10); // YYYY-MM-DD, mismo criterio de timezone que monthKey
+        const dayKey = `${day}|${item.variant_id}`;
+        const dayBucket = daily.get(dayKey) ?? {
+          day,
+          productId: item.product_id,
+          variantId: item.variant_id,
+          sku: item.sku ?? null,
+          units: 0,
+          total: 0,
+        };
+        dayBucket.units += item.quantity;
+        dayBucket.total += netAmount;
+        daily.set(dayKey, dayBucket);
+      }
     }
-    void orderHasMatchingItem;
   });
 
   const monthlyRows = Array.from(monthly.entries()).map(([month, agg]) => ({
@@ -377,6 +417,37 @@ export async function syncShopify(
       .upsert(monthlyRows, { onConflict: "organization_id,project_id,month" });
     if (salesError) {
       throw new Error(`No se pudieron guardar las ventas mensuales: ${salesError.message}`);
+    }
+  }
+
+  const dailyRows = Array.from(daily.values()).map((agg) => ({
+    organization_id: organizationId,
+    project_id: projectId,
+    day: agg.day,
+    shopify_product_id: agg.productId,
+    shopify_variant_id: agg.variantId,
+    sku: agg.sku,
+    units_sold: agg.units,
+    total_sales: agg.total,
+    updated_at: new Date().toISOString(),
+  }));
+
+  // Delete-then-insert acotado a la ventana que se acaba de recalcular
+  // (since -> hoy): a diferencia del upsert de mensual, esto evita que un
+  // día quede con un total viejo si una orden se cancela despues de haber
+  // sido contada (upsert solo pisa filas que vuelven a aparecer; un dia que
+  // pasa de "con ventas" a "sin ventas" no generaria fila nueva que lo pise).
+  await supabase
+    .from("shopify_sales_daily")
+    .delete()
+    .eq("organization_id", organizationId)
+    .eq("project_id", projectId)
+    .gte("day", since.toISOString().slice(0, 10));
+
+  if (dailyRows.length > 0) {
+    const { error: dailyError } = await supabase.from("shopify_sales_daily").insert(dailyRows);
+    if (dailyError) {
+      throw new Error(`No se pudieron guardar las ventas diarias: ${dailyError.message}`);
     }
   }
 

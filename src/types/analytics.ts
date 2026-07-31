@@ -103,6 +103,18 @@ export interface ShopifySalesMonth {
   ordersCount: number;
 }
 
+export interface ShopifySalesDay {
+  id: string;
+  /** YYYY-MM-DD */
+  day: string;
+  shopifyProductId: number;
+  shopifyVariantId: number;
+  sku: string | null;
+  unitsSold: number;
+  /** CLP cents, ya con descuento restado */
+  totalSales: number;
+}
+
 // ── Spotify (estadísticas detalladas) ────────────────────────────────────────
 // Complementa SocialMetric (que solo guarda seguidores). Siempre pasa por
 // confirmación del usuario antes de guardarse, sea de pantallazo o manual.
