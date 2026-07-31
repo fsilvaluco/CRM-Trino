@@ -1,5 +1,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+// Mismo motivo que en meta-sync.ts: fetch nativo de Node no tiene timeout
+// por defecto, y este sync ahora corre en paralelo con Instagram dentro
+// del mismo cron -- un solo cuelgue aca podria volver a hacer que el cron
+// completo supere el limite de 100s de Cloudflare.
+async function fetchWithTimeout(url: string, timeoutMs = 8000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 interface FacebookPageResponse {
   id: string;
   name: string;
@@ -24,7 +38,7 @@ export async function syncFacebookPage(
   pageId: string,
   projectId: string
 ): Promise<{ followers: number; recordedAt: string }> {
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `https://graph.facebook.com/v21.0/${pageId}?fields=followers_count,fan_count,name&access_token=${accessToken}`
   );
 
