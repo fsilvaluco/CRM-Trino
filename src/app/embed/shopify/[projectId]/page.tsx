@@ -75,7 +75,7 @@ export default async function ShopifyEmbedPage({
                     action={cartActionUrl}
                     method="get"
                     target="_top"
-                    style={{ marginTop: "auto", display: "flex", gap: 6 }}
+                    style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 6 }}
                   >
                     {singleVariant ? (
                       <input type="hidden" name="id" value={singleVariant.id} />
@@ -83,7 +83,7 @@ export default async function ShopifyEmbedPage({
                       <select
                         name="id"
                         style={{
-                          flex: 1,
+                          width: "100%",
                           fontSize: 13,
                           borderRadius: 8,
                           border: "1px solid #d1d5db",
@@ -101,6 +101,7 @@ export default async function ShopifyEmbedPage({
                     <button
                       type="submit"
                       style={{
+                        width: "100%",
                         background: palette.primary,
                         color: palette.primaryForeground,
                         border: "none",
