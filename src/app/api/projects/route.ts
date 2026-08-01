@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { DEFAULT_GOAL_TITLES, type GoalMetricType } from "@/lib/goals";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapProject(row: any) {
@@ -89,6 +90,33 @@ export async function POST(request: NextRequest) {
 
   if (dbError) {
     return NextResponse.json({ error: `Error al crear proyecto: ${dbError.message}` }, { status: 500 });
+  }
+
+  // Sembrar las 5 metas por defecto -- mismo criterio que el backfill de
+  // la migracion 047, para que un proyecto nuevo arranque igual que los
+  // que ya existian. target_value en 0 hasta que alguien lo edite; si no
+  // les sirve alguna, la borran desde el dashboard.
+  const defaultMetricTypes: GoalMetricType[] = [
+    "ventas_deals",
+    "cantidad_deals",
+    "tareas_completadas",
+    "seguidores",
+    "manual",
+  ];
+  const { error: goalsSeedError } = await supabase.from("goals").insert(
+    defaultMetricTypes.map((metricType) => ({
+      organization_id: orgId,
+      project_id: data.id,
+      metric_type: metricType,
+      title: DEFAULT_GOAL_TITLES[metricType],
+      target_value: 0,
+      period_type: "monthly",
+    }))
+  );
+  if (goalsSeedError) {
+    // No fatal: el proyecto ya se creo bien, solo faltan sus metas
+    // default -- se pueden agregar a mano despues.
+    console.error("[projects POST] fallo al sembrar metas default:", goalsSeedError);
   }
 
   return NextResponse.json(mapProject(data), { status: 201 });

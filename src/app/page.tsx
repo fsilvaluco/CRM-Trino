@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { Landing } from "@/components/landing/Landing";
 
 import { KPICards } from "@/components/dashboard/KPICards";
+import { GoalsPanel } from "@/components/dashboard/GoalsPanel";
 import { PipelineChart } from "@/components/dashboard/PipelineChart";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import type { DashboardStats } from "@/types";
@@ -210,6 +211,8 @@ export default function DashboardPage() {
       ) : (
         <KPICards stats={stats} />
       )}
+
+      {!isAllProjects && activeProject && <GoalsPanel projectId={activeProject.id} />}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
