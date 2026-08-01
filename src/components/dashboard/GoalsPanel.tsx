@@ -19,10 +19,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, DollarSign, Briefcase, CheckSquare, Users2, Target } from "lucide-react";
+import { Plus, Pencil, Trash2, DollarSign, Briefcase, CheckSquare, Users2, Target, Music2, Newspaper, ArrowLeft, Sparkles } from "lucide-react";
 import { useLocale } from "@/lib/locale-context";
 
-type GoalMetricType = "ventas_deals" | "cantidad_deals" | "tareas_completadas" | "seguidores" | "manual";
+type GoalMetricType =
+  | "ventas_deals"
+  | "cantidad_deals"
+  | "tareas_completadas"
+  | "seguidores"
+  | "oyentes_spotify"
+  | "menciones_prensa"
+  | "manual";
 type GoalPeriodType = "monthly" | "annual" | "custom";
 
 interface Goal {
@@ -37,13 +44,59 @@ interface Goal {
   periodEnd: string | null;
 }
 
-const METRIC_CONFIG: Record<GoalMetricType, { icon: typeof Target; label: string; isCurrency?: boolean }> = {
+const METRIC_CONFIG: Record<GoalMetricType, { icon: typeof Target; label: string; isCurrency?: boolean; isPercent?: boolean }> = {
   ventas_deals: { icon: DollarSign, label: "Ventas ganadas", isCurrency: true },
   cantidad_deals: { icon: Briefcase, label: "Deals ganados" },
-  tareas_completadas: { icon: CheckSquare, label: "Tareas completadas" },
+  tareas_completadas: { icon: CheckSquare, label: "% de tareas completadas", isPercent: true },
   seguidores: { icon: Users2, label: "Crecimiento de seguidores" },
+  oyentes_spotify: { icon: Music2, label: "Oyentes mensuales Spotify" },
+  menciones_prensa: { icon: Newspaper, label: "Menciones de prensa" },
   manual: { icon: Target, label: "Meta manual" },
 };
+
+// ─── Biblioteca de plantillas para "Nueva meta" ─────────────────────────────
+// Las que apuntan a un metricType distinto de 'manual' calculan su
+// progreso solas. Las 'manual' son un punto de partida -- el titulo y el
+// target sugerido ya vienen listos, pero el numero actual lo actualiza
+// el equipo a mano (varias son automatizables despues si sirven).
+interface GoalTemplate {
+  key: string;
+  title: string;
+  metricType: GoalMetricType;
+  suggestedTarget: number;
+  auto: boolean;
+  hint?: string;
+}
+
+const GOAL_TEMPLATE_CATEGORIES: Array<{ label: string; templates: GoalTemplate[] }> = [
+  {
+    label: "Ventas y CRM",
+    templates: [
+      { key: "ventas_deals", title: "Ventas ganadas", metricType: "ventas_deals", suggestedTarget: 0, auto: true },
+      { key: "cantidad_deals", title: "Deals ganados", metricType: "cantidad_deals", suggestedTarget: 0, auto: true },
+      { key: "conversion", title: "Tasa de conversión leads → deal (%)", metricType: "manual", suggestedTarget: 20, auto: false },
+      { key: "ticket_promedio", title: "Ticket promedio", metricType: "manual", suggestedTarget: 0, auto: false },
+      { key: "nuevos_leads", title: "Nuevos leads del mes", metricType: "manual", suggestedTarget: 0, auto: false },
+    ],
+  },
+  {
+    label: "Redes y streaming",
+    templates: [
+      { key: "seguidores", title: "Crecimiento de seguidores", metricType: "seguidores", suggestedTarget: 0, auto: true },
+      { key: "oyentes_spotify", title: "Oyentes mensuales Spotify", metricType: "oyentes_spotify", suggestedTarget: 0, auto: true },
+      { key: "menciones_prensa", title: "Menciones de prensa", metricType: "menciones_prensa", suggestedTarget: 0, auto: true },
+      { key: "save_rate", title: "Save rate Spotify (%)", metricType: "manual", suggestedTarget: 4, auto: false },
+      { key: "engagement_rate", title: "Engagement rate Instagram (%)", metricType: "manual", suggestedTarget: 5, auto: false },
+    ],
+  },
+  {
+    label: "Operación",
+    templates: [
+      { key: "tareas_completadas", title: "% de tareas completadas", metricType: "tareas_completadas", suggestedTarget: 80, auto: true },
+      { key: "shows_cerrados", title: "Shows/eventos cerrados en el mes", metricType: "manual", suggestedTarget: 0, auto: false },
+    ],
+  },
+];
 
 const PERIOD_LABELS: Record<GoalPeriodType, string> = {
   monthly: "Este mes",
@@ -64,6 +117,7 @@ function GoalFormDialog({
   editingGoal: Goal | null;
   onSaved: () => void;
 }) {
+  const [step, setStep] = useState<"gallery" | "form">("form");
   const [metricType, setMetricType] = useState<GoalMetricType>("manual");
   const [title, setTitle] = useState("");
   const [targetValue, setTargetValue] = useState("");
@@ -76,6 +130,7 @@ function GoalFormDialog({
   useEffect(() => {
     if (!open) return;
     if (editingGoal) {
+      setStep("form");
       setMetricType(editingGoal.metricType);
       setTitle(editingGoal.title);
       setTargetValue(String(editingGoal.targetValue));
@@ -84,6 +139,7 @@ function GoalFormDialog({
       setPeriodStart(editingGoal.periodStart ?? "");
       setPeriodEnd(editingGoal.periodEnd ?? "");
     } else {
+      setStep("gallery");
       setMetricType("manual");
       setTitle("");
       setTargetValue("");
@@ -93,6 +149,22 @@ function GoalFormDialog({
       setPeriodEnd("");
     }
   }, [open, editingGoal]);
+
+  function applyTemplate(template: GoalTemplate) {
+    setMetricType(template.metricType);
+    setTitle(template.title);
+    setTargetValue(String(template.suggestedTarget));
+    setCurrentValue("0");
+    setStep("form");
+  }
+
+  function startCustom() {
+    setMetricType("manual");
+    setTitle("");
+    setTargetValue("");
+    setCurrentValue("");
+    setStep("form");
+  }
 
   async function handleSave() {
     if (!title.trim()) {
@@ -137,11 +209,64 @@ function GoalFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className={step === "gallery" ? "sm:max-w-lg max-h-[85vh] overflow-y-auto" : "sm:max-w-sm"}>
         <DialogHeader>
-          <DialogTitle>{editingGoal ? "Editar meta" : "Nueva meta"}</DialogTitle>
+          <DialogTitle>
+            {step === "gallery" ? "Elige una plantilla" : editingGoal ? "Editar meta" : "Nueva meta"}
+          </DialogTitle>
         </DialogHeader>
+
+        {step === "gallery" ? (
+          <div className="space-y-5">
+            {GOAL_TEMPLATE_CATEGORIES.map((cat) => (
+              <div key={cat.label} className="space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{cat.label}</p>
+                <div className="space-y-1.5">
+                  {cat.templates.map((t) => {
+                    const Icon = METRIC_CONFIG[t.metricType].icon;
+                    return (
+                      <button
+                        key={t.key}
+                        onClick={() => applyTemplate(t)}
+                        className="w-full flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left hover:bg-muted/50 transition-colors cursor-pointer"
+                      >
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                          <Icon className="h-4 w-4 text-primary" />
+                        </span>
+                        <span className="flex-1 text-sm font-medium">{t.title}</span>
+                        {t.auto && (
+                          <span className="text-[10px] font-medium text-green-700 bg-green-100 rounded-full px-2 py-0.5">
+                            Automático
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+
+            <button
+              onClick={startCustom}
+              className="w-full flex items-center gap-3 rounded-lg border border-dashed px-3 py-2.5 text-left hover:bg-muted/50 transition-colors cursor-pointer"
+            >
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
+                <Sparkles className="h-4 w-4 text-muted-foreground" />
+              </span>
+              <span className="flex-1 text-sm font-medium">Meta personalizada</span>
+            </button>
+          </div>
+        ) : (
         <div className="space-y-4">
+          {!editingGoal && (
+            <button
+              onClick={() => setStep("gallery")}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+            >
+              <ArrowLeft className="h-3 w-3" />
+              Volver a plantillas
+            </button>
+          )}
           {!editingGoal && (
             <div className="space-y-2">
               <Label>Tipo</Label>
@@ -211,6 +336,7 @@ function GoalFormDialog({
             </Button>
           </div>
         </div>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -250,6 +376,7 @@ export function GoalsPanel({ projectId }: { projectId: string }) {
 
   function formatValue(goal: Goal, value: number) {
     if (METRIC_CONFIG[goal.metricType].isCurrency) return formatCurrency(Math.round(value * 100));
+    if (METRIC_CONFIG[goal.metricType].isPercent) return `${value.toLocaleString("es-CL")}%`;
     return Math.round(value).toLocaleString("es-CL");
   }
 

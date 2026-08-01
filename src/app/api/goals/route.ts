@@ -53,6 +53,8 @@ const VALID_METRIC_TYPES: GoalMetricType[] = [
   "cantidad_deals",
   "tareas_completadas",
   "seguidores",
+  "oyentes_spotify",
+  "menciones_prensa",
   "manual",
 ];
 

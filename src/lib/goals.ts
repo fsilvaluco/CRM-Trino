@@ -8,6 +8,8 @@ export type GoalMetricType =
   | "cantidad_deals"
   | "tareas_completadas"
   | "seguidores"
+  | "oyentes_spotify"
+  | "menciones_prensa"
   | "manual";
 
 export type GoalPeriodType = "monthly" | "annual" | "custom";
@@ -15,8 +17,10 @@ export type GoalPeriodType = "monthly" | "annual" | "custom";
 export const DEFAULT_GOAL_TITLES: Record<GoalMetricType, string> = {
   ventas_deals: "Ventas ganadas",
   cantidad_deals: "Deals ganados",
-  tareas_completadas: "Tareas completadas",
+  tareas_completadas: "% de tareas completadas",
   seguidores: "Crecimiento de seguidores",
+  oyentes_spotify: "Oyentes mensuales Spotify",
+  menciones_prensa: "Menciones de prensa",
   manual: "Meta manual",
 };
 
@@ -112,15 +116,22 @@ export async function computeGoalCurrentValue(
     }
 
     case "tareas_completadas": {
-      const { count } = await supabase
+      // % de tareas CREADAS en el periodo que hoy estan en Listo o
+      // Descartado (no cuenta cuando se completaron, sino cuanto de lo
+      // que se generó ese mes/año ya quedó resuelto).
+      const { data: createdInPeriod } = await supabase
         .from("tasks")
-        .select("id", { count: "exact", head: true })
+        .select("id, status")
         .or(`project_id.eq.${goal.project_id},artist_project_id.eq.${goal.project_id}`)
-        .eq("status", "listo")
         .is("deleted_at", null)
-        .gte("completed_at", startIso)
-        .lte("completed_at", endIso);
-      return count ?? 0;
+        .gte("created_at", startIso)
+        .lte("created_at", endIso);
+
+      const rows = createdInPeriod ?? [];
+      if (rows.length === 0) return 0;
+
+      const resolved = rows.filter((t) => t.status === "listo" || t.status === "descartado").length;
+      return Math.round((resolved / rows.length) * 1000) / 10; // 1 decimal
     }
 
     case "seguidores": {
@@ -159,6 +170,32 @@ export async function computeGoalCurrentValue(
         growth += endValue - startValue;
       }
       return growth;
+    }
+
+    case "oyentes_spotify": {
+      // No es una suma en el periodo -- es "el ultimo snapshot conocido
+      // que cae dentro (o antes) del periodo", porque cada snapshot de
+      // Spotify ya representa ~un mes de datos por si solo.
+      const { data } = await supabase
+        .from("spotify_stats_snapshots")
+        .select("listeners, monthly_active_listeners, period_end")
+        .eq("project_id", goal.project_id)
+        .lte("period_end", end.toISOString().slice(0, 10))
+        .order("period_end", { ascending: false })
+        .limit(1);
+      const snapshot = (data ?? [])[0];
+      if (!snapshot) return 0;
+      return snapshot.monthly_active_listeners ?? snapshot.listeners ?? 0;
+    }
+
+    case "menciones_prensa": {
+      const { count } = await supabase
+        .from("press_mentions")
+        .select("id", { count: "exact", head: true })
+        .eq("project_id", goal.project_id)
+        .gte("mention_date", start.toISOString().slice(0, 10))
+        .lte("mention_date", end.toISOString().slice(0, 10));
+      return count ?? 0;
     }
 
     default:

@@ -63,16 +63,16 @@ CREATE POLICY goals_org_access ON goals FOR ALL
 -- ============================================================
 
 INSERT INTO goals (organization_id, project_id, metric_type, title, target_value, period_type)
-SELECT p.organization_id, p.id, m.metric_type, m.title, 0, 'monthly'
+SELECT p.organization_id, p.id, m.metric_type, m.title, m.default_target, 'monthly'
 FROM projects p
 CROSS JOIN (
   VALUES
-    ('ventas_deals', 'Ventas ganadas'),
-    ('cantidad_deals', 'Deals ganados'),
-    ('tareas_completadas', 'Tareas completadas'),
-    ('seguidores', 'Crecimiento de seguidores'),
-    ('manual', 'Meta manual')
-) AS m(metric_type, title);
+    ('ventas_deals', 'Ventas ganadas', 0),
+    ('cantidad_deals', 'Deals ganados', 0),
+    ('tareas_completadas', '% de tareas completadas', 80),
+    ('seguidores', 'Crecimiento de seguidores', 0),
+    ('manual', 'Meta manual', 0)
+) AS m(metric_type, title, default_target);
 
 -- ============================================================
 -- VERIFICATION QUERIES

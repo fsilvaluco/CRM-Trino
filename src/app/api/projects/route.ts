@@ -103,13 +103,20 @@ export async function POST(request: NextRequest) {
     "seguidores",
     "manual",
   ];
+  const defaultTargets: Partial<Record<GoalMetricType, number>> = {
+    ventas_deals: 0,
+    cantidad_deals: 0,
+    tareas_completadas: 80,
+    seguidores: 0,
+    manual: 0,
+  };
   const { error: goalsSeedError } = await supabase.from("goals").insert(
     defaultMetricTypes.map((metricType) => ({
       organization_id: orgId,
       project_id: data.id,
       metric_type: metricType,
       title: DEFAULT_GOAL_TITLES[metricType],
-      target_value: 0,
+      target_value: defaultTargets[metricType] ?? 0,
       period_type: "monthly",
     }))
   );
