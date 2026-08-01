@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
-import { computeGoalCurrentValue, type GoalRow } from "@/lib/goals";
+import { computeGoalCurrentValue, computeGoalPaceComparison, type GoalRow } from "@/lib/goals";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapGoal(row: any, currentValue: number) {
+function mapGoal(row: any, currentValue: number, previousValue: number | null) {
   return {
     id: row.id,
     projectId: row.project_id,
@@ -11,6 +11,7 @@ function mapGoal(row: any, currentValue: number) {
     title: row.title,
     targetValue: row.target_value,
     currentValue,
+    previousValue,
     periodType: row.period_type,
     periodStart: row.period_start,
     periodEnd: row.period_end,
@@ -70,7 +71,8 @@ export async function PUT(
   }
 
   const withProgress = await computeGoalCurrentValue(supabase, data as GoalRow);
-  return NextResponse.json(mapGoal(data, withProgress));
+  const pace = await computeGoalPaceComparison(supabase, data as GoalRow);
+  return NextResponse.json(mapGoal(data, withProgress, pace?.previousValue ?? null));
 }
 
 // DELETE /api/goals/[id] -- para las metas default que un proyecto no usa.

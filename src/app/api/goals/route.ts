@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
-import { computeGoalCurrentValue, DEFAULT_GOAL_TITLES, type GoalRow, type GoalMetricType } from "@/lib/goals";
+import { computeGoalCurrentValue, computeGoalPaceComparison, DEFAULT_GOAL_TITLES, type GoalRow, type GoalMetricType } from "@/lib/goals";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapGoal(row: any, currentValue: number) {
+function mapGoal(row: any, currentValue: number, previousValue: number | null) {
   return {
     id: row.id,
     projectId: row.project_id,
@@ -11,6 +11,7 @@ function mapGoal(row: any, currentValue: number) {
     title: row.title,
     targetValue: row.target_value,
     currentValue,
+    previousValue,
     periodType: row.period_type,
     periodStart: row.period_start,
     periodEnd: row.period_end,
@@ -42,7 +43,13 @@ export async function GET(request: NextRequest) {
 
   const goals = (data ?? []) as GoalRow[];
   const withProgress = await Promise.all(
-    goals.map(async (g) => mapGoal(g, await computeGoalCurrentValue(supabase, g)))
+    goals.map(async (g) => {
+      const [currentValue, pace] = await Promise.all([
+        computeGoalCurrentValue(supabase, g),
+        computeGoalPaceComparison(supabase, g),
+      ]);
+      return mapGoal(g, currentValue, pace?.previousValue ?? null);
+    })
   );
 
   return NextResponse.json(withProgress);
@@ -105,6 +112,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `Error al crear meta: ${dbError.message}` }, { status: 500 });
   }
 
-  const withProgress = await computeGoalCurrentValue(supabase, data as GoalRow);
-  return NextResponse.json(mapGoal(data, withProgress), { status: 201 });
+  const [withProgress, pace] = await Promise.all([
+    computeGoalCurrentValue(supabase, data as GoalRow),
+    computeGoalPaceComparison(supabase, data as GoalRow),
+  ]);
+  return NextResponse.json(mapGoal(data, withProgress, pace?.previousValue ?? null), { status: 201 });
 }

@@ -75,19 +75,17 @@ export function resolveGoalPeriod(goal: Pick<GoalRow, "period_type" | "period_st
 }
 
 /**
- * Calcula el valor actual (current_value) de una meta segun su tipo.
- * 'manual' no se calcula -- devuelve lo que ya esta guardado en la fila,
- * porque ese numero lo actualiza el equipo a mano.
+ * El calculo real por metric_type, para una ventana [start, end]
+ * explicita -- separado de resolveGoalPeriod para poder reusarlo tanto
+ * para "el periodo actual" como para "el mismo tramo del periodo
+ * anterior" (la comparacion de ritmo).
  */
-export async function computeGoalCurrentValue(
+async function computeValueForWindow(
   supabase: SupabaseClient,
-  goal: GoalRow
+  goal: Pick<GoalRow, "organization_id" | "project_id" | "metric_type">,
+  start: Date,
+  end: Date
 ): Promise<number> {
-  if (goal.metric_type === "manual") {
-    return goal.current_value ?? 0;
-  }
-
-  const { start, end } = resolveGoalPeriod(goal);
   const startIso = start.toISOString();
   const endIso = end.toISOString();
 
@@ -201,4 +199,60 @@ export async function computeGoalCurrentValue(
     default:
       return 0;
   }
+}
+
+/**
+ * Calcula el valor actual (current_value) de una meta segun su tipo.
+ * 'manual' no se calcula -- devuelve lo que ya esta guardado en la fila,
+ * porque ese numero lo actualiza el equipo a mano.
+ */
+export async function computeGoalCurrentValue(
+  supabase: SupabaseClient,
+  goal: GoalRow
+): Promise<number> {
+  if (goal.metric_type === "manual") {
+    return goal.current_value ?? 0;
+  }
+
+  const { start, end } = resolveGoalPeriod(goal);
+  return computeValueForWindow(supabase, goal, start, end);
+}
+
+/**
+ * Compara "lo que llevo hoy" contra "lo que llevaba el mes (o año)
+ * pasado, a esta misma fecha relativa" -- para saber si el ritmo va
+ * mejor o peor que el periodo anterior, sin esperar a que termine el
+ * mes para saberlo.
+ *
+ * Devuelve null cuando no aplica: metas 'manual' (no hay fuente para
+ * recalcular el pasado sin un historial guardado) y metas de rango
+ * personalizado (no hay un "periodo anterior" natural que comparar).
+ */
+export async function computeGoalPaceComparison(
+  supabase: SupabaseClient,
+  goal: GoalRow
+): Promise<{ previousValue: number } | null> {
+  if (goal.metric_type === "manual") return null;
+  if (goal.period_type === "custom") return null;
+
+  const now = new Date();
+
+  let prevStart: Date;
+  let prevEnd: Date;
+
+  if (goal.period_type === "annual") {
+    prevStart = new Date(now.getFullYear() - 1, 0, 1);
+    prevEnd = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate(), 23, 59, 59);
+  } else {
+    // monthly: mismo dia-del-mes, mes anterior (si el mes anterior es
+    // mas corto -- ej. hoy es 31 y el mes pasado tenia 30 dias -- se cae
+    // al ultimo dia disponible de ese mes).
+    const prevMonthLastDay = new Date(now.getFullYear(), now.getMonth(), 0).getDate();
+    const day = Math.min(now.getDate(), prevMonthLastDay);
+    prevStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    prevEnd = new Date(now.getFullYear(), now.getMonth() - 1, day, 23, 59, 59);
+  }
+
+  const previousValue = await computeValueForWindow(supabase, goal, prevStart, prevEnd);
+  return { previousValue };
 }

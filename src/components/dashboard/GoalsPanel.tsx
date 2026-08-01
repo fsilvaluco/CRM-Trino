@@ -19,7 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, DollarSign, Briefcase, CheckSquare, Users2, Target, Music2, Newspaper, ArrowLeft, Sparkles } from "lucide-react";
+import { Plus, Pencil, Trash2, DollarSign, Briefcase, CheckSquare, Users2, Target, Music2, Newspaper, ArrowLeft, Sparkles, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { useLocale } from "@/lib/locale-context";
 
 type GoalMetricType =
@@ -39,6 +39,7 @@ interface Goal {
   title: string;
   targetValue: number;
   currentValue: number;
+  previousValue: number | null;
   periodType: GoalPeriodType;
   periodStart: string | null;
   periodEnd: string | null;
@@ -380,6 +381,27 @@ export function GoalsPanel({ projectId }: { projectId: string }) {
     return Math.round(value).toLocaleString("es-CL");
   }
 
+  function getPaceInfo(goal: Goal): { text: string; Icon: typeof TrendingUp; colorClass: string } | null {
+    if (goal.previousValue === null) return null;
+
+    const periodWord = goal.periodType === "annual" ? "el año pasado" : "el mes pasado";
+    const delta = goal.currentValue - goal.previousValue;
+
+    if (goal.previousValue === 0) {
+      if (delta === 0) return { text: `Igual que ${periodWord} a esta fecha`, Icon: Minus, colorClass: "text-muted-foreground" };
+      return { text: `Mejor que ${periodWord} a esta fecha (no tenías nada)`, Icon: TrendingUp, colorClass: "text-green-600" };
+    }
+
+    const pctDelta = Math.round((delta / goal.previousValue) * 1000) / 10;
+    if (pctDelta > 0) {
+      return { text: `${pctDelta}% mejor que ${periodWord} a esta fecha`, Icon: TrendingUp, colorClass: "text-green-600" };
+    }
+    if (pctDelta < 0) {
+      return { text: `${Math.abs(pctDelta)}% peor que ${periodWord} a esta fecha`, Icon: TrendingDown, colorClass: "text-destructive" };
+    }
+    return { text: `Igual que ${periodWord} a esta fecha`, Icon: Minus, colorClass: "text-muted-foreground" };
+  }
+
   if (loading) {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -471,6 +493,17 @@ export function GoalsPanel({ projectId }: { projectId: string }) {
                       ? `${goal.periodStart} → ${goal.periodEnd}`
                       : PERIOD_LABELS[goal.periodType]}
                   </p>
+                  {(() => {
+                    const pace = getPaceInfo(goal);
+                    if (!pace) return null;
+                    const { Icon, text, colorClass } = pace;
+                    return (
+                      <p className={`text-xs flex items-center gap-1 mt-1 ${colorClass}`}>
+                        <Icon className="h-3 w-3" />
+                        {text}
+                      </p>
+                    );
+                  })()}
                 </CardContent>
               </Card>
             );
