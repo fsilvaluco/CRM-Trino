@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -27,6 +27,7 @@ import { useLocale } from "@/lib/locale-context";
 import { useProject } from "@/lib/project-context";
 import { AssigneeSelector, type OrgMember } from "@/components/shared/AssigneeSelector";
 import { CommentsWithMentions } from "@/components/shared/CommentsWithMentions";
+import { DealCloseReasonDialog } from "@/components/deals/DealCloseReasonDialog";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -136,7 +137,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
   const { activeProject, projects, isAdmin } = useProject();
   const [contactsList, setContacts] = useState<Array<{ id: string; name: string }>>([]);
   const [companiesList, setCompanies] = useState<Array<{ id: string; name: string }>>([]);
-  const [stagesList, setStages] = useState<Array<{ id: string; name: string }>>([]);
+  const [stagesList, setStages] = useState<Array<{ id: string; name: string; isWon?: boolean; isLost?: boolean }>>([]);
   const [artistProjects, setArtistProjects] = useState<Array<{ id: string; name: string }>>([]);
   const [isLoadingDeal, setIsLoadingDeal] = useState(false);
   const [dealLoadError, setDealLoadError] = useState<string | null>(null);
@@ -152,6 +153,13 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
   const [associationQuery, setAssociationQuery] = useState("");
   const [orgMembers, setOrgMembers] = useState<OrgMember[]>([]);
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
+  const originalStageIdRef = useRef<string | null>(null);
+  const [closeDialog, setCloseDialog] = useState<{
+    dealId: string;
+    dealTitle: string;
+    currentValue: number | null;
+    outcome: "won" | "lost";
+  } | null>(null);
 
   const {
     register,
@@ -263,6 +271,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
       setAssociationType("contacto");
       setAssociationQuery("");
       setSelectedAssignees([]);
+      originalStageIdRef.current = null;
       reset({
         title: "",
         value: "",
@@ -286,6 +295,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
       setAssociationType(prefill?.companyId && !prefill?.contactId ? "empresa" : "contacto");
       setAssociationQuery("");
       setSelectedAssignees([]);
+      originalStageIdRef.current = null;
       reset({
         title: prefill?.title ?? "",
         value: "",
@@ -316,6 +326,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
       })
       .then((deal: DealRecord) => {
         if (controller.signal.aborted) return;
+        originalStageIdRef.current = deal.stageId;
         setAssociationType(deal.contactId ? "contacto" : "empresa");
         setAssociationQuery("");
         setSelectedAssignees((deal.assignees ?? []).map((a) => a.userId));
@@ -545,12 +556,32 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
 
       if (!res.ok) throw new Error(isEditing ? "Error al actualizar deal" : "Error al crear deal");
 
+      const savedDeal = await res.json().catch(() => null);
+
       toast.success(isEditing ? "Deal actualizado exitosamente" : "Deal creado exitosamente");
       reset();
       setSelectedAssignees([]);
       resetInlineCreateState();
-      onClose();
       router.refresh();
+
+      // Si la nueva etapa es Ganado o Perdido y es distinta a la que tenia
+      // antes de abrir el formulario, pedir el motivo/valor real de cierre
+      // -- mismo criterio que ya existe al arrastrar la tarjeta en el
+      // Kanban, pero ese camino se salta por completo si el cambio de
+      // etapa se hace desde este modal en vez de arrastrando.
+      const targetStage = stagesList.find((s) => s.id === data.stageId);
+      const stageChanged = data.stageId !== originalStageIdRef.current;
+      if (stageChanged && targetStage && (targetStage.isWon || targetStage.isLost)) {
+        setCloseDialog({
+          dealId: isEditing ? initialDealId! : (savedDeal?.id ?? ""),
+          dealTitle: data.title,
+          currentValue: data.valueType === "fixed" ? Math.round(parsedValue * 100) : null,
+          outcome: targetStage.isWon ? "won" : "lost",
+        });
+        return;
+      }
+
+      onClose();
     } catch (error) {
       setIsCreatingNested(false);
       const message = error instanceof Error ? error.message : isEditing ? "Error al actualizar el deal" : "Error al crear el deal";
@@ -559,8 +590,9 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
   };
 
   return (
+    <>
     <Dialog
-      open={open}
+      open={open && !closeDialog}
       onOpenChange={(v) => {
         if (!v) {
           resetInlineCreateState();
@@ -991,5 +1023,24 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
         </div>
       </DialogContent>
     </Dialog>
+
+    {closeDialog && (
+      <DealCloseReasonDialog
+        open
+        onClose={() => {
+          setCloseDialog(null);
+          onClose();
+        }}
+        dealId={closeDialog.dealId}
+        dealTitle={closeDialog.dealTitle}
+        currentValue={closeDialog.currentValue}
+        outcome={closeDialog.outcome}
+        onSaved={() => {
+          setCloseDialog(null);
+          onClose();
+        }}
+      />
+    )}
+    </>
   );
 }
