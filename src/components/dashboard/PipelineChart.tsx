@@ -11,6 +11,7 @@ import {
   Cell,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useLocale } from "@/lib/locale-context";
 
 interface StageData {
   name: string;
@@ -24,6 +25,8 @@ interface PipelineChartProps {
 }
 
 export function PipelineChart({ data }: PipelineChartProps) {
+  const { formatCurrency } = useLocale();
+
   return (
     <Card>
       <CardHeader>
@@ -48,14 +51,23 @@ export function PipelineChart({ data }: PipelineChartProps) {
                 className="fill-muted-foreground"
               />
               <Tooltip
-                formatter={(value) => [
-                  `${value} deals`,
-                  "Cantidad",
-                ]}
-                contentStyle={{
-                  borderRadius: "8px",
-                  border: "1px solid var(--border)",
-                  backgroundColor: "var(--card)",
+                content={({ active, payload }) => {
+                  if (!active || !payload || payload.length === 0) return null;
+                  const stage = payload[0].payload as StageData;
+                  return (
+                    <div
+                      className="rounded-lg border bg-card px-3 py-2 text-sm shadow-sm"
+                      style={{ borderColor: "var(--border)" }}
+                    >
+                      <p className="font-medium mb-1">{stage.name}</p>
+                      <p className="text-muted-foreground">
+                        {stage.count} deal{stage.count !== 1 ? "s" : ""}
+                      </p>
+                      <p className="text-muted-foreground">
+                        {formatCurrency(stage.value)} en total
+                      </p>
+                    </div>
+                  );
                 }}
               />
               <Bar dataKey="count" radius={[4, 4, 0, 0]}>
