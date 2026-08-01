@@ -416,7 +416,8 @@ export function GoalsPanel({ projectId }: { projectId: string }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {goals.map((goal) => {
             const Icon = METRIC_CONFIG[goal.metricType].icon;
-            const pct = goal.targetValue > 0 ? Math.min(100, (goal.currentValue / goal.targetValue) * 100) : 0;
+            const rawPct = goal.targetValue > 0 ? (goal.currentValue / goal.targetValue) * 100 : 0;
+            const pct = Math.min(100, rawPct);
             const over = goal.targetValue > 0 && goal.currentValue > goal.targetValue;
             return (
               <Card key={goal.id} className="relative group">
@@ -460,7 +461,12 @@ export function GoalsPanel({ projectId }: { projectId: string }) {
                       style={{ width: `${pct}%` }}
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1.5">
+                  <p className={`text-xs font-medium mt-1.5 ${over ? "text-green-600" : "text-muted-foreground"}`}>
+                    {goal.targetValue > 0
+                      ? `${Math.round(rawPct * 10) / 10}% cumplido`
+                      : "Sin meta definida"}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     {goal.periodType === "custom" && goal.periodStart && goal.periodEnd
                       ? `${goal.periodStart} → ${goal.periodEnd}`
                       : PERIOD_LABELS[goal.periodType]}
