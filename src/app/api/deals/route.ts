@@ -17,6 +17,7 @@ function mapDeal(row: any) {
     expectedClose: row.expected_close ?? null,
     probability: row.probability,
     notes: row.notes ?? null,
+    referenceUrl: row.reference_url ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     contactName: row.contacts?.name ?? null,
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
   }
 
-  const { title, value, valueType, percentageValue, taxType, stageId, contactId, companyId, expectedClose, probability, notes, projectId, artistProjectId, assigneeIds } = body;
+  const { title, value, valueType, percentageValue, taxType, stageId, contactId, companyId, expectedClose, probability, notes, referenceUrl, projectId, artistProjectId, assigneeIds } = body;
 
   const normalizedValueType = valueType === "percentage" ? "percentage" : "fixed";
   const normalizedTaxType = taxType === "exento" ? "exento" : "afecto";
@@ -161,6 +162,7 @@ export async function POST(request: NextRequest) {
       expected_close: expectedClose ? new Date(expectedClose).toISOString() : null,
       probability: Math.max(0, Math.min(100, Number(probability) || 0)),
       notes: notes || null,
+      reference_url: (typeof referenceUrl === "string" ? referenceUrl.trim() : null) || null,
       organization_id: orgId,
       created_by: user!.id,
       project_id: projectId || null,

@@ -18,6 +18,7 @@ function mapTask(row: any, hasUnseenActivity = false) {
     artistProjectId: row.artist_project_id ?? null,
     subprojectId: row.subproject_id ?? null,
     completedAt: row.completed_at ?? null,
+    referenceUrl: row.reference_url ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     contactName: row.contacts?.name ?? null,
@@ -139,7 +140,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
   }
 
-  const { title, description, priority, dueDate, contactId, companyId, dealId, projectId, artistProjectId, subprojectId, assigneeIds } = body;
+  const { title, description, priority, dueDate, contactId, companyId, dealId, projectId, artistProjectId, subprojectId, referenceUrl, assigneeIds } = body;
 
   if (!title || typeof title !== "string" || title.trim() === "") {
     return NextResponse.json({ error: "El titulo es requerido" }, { status: 400 });
@@ -159,6 +160,7 @@ export async function POST(request: NextRequest) {
       project_id: (typeof projectId === "string" ? projectId : null) || null,
       artist_project_id: (typeof artistProjectId === "string" ? artistProjectId : null) || null,
       subproject_id: (typeof subprojectId === "string" ? subprojectId : null) || null,
+      reference_url: (typeof referenceUrl === "string" ? referenceUrl.trim() : null) || null,
       completed_at: null,
       organization_id: orgId,
       created_by: user!.id,

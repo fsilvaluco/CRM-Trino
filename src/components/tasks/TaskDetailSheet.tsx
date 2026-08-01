@@ -20,7 +20,7 @@ import {
   SelectValue,  // still used for Status and Priority selects
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Calendar, X, ChevronDown, Trash2 } from "lucide-react";
+import { Calendar, X, ChevronDown, Trash2, Link as LinkIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -45,6 +45,7 @@ interface TaskDetail {
   artistProjectId: string | null;
   subprojectId: string | null;
   completedAt: string | number | null;
+  referenceUrl: string | null;
   contactName: string | null;
   companyName: string | null;
   dealTitle: string | null;
@@ -79,6 +80,7 @@ export interface TaskPatch {
   dealId?: string | null;
   projectId?: string | null;
   subprojectId?: string | null;
+  referenceUrl?: string | null;
   assigneeIds?: string[];
 }
 
@@ -814,6 +816,34 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, p
                   onChange={handleDescriptionChange}
                   onBlur={handleDescriptionBlur}
                 />
+              </div>
+
+              {/* Link de referencia */}
+              <div className="px-6 py-4 border-b">
+                <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <LinkIcon className="h-3 w-3" />
+                  Link de referencia
+                </p>
+                <Input
+                  key={`ref-${task.id}`}
+                  defaultValue={task.referenceUrl ?? ""}
+                  placeholder="https://..."
+                  className="h-8 text-sm"
+                  onBlur={(e) => {
+                    const val = e.target.value.trim();
+                    if (val !== (task.referenceUrl ?? "")) patch({ referenceUrl: val || null });
+                  }}
+                />
+                {task.referenceUrl && (
+                  <a
+                    href={task.referenceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-primary hover:underline mt-1.5 inline-block truncate max-w-full"
+                  >
+                    Abrir link ↗
+                  </a>
+                )}
               </div>
 
               {/* Metadata badges */}

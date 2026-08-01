@@ -19,6 +19,7 @@ function mapTask(row: any) {
     artistProjectId: row.artist_project_id ?? null,
     subprojectId: row.subproject_id ?? null,
     completedAt: row.completed_at ?? null,
+    referenceUrl: row.reference_url ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     contactName: row.contacts?.name ?? null,
@@ -119,7 +120,7 @@ export async function PUT(
   }
 
   const DONE_STATUSES = ["listo", "descartado"];
-  const { title, description, status, priority, dueDate, contactId, companyId, dealId, projectId, artistProjectId, subprojectId } = body as Record<string, string | undefined>;
+  const { title, description, status, priority, dueDate, contactId, companyId, dealId, projectId, artistProjectId, subprojectId, referenceUrl } = body as Record<string, string | undefined>;
   const assigneeIds = Array.isArray(body.assigneeIds)
     ? body.assigneeIds.filter((value): value is string => typeof value === "string" && value.length > 0)
     : null;
@@ -157,6 +158,7 @@ export async function PUT(
   if (projectId !== undefined) updates.project_id = projectId || null;
   if (artistProjectId !== undefined) updates.artist_project_id = artistProjectId || null;
   if (subprojectId !== undefined) updates.subproject_id = subprojectId || null;
+  if (referenceUrl !== undefined) updates.reference_url = referenceUrl?.trim() || null;
 
   if (assigneeIds) {
     const uniqueAssigneeIds = [...new Set(assigneeIds)];

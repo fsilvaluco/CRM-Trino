@@ -62,6 +62,7 @@ const dealSchema = z
     probability: z.string(),
     expectedClose: z.string(),
     notes: z.string(),
+    referenceUrl: z.string(),
     projectId: z.string().min(1, "El proyecto es requerido"),
     artistProjectId: z.string().optional(),
   })
@@ -106,6 +107,7 @@ interface DealRecord {
   expectedClose: string | null;
   probability: number;
   notes: string | null;
+  referenceUrl: string | null;
   assignees?: Array<{ userId: string }>;
 }
 
@@ -181,6 +183,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
       probability: "50",
       expectedClose: "",
       notes: "",
+      referenceUrl: "",
       projectId: activeProject?.id || "",
       artistProjectId: "",
     },
@@ -283,6 +286,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
         probability: "50",
         expectedClose: "",
         notes: "",
+        referenceUrl: "",
         projectId: activeProject?.id || "",
         artistProjectId: "",
       });
@@ -307,6 +311,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
         probability: "50",
         expectedClose: "",
         notes: prefill?.notes ?? "",
+        referenceUrl: "",
         projectId: prefill?.projectId ?? activeProject?.id ?? "",
         artistProjectId: prefill?.artistProjectId ?? "",
       });
@@ -341,6 +346,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
           probability: String(deal.probability),
           expectedClose: toDateInputValue(deal.expectedClose),
           notes: deal.notes || "",
+          referenceUrl: deal.referenceUrl || "",
           projectId: activeProject?.id || deal.projectId || "",
           artistProjectId: deal.artistProjectId || "",
         });
@@ -975,6 +981,11 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
           <div className="space-y-2">
             <Label htmlFor="deal-notes">Notas</Label>
             <Textarea id="deal-notes" {...register("notes")} rows={2} />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="deal-reference-url">Link de referencia</Label>
+            <Input id="deal-reference-url" placeholder="https://..." {...register("referenceUrl")} />
           </div>
 
           <AssigneeSelector
