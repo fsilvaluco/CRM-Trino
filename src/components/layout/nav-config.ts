@@ -21,6 +21,7 @@ import {
   Inbox,
   Plug,
   CreditCard,
+  Mic2,
 } from "lucide-react";
 import { type LucideIcon } from "lucide-react";
 
@@ -85,6 +86,12 @@ export const navConfig: NavItem[] = [
     href: "/campanas",
     label: "Campañas",
     icon: Megaphone,
+  },
+  {
+    type: "leaf",
+    href: "/shows",
+    label: "Shows en vivo",
+    icon: Mic2,
   },
   {
     type: "leaf",

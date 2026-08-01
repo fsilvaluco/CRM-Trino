@@ -11,6 +11,7 @@ import {
 import { KanbanColumn } from "./KanbanColumn";
 import { DealCard } from "./DealCard";
 import { DealCloseReasonDialog } from "@/components/deals/DealCloseReasonDialog";
+import { ShowSetupDialog } from "@/components/shows/ShowSetupDialog";
 import { toast } from "sonner";
 import type { PipelineColumn } from "@/types";
 import { useKanbanDnd } from "@/lib/hooks/use-kanban-dnd";
@@ -31,6 +32,8 @@ export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealCl
     currentValue: number | null;
     outcome: "won" | "lost";
   } | null>(null);
+  const [showSetup, setShowSetup] = useState<{ dealId: string; dealTitle: string; projectId: string } | null>(null);
+  const pendingShowRef = useRef<{ dealId: string; dealTitle: string; projectId: string } | null>(null);
   const columnsSnapshot = useRef<PipelineColumn[]>(initialColumns);
 
   // El estado local (columns) existe para el drag-and-drop optimista --
@@ -135,6 +138,13 @@ export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealCl
             .flatMap((col) => col.deals)
             .find((d) => d.id === activeId);
           if (movedDeal) {
+            if (overColumn.isWon && movedDeal.isShow) {
+              pendingShowRef.current = {
+                dealId: activeId,
+                dealTitle: movedDeal.title,
+                projectId: movedDeal.artistProjectId || movedDeal.projectId || "",
+              };
+            }
             setCloseDialog({
               dealId: activeId,
               dealTitle: movedDeal.title,
@@ -216,11 +226,28 @@ export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealCl
     {closeDialog && (
       <DealCloseReasonDialog
         open
-        onClose={() => setCloseDialog(null)}
+        onClose={() => {
+          setCloseDialog(null);
+          if (pendingShowRef.current) {
+            setShowSetup(pendingShowRef.current);
+            pendingShowRef.current = null;
+          }
+        }}
         dealId={closeDialog.dealId}
         dealTitle={closeDialog.dealTitle}
         currentValue={closeDialog.currentValue != null ? Math.round(closeDialog.currentValue / 100) : null}
         outcome={closeDialog.outcome}
+        onSaved={onMoveSuccess}
+      />
+    )}
+
+    {showSetup && (
+      <ShowSetupDialog
+        open
+        onClose={() => setShowSetup(null)}
+        dealId={showSetup.dealId}
+        dealTitle={showSetup.dealTitle}
+        projectId={showSetup.projectId}
         onSaved={onMoveSuccess}
       />
     )}

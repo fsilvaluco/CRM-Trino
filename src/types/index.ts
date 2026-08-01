@@ -97,6 +97,9 @@ export interface Deal {
   createdAt: Date;
   updatedAt: Date;
   hasUnseenActivity?: boolean;
+  isShow?: boolean;
+  projectId?: string | null;
+  artistProjectId?: string | null;
   tagProjectName?: string | null;
   tagProjectColor?: string | null;
   tagProjectAvatarUrl?: string | null;

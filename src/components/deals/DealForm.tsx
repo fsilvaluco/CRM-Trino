@@ -21,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useLocale } from "@/lib/locale-context";
@@ -28,6 +29,7 @@ import { useProject } from "@/lib/project-context";
 import { AssigneeSelector, type OrgMember } from "@/components/shared/AssigneeSelector";
 import { CommentsWithMentions } from "@/components/shared/CommentsWithMentions";
 import { DealCloseReasonDialog } from "@/components/deals/DealCloseReasonDialog";
+import { ShowSetupDialog } from "@/components/shows/ShowSetupDialog";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -63,6 +65,7 @@ const dealSchema = z
     expectedClose: z.string(),
     notes: z.string(),
     referenceUrl: z.string(),
+    isShow: z.boolean(),
     projectId: z.string().min(1, "El proyecto es requerido"),
     artistProjectId: z.string().optional(),
   })
@@ -108,6 +111,7 @@ interface DealRecord {
   probability: number;
   notes: string | null;
   referenceUrl: string | null;
+  isShow: boolean;
   assignees?: Array<{ userId: string }>;
 }
 
@@ -162,6 +166,8 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
     currentValue: number | null;
     outcome: "won" | "lost";
   } | null>(null);
+  const [showSetup, setShowSetup] = useState<{ dealId: string; dealTitle: string; projectId: string } | null>(null);
+  const pendingShowRef = useRef<{ dealId: string; dealTitle: string; projectId: string } | null>(null);
 
   const {
     register,
@@ -184,6 +190,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
       expectedClose: "",
       notes: "",
       referenceUrl: "",
+      isShow: false,
       projectId: activeProject?.id || "",
       artistProjectId: "",
     },
@@ -287,6 +294,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
         expectedClose: "",
         notes: "",
         referenceUrl: "",
+        isShow: false,
         projectId: activeProject?.id || "",
         artistProjectId: "",
       });
@@ -312,6 +320,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
         expectedClose: "",
         notes: prefill?.notes ?? "",
         referenceUrl: "",
+        isShow: false,
         projectId: prefill?.projectId ?? activeProject?.id ?? "",
         artistProjectId: prefill?.artistProjectId ?? "",
       });
@@ -347,6 +356,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
           expectedClose: toDateInputValue(deal.expectedClose),
           notes: deal.notes || "",
           referenceUrl: deal.referenceUrl || "",
+          isShow: deal.isShow ?? false,
           projectId: activeProject?.id || deal.projectId || "",
           artistProjectId: deal.artistProjectId || "",
         });
@@ -578,8 +588,16 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
       const targetStage = stagesList.find((s) => s.id === data.stageId);
       const stageChanged = data.stageId !== originalStageIdRef.current;
       if (stageChanged && targetStage && (targetStage.isWon || targetStage.isLost)) {
+        const wonDealId = isEditing ? initialDealId! : (savedDeal?.id ?? "");
+        if (targetStage.isWon && data.isShow) {
+          pendingShowRef.current = {
+            dealId: wonDealId,
+            dealTitle: data.title,
+            projectId: data.artistProjectId || data.projectId,
+          };
+        }
         setCloseDialog({
-          dealId: isEditing ? initialDealId! : (savedDeal?.id ?? ""),
+          dealId: wonDealId,
           dealTitle: data.title,
           currentValue: data.valueType === "fixed" ? Math.round(parsedValue * 100) : null,
           outcome: targetStage.isWon ? "won" : "lost",
@@ -988,6 +1006,17 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
             <Input id="deal-reference-url" placeholder="https://..." {...register("referenceUrl")} />
           </div>
 
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="deal-is-show"
+              checked={watch("isShow")}
+              onCheckedChange={(v) => setValue("isShow", Boolean(v))}
+            />
+            <Label htmlFor="deal-is-show" className="cursor-pointer font-normal">
+              Es un show — al ganarlo, te voy a preguntar si armamos el show
+            </Label>
+          </div>
+
           <AssigneeSelector
             orgMembers={orgMembers}
             selectedAssignees={selectedAssignees}
@@ -1040,7 +1069,12 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
         open
         onClose={() => {
           setCloseDialog(null);
-          onClose();
+          if (pendingShowRef.current) {
+            setShowSetup(pendingShowRef.current);
+            pendingShowRef.current = null;
+          } else {
+            onClose();
+          }
         }}
         dealId={closeDialog.dealId}
         dealTitle={closeDialog.dealTitle}
@@ -1048,8 +1082,26 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
         outcome={closeDialog.outcome}
         onSaved={() => {
           setCloseDialog(null);
+          if (pendingShowRef.current) {
+            setShowSetup(pendingShowRef.current);
+            pendingShowRef.current = null;
+          } else {
+            onClose();
+          }
+        }}
+      />
+    )}
+
+    {showSetup && (
+      <ShowSetupDialog
+        open
+        onClose={() => {
+          setShowSetup(null);
           onClose();
         }}
+        dealId={showSetup.dealId}
+        dealTitle={showSetup.dealTitle}
+        projectId={showSetup.projectId}
       />
     )}
     </>

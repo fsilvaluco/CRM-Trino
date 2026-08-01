@@ -21,6 +21,7 @@ function mapDeal(row: any) {
     probability: row.probability,
     notes: row.notes ?? null,
     referenceUrl: row.reference_url ?? null,
+    isShow: row.is_show ?? false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     assignees: row.deal_assignees?.map((da: any) => ({
@@ -144,6 +145,7 @@ export async function PUT(
   }
   if (body.notes !== undefined) updates.notes = body.notes;
   if (body.referenceUrl !== undefined) updates.reference_url = (body.referenceUrl as string)?.trim() || null;
+  if (body.isShow !== undefined) updates.is_show = Boolean(body.isShow);
 
   const assigneeIds = Array.isArray(body.assigneeIds)
     ? body.assigneeIds.filter((value: unknown): value is string => typeof value === "string" && value.length > 0)
