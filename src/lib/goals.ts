@@ -256,3 +256,57 @@ export async function computeGoalPaceComparison(
   const previousValue = await computeValueForWindow(supabase, goal, prevStart, prevEnd);
   return { previousValue };
 }
+
+// ─── Historial de metas (para reportes de fin de año) ───────────────────────
+// Ver migracion 049_goal_history.sql.
+
+/**
+ * Guarda una "foto" del resultado de una meta para un mes o año que ya
+ * terminó. Idempotente: si ya existe una foto para esta meta+periodo,
+ * no hace nada (por el UNIQUE(goal_id, period_label) + ignoreDuplicates).
+ *
+ * Para 'manual' usa el current_value que esta guardado en la fila en
+ * este momento (no hay otra fuente) -- por eso es importante que esto
+ * corra justo al cambiar de periodo, antes de que alguien actualice el
+ * numero para el mes/año nuevo.
+ */
+export async function captureGoalSnapshot(
+  supabase: SupabaseClient,
+  goal: GoalRow,
+  periodType: "monthly" | "annual",
+  year: number,
+  month?: number // 0-indexed (0 = enero), requerido si periodType = 'monthly'
+): Promise<void> {
+  const periodLabel =
+    periodType === "annual" ? String(year) : `${year}-${String((month ?? 0) + 1).padStart(2, "0")}`;
+
+  let achieved: number;
+  if (goal.metric_type === "manual") {
+    achieved = goal.current_value ?? 0;
+  } else {
+    const start = periodType === "annual" ? new Date(year, 0, 1) : new Date(year, month!, 1);
+    const end =
+      periodType === "annual"
+        ? new Date(year, 11, 31, 23, 59, 59)
+        : new Date(year, month! + 1, 0, 23, 59, 59);
+    achieved = await computeValueForWindow(supabase, goal, start, end);
+  }
+
+  const pctAchieved = goal.target_value > 0 ? Math.round((achieved / goal.target_value) * 1000) / 10 : null;
+
+  await supabase.from("goal_history").upsert(
+    {
+      organization_id: goal.organization_id,
+      project_id: goal.project_id,
+      goal_id: goal.id,
+      metric_type: goal.metric_type,
+      title: goal.title,
+      period_type: periodType,
+      period_label: periodLabel,
+      target_value: goal.target_value,
+      achieved_value: achieved,
+      pct_achieved: pctAchieved,
+    },
+    { onConflict: "goal_id,period_label", ignoreDuplicates: true }
+  );
+}

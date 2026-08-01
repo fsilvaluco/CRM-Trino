@@ -19,7 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, DollarSign, Briefcase, CheckSquare, Users2, Target, Music2, Newspaper, ArrowLeft, Sparkles, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Plus, Pencil, Trash2, DollarSign, Briefcase, CheckSquare, Users2, Target, Music2, Newspaper, ArrowLeft, Sparkles, TrendingUp, TrendingDown, Minus, History } from "lucide-react";
 import { useLocale } from "@/lib/locale-context";
 
 type GoalMetricType =
@@ -343,12 +343,106 @@ function GoalFormDialog({
   );
 }
 
+interface GoalHistoryRow {
+  id: string;
+  periodType: "monthly" | "annual";
+  periodLabel: string;
+  targetValue: number;
+  achievedValue: number;
+  pctAchieved: number | null;
+}
+
+function GoalHistoryDialog({
+  open,
+  onClose,
+  goal,
+}: {
+  open: boolean;
+  onClose: () => void;
+  goal: Goal | null;
+}) {
+  const { formatCurrency } = useLocale();
+  const [rows, setRows] = useState<GoalHistoryRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!open || !goal) return;
+    const loadHistory = () => {
+      setLoading(true);
+      fetch(`/api/goals/${goal.id}/history`)
+        .then((r) => r.json())
+        .then((d) => setRows(Array.isArray(d) ? d : []))
+        .catch(() => setRows([]))
+        .finally(() => setLoading(false));
+    };
+    loadHistory();
+  }, [open, goal]);
+
+  function formatMetric(value: number) {
+    if (!goal) return String(value);
+    if (METRIC_CONFIG[goal.metricType].isCurrency) return formatCurrency(Math.round(value * 100));
+    if (METRIC_CONFIG[goal.metricType].isPercent) return `${value}%`;
+    return Math.round(value).toLocaleString("es-CL");
+  }
+
+  function formatPeriodLabel(label: string, type: "monthly" | "annual") {
+    if (type === "annual") return label;
+    const [year, month] = label.split("-");
+    const date = new Date(Number(year), Number(month) - 1, 1);
+    return date.toLocaleDateString("es-CL", { month: "long", year: "numeric" });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-sm max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Historial{goal ? `: ${goal.title}` : ""}</DialogTitle>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="space-y-2">
+            {[1, 2, 3].map((i) => <div key={i} className="h-10 bg-muted rounded animate-pulse" />)}
+          </div>
+        ) : goal?.periodType === "custom" ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">
+            Las metas de rango personalizado no guardan historial mensual/anual.
+          </p>
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">
+            Todavía no hay ningún mes/año cerrado registrado para esta meta.
+          </p>
+        ) : (
+          <div className="space-y-1.5">
+            {[...rows].reverse().map((row) => {
+              const met = row.pctAchieved !== null && row.pctAchieved >= 100;
+              return (
+                <div key={row.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
+                  <div>
+                    <p className="font-medium capitalize">{formatPeriodLabel(row.periodLabel, row.periodType)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatMetric(row.achievedValue)} de {formatMetric(row.targetValue)}
+                    </p>
+                  </div>
+                  <span className={`text-xs font-semibold ${met ? "text-green-600" : "text-muted-foreground"}`}>
+                    {row.pctAchieved !== null ? `${row.pctAchieved}%` : "—"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function GoalsPanel({ projectId }: { projectId: string }) {
   const { formatCurrency } = useLocale();
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
+  const [historyGoal, setHistoryGoal] = useState<Goal | null>(null);
 
   const loadGoals = useCallback(() => {
     setLoading(true);
@@ -452,6 +546,13 @@ export function GoalsPanel({ projectId }: { projectId: string }) {
                   </div>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
+                      onClick={() => setHistoryGoal(goal)}
+                      className="text-muted-foreground hover:text-foreground cursor-pointer p-1"
+                      title="Ver historial"
+                    >
+                      <History className="h-3.5 w-3.5" />
+                    </button>
+                    <button
                       onClick={() => {
                         setEditingGoal(goal);
                         setFormOpen(true);
@@ -517,6 +618,12 @@ export function GoalsPanel({ projectId }: { projectId: string }) {
         projectId={projectId}
         editingGoal={editingGoal}
         onSaved={loadGoals}
+      />
+
+      <GoalHistoryDialog
+        open={historyGoal !== null}
+        onClose={() => setHistoryGoal(null)}
+        goal={historyGoal}
       />
     </div>
   );
