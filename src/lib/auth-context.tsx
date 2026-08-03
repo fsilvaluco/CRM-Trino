@@ -164,36 +164,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        setLoading(true);
-        try {
-          let nextSession = session;
-
-          // In some resume/focus cycles Supabase may emit a transient null session.
-          // Recheck before clearing user-related state unless this is an actual sign-out.
+        const applyResolvedSession = async (nextSession: Session | null) => {
           if (!nextSession && event !== "SIGNED_OUT") {
-            const { data } = await supabase.auth.getSession();
-            nextSession = data.session;
-          }
-
-          if (!nextSession && event !== "SIGNED_OUT") {
+            setLoading(false);
             return;
           }
 
-          setSession(nextSession);
-          const nextUser = nextSession?.user ?? null;
-          setUser(nextUser);
-          await resolveOrgRole(nextUser);
-        } catch {
-          // Only clear auth state on explicit sign-out. For all other significant
-          // events, preserve existing state — the next event will correct it.
-          if (event === "SIGNED_OUT") {
-            setSession(null);
-            setUser(null);
-            applyOrgRole(null);
+          try {
+            setSession(nextSession);
+            const nextUser = nextSession?.user ?? null;
+            setUser(nextUser);
+            await resolveOrgRole(nextUser);
+          } catch {
+            // Only clear auth state on explicit sign-out. For all other significant
+            // events, preserve existing state — the next event will correct it.
+            if (event === "SIGNED_OUT") {
+              setSession(null);
+              setUser(null);
+              applyOrgRole(null);
+            }
+          } finally {
+            setLoading(false);
           }
-        } finally {
-          setLoading(false);
+        };
+
+        setLoading(true);
+
+        // In some resume/focus cycles (and on invite/magic links, right as the
+        // token in the URL is still being processed) Supabase may emit this
+        // event with a transient null session. We need to recheck — but calling
+        // ANY supabase.auth.* method synchronously from inside onAuthStateChange
+        // re-enters Supabase's internal auth lock and deadlocks forever (this is
+        // documented Supabase behavior, not a bug in our code). setTimeout(0)
+        // pushes the recheck to the next tick, after this callback has returned
+        // and released the lock.
+        if (!session && event !== "SIGNED_OUT") {
+          setTimeout(() => {
+            supabase.auth
+              .getSession()
+              .then(({ data }) => applyResolvedSession(data.session))
+              .catch(() => applyResolvedSession(null));
+          }, 0);
+          return;
         }
+
+        void applyResolvedSession(session);
       }
     );
 
