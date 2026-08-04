@@ -26,7 +26,19 @@ export interface MemberAccessTarget {
   user_id: string;
   role: string;
   status: "pending" | "active";
-  profiles: { full_name: string | null; email: string | null; avatar_url: string | null } | null;
+  profiles: { full_name: string | null; email: string | null; phone: string | null; avatar_url: string | null } | null;
+}
+
+// Nombre completo se guarda como un solo campo en `profiles.full_name`
+// (mismo criterio que el resto de la app), asi que para poder editar
+// "Nombre" y "Apellido" por separado en este panel lo partimos en la
+// primera palabra vs. el resto -- best-effort, no hay una fuente de verdad
+// separada por nombre/apellido en la base.
+function splitFullName(fullName: string | null | undefined): { firstName: string; lastName: string } {
+  const trimmed = (fullName ?? "").trim();
+  if (!trimmed) return { firstName: "", lastName: "" };
+  const parts = trimmed.split(/\s+/);
+  return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
 }
 
 interface ProjectOption {
@@ -68,9 +80,32 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const memberName = member?.profiles?.full_name ?? member?.profiles?.email ?? "Usuario";
-  const memberEmail = member?.profiles?.email ?? "Sin email";
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [initialContact, setInitialContact] = useState({ firstName: "", lastName: "", email: "", phone: "" });
+
   const isOwner = member?.role === "owner";
+
+  // Cada vez que se abre el sheet para un usuario distinto, precargar los
+  // campos editables desde lo que ya se tiene en `member` -- no requiere
+  // otro fetch, ya viene en la fila de la tabla.
+  useEffect(() => {
+    if (!open || !member) return;
+    const { firstName: fn, lastName: ln } = splitFullName(member.profiles?.full_name);
+    const initial = {
+      firstName: fn,
+      lastName: ln,
+      email: member.profiles?.email ?? "",
+      phone: member.profiles?.phone ?? "",
+    };
+    setFirstName(initial.firstName);
+    setLastName(initial.lastName);
+    setEmail(initial.email);
+    setPhone(initial.phone);
+    setInitialContact(initial);
+  }, [open, member]);
 
   const selectedSet = useMemo(() => new Set(selectedProjectIds), [selectedProjectIds]);
   const initialSet = useMemo(() => new Set(initialProjectIds), [initialProjectIds]);
@@ -201,6 +236,22 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
         );
       });
 
+      const contactChanged =
+        firstName !== initialContact.firstName ||
+        lastName !== initialContact.lastName ||
+        email !== initialContact.email ||
+        phone !== initialContact.phone;
+
+      if (contactChanged) {
+        requests.push(
+          fetch("/api/org-members/profile", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: member.user_id, firstName, lastName, phone, email }),
+          })
+        );
+      }
+
       const responses = await Promise.all(requests);
 
       for (const response of responses) {
@@ -245,11 +296,46 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
           ) : (
             <div className="space-y-4">
               <div className="border-b pb-4">
-                <FieldRow label="Usuario">
-                  <div>
-                    <p className="text-sm font-medium">{memberName}</p>
-                    <p className="text-xs text-muted-foreground">{memberEmail}</p>
-                  </div>
+                <FieldRow label="Nombre">
+                  <Input
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="Nombre"
+                    disabled={saving}
+                    className="h-9"
+                  />
+                </FieldRow>
+
+                <FieldRow label="Apellido">
+                  <Input
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="Apellido"
+                    disabled={saving}
+                    className="h-9"
+                  />
+                </FieldRow>
+
+                <FieldRow label="Email">
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="email@ejemplo.com"
+                    disabled={saving}
+                    className="h-9"
+                  />
+                </FieldRow>
+
+                <FieldRow label="Teléfono">
+                  <Input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="Opcional"
+                    disabled={saving}
+                    className="h-9"
+                  />
                 </FieldRow>
 
                 <FieldRow label="ID">

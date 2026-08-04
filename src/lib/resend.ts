@@ -46,19 +46,24 @@ const ROLE_DESCRIPTIONS: Record<string, string> = {
 
 export function buildInviteEmailHtml(params: {
   inviterName: string;
+  inviteeName?: string | null;
   projectName: string | null;
   role: string;
   actionLink: string;
 }): string {
-  const { inviterName, projectName, role, actionLink } = params;
+  const { inviterName, inviteeName, projectName, role, actionLink } = params;
   const projectLine = projectName
     ? `<strong>${inviterName}</strong> te invitó a unirte al proyecto <strong>${projectName}</strong> en Artist Pro.`
     : `<strong>${inviterName}</strong> te invitó a unirte a Artist Pro.`;
   const roleLine = ROLE_DESCRIPTIONS[role] ?? "";
+  const greeting = inviteeName
+    ? `<p style="font-size: 16px; color: #14162B; margin-bottom: 4px;">Hola ${inviteeName},</p>`
+    : "";
 
   return `
     <div style="font-family: -apple-system, Inter, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
       <img src="https://artistpro.app/logo-black.png" alt="Artist Pro" style="width: 120px; height: auto; margin-bottom: 20px;" />
+      ${greeting}
       <p style="font-size: 16px; color: #14162B; line-height: 1.5;">${projectLine}</p>
       ${roleLine ? `<p style="font-size: 14px; color: #14162B99; line-height: 1.5;">${roleLine}</p>` : ""}
       <a href="${actionLink}" target="_blank" rel="noopener noreferrer"

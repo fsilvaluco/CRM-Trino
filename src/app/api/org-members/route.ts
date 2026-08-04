@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
   // 2. Obtener perfiles
   const { data: profilesData } = await supabase
     .from("profiles")
-    .select("id, full_name, email, avatar_url")
+    .select("id, full_name, email, phone, avatar_url")
     .in("id", userIds);
 
   const profileMap = new Map((profilesData ?? []).map((p) => [p.id, p]));
@@ -98,6 +98,7 @@ export async function GET(request: NextRequest) {
     profiles: profileMap.get(m.user_id) ?? {
       full_name: null,
       email: authEmailMap.get(m.user_id) ?? null,
+      phone: null,
       avatar_url: null,
     },
   }));
@@ -140,15 +141,55 @@ export async function POST(request: NextRequest) {
   if (!isAdmin) return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
 
   const body = await request.json();
-  const { email, role = "member", projectId } = body as { email: string; role?: string; projectId?: string };
+  const {
+    email,
+    role = "member",
+    projectId,
+    firstName,
+    lastName,
+    phone,
+  } = body as {
+    email: string;
+    role?: string;
+    projectId?: string;
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+  };
   const normalizedEmail = email?.trim().toLowerCase();
+  const normalizedFirstName = firstName?.trim() || "";
+  const normalizedLastName = lastName?.trim() || "";
+  const normalizedPhone = phone?.trim() || null;
+  const fullName = [normalizedFirstName, normalizedLastName].filter(Boolean).join(" ").trim() || null;
   const allowedRoles = new Set(["admin", "member", "artist"]);
   if (!normalizedEmail) return NextResponse.json({ error: "Email requerido" }, { status: 400 });
+  if (!normalizedFirstName || !normalizedLastName) {
+    return NextResponse.json({ error: "Nombre y apellido son requeridos" }, { status: 400 });
+  }
   if (!allowedRoles.has(role)) return NextResponse.json({ error: "Rol inválido" }, { status: 400 });
 
   const admin = createAdminClient();
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin;
   const redirectTo = `${siteUrl}/auth/callback?next=/auth/activate&flow=invite`;
+
+  // Guarda (o actualiza) nombre/telefono en profiles de inmediato -- asi la
+  // lista de "Equipo y Acceso" muestra el nombre real desde el momento en
+  // que se invita, sin esperar a que la persona active su cuenta. No pisa
+  // el full_name si la persona ya lo cambio ella misma despues de activar
+  // Y esta invitacion es solo para agregarla a otro proyecto (se detecta
+  // mas abajo, en el branch de "already_active", pasando updateProfile=false).
+  async function upsertProfile(userId: string, opts?: { overwriteEmail?: boolean }) {
+    const payload: Record<string, unknown> = {
+      id: userId,
+      full_name: fullName,
+      phone: normalizedPhone,
+    };
+    if (opts?.overwriteEmail ?? true) payload.email = normalizedEmail;
+    const { error: profileUpsertError } = await admin.from("profiles").upsert(payload, { onConflict: "id" });
+    if (profileUpsertError) {
+      console.error("[org-members] no se pudo guardar el perfil al invitar (no bloqueante)", profileUpsertError);
+    }
+  }
 
   // Nombre real de quien invita (para el correo) y del proyecto (si aplica)
   const { data: inviterProfile } = await supabase.from("profiles").select("full_name, email").eq("id", user!.id).single();
@@ -165,7 +206,7 @@ export async function POST(request: NextRequest) {
       await sendEmail({
         to: normalizedEmail,
         subject: projectName ? `${inviterName} te invitó a ${projectName} en Artist Pro` : "Te invitaron a Artist Pro",
-        html: buildInviteEmailHtml({ inviterName, projectName, role, actionLink }),
+        html: buildInviteEmailHtml({ inviterName, inviteeName: normalizedFirstName || fullName, projectName, role, actionLink }),
       });
     } catch (err) {
       // No bloqueante: si Resend falla, Supabase probablemente ya mando su
@@ -219,6 +260,8 @@ export async function POST(request: NextRequest) {
       // desde OTRO proyecto hay que: (1) asignarle ese proyecto con el rol
       // elegido, y (2) avisarle por correo -- antes esto no hacia nada,
       // como si Facebook no pudiera invitarte a mas de un grupo.
+      // No se pisa el perfil de alguien ya activo: esta invitacion es solo
+      // para sumarlo a otro proyecto, no para redefinir su identidad.
       await assignProjectIfNeeded(existingUser.id);
 
       if (projectName) {
@@ -241,6 +284,8 @@ export async function POST(request: NextRequest) {
       if (linkError) return NextResponse.json({ error: linkError.message }, { status: 500 });
       await sendInviteEmail(linkData.properties.action_link);
       await assignProjectIfNeeded(existingUser.id);
+      // Sigue pendiente de activar -- se refresca con lo que se acaba de tipear.
+      await upsertProfile(existingUser.id);
 
       const upsertPending = await admin
         .from("organization_members")
@@ -278,7 +323,7 @@ export async function POST(request: NextRequest) {
   const { data: inviteLinkData, error: inviteError } = await admin.auth.admin.generateLink({
     type: "invite",
     email: normalizedEmail,
-    options: { redirectTo, data: { invited_to_org: orgId } },
+    options: { redirectTo, data: { invited_to_org: orgId, full_name: fullName } },
   });
 
   if (inviteError) {
@@ -293,6 +338,9 @@ export async function POST(request: NextRequest) {
     userId = inviteLinkData.user.id;
     inviteLink = inviteLinkData.properties.action_link;
     await sendInviteEmail(inviteLink);
+    // Cuenta recien creada por la invitacion -- guardamos el perfil de
+    // inmediato para que aparezca con nombre/telefono antes de que active.
+    await upsertProfile(userId);
   }
   await assignProjectIfNeeded(userId);
 

@@ -30,7 +30,7 @@ interface Member {
   role: string;
   joined_at: string;
   status: "pending" | "active";
-  profiles: { full_name: string | null; email: string | null; avatar_url: string | null } | null;
+  profiles: { full_name: string | null; email: string | null; phone: string | null; avatar_url: string | null } | null;
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -57,7 +57,10 @@ export function OrgMembersPanel() {
   const { activeProject } = useProject();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(false);
+  const [inviteFirstName, setInviteFirstName] = useState("");
+  const [inviteLastName, setInviteLastName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
+  const [invitePhone, setInvitePhone] = useState("");
   const [inviteRole, setInviteRole] = useState("member");
   const [inviting, setInviting] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
@@ -95,13 +98,20 @@ export function OrgMembersPanel() {
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inviteEmail) return;
+    if (!inviteFirstName.trim() || !inviteLastName.trim() || !inviteEmail.trim()) return;
     setInviting(true);
     try {
       const res = await fetch("/api/org-members", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: inviteEmail, role: inviteRole, projectId: activeProject?.id }),
+        body: JSON.stringify({
+          email: inviteEmail,
+          role: inviteRole,
+          projectId: activeProject?.id,
+          firstName: inviteFirstName,
+          lastName: inviteLastName,
+          phone: invitePhone || null,
+        }),
       });
       const data = await res.json();
       if (!res.ok) { toast.error(data.error ?? "Error al invitar"); return; }
@@ -130,7 +140,10 @@ export function OrgMembersPanel() {
         }
       }
 
+      setInviteFirstName("");
+      setInviteLastName("");
       setInviteEmail("");
+      setInvitePhone("");
       await loadMembers();
       router.refresh();
     } finally {
@@ -273,32 +286,55 @@ export function OrgMembersPanel() {
       {/* Invitar nuevo usuario */}
       <div className="border-t pt-4">
         <p className="text-sm font-medium mb-3">Invitar usuario</p>
-        <form onSubmit={handleInvite} className="flex gap-2">
-          <Input
-            type="email"
-            placeholder="email@ejemplo.com"
-            value={inviteEmail}
-            onChange={(e) => setInviteEmail(e.target.value)}
-            className="flex-1"
-            required
-          />
-          <DropdownMenu>
-            <DropdownMenuTrigger className="flex items-center gap-1 h-9 px-3 rounded border border-input bg-background text-sm hover:bg-accent cursor-pointer shrink-0">
-              {ROLE_LABELS[inviteRole]}
-              <ChevronDown className="h-3.5 w-3.5" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {["admin", "member", "artist"].map((r) => (
-                <DropdownMenuItem key={r} onClick={() => setInviteRole(r)}>
-                  {ROLE_LABELS[r]}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button type="submit" disabled={inviting} className="shrink-0">
-            {inviting ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-            {inviting ? "Enviando..." : "Invitar"}
-          </Button>
+        <form onSubmit={handleInvite} className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              placeholder="Nombre"
+              value={inviteFirstName}
+              onChange={(e) => setInviteFirstName(e.target.value)}
+              required
+            />
+            <Input
+              placeholder="Apellido"
+              value={inviteLastName}
+              onChange={(e) => setInviteLastName(e.target.value)}
+              required
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              type="email"
+              placeholder="email@ejemplo.com"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              required
+            />
+            <Input
+              type="tel"
+              placeholder="Teléfono (opcional)"
+              value={invitePhone}
+              onChange={(e) => setInvitePhone(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger className="flex items-center gap-1 h-9 px-3 rounded border border-input bg-background text-sm hover:bg-accent cursor-pointer shrink-0">
+                {ROLE_LABELS[inviteRole]}
+                <ChevronDown className="h-3.5 w-3.5" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {["admin", "member", "artist"].map((r) => (
+                  <DropdownMenuItem key={r} onClick={() => setInviteRole(r)}>
+                    {ROLE_LABELS[r]}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button type="submit" disabled={inviting} className="flex-1">
+              {inviting ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+              {inviting ? "Enviando..." : "Invitar"}
+            </Button>
+          </div>
         </form>
         <p className="text-xs text-muted-foreground mt-2">
           El usuario recibirá un email con un enlace para acceder al CRM.
