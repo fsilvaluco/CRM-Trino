@@ -683,8 +683,8 @@ export default function TasksPage() {
       {filterBar}
       {tabsContent}
 
-      {/* Kanban con tarea: overlay superpuesto + redimensionable */}
-      {selectedTaskId && activeTab === "kanban" && (
+      {/* Kanban o Gantt con tarea: overlay superpuesto + redimensionable */}
+      {selectedTaskId && (activeTab === "kanban" || activeTab === "gantt") && (
         <>
           {/* Capa 2: overlay sin blur */}
           <div
