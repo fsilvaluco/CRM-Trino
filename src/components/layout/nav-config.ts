@@ -94,6 +94,7 @@ export const navConfig: NavItem[] = [
     href: "/eventos",
     label: "Eventos",
     icon: Mic2,
+    moduleKey: "events_pending",
   },
   {
     type: "leaf",

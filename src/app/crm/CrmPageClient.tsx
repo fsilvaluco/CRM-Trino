@@ -26,6 +26,7 @@ interface StageDeal {
   updatedAt: number;
   notes: string | null;
   contactName: string | null;
+  isShow?: boolean;
   tagProjectName?: string | null;
   tagProjectColor?: string | null;
   tagProjectAvatarUrl?: string | null;
@@ -128,6 +129,7 @@ export default function CrmPageClient() {
             probability: d.probability,
             expectedClose: d.expectedClose ? new Date(d.expectedClose) : null,
             notes: d.notes ?? null,
+            isShow: d.isShow ?? false,
             createdAt: d.createdAt ? new Date(d.createdAt) : new Date(),
             updatedAt: d.updatedAt ? new Date(d.updatedAt) : new Date(),
             contactName: d.contactName,

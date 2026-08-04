@@ -24,6 +24,7 @@ function mapLiveShow(row: any) {
     updatedAt: row.updated_at,
     projectName: row.projects?.name ?? row.artist_name ?? null,
     dealTitle: row.deals?.title ?? null,
+    name: row.name ?? row.venue,
   };
 }
 
@@ -63,7 +64,7 @@ export async function PUT(
   const body = await request.json().catch(() => ({}));
   const {
     date, eventTime, venue, address, city, notes, status,
-    fee, ticketIncome, expenses, venueId,
+    fee, ticketIncome, expenses, venueId, name,
   } = body as {
     date?: string;
     eventTime?: string | null;
@@ -76,9 +77,18 @@ export async function PUT(
     ticketIncome?: number | null;
     expenses?: number | null;
     venueId?: string | null;
+    name?: string;
   };
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+
+  if (name !== undefined) {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      return NextResponse.json({ error: "El nombre del evento es requerido" }, { status: 400 });
+    }
+    updates.name = trimmedName;
+  }
 
   if (venueId !== undefined) {
     updates.venue_id = venueId || null;

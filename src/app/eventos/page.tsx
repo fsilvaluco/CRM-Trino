@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { EventFormDialog } from "@/components/events/EventFormDialog";
 import { useProject } from "@/lib/project-context";
 import { toast } from "sonner";
-import { Mic2, Plus, MapPin, Clock, Trash2, Pencil, BarChart2 } from "lucide-react";
+import { Mic2, Plus, MapPin, Clock, Trash2, Pencil, BarChart2, Link as LinkIcon, Star } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -41,6 +41,17 @@ function formatDate(d: string) {
   }
 }
 
+// Un evento "necesita confirmación" cuando ya pasó su fecha pero sigue
+// cotizando/confirmado -- alguien tiene que decir si efectivamente pasó o
+// se cayó, antes de que Métricas pueda contarlo (o no).
+function needsConfirmation(show: LiveShow): boolean {
+  if (show.status !== "cotizando" && show.status !== "confirmado") return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const eventDate = new Date(`${show.date}T00:00:00`);
+  return eventDate < today;
+}
+
 export default function EventosPage() {
   const { activeProject, isAllProjects, projects } = useProject();
   const [shows, setShows] = useState<LiveShow[]>([]);
@@ -48,6 +59,7 @@ export default function EventosPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingShow, setEditingShow] = useState<LiveShow | null>(null);
   const [filterStatus, setFilterStatus] = useState<"all" | ShowStatus>("all");
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
   const targetProjectId = activeProject?.id ?? null;
 
@@ -65,8 +77,36 @@ export default function EventosPage() {
     loadShows();
   }, [loadShows]);
 
+  async function handleConfirm(show: LiveShow, status: "realizado" | "cancelado") {
+    setConfirmingId(show.id);
+    try {
+      const res = await fetch(`/api/eventos/${show.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error();
+      setShows((prev) => prev.map((s) => (s.id === show.id ? { ...s, status } : s)));
+      toast.success(status === "realizado" ? "Marcado como realizado" : "Marcado como cancelado");
+    } catch {
+      toast.error("No se pudo actualizar el estado");
+    } finally {
+      setConfirmingId(null);
+    }
+  }
+
+  async function handleCopyRatingLink(show: LiveShow) {
+    const url = `${window.location.origin}/rate/${show.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copiado -- mándaselo a quien tocó para que califique cómo estuvo");
+    } catch {
+      toast.info(url);
+    }
+  }
+
   async function handleDelete(show: LiveShow) {
-    if (!confirm(`¿Eliminar el evento en "${show.venue}"? Esta acción no se puede deshacer.`)) return;
+    if (!confirm(`¿Eliminar el evento "${show.name}"? Esta acción no se puede deshacer.`)) return;
     try {
       const res = await fetch(`/api/eventos/${show.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
@@ -149,7 +189,7 @@ export default function EventosPage() {
                 <CardContent className="p-4 flex items-center justify-between gap-4">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <p className="font-medium">{show.venue}</p>
+                      <p className="font-medium">{show.name}</p>
                       <Badge variant="secondary" className={`text-xs ${STATUS_CONFIG[show.status].className}`}>
                         {STATUS_CONFIG[show.status].label}
                       </Badge>
@@ -165,14 +205,55 @@ export default function EventosPage() {
                           {show.eventTime}
                         </span>
                       )}
-                      {show.address && (
+                      <span className="flex items-center gap-1">
+                        <MapPin className="h-3.5 w-3.5" />
+                        {show.venue}
+                        {show.city ? `, ${show.city}` : ""}
+                      </span>
+                      {show.dealTitle && (
                         <span className="flex items-center gap-1">
-                          <MapPin className="h-3.5 w-3.5" />
-                          {show.address}
+                          <LinkIcon className="h-3.5 w-3.5" />
+                          {show.dealTitle}
                         </span>
                       )}
                     </div>
                     {show.notes && <p className="text-sm text-muted-foreground mt-1.5">{show.notes}</p>}
+
+                    {needsConfirmation(show) && (
+                      <div className="mt-2 flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/30 px-2.5 py-1.5">
+                        <span className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                          Ya pasó la fecha -- ¿se realizó?
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-xs px-2 cursor-pointer"
+                          disabled={confirmingId === show.id}
+                          onClick={() => handleConfirm(show, "realizado")}
+                        >
+                          Sí, se hizo
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-xs px-2 cursor-pointer"
+                          disabled={confirmingId === show.id}
+                          onClick={() => handleConfirm(show, "cancelado")}
+                        >
+                          No, se canceló
+                        </Button>
+                      </div>
+                    )}
+
+                    {show.status === "realizado" && (
+                      <button
+                        onClick={() => handleCopyRatingLink(show)}
+                        className="mt-2 flex items-center gap-1 text-xs text-primary hover:underline cursor-pointer"
+                      >
+                        <Star className="h-3 w-3" />
+                        Copiar link para que califiquen el evento
+                      </button>
+                    )}
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     {hasMoney && (

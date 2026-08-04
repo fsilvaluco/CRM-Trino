@@ -3,7 +3,7 @@ import { requireAuth } from "@/lib/supabase-server";
 
 // Modulos soportados hoy. Agregar aca cuando se sume el punto rojo a otra
 // pantalla -- cada uno necesita su propia cuenta de "nuevos desde ultima vista".
-const MODULES = ["lead_candidates", "deals", "tasks"] as const;
+const MODULES = ["lead_candidates", "deals", "tasks", "events_pending"] as const;
 
 export async function GET() {
   const { supabase, user, orgId, error } = await requireAuth();
@@ -52,6 +52,22 @@ export async function GET() {
         .is("deleted_at", null)
         .gt("created_at", lastSeenAt)
         .or(`created_by.is.null,created_by.neq.${user!.id}`);
+
+      counts[moduleKey] = count ?? 0;
+    }
+
+    if (moduleKey === "events_pending") {
+      // No usa lastSeenAt a proposito: no es "nuevo desde que lo viste",
+      // es "sigue pendiente de que alguien confirme si pasó o no" -- el
+      // punto rojo se apaga solo cuando el evento se marca Realizado o
+      // Cancelado, no por entrar a la pantalla.
+      const today = new Date().toISOString().slice(0, 10);
+      const { count } = await supabase
+        .from("shows")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", orgId!)
+        .in("status", ["cotizando", "confirmado"])
+        .lt("date", today);
 
       counts[moduleKey] = count ?? 0;
     }

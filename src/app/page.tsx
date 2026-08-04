@@ -9,6 +9,7 @@ import { KPICards } from "@/components/dashboard/KPICards";
 import { GoalsPanel } from "@/components/dashboard/GoalsPanel";
 import { PipelineChart } from "@/components/dashboard/PipelineChart";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
+import { UpcomingEventsWidget } from "@/components/dashboard/UpcomingEventsWidget";
 import type { DashboardStats } from "@/types";
 
 interface StageData { name: string; count: number; value: number; color: string; }
@@ -218,8 +219,9 @@ export default function DashboardPage() {
         <div className="lg:col-span-2">
           <PipelineChart data={pipelineData} />
         </div>
-        <div>
+        <div className="space-y-6">
           <RecentActivity activities={activities} />
+          <UpcomingEventsWidget />
         </div>
       </div>
     </div>

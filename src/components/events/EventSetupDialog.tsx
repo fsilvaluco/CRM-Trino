@@ -30,6 +30,7 @@ export function EventSetupDialog({
   projectId: string;
   onSaved?: () => void;
 }) {
+  const [name, setName] = useState(dealTitle);
   const [date, setDate] = useState("");
   const [eventTime, setEventTime] = useState("");
   const [venue, setVenue] = useState("");
@@ -38,6 +39,7 @@ export function EventSetupDialog({
   const [saving, setSaving] = useState(false);
 
   function reset() {
+    setName(dealTitle);
     setDate("");
     setEventTime("");
     setVenue("");
@@ -46,6 +48,10 @@ export function EventSetupDialog({
   }
 
   async function handleSave() {
+    if (!name.trim()) {
+      toast.error("Ponle un nombre al evento");
+      return;
+    }
     if (!date) {
       toast.error("Ponle al menos la fecha del evento");
       return;
@@ -58,6 +64,7 @@ export function EventSetupDialog({
         body: JSON.stringify({
           projectId,
           dealId,
+          name: name.trim(),
           date,
           eventTime: eventTime || null,
           venue: venue || dealTitle,
@@ -95,10 +102,15 @@ export function EventSetupDialog({
         </DialogHeader>
 
         <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="show-name">Nombre del evento</Label>
+            <Input id="show-name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+          </div>
+
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-2">
               <Label htmlFor="show-date">Fecha</Label>
-              <Input id="show-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} autoFocus />
+              <Input id="show-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="show-time">Hora</Label>

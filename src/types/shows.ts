@@ -6,6 +6,7 @@ export interface LiveShow {
   artistName: string;
   dealId: string | null;
   venueId: string | null;
+  name: string;
   date: string;
   eventTime: string | null;
   venue: string;

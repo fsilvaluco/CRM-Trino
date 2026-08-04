@@ -62,6 +62,7 @@ export function EventFormDialog({
   onSaved: () => void;
 }) {
   const [projectId, setProjectId] = useState("");
+  const [name, setName] = useState("");
   const [date, setDate] = useState("");
   const [eventTime, setEventTime] = useState("");
   const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
@@ -77,6 +78,7 @@ export function EventFormDialog({
     if (!open) return;
     if (editingShow) {
       setProjectId(editingShow.projectId ?? "");
+      setName(editingShow.name ?? "");
       setDate(editingShow.date);
       setEventTime(editingShow.eventTime ?? "");
       setNotes(editingShow.notes ?? "");
@@ -127,6 +129,7 @@ export function EventFormDialog({
       }
     } else {
       setProjectId(defaultProjectId ?? "");
+      setName("");
       setDate("");
       setEventTime("");
       setSelectedVenue(null);
@@ -139,6 +142,10 @@ export function EventFormDialog({
   }, [open, editingShow, defaultProjectId]);
 
   async function handleSave() {
+    if (!name.trim()) {
+      toast.error("Ponle un nombre al evento");
+      return;
+    }
     if (!projectId) {
       toast.error("Selecciona a qué proyecto/artista pertenece");
       return;
@@ -161,6 +168,7 @@ export function EventFormDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           projectId,
+          name: name.trim(),
           date,
           eventTime: eventTime || null,
           // Si el venue tiene id real, mandamos venueId (fuente de verdad).
@@ -198,6 +206,20 @@ export function EventFormDialog({
         </DialogHeader>
 
         <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+          <div className="space-y-2">
+            <Label htmlFor="event-name">Nombre del evento *</Label>
+            <Input
+              id="event-name"
+              placeholder="PAMN, Lanzamiento disco, Toca en vivo..."
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+            />
+            <p className="text-xs text-muted-foreground">
+              El nombre del evento, no del venue -- un mismo venue puede alojar eventos muy distintos.
+            </p>
+          </div>
+
           <div className="space-y-2">
             <Label>Proyecto / artista</Label>
             <Select value={projectId} onValueChange={(v) => setProjectId(v ?? "")}>

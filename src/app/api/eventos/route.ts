@@ -24,6 +24,7 @@ function mapLiveShow(row: any) {
     updatedAt: row.updated_at,
     projectName: row.projects?.name ?? row.artist_name ?? null,
     dealTitle: row.deals?.title ?? null,
+    name: row.name ?? row.venue,
   };
 }
 
@@ -75,10 +76,11 @@ export async function POST(request: NextRequest) {
   if (error) return error;
 
   const body = await request.json().catch(() => ({}));
-  const { projectId, dealId, venueId, date, eventTime, venue, address, city, notes, status, fee, ticketIncome, expenses } = body as {
+  const { projectId, dealId, venueId, name, date, eventTime, venue, address, city, notes, status, fee, ticketIncome, expenses } = body as {
     projectId?: string;
     dealId?: string;
     venueId?: string | null;
+    name?: string;
     date?: string;
     eventTime?: string;
     venue?: string;
@@ -91,6 +93,10 @@ export async function POST(request: NextRequest) {
     expenses?: number | null;
   };
 
+  const trimmedName = name?.trim() ?? "";
+  if (!trimmedName) {
+    return NextResponse.json({ error: "El nombre del evento es requerido" }, { status: 400 });
+  }
   if (!projectId) {
     return NextResponse.json({ error: "projectId es requerido" }, { status: 400 });
   }
@@ -130,6 +136,7 @@ export async function POST(request: NextRequest) {
       project_id: projectId,
       deal_id: dealId || null,
       venue_id: venueId || null,
+      name: trimmedName,
       artist_name: project?.name || "Sin artista",
       date,
       event_time: eventTime || null,
