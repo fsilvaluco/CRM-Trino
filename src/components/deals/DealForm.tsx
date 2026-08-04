@@ -29,7 +29,7 @@ import { useProject } from "@/lib/project-context";
 import { AssigneeSelector, type OrgMember } from "@/components/shared/AssigneeSelector";
 import { CommentsWithMentions } from "@/components/shared/CommentsWithMentions";
 import { DealCloseReasonDialog } from "@/components/deals/DealCloseReasonDialog";
-import { ShowSetupDialog } from "@/components/shows/ShowSetupDialog";
+import { EventSetupDialog } from "@/components/events/EventSetupDialog";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -1013,7 +1013,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
               onCheckedChange={(v) => setValue("isShow", Boolean(v))}
             />
             <Label htmlFor="deal-is-show" className="cursor-pointer font-normal">
-              Es un show — al ganarlo, te voy a preguntar si armamos el show
+              Es un evento — al ganarlo, te voy a preguntar si armamos el evento
             </Label>
           </div>
 
@@ -1093,7 +1093,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
     )}
 
     {showSetup && (
-      <ShowSetupDialog
+      <EventSetupDialog
         open
         onClose={() => {
           setShowSetup(null);

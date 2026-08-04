@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
-import { createShowSchema, type Show } from "@/types/analytics";
+import { type Show } from "@/types/analytics";
 
 function errorResponse(message: string, status: number, details?: unknown) {
   return NextResponse.json(
@@ -41,6 +41,14 @@ function mapShow(row: any): Show {
   };
 }
 
+// GET /api/analytics/eventos -- dashboard financiero de SOLO LECTURA para
+// Métricas. Crear/editar eventos (logística + plata) se hace desde
+// /api/eventos -- este endpoint no tiene POST a propósito, para que no
+// se puedan seguir creando eventos "livianos" sin estado/dirección desde
+// Métricas como pasaba antes.
+//
+// Filtra a status="realizado": un evento cotizando o cancelado no debe
+// contarse en la utilidad real -- antes se contaban todos, sin filtrar.
 export async function GET(request: NextRequest) {
   const { supabase, orgId, error } = await requireAuth();
   if (error) return error;
@@ -53,6 +61,7 @@ export async function GET(request: NextRequest) {
     .from("shows")
     .select("*, show_ratings(vibe)")
     .eq("organization_id", orgId!)
+    .eq("status", "realizado")
     .order("date", { ascending: false });
 
   if (!isAllProjects && projectId) {
@@ -62,59 +71,8 @@ export async function GET(request: NextRequest) {
   const { data, error: dbError } = await query;
 
   if (dbError) {
-    return errorResponse("No se pudieron listar los shows", 500, dbError.message);
+    return errorResponse("No se pudieron listar los eventos", 500, dbError.message);
   }
 
   return NextResponse.json((data ?? []).map(mapShow));
-}
-
-export async function POST(request: NextRequest) {
-  const { supabase, orgId, error } = await requireAuth();
-  if (error) return error;
-
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
-  }
-
-  const parsed = createShowSchema.safeParse(body);
-  if (!parsed.success) {
-    return errorResponse("Payload invalido", 400, parsed.error.flatten());
-  }
-
-  const { projectId, date, venue, city, fee, ticketIncome, expenses, notes } = parsed.data;
-
-  const { data, error: dbError } = await supabase
-    .from("shows")
-    .insert({
-      organization_id: orgId,
-      project_id: projectId,
-      date,
-      venue,
-      city: city ?? null,
-      fee: fee ?? 0,
-      ticket_income: ticketIncome ?? 0,
-      expenses: expenses ?? 0,
-      notes: notes ?? null,
-    })
-    .select()
-    .single();
-
-  if (dbError) {
-    return errorResponse("No se pudo crear el show", 500, {
-      code: dbError.code,
-      message: dbError.message,
-      details: dbError.details,
-      hint: dbError.hint,
-    });
-  }
-
-  if (!data) {
-    return errorResponse("No se pudo crear el show", 500, { message: "No se recibió respuesta de la base de datos" });
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return NextResponse.json(mapShow(data as any), { status: 201 });
 }

@@ -11,7 +11,7 @@ import {
 import { KanbanColumn } from "./KanbanColumn";
 import { DealCard } from "./DealCard";
 import { DealCloseReasonDialog } from "@/components/deals/DealCloseReasonDialog";
-import { ShowSetupDialog } from "@/components/shows/ShowSetupDialog";
+import { EventSetupDialog } from "@/components/events/EventSetupDialog";
 import { toast } from "sonner";
 import type { PipelineColumn } from "@/types";
 import { useKanbanDnd } from "@/lib/hooks/use-kanban-dnd";
@@ -242,7 +242,7 @@ export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealCl
     )}
 
     {showSetup && (
-      <ShowSetupDialog
+      <EventSetupDialog
         open
         onClose={() => setShowSetup(null)}
         dealId={showSetup.dealId}

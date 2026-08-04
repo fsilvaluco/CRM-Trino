@@ -60,7 +60,7 @@ export const navConfig: NavItem[] = [
     icon: BarChart2,
     children: [
       { type: "leaf", href: "/analytics", label: "Resumen", icon: ClipboardList },
-      { type: "leaf", href: "/analytics/shows", label: "Shows", icon: Music },
+      { type: "leaf", href: "/analytics/eventos", label: "Eventos", icon: Music },
       { type: "leaf", href: "/analytics/instagram", label: "Instagram", icon: Camera },
       { type: "leaf", href: "/analytics/spotify", label: "Spotify", icon: Disc3 },
       { type: "leaf", href: "/analytics/tiktok", label: "TikTok", icon: Music2 },
@@ -89,8 +89,8 @@ export const navConfig: NavItem[] = [
   },
   {
     type: "leaf",
-    href: "/shows",
-    label: "Shows en vivo",
+    href: "/eventos",
+    label: "Eventos",
     icon: Mic2,
   },
   {
@@ -145,7 +145,7 @@ export const settingsConfig: NavLeaf[] = [
  *
  * Necesario porque un grupo como Métricas tiene un hijo cuyo href
  * ("/analytics") es prefijo de todos sus hermanos ("/analytics/instagram",
- * "/analytics/shows", etc.) — con un simple `startsWith` ese hijo (Resumen)
+ * "/analytics/eventos", etc.) — con un simple `startsWith` ese hijo (Resumen)
  * quedaría marcado como activo en cualquier subruta de Métricas, no solo
  * en la suya.
  */

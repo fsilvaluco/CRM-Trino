@@ -41,16 +41,16 @@ export async function GET(
     .single();
 
   if (dbError || !data) {
-    return NextResponse.json({ error: "Show no encontrado" }, { status: 404 });
+    return NextResponse.json({ error: "Evento no encontrado" }, { status: 404 });
   }
 
   return NextResponse.json(mapLiveShow(data));
 }
 
-// PUT /api/shows/[id] -- edita cualquier campo, incluyendo status
-// (Cotizando -> Confirmado -> Realizado -> Cancelado). Los campos
-// financieros (fee/ticketIncome/expenses) tambien se pueden editar
-// aca -- son los mismos que usa Metricas > Shows, es el mismo registro.
+// PUT /api/eventos/[id] -- edita cualquier campo, incluyendo status
+// (Cotizando -> Confirmado -> Realizado -> Cancelado) y los campos
+// financieros (fee/ticketIncome/expenses) -- son los mismos que lee
+// Metricas > Eventos, es el mismo registro.
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -71,9 +71,9 @@ export async function PUT(
     city?: string | null;
     notes?: string | null;
     status?: ShowStatus;
-    fee?: number;
-    ticketIncome?: number;
-    expenses?: number;
+    fee?: number | null;
+    ticketIncome?: number | null;
+    expenses?: number | null;
   };
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -84,9 +84,9 @@ export async function PUT(
   if (city !== undefined) updates.city = city || "";
   if (notes !== undefined) updates.notes = notes || null;
   if (status !== undefined) updates.status = status;
-  if (fee !== undefined) updates.fee = fee;
-  if (ticketIncome !== undefined) updates.ticket_income = ticketIncome;
-  if (expenses !== undefined) updates.expenses = expenses;
+  if (fee !== undefined) updates.fee = fee ?? 0;
+  if (ticketIncome !== undefined) updates.ticket_income = ticketIncome ?? 0;
+  if (expenses !== undefined) updates.expenses = expenses ?? 0;
 
   const { data, error: dbError } = await supabase
     .from("shows")
@@ -96,7 +96,7 @@ export async function PUT(
     .single();
 
   if (dbError) {
-    return NextResponse.json({ error: `Error al actualizar el show: ${dbError.message}` }, { status: 500 });
+    return NextResponse.json({ error: `Error al actualizar el evento: ${dbError.message}` }, { status: 500 });
   }
 
   return NextResponse.json(mapLiveShow(data));
@@ -112,7 +112,7 @@ export async function DELETE(
 
   const { error: dbError } = await supabase.from("shows").delete().eq("id", id);
   if (dbError) {
-    return NextResponse.json({ error: `Error al eliminar el show: ${dbError.message}` }, { status: 500 });
+    return NextResponse.json({ error: `Error al eliminar el evento: ${dbError.message}` }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });

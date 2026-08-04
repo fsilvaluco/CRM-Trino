@@ -49,7 +49,7 @@ export function useAnalyticsData() {
       const qs = params.toString() ? `?${params.toString()}` : "";
 
       const [showsRes, socialRes, merchRes, statusRes, shopifyRes, shopifyStatusRes, facebookStatusRes, spotifyStatsRes] = await Promise.all([
-        fetch(`/api/analytics/shows${qs}`),
+        fetch(`/api/analytics/eventos${qs}`),
         fetch(`/api/analytics/social${qs}`),
         fetch(`/api/analytics/merch${qs}`),
         fetch(`/api/integrations/meta/status${qs}`),

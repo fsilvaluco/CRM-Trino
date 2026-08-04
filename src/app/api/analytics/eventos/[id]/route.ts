@@ -66,7 +66,7 @@ export async function GET(
     .single();
 
   if (showErr || !show) {
-    return errorResponse("Show no encontrado", 404);
+    return errorResponse("Evento no encontrado", 404);
   }
 
   const { data: ratings, error: ratingsErr } = await supabase

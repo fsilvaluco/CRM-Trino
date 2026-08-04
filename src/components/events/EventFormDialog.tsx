@@ -28,7 +28,22 @@ const STATUS_OPTIONS: Array<{ value: ShowStatus; label: string }> = [
   { value: "cancelado", label: "Cancelado" },
 ];
 
-export function ShowFormDialog({
+// Igual que en Tratos: los montos se guardan en centavos (fee=$500.000 se
+// guarda como 50000000) -- convención de toda la app, no es que el peso
+// chileno tenga centavos reales.
+function pesosToCents(v: string): number | null {
+  const trimmed = v.trim();
+  if (!trimmed) return null;
+  const n = parseInt(trimmed.replace(/\D/g, ""), 10);
+  return Number.isFinite(n) ? n * 100 : null;
+}
+
+function centsToPesos(v: number | null | undefined): string {
+  if (v == null) return "";
+  return String(Math.round(v / 100));
+}
+
+export function EventFormDialog({
   open,
   onClose,
   projects,
@@ -50,6 +65,9 @@ export function ShowFormDialog({
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState<ShowStatus>("cotizando");
+  const [fee, setFee] = useState("");
+  const [ticketIncome, setTicketIncome] = useState("");
+  const [expenses, setExpenses] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -62,6 +80,9 @@ export function ShowFormDialog({
       setAddress(editingShow.address ?? "");
       setNotes(editingShow.notes ?? "");
       setStatus(editingShow.status);
+      setFee(centsToPesos(editingShow.fee));
+      setTicketIncome(centsToPesos(editingShow.ticketIncome));
+      setExpenses(centsToPesos(editingShow.expenses));
     } else {
       setProjectId(defaultProjectId ?? "");
       setDate("");
@@ -70,6 +91,9 @@ export function ShowFormDialog({
       setAddress("");
       setNotes("");
       setStatus("cotizando");
+      setFee("");
+      setTicketIncome("");
+      setExpenses("");
     }
   }, [open, editingShow, defaultProjectId]);
 
@@ -89,7 +113,7 @@ export function ShowFormDialog({
 
     setSaving(true);
     try {
-      const url = editingShow ? `/api/shows/${editingShow.id}` : "/api/shows";
+      const url = editingShow ? `/api/eventos/${editingShow.id}` : "/api/eventos";
       const method = editingShow ? "PUT" : "POST";
       const res = await fetch(url, {
         method,
@@ -102,17 +126,20 @@ export function ShowFormDialog({
           address: address || null,
           notes: notes || null,
           status,
+          fee: pesosToCents(fee),
+          ticketIncome: pesosToCents(ticketIncome),
+          expenses: pesosToCents(expenses),
         }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Error al guardar el show");
+        throw new Error(data.error ?? "Error al guardar el evento");
       }
-      toast.success(editingShow ? "Show actualizado" : "Show creado");
+      toast.success(editingShow ? "Evento actualizado" : "Evento creado");
       onSaved();
       onClose();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al guardar el show");
+      toast.error(err instanceof Error ? err.message : "Error al guardar el evento");
     } finally {
       setSaving(false);
     }
@@ -122,10 +149,10 @@ export function ShowFormDialog({
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>{editingShow ? "Editar show" : "Nuevo show"}</DialogTitle>
+          <DialogTitle>{editingShow ? "Editar evento" : "Nuevo evento"}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
           <div className="space-y-2">
             <Label>Proyecto / artista</Label>
             <Select value={projectId} onValueChange={(v) => setProjectId(v ?? "")}>
@@ -173,6 +200,29 @@ export function ShowFormDialog({
                 ))}
               </SelectContent>
             </Select>
+            {status !== "realizado" && (fee || ticketIncome || expenses) && (
+              <p className="text-xs text-muted-foreground">
+                Los montos no se cuentan en el dashboard de Métricas hasta que el estado sea &ldquo;Realizado&rdquo;.
+              </p>
+            )}
+          </div>
+
+          <div className="border-t pt-3 space-y-2">
+            <p className="text-xs font-medium text-muted-foreground">Plata</p>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="show-fee" className="text-xs">Fee</Label>
+                <Input id="show-fee" inputMode="numeric" placeholder="$0" value={fee} onChange={(e) => setFee(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="show-tickets" className="text-xs">Entradas</Label>
+                <Input id="show-tickets" inputMode="numeric" placeholder="$0" value={ticketIncome} onChange={(e) => setTicketIncome(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="show-expenses" className="text-xs">Gastos</Label>
+                <Input id="show-expenses" inputMode="numeric" placeholder="$0" value={expenses} onChange={(e) => setExpenses(e.target.value)} />
+              </div>
+            </div>
           </div>
 
           <div className="space-y-2">

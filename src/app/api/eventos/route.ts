@@ -26,9 +26,10 @@ function mapLiveShow(row: any) {
   };
 }
 
-// GET /api/shows?projectId=xxx&status=confirmado -- lista para el modulo
-// de Shows en vivo (logistica). No confundir con /api/analytics/shows,
-// que es el reporte financiero -- ambos leen la misma tabla `shows`.
+// GET /api/eventos?projectId=xxx&status=confirmado -- lista completa para
+// el modulo de Eventos (logistica + plata). No confundir con
+// /api/analytics/eventos, que es el dashboard financiero de solo lectura --
+// ambos leen la misma tabla `shows`.
 export async function GET(request: NextRequest) {
   const { supabase, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
@@ -65,15 +66,15 @@ export async function GET(request: NextRequest) {
   return NextResponse.json((data ?? []).map(mapLiveShow));
 }
 
-// POST /api/shows -- crea un show: autogestionado (desde el modulo,
+// POST /api/eventos -- crea un evento: autogestionado (desde el modulo,
 // eligiendo proyecto a mano) o disparado por el popup "¿Armamos el
-// show?" al ganar un deal marcado como show.
+// evento?" al ganar un deal marcado como evento.
 export async function POST(request: NextRequest) {
   const { supabase, orgId, error } = await requireAuth();
   if (error) return error;
 
   const body = await request.json().catch(() => ({}));
-  const { projectId, dealId, date, eventTime, venue, address, city, notes, status } = body as {
+  const { projectId, dealId, date, eventTime, venue, address, city, notes, status, fee, ticketIncome, expenses } = body as {
     projectId?: string;
     dealId?: string;
     date?: string;
@@ -83,6 +84,9 @@ export async function POST(request: NextRequest) {
     city?: string;
     notes?: string;
     status?: ShowStatus;
+    fee?: number | null;
+    ticketIncome?: number | null;
+    expenses?: number | null;
   };
 
   if (!projectId) {
@@ -111,15 +115,15 @@ export async function POST(request: NextRequest) {
       city: city || "",
       notes: notes || null,
       status: status || "cotizando",
-      fee: 0,
-      ticket_income: 0,
-      expenses: 0,
+      fee: fee ?? 0,
+      ticket_income: ticketIncome ?? 0,
+      expenses: expenses ?? 0,
     })
     .select("*, projects ( name ), deals ( title )")
     .single();
 
   if (dbError) {
-    return NextResponse.json({ error: `Error al crear el show: ${dbError.message}` }, { status: 500 });
+    return NextResponse.json({ error: `Error al crear el evento: ${dbError.message}` }, { status: 500 });
   }
 
   return NextResponse.json(mapLiveShow(data), { status: 201 });

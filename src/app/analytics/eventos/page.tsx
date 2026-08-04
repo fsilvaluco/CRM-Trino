@@ -2,19 +2,23 @@
 
 import { Music } from "lucide-react";
 import { AnalyticsPageHeader } from "@/components/analytics/AnalyticsPageHeader";
-import { ShowsTab } from "@/components/analytics/ShowsTab";
+import { EventsSummaryTab } from "@/components/analytics/EventsSummaryTab";
 import { useAnalyticsData } from "@/lib/use-analytics-data";
 
-export default function AnalyticsShowsPage() {
-  const { shows, loading, refresh } = useAnalyticsData();
+export default function AnalyticsEventosPage() {
+  const { shows, loading } = useAnalyticsData();
 
   return (
     <div className="space-y-6">
-      <AnalyticsPageHeader icon={Music} title="Shows" description="Fechas, utilidad y vibe de cada show" />
+      <AnalyticsPageHeader
+        icon={Music}
+        title="Eventos"
+        description="Utilidad y vibe de cada evento realizado"
+      />
       {loading ? (
         <div className="h-64 rounded-lg bg-muted animate-pulse" />
       ) : (
-        <ShowsTab shows={shows} onRefresh={refresh} />
+        <EventsSummaryTab shows={shows} />
       )}
     </div>
   );

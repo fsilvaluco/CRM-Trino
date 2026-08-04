@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
-export function ShowSetupDialog({
+export function EventSetupDialog({
   open,
   onClose,
   dealId,
@@ -26,7 +26,7 @@ export function ShowSetupDialog({
   onClose: () => void;
   dealId: string;
   dealTitle: string;
-  /** El proyecto (sello o artista) al que queda anclado el show -- el mismo que tenía el deal. */
+  /** El proyecto (sello o artista) al que queda anclado el evento -- el mismo que tenía el deal. */
   projectId: string;
   onSaved?: () => void;
 }) {
@@ -47,12 +47,12 @@ export function ShowSetupDialog({
 
   async function handleSave() {
     if (!date) {
-      toast.error("Ponle al menos la fecha del show");
+      toast.error("Ponle al menos la fecha del evento");
       return;
     }
     setSaving(true);
     try {
-      const res = await fetch("/api/shows", {
+      const res = await fetch("/api/eventos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -67,12 +67,12 @@ export function ShowSetupDialog({
         }),
       });
       if (!res.ok) throw new Error();
-      toast.success("Show armado -- lo puedes seguir completando en Shows en vivo");
+      toast.success("Evento armado -- lo puedes seguir completando en Eventos");
       reset();
       onSaved?.();
       onClose();
     } catch {
-      toast.error("No se pudo crear el show. Puedes armarlo a mano después desde Shows en vivo.");
+      toast.error("No se pudo crear el evento. Puedes armarlo a mano después desde Eventos.");
     } finally {
       setSaving(false);
     }
@@ -87,10 +87,10 @@ export function ShowSetupDialog({
     <Dialog open={open} onOpenChange={(v) => !v && handleSkip()}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>🎤 ¿Armamos el show?</DialogTitle>
+          <DialogTitle>🎤 ¿Armamos el evento?</DialogTitle>
           <DialogDescription>
-            &ldquo;{dealTitle}&rdquo; está marcado como show. Completa lo que ya sepas -- el resto lo
-            rellenas después desde Shows en vivo.
+            &ldquo;{dealTitle}&rdquo; está marcado como evento. Completa lo que ya sepas -- el resto lo
+            rellenas después desde Eventos.
           </DialogDescription>
         </DialogHeader>
 
@@ -131,7 +131,7 @@ export function ShowSetupDialog({
               Omitir
             </Button>
             <Button type="button" onClick={handleSave} disabled={saving} className="cursor-pointer">
-              {saving ? "Creando..." : "Armar show"}
+              {saving ? "Creando..." : "Armar evento"}
             </Button>
           </div>
         </div>
