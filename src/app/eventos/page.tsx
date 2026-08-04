@@ -189,7 +189,9 @@ export default function EventosPage() {
                 <CardContent className="p-4 flex items-center justify-between gap-4">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <p className="font-medium">{show.name}</p>
+                      <Link href={`/eventos/${show.id}`} className="font-medium hover:underline">
+                        {show.name}
+                      </Link>
                       <Badge variant="secondary" className={`text-xs ${STATUS_CONFIG[show.status].className}`}>
                         {STATUS_CONFIG[show.status].label}
                       </Badge>

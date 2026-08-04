@@ -25,6 +25,9 @@ function mapLiveShow(row: any) {
     projectName: row.projects?.name ?? row.artist_name ?? null,
     dealTitle: row.deals?.title ?? null,
     name: row.name ?? row.venue,
+    eventLink: row.event_link ?? null,
+    riderLocal: row.rider_local ?? null,
+    riderBanda: row.rider_banda ?? null,
   };
 }
 
@@ -46,7 +49,27 @@ export async function GET(
     return NextResponse.json({ error: "Evento no encontrado" }, { status: 404 });
   }
 
-  return NextResponse.json(mapLiveShow(data));
+  const [{ data: setlistRows }, { data: costRows }] = await Promise.all([
+    supabase.from("event_setlist_items").select("*").eq("show_id", id).order("position"),
+    supabase.from("event_cost_items").select("*").eq("show_id", id).order("position"),
+  ]);
+
+  return NextResponse.json({
+    ...mapLiveShow(data),
+    setlist: (setlistRows ?? []).map((r) => ({
+      id: r.id,
+      position: r.position,
+      title: r.title,
+      notes: r.notes ?? null,
+    })),
+    costItems: (costRows ?? []).map((r) => ({
+      id: r.id,
+      position: r.position,
+      label: r.label,
+      amount: r.amount,
+      notes: r.notes ?? null,
+    })),
+  });
 }
 
 // PUT /api/eventos/[id] -- edita cualquier campo, incluyendo status
@@ -65,6 +88,7 @@ export async function PUT(
   const {
     date, eventTime, venue, address, city, notes, status,
     fee, ticketIncome, expenses, venueId, name,
+    eventLink, riderLocal, riderBanda,
   } = body as {
     date?: string;
     eventTime?: string | null;
@@ -78,6 +102,9 @@ export async function PUT(
     expenses?: number | null;
     venueId?: string | null;
     name?: string;
+    eventLink?: string | null;
+    riderLocal?: string | null;
+    riderBanda?: string | null;
   };
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -116,6 +143,9 @@ export async function PUT(
   if (fee !== undefined) updates.fee = fee ?? 0;
   if (ticketIncome !== undefined) updates.ticket_income = ticketIncome ?? 0;
   if (expenses !== undefined) updates.expenses = expenses ?? 0;
+  if (eventLink !== undefined) updates.event_link = eventLink || null;
+  if (riderLocal !== undefined) updates.rider_local = riderLocal || null;
+  if (riderBanda !== undefined) updates.rider_banda = riderBanda || null;
 
   const { data, error: dbError } = await supabase
     .from("shows")

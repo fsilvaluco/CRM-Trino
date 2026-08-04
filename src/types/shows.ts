@@ -1,5 +1,20 @@
 export type ShowStatus = "cotizando" | "confirmado" | "realizado" | "cancelado";
 
+export interface SetlistItem {
+  id: string;
+  position: number;
+  title: string;
+  notes: string | null;
+}
+
+export interface CostItem {
+  id: string;
+  position: number;
+  label: string;
+  amount: number;
+  notes: string | null;
+}
+
 export interface LiveShow {
   id: string;
   projectId: string | null;
@@ -17,6 +32,9 @@ export interface LiveShow {
   fee: number | null;
   ticketIncome: number | null;
   expenses: number | null;
+  eventLink: string | null;
+  riderLocal: string | null;
+  riderBanda: string | null;
   createdAt: string;
   updatedAt: string;
   projectName: string | null;
