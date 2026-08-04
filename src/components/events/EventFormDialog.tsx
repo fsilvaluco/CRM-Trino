@@ -19,14 +19,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { MapPin } from "lucide-react";
+import { VenueCombobox } from "@/components/venues/VenueCombobox";
 import type { LiveShow, ShowStatus } from "@/types/shows";
+import type { Venue } from "@/types/venues";
 
-const STATUS_OPTIONS: Array<{ value: ShowStatus; label: string }> = [
-  { value: "cotizando", label: "Cotizando" },
-  { value: "confirmado", label: "Confirmado" },
-  { value: "realizado", label: "Realizado" },
-  { value: "cancelado", label: "Cancelado" },
-];
+const STATUS_LABELS: Record<ShowStatus, string> = {
+  cotizando: "Cotizando",
+  confirmado: "Confirmado",
+  realizado: "Realizado",
+  cancelado: "Cancelado",
+};
 
 // Igual que en Tratos: los montos se guardan en centavos (fee=$500.000 se
 // guarda como 50000000) -- convención de toda la app, no es que el peso
@@ -61,14 +64,14 @@ export function EventFormDialog({
   const [projectId, setProjectId] = useState("");
   const [date, setDate] = useState("");
   const [eventTime, setEventTime] = useState("");
-  const [venue, setVenue] = useState("");
-  const [address, setAddress] = useState("");
+  const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState<ShowStatus>("cotizando");
   const [fee, setFee] = useState("");
   const [ticketIncome, setTicketIncome] = useState("");
   const [expenses, setExpenses] = useState("");
   const [saving, setSaving] = useState(false);
+  const [loadingVenue, setLoadingVenue] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -76,19 +79,57 @@ export function EventFormDialog({
       setProjectId(editingShow.projectId ?? "");
       setDate(editingShow.date);
       setEventTime(editingShow.eventTime ?? "");
-      setVenue(editingShow.venue);
-      setAddress(editingShow.address ?? "");
       setNotes(editingShow.notes ?? "");
       setStatus(editingShow.status);
       setFee(centsToPesos(editingShow.fee));
       setTicketIncome(centsToPesos(editingShow.ticketIncome));
       setExpenses(centsToPesos(editingShow.expenses));
+
+      if (editingShow.venueId) {
+        setLoadingVenue(true);
+        fetch(`/api/venues/${editingShow.venueId}`)
+          .then((r) => (r.ok ? r.json() : null))
+          .then((v) => setSelectedVenue(v))
+          .catch(() => setSelectedVenue(null))
+          .finally(() => setLoadingVenue(false));
+      } else {
+        // Evento viejo sin venue_id -- solo tiene el nombre en texto libre.
+        // Se representa como un Venue "fantasma" (id vacío) para poder
+        // mostrarlo en el combobox sin forzar a crear un venue real todavía.
+        setSelectedVenue(
+          editingShow.venue
+            ? ({
+                id: "",
+                name: editingShow.venue,
+                address: editingShow.address ?? "",
+                comuna: null,
+                region: null,
+                country: null,
+                latitude: null,
+                longitude: null,
+                capacityStanding: null,
+                capacitySeated: null,
+                mood: null,
+                description: null,
+                parkingAvailable: null,
+                backlineAvailable: null,
+                website: null,
+                instagram: null,
+                contactId: null,
+                companyId: null,
+                contactName: null,
+                companyName: null,
+                createdAt: "",
+                updatedAt: "",
+              } satisfies Venue)
+            : null
+        );
+      }
     } else {
       setProjectId(defaultProjectId ?? "");
       setDate("");
       setEventTime("");
-      setVenue("");
-      setAddress("");
+      setSelectedVenue(null);
       setNotes("");
       setStatus("cotizando");
       setFee("");
@@ -106,8 +147,8 @@ export function EventFormDialog({
       toast.error("La fecha es requerida");
       return;
     }
-    if (!venue.trim()) {
-      toast.error("El venue es requerido");
+    if (!selectedVenue) {
+      toast.error("Selecciona o crea un venue");
       return;
     }
 
@@ -122,8 +163,12 @@ export function EventFormDialog({
           projectId,
           date,
           eventTime: eventTime || null,
-          venue: venue.trim(),
-          address: address || null,
+          // Si el venue tiene id real, mandamos venueId (fuente de verdad).
+          // Si es el caso legacy de texto libre (id vacío), mandamos el
+          // nombre directo para no perderlo.
+          venueId: selectedVenue.id || null,
+          venue: selectedVenue.id ? undefined : selectedVenue.name,
+          address: selectedVenue.id ? undefined : selectedVenue.address || null,
           notes: notes || null,
           status,
           fee: pesosToCents(fee),
@@ -156,8 +201,10 @@ export function EventFormDialog({
           <div className="space-y-2">
             <Label>Proyecto / artista</Label>
             <Select value={projectId} onValueChange={(v) => setProjectId(v ?? "")}>
-              <SelectTrigger className="cursor-pointer">
-                <SelectValue placeholder="Selecciona uno" />
+              <SelectTrigger className="cursor-pointer w-full">
+                <SelectValue placeholder="Selecciona uno">
+                  {projects.find((p) => p.id === projectId)?.name}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {projects.map((p) => (
@@ -179,24 +226,34 @@ export function EventFormDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="show-venue">Venue</Label>
-            <Input id="show-venue" value={venue} onChange={(e) => setVenue(e.target.value)} />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="show-address">Dirección</Label>
-            <Input id="show-address" value={address} onChange={(e) => setAddress(e.target.value)} />
+            <Label>Venue</Label>
+            {loadingVenue ? (
+              <div className="h-9 rounded-md border bg-muted/40 animate-pulse" />
+            ) : (
+              <VenueCombobox
+                value={selectedVenue?.id || null}
+                selectedVenue={selectedVenue}
+                onSelect={setSelectedVenue}
+              />
+            )}
+            {selectedVenue?.address && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <MapPin className="h-3 w-3 shrink-0" />
+                {selectedVenue.address}
+                {selectedVenue.comuna ? `, ${selectedVenue.comuna}` : ""}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
             <Label>Estado</Label>
             <Select value={status} onValueChange={(v) => setStatus(v as ShowStatus)}>
-              <SelectTrigger className="cursor-pointer">
-                <SelectValue />
+              <SelectTrigger className="cursor-pointer w-full">
+                <SelectValue>{STATUS_LABELS[status]}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {STATUS_OPTIONS.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>{label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

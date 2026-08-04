@@ -22,6 +22,7 @@ import {
   Plug,
   CreditCard,
   Mic2,
+  MapPin,
 } from "lucide-react";
 import { type LucideIcon } from "lucide-react";
 
@@ -78,6 +79,7 @@ export const navConfig: NavItem[] = [
       { type: "leaf", href: "/crm", label: "Tratos", icon: Kanban, moduleKey: "deals" },
       { type: "leaf", href: "/contacts", label: "Contactos", icon: Users },
       { type: "leaf", href: "/companies", label: "Empresas", icon: Building2 },
+      { type: "leaf", href: "/venues", label: "Venues", icon: MapPin },
       { type: "leaf", href: "/lead-candidates", label: "Bandeja de Leads", icon: Inbox, moduleKey: "lead_candidates" },
     ],
   },

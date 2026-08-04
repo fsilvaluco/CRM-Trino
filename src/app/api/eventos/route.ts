@@ -9,6 +9,7 @@ function mapLiveShow(row: any) {
     projectId: row.project_id ?? null,
     artistName: row.artist_name,
     dealId: row.deal_id ?? null,
+    venueId: row.venue_id ?? null,
     date: row.date,
     eventTime: row.event_time ?? null,
     venue: row.venue,
@@ -74,9 +75,10 @@ export async function POST(request: NextRequest) {
   if (error) return error;
 
   const body = await request.json().catch(() => ({}));
-  const { projectId, dealId, date, eventTime, venue, address, city, notes, status, fee, ticketIncome, expenses } = body as {
+  const { projectId, dealId, venueId, date, eventTime, venue, address, city, notes, status, fee, ticketIncome, expenses } = body as {
     projectId?: string;
     dealId?: string;
+    venueId?: string | null;
     date?: string;
     eventTime?: string;
     venue?: string;
@@ -95,7 +97,27 @@ export async function POST(request: NextRequest) {
   if (!date) {
     return NextResponse.json({ error: "La fecha es requerida" }, { status: 400 });
   }
-  if (!venue || !venue.trim()) {
+
+  // El venue viene de un venue_id (lo normal, elegido en el combobox) o,
+  // para casos viejos/uno-off, de un nombre de texto libre directo.
+  let resolvedVenueName = venue?.trim() ?? "";
+  let resolvedAddress = address || null;
+  let resolvedCity = city || "";
+  if (venueId) {
+    const { data: venueRow } = await supabase
+      .from("venues")
+      .select("name, address, comuna")
+      .eq("id", venueId)
+      .eq("organization_id", orgId!)
+      .single();
+    if (venueRow) {
+      resolvedVenueName = venueRow.name;
+      resolvedAddress = venueRow.address;
+      resolvedCity = venueRow.comuna ?? resolvedCity;
+    }
+  }
+
+  if (!resolvedVenueName) {
     return NextResponse.json({ error: "El venue es requerido" }, { status: 400 });
   }
 
@@ -107,12 +129,13 @@ export async function POST(request: NextRequest) {
       organization_id: orgId,
       project_id: projectId,
       deal_id: dealId || null,
+      venue_id: venueId || null,
       artist_name: project?.name || "Sin artista",
       date,
       event_time: eventTime || null,
-      venue: venue.trim(),
-      address: address || null,
-      city: city || "",
+      venue: resolvedVenueName,
+      address: resolvedAddress,
+      city: resolvedCity,
       notes: notes || null,
       status: status || "cotizando",
       fee: fee ?? 0,

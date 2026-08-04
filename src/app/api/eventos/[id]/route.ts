@@ -9,6 +9,7 @@ function mapLiveShow(row: any) {
     projectId: row.project_id ?? null,
     artistName: row.artist_name,
     dealId: row.deal_id ?? null,
+    venueId: row.venue_id ?? null,
     date: row.date,
     eventTime: row.event_time ?? null,
     venue: row.venue,
@@ -62,7 +63,7 @@ export async function PUT(
   const body = await request.json().catch(() => ({}));
   const {
     date, eventTime, venue, address, city, notes, status,
-    fee, ticketIncome, expenses,
+    fee, ticketIncome, expenses, venueId,
   } = body as {
     date?: string;
     eventTime?: string | null;
@@ -74,14 +75,32 @@ export async function PUT(
     fee?: number | null;
     ticketIncome?: number | null;
     expenses?: number | null;
+    venueId?: string | null;
   };
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+
+  if (venueId !== undefined) {
+    updates.venue_id = venueId || null;
+    if (venueId) {
+      const { data: venueRow } = await supabase
+        .from("venues")
+        .select("name, address, comuna")
+        .eq("id", venueId)
+        .single();
+      if (venueRow) {
+        updates.venue = venueRow.name;
+        updates.address = venueRow.address;
+        updates.city = venueRow.comuna ?? "";
+      }
+    }
+  }
+
   if (date !== undefined) updates.date = date;
   if (eventTime !== undefined) updates.event_time = eventTime || null;
-  if (venue !== undefined) updates.venue = venue;
-  if (address !== undefined) updates.address = address || null;
-  if (city !== undefined) updates.city = city || "";
+  if (venue !== undefined && venueId === undefined) updates.venue = venue;
+  if (address !== undefined && venueId === undefined) updates.address = address || null;
+  if (city !== undefined && venueId === undefined) updates.city = city || "";
   if (notes !== undefined) updates.notes = notes || null;
   if (status !== undefined) updates.status = status;
   if (fee !== undefined) updates.fee = fee ?? 0;
