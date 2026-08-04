@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { AddressAutocompleteInput, type PlaceDetails } from "@/components/venues/AddressAutocompleteInput";
 import type { Venue } from "@/types/venues";
 
 interface SimpleOption {
@@ -62,6 +63,8 @@ export function VenueFormDialog({
 }) {
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
   const [comuna, setComuna] = useState("");
   const [region, setRegion] = useState("");
   const [country, setCountry] = useState("");
@@ -97,6 +100,8 @@ export function VenueFormDialog({
     if (editingVenue) {
       setName(editingVenue.name);
       setAddress(editingVenue.address);
+      setLatitude(editingVenue.latitude ?? null);
+      setLongitude(editingVenue.longitude ?? null);
       setComuna(editingVenue.comuna ?? "");
       setRegion(editingVenue.region ?? "");
       setCountry(editingVenue.country ?? "");
@@ -113,6 +118,8 @@ export function VenueFormDialog({
     } else {
       setName(initialName ?? "");
       setAddress("");
+      setLatitude(null);
+      setLongitude(null);
       setComuna("");
       setRegion("");
       setCountry("");
@@ -149,6 +156,8 @@ export function VenueFormDialog({
         body: JSON.stringify({
           name: name.trim(),
           address: address.trim(),
+          latitude,
+          longitude,
           comuna: comuna || null,
           region: region || null,
           country: country || null,
@@ -178,7 +187,7 @@ export function VenueFormDialog({
       setSaving(false);
     }
   }, [
-    name, address, comuna, region, country, capacityStanding, capacitySeated,
+    name, address, latitude, longitude, comuna, region, country, capacityStanding, capacitySeated,
     mood, description, parking, backline, website, instagram, contactId, companyId,
     editingVenue, onSaved, onClose,
   ]);
@@ -198,15 +207,20 @@ export function VenueFormDialog({
 
           <div className="space-y-2">
             <Label htmlFor="venue-address">Dirección *</Label>
-            <Input
+            <AddressAutocompleteInput
               id="venue-address"
-              placeholder="Av. Sta. Isabel 52, Providencia"
               value={address}
-              onChange={(e) => setAddress(e.target.value)}
+              onChange={setAddress}
+              placeholder="Av. Sta. Isabel 52, Providencia"
+              onPlaceSelected={(details: PlaceDetails) => {
+                setAddress(details.address);
+                setLatitude(details.latitude);
+                setLongitude(details.longitude);
+                if (details.comuna) setComuna(details.comuna);
+                if (details.region) setRegion(details.region);
+                if (details.country) setCountry(details.country);
+              }}
             />
-            <p className="text-xs text-muted-foreground">
-              Por ahora se escribe a mano. En cuanto tengas una API key de Google Maps la conectamos para autocompletar.
-            </p>
           </div>
 
           <div className="grid grid-cols-3 gap-2">
