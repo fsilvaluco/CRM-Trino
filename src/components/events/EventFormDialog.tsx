@@ -21,7 +21,7 @@ import {
 import { toast } from "sonner";
 import { MapPin } from "lucide-react";
 import { VenueCombobox } from "@/components/venues/VenueCombobox";
-import { MoneyInput } from "@/components/events/MoneyInput";
+import { MoneyInput } from "@/components/shared/MoneyInput";
 import type { LiveShow, ShowStatus } from "@/types/shows";
 import type { Venue } from "@/types/venues";
 

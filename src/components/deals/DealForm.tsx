@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { useLocale } from "@/lib/locale-context";
 import { useProject } from "@/lib/project-context";
 import { AssigneeSelector, type OrgMember } from "@/components/shared/AssigneeSelector";
+import { MoneyInput } from "@/components/shared/MoneyInput";
 import { CommentsWithMentions } from "@/components/shared/CommentsWithMentions";
 import { DealCloseReasonDialog } from "@/components/deals/DealCloseReasonDialog";
 import { EventSetupDialog } from "@/components/events/EventSetupDialog";
@@ -371,7 +372,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
         setLinkedEventUtilidad(deal.linkedEventUtilidad ?? null);
         reset({
           title: deal.title,
-          value: (deal.value / 100).toFixed(2),
+          value: String(Math.round(deal.value / 100)),
           valueType: deal.valueType ?? "fixed",
           percentageValue: deal.percentageValue != null ? String(deal.percentageValue) : "",
           taxType: deal.taxType ?? "afecto",
@@ -777,12 +778,11 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
               {selectedValueType === "fixed" ? (
                 <>
                   <Label htmlFor="deal-value">Valor neto ({settings.currency})</Label>
-                  <Input
+                  <MoneyInput
                     id="deal-value"
-                    type="number"
-                    step="0.01"
-                    {...register("value")}
-                    placeholder="0.00"
+                    value={watch("value")}
+                    onChange={(digits) => setValue("value", digits)}
+                    placeholder="$0"
                   />
                   {errors.value && (
                     <p className="text-xs text-destructive">{errors.value.message}</p>
@@ -1084,6 +1084,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
 
           {watch("source") && (() => {
             const rate = parseFloat(watch("commissionRate")) || projectDefaultCommissionRate;
+            const artistRate = 100 - rate;
             const isArtistSource = watch("source") === "artista_antiguo" || watch("source") === "artista_nuevo";
             const baseCents = isArtistSource
               ? linkedEventUtilidad
@@ -1093,19 +1094,20 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
             if (baseCents == null) {
               return (
                 <p className="text-xs text-muted-foreground">
-                  Comisión ({rate}% sobre {baseLabel}): se calculará una vez que este trato tenga un evento
-                  vinculado con datos financieros.
+                  Comisión ({rate}% Trino / {artistRate}% artista, sobre {baseLabel}): se calculará una vez que
+                  este trato tenga un evento vinculado con datos financieros.
                 </p>
               );
             }
 
-            const commissionCents = Math.round(baseCents * (rate / 100));
+            const clp = (cents: number) =>
+              new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(cents / 100);
+            const trinoCents = Math.round(baseCents * (rate / 100));
+            const artistCents = baseCents - trinoCents;
             return (
               <p className="text-xs text-muted-foreground">
-                Comisión Trino ({rate}% sobre {baseLabel}):{" "}
-                <span className="font-medium text-foreground">
-                  {new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(commissionCents / 100)}
-                </span>
+                Sobre {baseLabel}: Trino ({rate}%) <span className="font-medium text-foreground">{clp(trinoCents)}</span>
+                {" · "}Artista ({artistRate}%) <span className="font-medium text-foreground">{clp(artistCents)}</span>
               </p>
             );
           })()}

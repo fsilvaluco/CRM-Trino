@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { EventFormDialog } from "@/components/events/EventFormDialog";
 import { SortableList } from "@/components/events/SortableList";
 import { TypeaheadInput } from "@/components/events/TypeaheadInput";
-import { MoneyInput } from "@/components/events/MoneyInput";
+import { MoneyInput } from "@/components/shared/MoneyInput";
 import { Checkbox } from "@/components/ui/checkbox";
 import { liquidoToBruto, retencionFromBruto, BHE_RETENTION_RATE } from "@/lib/bhe";
 import { toast } from "sonner";
