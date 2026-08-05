@@ -68,6 +68,8 @@ const dealSchema = z
     isShow: z.boolean(),
     projectId: z.string().min(1, "El proyecto es requerido"),
     artistProjectId: z.string().optional(),
+    source: z.string(),
+    commissionRate: z.string(),
   })
   .superRefine((data, ctx) => {
     if (data.valueType === "fixed") {
@@ -112,6 +114,8 @@ interface DealRecord {
   notes: string | null;
   referenceUrl: string | null;
   isShow: boolean;
+  source: string | null;
+  commissionRate: number | null;
   assignees?: Array<{ userId: string }>;
 }
 
@@ -147,6 +151,8 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
   const [artistProjects, setArtistProjects] = useState<Array<{ id: string; name: string }>>([]);
   const [isLoadingDeal, setIsLoadingDeal] = useState(false);
   const [dealLoadError, setDealLoadError] = useState<string | null>(null);
+  const [projectDefaultCommissionRate, setProjectDefaultCommissionRate] = useState(30);
+  const [linkedEventUtilidad, setLinkedEventUtilidad] = useState<number | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [newContactName, setNewContactName] = useState("");
   const [newContactEmail, setNewContactEmail] = useState("");
@@ -259,6 +265,21 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
     }
   }, [activeProject?.id, selectedProjectId]);
 
+  // Comision Trino: la base % vive en el proyecto (distintos artistas
+  // pueden pactar distinto) -- se actualiza en vivo si cambian el
+  // proyecto del trato.
+  useEffect(() => {
+    const effectiveProjectId = selectedProjectId || activeProject?.id || "";
+    if (!effectiveProjectId) {
+      setProjectDefaultCommissionRate(30);
+      return;
+    }
+    fetch(`/api/projects/${effectiveProjectId}`)
+      .then((r) => r.json())
+      .then((d) => setProjectDefaultCommissionRate(typeof d.defaultCommissionRate === "number" ? d.defaultCommissionRate : 30))
+      .catch(() => setProjectDefaultCommissionRate(30));
+  }, [activeProject?.id, selectedProjectId]);
+
   // Si el proyecto seleccionado es un sello (Trino, Katarsis, SiSoy) con
   // artistas debajo, se ofrece elegir a cual beneficia el trato -- eso le
   // da visibilidad de solo lectura en el pipeline del artista.
@@ -323,7 +344,10 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
         isShow: false,
         projectId: prefill?.projectId ?? activeProject?.id ?? "",
         artistProjectId: prefill?.artistProjectId ?? "",
+        source: "",
+        commissionRate: "",
       });
+      setLinkedEventUtilidad(null);
       return;
     }
 
@@ -336,14 +360,15 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
         if (!response.ok) {
           throw new Error(extractApiError(payload, "No se pudo cargar el deal"));
         }
-        return payload as DealRecord;
+        return payload as DealRecord & { linkedEventUtilidad?: number | null };
       })
-      .then((deal: DealRecord) => {
+      .then((deal) => {
         if (controller.signal.aborted) return;
         originalStageIdRef.current = deal.stageId;
         setAssociationType(deal.contactId ? "contacto" : "empresa");
         setAssociationQuery("");
         setSelectedAssignees((deal.assignees ?? []).map((a) => a.userId));
+        setLinkedEventUtilidad(deal.linkedEventUtilidad ?? null);
         reset({
           title: deal.title,
           value: (deal.value / 100).toFixed(2),
@@ -359,6 +384,8 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
           isShow: deal.isShow ?? false,
           projectId: activeProject?.id || deal.projectId || "",
           artistProjectId: deal.artistProjectId || "",
+          source: deal.source || "",
+          commissionRate: deal.commissionRate != null ? String(deal.commissionRate) : "",
         });
       })
       .catch((error) => {
@@ -1016,6 +1043,72 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
               Es un evento — al ganarlo, te voy a preguntar si armamos el evento
             </Label>
           </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-2">
+              <Label htmlFor="deal-source">Fuente</Label>
+              <Select value={watch("source")} onValueChange={(v) => setValue("source", v ?? "")}>
+                <SelectTrigger id="deal-source" className="cursor-pointer w-full">
+                  <SelectValue placeholder="Sin definir">
+                    {
+                      {
+                        trino: "Trino",
+                        trino_nuevo: "Trino Nuevo",
+                        artista_antiguo: "Artista (antiguo)",
+                        artista_nuevo: "Artista (nuevo)",
+                      }[watch("source")]
+                    }
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="trino">Trino</SelectItem>
+                  <SelectItem value="trino_nuevo">Trino Nuevo</SelectItem>
+                  <SelectItem value="artista_antiguo">Artista (antiguo)</SelectItem>
+                  <SelectItem value="artista_nuevo">Artista (nuevo)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="deal-commission-rate">Comisión (%) — opcional</Label>
+              <Input
+                id="deal-commission-rate"
+                type="number"
+                step="0.01"
+                min="0"
+                max="100"
+                placeholder={String(projectDefaultCommissionRate)}
+                {...register("commissionRate")}
+              />
+            </div>
+          </div>
+
+          {watch("source") && (() => {
+            const rate = parseFloat(watch("commissionRate")) || projectDefaultCommissionRate;
+            const isArtistSource = watch("source") === "artista_antiguo" || watch("source") === "artista_nuevo";
+            const baseCents = isArtistSource
+              ? linkedEventUtilidad
+              : Math.round((parseFloat(watch("value") || "0") || 0) * 100);
+            const baseLabel = isArtistSource ? "utilidad del evento vinculado" : "ingreso neto (valor del trato)";
+
+            if (baseCents == null) {
+              return (
+                <p className="text-xs text-muted-foreground">
+                  Comisión ({rate}% sobre {baseLabel}): se calculará una vez que este trato tenga un evento
+                  vinculado con datos financieros.
+                </p>
+              );
+            }
+
+            const commissionCents = Math.round(baseCents * (rate / 100));
+            return (
+              <p className="text-xs text-muted-foreground">
+                Comisión Trino ({rate}% sobre {baseLabel}):{" "}
+                <span className="font-medium text-foreground">
+                  {new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(commissionCents / 100)}
+                </span>
+              </p>
+            );
+          })()}
 
           <AssigneeSelector
             orgMembers={orgMembers}

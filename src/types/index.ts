@@ -133,6 +133,7 @@ export interface Project {
   parentProjectId: string | null;
   selfManaged: boolean;
   driveUrl: string | null;
+  defaultCommissionRate: number;
   createdAt: Date;
   updatedAt: Date;
 }

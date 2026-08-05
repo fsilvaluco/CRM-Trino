@@ -39,6 +39,7 @@ export async function GET(
     parentProjectId: project.parent_project_id ?? null,
     selfManaged: project.self_managed ?? false,
     driveUrl: project.drive_url ?? null,
+    defaultCommissionRate: project.default_commission_rate ?? 30,
     socialLinks: project.social_links ?? {},
     createdAt: project.created_at,
     updatedAt: project.updated_at,
@@ -71,8 +72,8 @@ export async function PUT(
     return NextResponse.json({ error: "Proyecto no encontrado" }, { status: 404 });
   }
 
-  const { name, type, status, description, companyId, notes, parentProjectId, selfManaged, driveUrl, socialLinks } =
-    body as Record<string, string | boolean | Record<string, string> | undefined>;
+  const { name, type, status, description, companyId, notes, parentProjectId, selfManaged, driveUrl, socialLinks, defaultCommissionRate } =
+    body as Record<string, string | boolean | number | Record<string, string> | undefined>;
 
   if (parentProjectId && parentProjectId === id) {
     return NextResponse.json(
@@ -93,6 +94,8 @@ export async function PUT(
       parent_project_id: parentProjectId !== undefined ? parentProjectId || null : existing.parent_project_id,
       self_managed: selfManaged !== undefined ? Boolean(selfManaged) : existing.self_managed,
       drive_url: driveUrl !== undefined ? driveUrl || null : existing.drive_url,
+      default_commission_rate:
+        typeof defaultCommissionRate === "number" ? defaultCommissionRate : existing.default_commission_rate,
       social_links:
         socialLinks !== undefined
           ? { ...((existing.social_links as Record<string, string>) ?? {}), ...(socialLinks as Record<string, string>) }

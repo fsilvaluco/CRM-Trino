@@ -38,6 +38,7 @@ const projectSchema = z.object({
   parentProjectId: z.string(),
   selfManaged: z.boolean(),
   driveUrl: z.string(),
+  defaultCommissionRate: z.string(),
 });
 
 type ProjectFormData = z.infer<typeof projectSchema>;
@@ -88,6 +89,7 @@ export function ProjectForm({ open, onClose, initialData }: ProjectFormProps) {
       parentProjectId: initialData?.parentProjectId || "",
       selfManaged: initialData?.selfManaged ?? false,
       driveUrl: initialData?.driveUrl || "",
+      defaultCommissionRate: initialData?.defaultCommissionRate != null ? String(initialData.defaultCommissionRate) : "30",
     },
   });
 
@@ -108,6 +110,7 @@ export function ProjectForm({ open, onClose, initialData }: ProjectFormProps) {
           parentProjectId: data.parentProjectId || null,
           selfManaged: data.selfManaged,
           driveUrl: data.driveUrl || null,
+          defaultCommissionRate: data.defaultCommissionRate ? parseFloat(data.defaultCommissionRate) : 30,
         }),
       });
 
@@ -210,6 +213,23 @@ export function ProjectForm({ open, onClose, initialData }: ProjectFormProps) {
             <Label htmlFor="project-self-managed" className="cursor-pointer">
               Autogestionado (puede editar sus propios tratos, no solo verlos)
             </Label>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="project-commission-rate">Comisión Trino por defecto (%)</Label>
+            <Input
+              id="project-commission-rate"
+              type="number"
+              step="0.01"
+              min="0"
+              max="100"
+              {...register("defaultCommissionRate")}
+              placeholder="30"
+            />
+            <p className="text-xs text-muted-foreground">
+              Base para calcular la comisión de los tratos de este proyecto (ver campo &quot;Fuente&quot; en
+              cada trato). Se puede pisar puntualmente en un trato específico.
+            </p>
           </div>
 
           <div className="space-y-2">

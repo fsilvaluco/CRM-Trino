@@ -15,6 +15,7 @@ function mapProject(row: any) {
     parentProjectId: row.parent_project_id ?? null,
     selfManaged: row.self_managed ?? false,
     driveUrl: row.drive_url ?? null,
+    defaultCommissionRate: row.default_commission_rate ?? 30,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     companyName: row.project_company?.name ?? row.companies?.name ?? null,
@@ -63,8 +64,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
   }
 
-  const { name, type, status, description, companyId, notes, parentProjectId, selfManaged, driveUrl } =
-    body as Record<string, string | boolean | undefined>;
+  const { name, type, status, description, companyId, notes, parentProjectId, selfManaged, driveUrl, defaultCommissionRate } =
+    body as Record<string, string | boolean | number | undefined>;
 
   if (!name || typeof name !== "string" || name.trim() === "") {
     return NextResponse.json({ error: "El nombre es requerido" }, { status: 400 });
@@ -82,6 +83,7 @@ export async function POST(request: NextRequest) {
       parent_project_id: parentProjectId || null,
       self_managed: Boolean(selfManaged),
       drive_url: driveUrl || null,
+      default_commission_rate: typeof defaultCommissionRate === "number" ? defaultCommissionRate : 30,
       organization_id: orgId,
       created_by: user!.id,
     })

@@ -19,6 +19,8 @@ function mapDeal(row: any) {
     notes: row.notes ?? null,
     referenceUrl: row.reference_url ?? null,
     isShow: row.is_show ?? false,
+    source: row.source ?? null,
+    commissionRate: row.commission_rate ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     contactName: row.contacts?.name ?? null,
@@ -97,7 +99,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
   }
 
-  const { title, value, valueType, percentageValue, taxType, stageId, contactId, companyId, expectedClose, probability, notes, referenceUrl, isShow, projectId, artistProjectId, assigneeIds } = body;
+  const { title, value, valueType, percentageValue, taxType, stageId, contactId, companyId, expectedClose, probability, notes, referenceUrl, isShow, projectId, artistProjectId, assigneeIds, source, commissionRate } = body;
+
+  const ALLOWED_SOURCES = new Set(["trino", "trino_nuevo", "artista_antiguo", "artista_nuevo"]);
+  const normalizedSource = ALLOWED_SOURCES.has(source) ? source : null;
+  const normalizedCommissionRate =
+    commissionRate == null || commissionRate === "" ? null : Number(commissionRate);
 
   const normalizedValueType = valueType === "percentage" ? "percentage" : "fixed";
   const normalizedTaxType = taxType === "exento" ? "exento" : "afecto";
@@ -165,6 +172,8 @@ export async function POST(request: NextRequest) {
       notes: notes || null,
       reference_url: (typeof referenceUrl === "string" ? referenceUrl.trim() : null) || null,
       is_show: Boolean(isShow),
+      source: normalizedSource,
+      commission_rate: normalizedCommissionRate,
       organization_id: orgId,
       created_by: user!.id,
       project_id: projectId || null,

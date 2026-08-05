@@ -22,6 +22,8 @@ function mapDeal(row: any) {
     notes: row.notes ?? null,
     referenceUrl: row.reference_url ?? null,
     isShow: row.is_show ?? false,
+    source: row.source ?? null,
+    commissionRate: row.commission_rate ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     assignees: row.deal_assignees?.map((da: any) => ({
@@ -64,7 +66,21 @@ export async function GET(
 
   if (user) void markEntityViewed(supabase, user.id, "deal", id);
 
-  return NextResponse.json(mapDeal(data));
+  const [{ data: project }, { data: linkedShow }] = await Promise.all([
+    data.project_id
+      ? supabase.from("projects").select("default_commission_rate").eq("id", data.project_id).single()
+      : Promise.resolve({ data: null }),
+    supabase.from("shows").select("id, fee, ticket_income, expenses").eq("deal_id", id).limit(1).maybeSingle(),
+  ]);
+
+  return NextResponse.json({
+    ...mapDeal(data),
+    projectDefaultCommissionRate: project?.default_commission_rate ?? 30,
+    linkedEventId: linkedShow?.id ?? null,
+    linkedEventUtilidad: linkedShow
+      ? (linkedShow.fee ?? 0) + (linkedShow.ticket_income ?? 0) - (linkedShow.expenses ?? 0)
+      : null,
+  });
 }
 
 export async function PUT(
@@ -146,6 +162,14 @@ export async function PUT(
   if (body.notes !== undefined) updates.notes = body.notes;
   if (body.referenceUrl !== undefined) updates.reference_url = (body.referenceUrl as string)?.trim() || null;
   if (body.isShow !== undefined) updates.is_show = Boolean(body.isShow);
+  if (body.source !== undefined) {
+    const ALLOWED_SOURCES = new Set(["trino", "trino_nuevo", "artista_antiguo", "artista_nuevo"]);
+    updates.source = ALLOWED_SOURCES.has(body.source) ? body.source : null;
+  }
+  if (body.commissionRate !== undefined) {
+    updates.commission_rate =
+      body.commissionRate == null || body.commissionRate === "" ? null : Number(body.commissionRate);
+  }
 
   const assigneeIds = Array.isArray(body.assigneeIds)
     ? body.assigneeIds.filter((value: unknown): value is string => typeof value === "string" && value.length > 0)
