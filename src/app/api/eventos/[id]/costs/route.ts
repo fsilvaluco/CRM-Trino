@@ -23,6 +23,7 @@ export async function GET(
       position: r.position,
       label: r.label,
       responsable: r.responsable ?? null,
+      responsableContactId: r.responsable_contact_id ?? null,
       comprobanteUrl: r.comprobante_url ?? null,
       esBhe: r.es_bhe ?? false,
       liquidoAmount: r.liquido_amount ?? null,
@@ -39,7 +40,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, orgId, error } = await requireAuth();
   if (error) return error;
 
   const { data: show } = await supabase.from("shows").select("cost_sheet_closed_at").eq("id", id).single();
@@ -76,6 +77,7 @@ export async function PUT(
         amount?: number;
         notes?: string | null;
         responsable?: string | null;
+        responsableContactId?: string | null;
         comprobanteUrl?: string | null;
         esBhe?: boolean;
         liquidoAmount?: number | null;
@@ -89,6 +91,7 @@ export async function PUT(
       amount: typeof it.amount === "number" ? it.amount : 0,
       notes: it.notes || null,
       responsable: it.responsable || null,
+      responsable_contact_id: it.responsableContactId || null,
       comprobante_url: it.comprobanteUrl || null,
       es_bhe: it.esBhe ?? false,
       liquido_amount: typeof it.liquidoAmount === "number" ? it.liquidoAmount : null,
@@ -98,6 +101,28 @@ export async function PUT(
   if (rows.length > 0) {
     const { error: upsertError } = await supabase.from("event_cost_items").upsert(rows);
     if (upsertError) return NextResponse.json({ error: upsertError.message }, { status: 500 });
+
+    // Catálogo crece solo: cualquier "Detalle" nuevo que no exista todavía
+    // (comparación sin distinguir mayúsculas/minúsculas) queda guardado
+    // para sugerirse la próxima vez, en cualquier proyecto de la org.
+    const labels: string[] = [
+      ...new Set<string>(
+        rows
+          .map((r: { label: string }) => r.label)
+          .filter((l: string): l is string => Boolean(l) && l !== "Sin título")
+      ),
+    ];
+    for (const label of labels) {
+      const { data: existingType } = await supabase
+        .from("cost_item_types")
+        .select("id")
+        .eq("organization_id", orgId!)
+        .ilike("name", label)
+        .maybeSingle();
+      if (!existingType) {
+        await supabase.from("cost_item_types").insert({ organization_id: orgId, name: label });
+      }
+    }
   }
 
   return NextResponse.json({ ok: true });

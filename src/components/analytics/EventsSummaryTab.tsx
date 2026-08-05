@@ -92,7 +92,7 @@ export function EventsSummaryTab({ shows }: EventsSummaryTabProps) {
                 <th className="text-left px-4 py-2 font-medium text-muted-foreground">Ciudad</th>
                 <th className="text-right px-4 py-2 font-medium text-muted-foreground">Fee</th>
                 <th className="text-right px-4 py-2 font-medium text-muted-foreground">Entradas</th>
-                <th className="text-right px-4 py-2 font-medium text-muted-foreground">Gastos</th>
+                <th className="text-right px-4 py-2 font-medium text-muted-foreground">Egresos</th>
                 <th className="text-right px-4 py-2 font-medium text-muted-foreground">Utilidad</th>
                 <th className="text-right px-4 py-2 font-medium text-muted-foreground">Vibe</th>
               </tr>

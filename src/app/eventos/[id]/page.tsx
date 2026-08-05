@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { EventFormDialog } from "@/components/events/EventFormDialog";
 import { SortableList } from "@/components/events/SortableList";
+import { TypeaheadInput } from "@/components/events/TypeaheadInput";
 import { Checkbox } from "@/components/ui/checkbox";
 import { liquidoToBruto, retencionFromBruto, BHE_RETENTION_RATE } from "@/lib/bhe";
 import { toast } from "sonner";
@@ -71,6 +72,7 @@ export default function EventDetailPage() {
   const [newCostLabel, setNewCostLabel] = useState("");
   const [newCostAmount, setNewCostAmount] = useState("");
   const [newCostResponsable, setNewCostResponsable] = useState("");
+  const [newCostResponsableContactId, setNewCostResponsableContactId] = useState<string | null>(null);
   const [newCostComprobante, setNewCostComprobante] = useState("");
   const [newCostEsBhe, setNewCostEsBhe] = useState(false);
   const [closingCosts, setClosingCosts] = useState(false);
@@ -140,6 +142,7 @@ export default function EventDetailPage() {
             amount: c.amount,
             notes: c.notes,
             responsable: c.responsable,
+            responsableContactId: c.responsableContactId,
             comprobanteUrl: c.comprobanteUrl,
             esBhe: c.esBhe,
             liquidoAmount: c.liquidoAmount,
@@ -253,6 +256,22 @@ export default function EventDetailPage() {
 
   const utilidadCents = (event.fee ?? 0) + (event.ticketIncome ?? 0) - (event.expenses ?? 0);
   const costsTotal = costItems.reduce((sum, c) => sum + (c.amount || 0), 0);
+  const currentEvent = event;
+
+  async function fetchCostTypeSuggestions(query: string) {
+    const res = await fetch(`/api/cost-item-types?search=${encodeURIComponent(query)}`);
+    if (!res.ok) return [];
+    const data: Array<{ id: string; name: string }> = await res.json();
+    return data.map((t) => ({ label: t.name, value: t.id }));
+  }
+
+  async function fetchResponsableSuggestions(query: string) {
+    if (!currentEvent.projectId) return [];
+    const res = await fetch(`/api/contacts?projectId=${currentEvent.projectId}&search=${encodeURIComponent(query)}`);
+    if (!res.ok) return [];
+    const data: Array<{ id: string; name: string }> = await res.json();
+    return data.map((c) => ({ label: c.name, value: c.id }));
+  }
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -311,7 +330,7 @@ export default function EventDetailPage() {
       <div className="grid grid-cols-4 gap-3 no-print">
         <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Fee</p><p className="font-semibold">{formatCents(event.fee)}</p></CardContent></Card>
         <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Entradas</p><p className="font-semibold">{formatCents(event.ticketIncome)}</p></CardContent></Card>
-        <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Gastos</p><p className="font-semibold">{formatCents(event.expenses)}</p></CardContent></Card>
+        <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Egresos</p><p className="font-semibold">{formatCents(event.expenses)}</p></CardContent></Card>
         <Card>
           <CardContent className="p-3">
             <p className="text-xs text-muted-foreground">Utilidad</p>
@@ -467,11 +486,12 @@ export default function EventDetailPage() {
                 return (
                   <div className="space-y-1.5 pb-2 border-b last:border-0">
                     <div className="flex items-center gap-2">
-                      <Input
+                      <TypeaheadInput
                         placeholder="Detalle (ej. Pago sonidista)"
                         value={item.label}
                         disabled={costSheetClosed}
-                        onChange={(e) => updateItem({ label: e.target.value })}
+                        onChange={(v) => updateItem({ label: v })}
+                        fetchSuggestions={fetchCostTypeSuggestions}
                         className="h-8 flex-1"
                       />
                       <div className="w-32 shrink-0">
@@ -506,11 +526,13 @@ export default function EventDetailPage() {
                     </div>
 
                     <div className="flex items-center gap-2 pl-0.5">
-                      <Input
+                      <TypeaheadInput
                         placeholder="Responsable (a quién se le paga)"
                         value={item.responsable ?? ""}
                         disabled={costSheetClosed}
-                        onChange={(e) => updateItem({ responsable: e.target.value })}
+                        onChange={(v) => updateItem({ responsable: v, responsableContactId: null })}
+                        onSelectSuggestion={(s) => updateItem({ responsable: s.label, responsableContactId: s.value ?? null })}
+                        fetchSuggestions={fetchResponsableSuggestions}
                         className="h-7 text-xs flex-1"
                       />
                       <div className="flex items-center gap-1 shrink-0">
@@ -559,10 +581,11 @@ export default function EventDetailPage() {
           {!costSheetClosed && (
             <div className="space-y-1.5 pt-1 no-print">
               <div className="flex items-center gap-2">
-                <Input
+                <TypeaheadInput
                   placeholder="Ítem (ej. Transporte, Catering...)"
                   value={newCostLabel}
-                  onChange={(e) => setNewCostLabel(e.target.value)}
+                  onChange={setNewCostLabel}
+                  fetchSuggestions={fetchCostTypeSuggestions}
                   className="h-8 flex-1"
                 />
                 <div className="w-32 shrink-0">
@@ -577,10 +600,12 @@ export default function EventDetailPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Input
+                <TypeaheadInput
                   placeholder="Responsable"
                   value={newCostResponsable}
-                  onChange={(e) => setNewCostResponsable(e.target.value)}
+                  onChange={(v) => { setNewCostResponsable(v); setNewCostResponsableContactId(null); }}
+                  onSelectSuggestion={(s) => { setNewCostResponsable(s.label); setNewCostResponsableContactId(s.value ?? null); }}
+                  fetchSuggestions={fetchResponsableSuggestions}
                   className="h-7 text-xs flex-1"
                 />
                 <Input
@@ -611,6 +636,7 @@ export default function EventDetailPage() {
                         liquidoAmount: newCostEsBhe ? cents : null,
                         esBhe: newCostEsBhe,
                         responsable: newCostResponsable || null,
+                        responsableContactId: newCostResponsableContactId,
                         comprobanteUrl: newCostComprobante || null,
                         notes: null,
                       },
@@ -618,6 +644,7 @@ export default function EventDetailPage() {
                     setNewCostLabel("");
                     setNewCostAmount("");
                     setNewCostResponsable("");
+                    setNewCostResponsableContactId(null);
                     setNewCostComprobante("");
                     setNewCostEsBhe(false);
                     setCostsDirty(true);

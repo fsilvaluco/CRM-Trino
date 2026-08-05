@@ -12,6 +12,7 @@ export interface CostItem {
   position: number;
   label: string;
   responsable: string | null;
+  responsableContactId: string | null;
   comprobanteUrl: string | null;
   esBhe: boolean;
   liquidoAmount: number | null;

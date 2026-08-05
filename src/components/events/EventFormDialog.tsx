@@ -298,7 +298,7 @@ export function EventFormDialog({
                 <Input id="show-tickets" inputMode="numeric" placeholder="$0" value={ticketIncome} onChange={(e) => setTicketIncome(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="show-expenses" className="text-xs">Gastos</Label>
+                <Label htmlFor="show-expenses" className="text-xs">Egresos</Label>
                 <Input id="show-expenses" inputMode="numeric" placeholder="$0" value={expenses} onChange={(e) => setExpenses(e.target.value)} />
               </div>
             </div>
