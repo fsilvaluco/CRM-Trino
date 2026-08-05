@@ -12,10 +12,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { EventFormDialog } from "@/components/events/EventFormDialog";
 import { SortableList } from "@/components/events/SortableList";
+import { Checkbox } from "@/components/ui/checkbox";
+import { liquidoToBruto, retencionFromBruto, BHE_RETENTION_RATE } from "@/lib/bhe";
 import { toast } from "sonner";
 import {
   ArrowLeft, Pencil, MapPin, Clock, Music4, Wallet, FileText, Link as LinkIcon,
-  Plus, Trash2, Star, ExternalLink, Loader2,
+  Plus, Trash2, Star, ExternalLink, Loader2, Lock, LockOpen, Printer, Receipt,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -68,6 +70,12 @@ export default function EventDetailPage() {
   const [savingCosts, setSavingCosts] = useState(false);
   const [newCostLabel, setNewCostLabel] = useState("");
   const [newCostAmount, setNewCostAmount] = useState("");
+  const [newCostResponsable, setNewCostResponsable] = useState("");
+  const [newCostComprobante, setNewCostComprobante] = useState("");
+  const [newCostEsBhe, setNewCostEsBhe] = useState(false);
+  const [closingCosts, setClosingCosts] = useState(false);
+
+  const costSheetClosed = Boolean(event?.costSheetClosedAt);
 
   const [eventLink, setEventLink] = useState("");
   const [riderLocal, setRiderLocal] = useState("");
@@ -131,6 +139,10 @@ export default function EventDetailPage() {
             label: c.label,
             amount: c.amount,
             notes: c.notes,
+            responsable: c.responsable,
+            comprobanteUrl: c.comprobanteUrl,
+            esBhe: c.esBhe,
+            liquidoAmount: c.liquidoAmount,
           })),
         }),
       });
@@ -188,6 +200,39 @@ export default function EventDetailPage() {
     }
   }
 
+  async function closeCostSheet() {
+    if (costsDirty) {
+      toast.error("Guarda los costos primero antes de cerrar la caja");
+      return;
+    }
+    if (!confirm("¿Cerrar la caja de este evento? Los costos quedarán de solo lectura hasta que la reabras.")) return;
+    setClosingCosts(true);
+    try {
+      const res = await fetch(`/api/eventos/${id}/costs/close`, { method: "POST" });
+      if (!res.ok) throw new Error();
+      toast.success("Caja cerrada");
+      load();
+    } catch {
+      toast.error("No se pudo cerrar la caja");
+    } finally {
+      setClosingCosts(false);
+    }
+  }
+
+  async function reopenCostSheet() {
+    setClosingCosts(true);
+    try {
+      const res = await fetch(`/api/eventos/${id}/costs/reopen`, { method: "POST" });
+      if (!res.ok) throw new Error();
+      toast.success("Caja reabierta");
+      load();
+    } catch {
+      toast.error("No se pudo reabrir la caja");
+    } finally {
+      setClosingCosts(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -211,15 +256,24 @@ export default function EventDetailPage() {
 
   return (
     <div className="space-y-6 max-w-4xl">
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          #print-cost-sheet, #print-cost-sheet * { visibility: visible; }
+          #print-cost-sheet { position: absolute; left: 0; top: 0; width: 100%; border: none; box-shadow: none; }
+          .no-print { display: none !important; }
+        }
+      `}</style>
+
       <button
         onClick={() => router.push("/eventos")}
-        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground cursor-pointer"
+        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground cursor-pointer no-print"
       >
         <ArrowLeft className="h-4 w-4" />
         Eventos
       </button>
 
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-4 no-print">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-2xl font-bold tracking-tight">{event.name}</h1>
@@ -254,7 +308,7 @@ export default function EventDetailPage() {
       </div>
 
       {/* Resumen financiero */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-4 gap-3 no-print">
         <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Fee</p><p className="font-semibold">{formatCents(event.fee)}</p></CardContent></Card>
         <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Entradas</p><p className="font-semibold">{formatCents(event.ticketIncome)}</p></CardContent></Card>
         <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Gastos</p><p className="font-semibold">{formatCents(event.expenses)}</p></CardContent></Card>
@@ -269,7 +323,7 @@ export default function EventDetailPage() {
       </div>
 
       {/* Setlist */}
-      <Card>
+      <Card className="no-print">
         <CardHeader className="flex flex-row items-center justify-between pb-3">
           <CardTitle className="text-sm font-medium flex items-center gap-1.5">
             <Music4 className="h-4 w-4" />
@@ -343,111 +397,255 @@ export default function EventDetailPage() {
       </Card>
 
       {/* Costos */}
-      <Card>
+      <Card id="print-cost-sheet">
         <CardHeader className="flex flex-row items-center justify-between pb-3">
           <CardTitle className="text-sm font-medium flex items-center gap-1.5">
             <Wallet className="h-4 w-4" />
             Planilla de costos
+            {costSheetClosed && (
+              <Badge variant="secondary" className="text-xs bg-slate-100 text-slate-700 ml-1">
+                <Lock className="h-3 w-3 mr-1" />
+                Cerrada
+              </Badge>
+            )}
           </CardTitle>
-          {costsDirty && (
-            <Button size="sm" className="h-7 text-xs cursor-pointer" disabled={savingCosts} onClick={saveCosts}>
-              {savingCosts ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Guardar costos"}
+          <div className="flex items-center gap-2 no-print">
+            {costsDirty && (
+              <Button size="sm" className="h-7 text-xs cursor-pointer" disabled={savingCosts} onClick={saveCosts}>
+                {savingCosts ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Guardar costos"}
+              </Button>
+            )}
+            <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => window.print()}>
+              <Printer className="h-3.5 w-3.5 mr-1" />
+              Imprimir
             </Button>
-          )}
+            {costSheetClosed ? (
+              <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" disabled={closingCosts} onClick={reopenCostSheet}>
+                <LockOpen className="h-3.5 w-3.5 mr-1" />
+                Reabrir
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" disabled={closingCosts} onClick={closeCostSheet}>
+                <Lock className="h-3.5 w-3.5 mr-1" />
+                Cerrar caja
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
+          {/* Encabezado que solo se ve al imprimir -- el header de arriba de la pagina queda oculto */}
+          <div className="hidden print:block mb-3">
+            <p className="text-lg font-bold">{event.name}</p>
+            <p className="text-sm text-muted-foreground">
+              {formatDate(event.date)} · {event.venue}{event.city ? `, ${event.city}` : ""}
+            </p>
+          </div>
+
+          {costSheetClosed && (
+            <p className="text-xs text-muted-foreground no-print">
+              Caja cerrada{event.costSheetClosedAt ? ` el ${format(new Date(event.costSheetClosedAt), "d MMM yyyy, HH:mm", { locale: es })}` : ""}.
+              Reábrela si necesitas corregir algo.
+            </p>
+          )}
+
           {costItems.length === 0 ? (
             <p className="text-sm text-muted-foreground">Sin items de costo agregados todavía.</p>
           ) : (
             <SortableList
               items={costItems}
               onReorder={(items) => { setCostItems(items); setCostsDirty(true); }}
-              renderItem={(item) => (
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={item.label}
-                    onChange={(e) => {
-                      setCostItems((prev) => prev.map((c) => (c.id === item.id ? { ...c, label: e.target.value } : c)));
-                      setCostsDirty(true);
-                    }}
-                    className="h-8 flex-1"
-                  />
+              renderItem={(item) => {
+                const bruto = item.esBhe ? (item.liquidoAmount != null ? liquidoToBruto(item.liquidoAmount) : item.amount) : item.amount;
+                const retencion = item.esBhe ? retencionFromBruto(bruto) : 0;
+                const displayAmount = item.esBhe ? item.liquidoAmount ?? 0 : item.amount;
+
+                function updateItem(patch: Partial<CostItem>) {
+                  setCostItems((prev) => prev.map((c) => (c.id === item.id ? { ...c, ...patch } : c)));
+                  setCostsDirty(true);
+                }
+
+                return (
+                  <div className="space-y-1.5 pb-2 border-b last:border-0">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        placeholder="Detalle (ej. Pago sonidista)"
+                        value={item.label}
+                        disabled={costSheetClosed}
+                        onChange={(e) => updateItem({ label: e.target.value })}
+                        className="h-8 flex-1"
+                      />
+                      <div className="w-32 shrink-0">
+                        <Input
+                          type="number"
+                          inputMode="numeric"
+                          placeholder={item.esBhe ? "Líquido" : "$0"}
+                          value={displayAmount ? String(displayAmount / 100) : ""}
+                          disabled={costSheetClosed}
+                          onChange={(e) => {
+                            const pesos = parseInt(e.target.value.replace(/\D/g, ""), 10);
+                            const cents = Number.isFinite(pesos) ? pesos * 100 : 0;
+                            if (item.esBhe) {
+                              updateItem({ liquidoAmount: cents, amount: liquidoToBruto(cents) });
+                            } else {
+                              updateItem({ amount: cents });
+                            }
+                          }}
+                          className="h-8"
+                        />
+                      </div>
+                      <button
+                        onClick={() => {
+                          setCostItems((prev) => prev.filter((c) => c.id !== item.id));
+                          setCostsDirty(true);
+                        }}
+                        disabled={costSheetClosed}
+                        className="text-muted-foreground hover:text-destructive cursor-pointer p-1 shrink-0 disabled:opacity-30 no-print"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-2 pl-0.5">
+                      <Input
+                        placeholder="Responsable (a quién se le paga)"
+                        value={item.responsable ?? ""}
+                        disabled={costSheetClosed}
+                        onChange={(e) => updateItem({ responsable: e.target.value })}
+                        className="h-7 text-xs flex-1"
+                      />
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Input
+                          placeholder="Link comprobante"
+                          value={item.comprobanteUrl ?? ""}
+                          disabled={costSheetClosed}
+                          onChange={(e) => updateItem({ comprobanteUrl: e.target.value })}
+                          className="h-7 text-xs w-36 no-print"
+                        />
+                        {item.comprobanteUrl && (
+                          <a href={item.comprobanteUrl} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground">
+                            <Receipt className="h-3.5 w-3.5" />
+                          </a>
+                        )}
+                      </div>
+                      <label className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0 cursor-pointer no-print">
+                        <Checkbox
+                          checked={item.esBhe}
+                          disabled={costSheetClosed}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              updateItem({ esBhe: true, liquidoAmount: item.amount, amount: liquidoToBruto(item.amount) });
+                            } else {
+                              updateItem({ esBhe: false, liquidoAmount: null });
+                            }
+                          }}
+                        />
+                        BHE
+                      </label>
+                    </div>
+
+                    {item.esBhe && (
+                      <p className="text-xs text-muted-foreground pl-0.5">
+                        Boleta (bruto): <span className="font-medium text-foreground">{formatCents(bruto)}</span>
+                        {" · "}Retención ({(BHE_RETENTION_RATE * 100).toFixed(2)}%): {formatCents(retencion)}
+                        {" · "}Recibe en efectivo: {formatCents(item.liquidoAmount)}
+                      </p>
+                    )}
+                  </div>
+                );
+              }}
+            />
+          )}
+
+          {!costSheetClosed && (
+            <div className="space-y-1.5 pt-1 no-print">
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="Ítem (ej. Transporte, Catering...)"
+                  value={newCostLabel}
+                  onChange={(e) => setNewCostLabel(e.target.value)}
+                  className="h-8 flex-1"
+                />
+                <div className="w-32 shrink-0">
                   <Input
                     type="number"
                     inputMode="numeric"
-                    placeholder="$0"
-                    value={item.amount ? String(item.amount / 100) : ""}
-                    onChange={(e) => {
-                      const pesos = parseInt(e.target.value.replace(/\D/g, ""), 10);
-                      setCostItems((prev) =>
-                        prev.map((c) => (c.id === item.id ? { ...c, amount: Number.isFinite(pesos) ? pesos * 100 : 0 } : c))
-                      );
-                      setCostsDirty(true);
-                    }}
-                    className="h-8 w-28 shrink-0"
+                    placeholder={newCostEsBhe ? "Líquido" : "$0"}
+                    value={newCostAmount}
+                    onChange={(e) => setNewCostAmount(e.target.value)}
+                    className="h-8"
                   />
-                  <button
-                    onClick={() => {
-                      setCostItems((prev) => prev.filter((c) => c.id !== item.id));
-                      setCostsDirty(true);
-                    }}
-                    className="text-muted-foreground hover:text-destructive cursor-pointer p-1 shrink-0"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
                 </div>
-              )}
-            />
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="Responsable"
+                  value={newCostResponsable}
+                  onChange={(e) => setNewCostResponsable(e.target.value)}
+                  className="h-7 text-xs flex-1"
+                />
+                <Input
+                  placeholder="Link comprobante"
+                  value={newCostComprobante}
+                  onChange={(e) => setNewCostComprobante(e.target.value)}
+                  className="h-7 text-xs w-36 shrink-0"
+                />
+                <label className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0 cursor-pointer">
+                  <Checkbox checked={newCostEsBhe} onCheckedChange={(v) => setNewCostEsBhe(Boolean(v))} />
+                  BHE
+                </label>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 shrink-0 cursor-pointer"
+                  disabled={!newCostLabel.trim()}
+                  onClick={() => {
+                    const pesos = parseInt(newCostAmount.replace(/\D/g, ""), 10);
+                    const cents = Number.isFinite(pesos) ? pesos * 100 : 0;
+                    setCostItems((prev) => [
+                      ...prev,
+                      {
+                        id: `tmp-${newId()}`,
+                        position: prev.length,
+                        label: newCostLabel.trim(),
+                        amount: newCostEsBhe ? liquidoToBruto(cents) : cents,
+                        liquidoAmount: newCostEsBhe ? cents : null,
+                        esBhe: newCostEsBhe,
+                        responsable: newCostResponsable || null,
+                        comprobanteUrl: newCostComprobante || null,
+                        notes: null,
+                      },
+                    ]);
+                    setNewCostLabel("");
+                    setNewCostAmount("");
+                    setNewCostResponsable("");
+                    setNewCostComprobante("");
+                    setNewCostEsBhe(false);
+                    setCostsDirty(true);
+                  }}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           )}
-          <div className="flex items-center gap-2 pt-1">
-            <Input
-              placeholder="Ítem (ej. Transporte, Catering...)"
-              value={newCostLabel}
-              onChange={(e) => setNewCostLabel(e.target.value)}
-              className="h-8 flex-1"
-            />
-            <Input
-              type="number"
-              inputMode="numeric"
-              placeholder="$0"
-              value={newCostAmount}
-              onChange={(e) => setNewCostAmount(e.target.value)}
-              className="h-8 w-28 shrink-0"
-            />
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 shrink-0 cursor-pointer"
-              disabled={!newCostLabel.trim()}
-              onClick={() => {
-                const pesos = parseInt(newCostAmount.replace(/\D/g, ""), 10);
-                setCostItems((prev) => [
-                  ...prev,
-                  { id: `tmp-${newId()}`, position: prev.length, label: newCostLabel.trim(), amount: Number.isFinite(pesos) ? pesos * 100 : 0, notes: null },
-                ]);
-                setNewCostLabel("");
-                setNewCostAmount("");
-                setCostsDirty(true);
-              }}
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
+
           {costItems.length > 0 && (
             <div className="flex items-center justify-between border-t pt-2">
               <p className="text-sm text-muted-foreground">
                 Total planilla: <span className="font-semibold text-foreground">{formatCents(costsTotal)}</span>
               </p>
-              <Button size="sm" variant="ghost" className="h-7 text-xs cursor-pointer" onClick={applyCostsToExpenses}>
-                Usar como Gastos del evento
-              </Button>
+              {!costSheetClosed && (
+                <Button size="sm" variant="ghost" className="h-7 text-xs cursor-pointer no-print" onClick={applyCostsToExpenses}>
+                  Usar como Gastos del evento
+                </Button>
+              )}
             </div>
           )}
         </CardContent>
       </Card>
 
       {/* Riders + link */}
-      <Card>
+      <Card className="no-print">
         <CardHeader className="flex flex-row items-center justify-between pb-3">
           <CardTitle className="text-sm font-medium flex items-center gap-1.5">
             <FileText className="h-4 w-4" />

@@ -18,7 +18,17 @@ export async function GET(
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
 
   return NextResponse.json(
-    (data ?? []).map((r) => ({ id: r.id, position: r.position, label: r.label, amount: r.amount, notes: r.notes ?? null }))
+    (data ?? []).map((r) => ({
+      id: r.id,
+      position: r.position,
+      label: r.label,
+      responsable: r.responsable ?? null,
+      comprobanteUrl: r.comprobante_url ?? null,
+      esBhe: r.es_bhe ?? false,
+      liquidoAmount: r.liquido_amount ?? null,
+      amount: r.amount,
+      notes: r.notes ?? null,
+    }))
   );
 }
 
@@ -31,6 +41,14 @@ export async function PUT(
   const { id } = await params;
   const { supabase, error } = await requireAuth();
   if (error) return error;
+
+  const { data: show } = await supabase.from("shows").select("cost_sheet_closed_at").eq("id", id).single();
+  if (show?.cost_sheet_closed_at) {
+    return NextResponse.json(
+      { error: "La caja de este evento está cerrada. Reábrela primero para editar los costos." },
+      { status: 409 }
+    );
+  }
 
   const body = await request.json().catch(() => ({}));
   const items = Array.isArray(body.items) ? body.items : [];
@@ -51,13 +69,29 @@ export async function PUT(
   }
 
   const rows = items.map(
-    (it: { id?: string; label: string; amount?: number; notes?: string | null }, index: number) => ({
+    (
+      it: {
+        id?: string;
+        label: string;
+        amount?: number;
+        notes?: string | null;
+        responsable?: string | null;
+        comprobanteUrl?: string | null;
+        esBhe?: boolean;
+        liquidoAmount?: number | null;
+      },
+      index: number
+    ) => ({
       ...(it.id ? { id: it.id } : {}),
       show_id: id,
       position: index,
       label: (it.label ?? "").trim() || "Sin título",
       amount: typeof it.amount === "number" ? it.amount : 0,
       notes: it.notes || null,
+      responsable: it.responsable || null,
+      comprobante_url: it.comprobanteUrl || null,
+      es_bhe: it.esBhe ?? false,
+      liquido_amount: typeof it.liquidoAmount === "number" ? it.liquidoAmount : null,
     })
   );
 

@@ -11,6 +11,10 @@ export interface CostItem {
   id: string;
   position: number;
   label: string;
+  responsable: string | null;
+  comprobanteUrl: string | null;
+  esBhe: boolean;
+  liquidoAmount: number | null;
   amount: number;
   notes: string | null;
 }
@@ -35,6 +39,7 @@ export interface LiveShow {
   eventLink: string | null;
   riderLocal: string | null;
   riderBanda: string | null;
+  costSheetClosedAt: string | null;
   createdAt: string;
   updatedAt: string;
   projectName: string | null;

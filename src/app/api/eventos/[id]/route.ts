@@ -28,6 +28,7 @@ function mapLiveShow(row: any) {
     eventLink: row.event_link ?? null,
     riderLocal: row.rider_local ?? null,
     riderBanda: row.rider_banda ?? null,
+    costSheetClosedAt: row.cost_sheet_closed_at ?? null,
   };
 }
 
