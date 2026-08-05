@@ -5,10 +5,14 @@ export const BHE_RETENTION_RATE = 0.1525;
 
 /** Dado el monto líquido (lo que la persona recibe en mano), calcula el bruto de la boleta. */
 export function liquidoToBruto(liquidoCents: number): number {
-  return Math.round(liquidoCents / (1 - BHE_RETENTION_RATE));
+  const liquidoPesos = liquidoCents / 100;
+  const brutoPesos = Math.round(liquidoPesos / (1 - BHE_RETENTION_RATE));
+  return brutoPesos * 100;
 }
 
 /** La retención (lo que se entera al SII) para un bruto dado. */
 export function retencionFromBruto(brutoCents: number): number {
-  return Math.round(brutoCents * BHE_RETENTION_RATE);
+  const brutoPesos = brutoCents / 100;
+  const retencionPesos = Math.round(brutoPesos * BHE_RETENTION_RATE);
+  return retencionPesos * 100;
 }

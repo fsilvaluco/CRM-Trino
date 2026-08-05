@@ -21,6 +21,7 @@ import {
 import { toast } from "sonner";
 import { MapPin } from "lucide-react";
 import { VenueCombobox } from "@/components/venues/VenueCombobox";
+import { MoneyInput } from "@/components/events/MoneyInput";
 import type { LiveShow, ShowStatus } from "@/types/shows";
 import type { Venue } from "@/types/venues";
 
@@ -291,15 +292,15 @@ export function EventFormDialog({
             <div className="grid grid-cols-3 gap-2">
               <div className="space-y-1.5">
                 <Label htmlFor="show-fee" className="text-xs">Fee</Label>
-                <Input id="show-fee" inputMode="numeric" placeholder="$0" value={fee} onChange={(e) => setFee(e.target.value)} />
+                <MoneyInput id="show-fee" value={fee} onChange={setFee} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="show-tickets" className="text-xs">Entradas</Label>
-                <Input id="show-tickets" inputMode="numeric" placeholder="$0" value={ticketIncome} onChange={(e) => setTicketIncome(e.target.value)} />
+                <MoneyInput id="show-tickets" value={ticketIncome} onChange={setTicketIncome} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="show-expenses" className="text-xs">Egresos</Label>
-                <Input id="show-expenses" inputMode="numeric" placeholder="$0" value={expenses} onChange={(e) => setExpenses(e.target.value)} />
+                <MoneyInput id="show-expenses" value={expenses} onChange={setExpenses} />
               </div>
             </div>
           </div>

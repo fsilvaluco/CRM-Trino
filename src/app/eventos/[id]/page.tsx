@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { EventFormDialog } from "@/components/events/EventFormDialog";
 import { SortableList } from "@/components/events/SortableList";
 import { TypeaheadInput } from "@/components/events/TypeaheadInput";
+import { MoneyInput } from "@/components/events/MoneyInput";
 import { Checkbox } from "@/components/ui/checkbox";
 import { liquidoToBruto, retencionFromBruto, BHE_RETENTION_RATE } from "@/lib/bhe";
 import { toast } from "sonner";
@@ -277,9 +278,6 @@ export default function EventDetailPage() {
     <div className="space-y-6 max-w-4xl">
       <style>{`
         @media print {
-          body * { visibility: hidden; }
-          #print-cost-sheet, #print-cost-sheet * { visibility: visible; }
-          #print-cost-sheet { position: absolute; left: 0; top: 0; width: 100%; border: none; box-shadow: none; }
           .no-print { display: none !important; }
         }
       `}</style>
@@ -326,8 +324,16 @@ export default function EventDetailPage() {
         </div>
       </div>
 
+      {/* Encabezado que solo se ve al imprimir -- el header de arriba de la pagina queda oculto */}
+      <div className="hidden print:block">
+        <p className="text-lg font-bold">{event.name}</p>
+        <p className="text-sm text-muted-foreground">
+          {formatDate(event.date)} · {event.venue}{event.city ? `, ${event.city}` : ""}
+        </p>
+      </div>
+
       {/* Resumen financiero */}
-      <div className="grid grid-cols-4 gap-3 no-print">
+      <div className="grid grid-cols-4 gap-3">
         <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Fee</p><p className="font-semibold">{formatCents(event.fee)}</p></CardContent></Card>
         <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Entradas</p><p className="font-semibold">{formatCents(event.ticketIncome)}</p></CardContent></Card>
         <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Egresos</p><p className="font-semibold">{formatCents(event.expenses)}</p></CardContent></Card>
@@ -416,7 +422,7 @@ export default function EventDetailPage() {
       </Card>
 
       {/* Costos */}
-      <Card id="print-cost-sheet">
+      <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-3">
           <CardTitle className="text-sm font-medium flex items-center gap-1.5">
             <Wallet className="h-4 w-4" />
@@ -452,14 +458,6 @@ export default function EventDetailPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          {/* Encabezado que solo se ve al imprimir -- el header de arriba de la pagina queda oculto */}
-          <div className="hidden print:block mb-3">
-            <p className="text-lg font-bold">{event.name}</p>
-            <p className="text-sm text-muted-foreground">
-              {formatDate(event.date)} · {event.venue}{event.city ? `, ${event.city}` : ""}
-            </p>
-          </div>
-
           {costSheetClosed && (
             <p className="text-xs text-muted-foreground no-print">
               Caja cerrada{event.costSheetClosedAt ? ` el ${format(new Date(event.costSheetClosedAt), "d MMM yyyy, HH:mm", { locale: es })}` : ""}.
@@ -495,15 +493,12 @@ export default function EventDetailPage() {
                         className="h-8 flex-1"
                       />
                       <div className="w-32 shrink-0">
-                        <Input
-                          type="number"
-                          inputMode="numeric"
+                        <MoneyInput
                           placeholder={item.esBhe ? "Líquido" : "$0"}
                           value={displayAmount ? String(displayAmount / 100) : ""}
                           disabled={costSheetClosed}
-                          onChange={(e) => {
-                            const pesos = parseInt(e.target.value.replace(/\D/g, ""), 10);
-                            const cents = Number.isFinite(pesos) ? pesos * 100 : 0;
+                          onChange={(digits) => {
+                            const cents = digits ? parseInt(digits, 10) * 100 : 0;
                             if (item.esBhe) {
                               updateItem({ liquidoAmount: cents, amount: liquidoToBruto(cents) });
                             } else {
@@ -555,9 +550,10 @@ export default function EventDetailPage() {
                           disabled={costSheetClosed}
                           onCheckedChange={(checked) => {
                             if (checked) {
-                              updateItem({ esBhe: true, liquidoAmount: item.amount, amount: liquidoToBruto(item.amount) });
+                              const liquido = item.amount;
+                              updateItem({ esBhe: true, liquidoAmount: liquido, amount: liquidoToBruto(liquido) });
                             } else {
-                              updateItem({ esBhe: false, liquidoAmount: null });
+                              updateItem({ esBhe: false, amount: item.liquidoAmount ?? item.amount, liquidoAmount: null });
                             }
                           }}
                         />
@@ -589,12 +585,10 @@ export default function EventDetailPage() {
                   className="h-8 flex-1"
                 />
                 <div className="w-32 shrink-0">
-                  <Input
-                    type="number"
-                    inputMode="numeric"
+                  <MoneyInput
                     placeholder={newCostEsBhe ? "Líquido" : "$0"}
                     value={newCostAmount}
-                    onChange={(e) => setNewCostAmount(e.target.value)}
+                    onChange={setNewCostAmount}
                     className="h-8"
                   />
                 </div>
@@ -663,11 +657,20 @@ export default function EventDetailPage() {
               </p>
               {!costSheetClosed && (
                 <Button size="sm" variant="ghost" className="h-7 text-xs cursor-pointer no-print" onClick={applyCostsToExpenses}>
-                  Usar como Gastos del evento
+                  Usar como Egresos del evento
                 </Button>
               )}
             </div>
           )}
+
+          <div className="hidden print:grid grid-cols-2 gap-8 pt-12">
+            <div className="text-center text-sm">
+              <div className="border-t border-foreground pt-1">Firma responsable de producción</div>
+            </div>
+            <div className="text-center text-sm">
+              <div className="border-t border-foreground pt-1">Firma quien recibe/autoriza</div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
