@@ -124,7 +124,10 @@ export async function POST(request: NextRequest) {
   }
 
   if (!resolvedVenueName) {
-    return NextResponse.json({ error: "El venue es requerido" }, { status: 400 });
+    // El popup rapido "¿Armamos el evento?" solo pide nombre y fecha -- el
+    // venue se completa despues desde el modulo Eventos, donde SI es
+    // obligatorio (via el combobox). Aca no bloqueamos la creacion por eso.
+    resolvedVenueName = "Por definir";
   }
 
   const { data: project } = await supabase.from("projects").select("name").eq("id", projectId).single();

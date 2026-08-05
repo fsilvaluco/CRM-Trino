@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -32,19 +31,11 @@ export function EventSetupDialog({
 }) {
   const [name, setName] = useState(dealTitle);
   const [date, setDate] = useState("");
-  const [eventTime, setEventTime] = useState("");
-  const [venue, setVenue] = useState("");
-  const [address, setAddress] = useState("");
-  const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
   function reset() {
     setName(dealTitle);
     setDate("");
-    setEventTime("");
-    setVenue("");
-    setAddress("");
-    setNotes("");
   }
 
   async function handleSave() {
@@ -66,20 +57,19 @@ export function EventSetupDialog({
           dealId,
           name: name.trim(),
           date,
-          eventTime: eventTime || null,
-          venue: venue || dealTitle,
-          address: address || null,
-          notes: notes || null,
           status: "confirmado",
         }),
       });
-      if (!res.ok) throw new Error();
-      toast.success("Evento armado -- lo puedes seguir completando en Eventos");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Error al crear el evento");
+      }
+      toast.success("Evento armado -- venue, riders, setlist y costos se completan desde Eventos");
       reset();
       onSaved?.();
       onClose();
-    } catch {
-      toast.error("No se pudo crear el evento. Puedes armarlo a mano después desde Eventos.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo crear el evento. Puedes armarlo a mano después desde Eventos.");
     } finally {
       setSaving(false);
     }
@@ -96,8 +86,8 @@ export function EventSetupDialog({
         <DialogHeader>
           <DialogTitle>🎤 ¿Armamos el evento?</DialogTitle>
           <DialogDescription>
-            &ldquo;{dealTitle}&rdquo; está marcado como evento. Completa lo que ya sepas -- el resto lo
-            rellenas después desde Eventos.
+            &ldquo;{dealTitle}&rdquo; está marcado como evento. El venue, riders, setlist y costos se
+            completan después desde Eventos -- aquí solo el nombre y la fecha.
           </DialogDescription>
         </DialogHeader>
 
@@ -107,35 +97,9 @@ export function EventSetupDialog({
             <Input id="show-name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-2">
-              <Label htmlFor="show-date">Fecha</Label>
-              <Input id="show-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="show-time">Hora</Label>
-              <Input id="show-time" type="time" value={eventTime} onChange={(e) => setEventTime(e.target.value)} />
-            </div>
-          </div>
-
           <div className="space-y-2">
-            <Label htmlFor="show-venue">Venue</Label>
-            <Input
-              id="show-venue"
-              value={venue}
-              onChange={(e) => setVenue(e.target.value)}
-              placeholder={dealTitle}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="show-address">Dirección</Label>
-            <Input id="show-address" value={address} onChange={(e) => setAddress(e.target.value)} />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="show-notes">Notas</Label>
-            <Textarea id="show-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+            <Label htmlFor="show-date">Fecha</Label>
+            <Input id="show-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
