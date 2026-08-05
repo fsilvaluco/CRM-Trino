@@ -50,9 +50,10 @@ export async function GET(
     return NextResponse.json({ error: "Evento no encontrado" }, { status: 404 });
   }
 
-  const [{ data: setlistRows }, { data: costRows }] = await Promise.all([
+  const [{ data: setlistRows }, { data: costRows }, { data: timingRows }] = await Promise.all([
     supabase.from("event_setlist_items").select("*").eq("show_id", id).order("position"),
     supabase.from("event_cost_items").select("*").eq("show_id", id).order("position"),
+    supabase.from("event_timing_items").select("*").eq("show_id", id).order("position"),
   ]);
 
   return NextResponse.json({
@@ -73,6 +74,15 @@ export async function GET(
       esBhe: r.es_bhe ?? false,
       liquidoAmount: r.liquido_amount ?? null,
       amount: r.amount,
+      notes: r.notes ?? null,
+    })),
+    timing: (timingRows ?? []).map((r) => ({
+      id: r.id,
+      position: r.position,
+      timeLabel: r.time_label ?? null,
+      activity: r.activity,
+      responsable: r.responsable ?? null,
+      responsableContactId: r.responsable_contact_id ?? null,
       notes: r.notes ?? null,
     })),
   });

@@ -1,5 +1,15 @@
 export type ShowStatus = "cotizando" | "confirmado" | "realizado" | "cancelado";
 
+export interface TimingItem {
+  id: string;
+  position: number;
+  timeLabel: string | null;
+  activity: string;
+  responsable: string | null;
+  responsableContactId: string | null;
+  notes: string | null;
+}
+
 export interface SetlistItem {
   id: string;
   position: number;

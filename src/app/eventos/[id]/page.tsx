@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import type { LiveShow, ShowStatus, SetlistItem, CostItem } from "@/types/shows";
+import type { LiveShow, ShowStatus, SetlistItem, CostItem, TimingItem } from "@/types/shows";
 
 const STATUS_CONFIG: Record<ShowStatus, { label: string; className: string }> = {
   cotizando: { label: "Cotizando", className: "bg-yellow-100 text-yellow-700" },
@@ -51,7 +51,7 @@ function newId() {
   return typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36);
 }
 
-type EventDetail = LiveShow & { setlist: SetlistItem[]; costItems: CostItem[] };
+type EventDetail = LiveShow & { setlist: SetlistItem[]; costItems: CostItem[]; timing: TimingItem[] };
 
 export default function EventDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -66,6 +66,15 @@ export default function EventDetailPage() {
   const [setlistDirty, setSetlistDirty] = useState(false);
   const [savingSetlist, setSavingSetlist] = useState(false);
   const [newSongTitle, setNewSongTitle] = useState("");
+
+  const [timing, setTiming] = useState<TimingItem[]>([]);
+  const [timingDirty, setTimingDirty] = useState(false);
+  const [savingTiming, setSavingTiming] = useState(false);
+  const [newTimeLabel, setNewTimeLabel] = useState("");
+  const [newActivity, setNewActivity] = useState("");
+  const [newTimingResponsable, setNewTimingResponsable] = useState("");
+  const [newTimingResponsableContactId, setNewTimingResponsableContactId] = useState<string | null>(null);
+  const [newTimingNotes, setNewTimingNotes] = useState("");
 
   const [costItems, setCostItems] = useState<CostItem[]>([]);
   const [costsDirty, setCostsDirty] = useState(false);
@@ -94,12 +103,14 @@ export default function EventDetailPage() {
         if (!data) return;
         setEvent(data);
         setSetlist(data.setlist ?? []);
+        setTiming(data.timing ?? []);
         setCostItems(data.costItems ?? []);
         setEventLink(data.eventLink ?? "");
         setRiderLocal(data.riderLocal ?? "");
         setRiderBanda(data.riderBanda ?? "");
         setSetlistDirty(false);
         setCostsDirty(false);
+        setTimingDirty(false);
         setDetailsDirty(false);
       })
       .catch(() => setEvent(null))
@@ -127,6 +138,33 @@ export default function EventDetailPage() {
       toast.error("No se pudo guardar el setlist");
     } finally {
       setSavingSetlist(false);
+    }
+  }
+
+  async function saveTiming() {
+    setSavingTiming(true);
+    try {
+      const res = await fetch(`/api/eventos/${id}/timing`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: timing.map((t) => ({
+            id: t.id.startsWith("tmp-") ? undefined : t.id,
+            timeLabel: t.timeLabel,
+            activity: t.activity,
+            responsable: t.responsable,
+            responsableContactId: t.responsableContactId,
+            notes: t.notes,
+          })),
+        }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Timing guardado");
+      load();
+    } catch {
+      toast.error("No se pudo guardar el timing");
+    } finally {
+      setSavingTiming(false);
     }
   }
 
@@ -192,6 +230,11 @@ export default function EventDetailPage() {
     } catch {
       toast.error("No se pudo actualizar el gasto del evento");
     }
+  }
+
+  function printSection(section: "costs" | "timing") {
+    document.body.setAttribute("data-print-section", section);
+    window.print();
   }
 
   async function handleCopyRatingLink() {
@@ -279,6 +322,8 @@ export default function EventDetailPage() {
       <style>{`
         @media print {
           .no-print { display: none !important; }
+          body[data-print-section="costs"] .timing-card { display: none !important; }
+          body[data-print-section="timing"] .costs-card { display: none !important; }
         }
       `}</style>
 
@@ -333,7 +378,7 @@ export default function EventDetailPage() {
       </div>
 
       {/* Resumen financiero */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-4 gap-3 costs-card">
         <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Fee</p><p className="font-semibold">{formatCents(event.fee)}</p></CardContent></Card>
         <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Entradas</p><p className="font-semibold">{formatCents(event.ticketIncome)}</p></CardContent></Card>
         <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Egresos</p><p className="font-semibold">{formatCents(event.expenses)}</p></CardContent></Card>
@@ -421,8 +466,156 @@ export default function EventDetailPage() {
         </CardContent>
       </Card>
 
+      {/* Timing / Cronograma */}
+      <Card className="timing-card">
+        <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <CardTitle className="text-sm font-medium flex items-center gap-1.5">
+            <Clock className="h-4 w-4" />
+            Timing / Cronograma
+          </CardTitle>
+          <div className="flex items-center gap-2 no-print">
+            {timingDirty && (
+              <Button size="sm" className="h-7 text-xs cursor-pointer" disabled={savingTiming} onClick={saveTiming}>
+                {savingTiming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Guardar timing"}
+              </Button>
+            )}
+            <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => printSection("timing")}>
+              <Printer className="h-3.5 w-3.5 mr-1" />
+              Imprimir
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="hidden print:block mb-2">
+            <p className="text-lg font-bold">{event.name}</p>
+            <p className="text-sm text-muted-foreground">
+              {formatDate(event.date)} · {event.venue}{event.city ? `, ${event.city}` : ""}
+            </p>
+          </div>
+
+          {timing.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Sin ítems en el cronograma todavía.</p>
+          ) : (
+            <SortableList
+              items={timing}
+              onReorder={(items) => { setTiming(items); setTimingDirty(true); }}
+              renderItem={(item) => {
+                function updateTimingItem(patch: Partial<TimingItem>) {
+                  setTiming((prev) => prev.map((t) => (t.id === item.id ? { ...t, ...patch } : t)));
+                  setTimingDirty(true);
+                }
+                return (
+                  <div className="space-y-1.5 pb-2 border-b last:border-0">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        placeholder="Hora (ej. 14:30 o 15:00-16:30)"
+                        value={item.timeLabel ?? ""}
+                        onChange={(e) => updateTimingItem({ timeLabel: e.target.value })}
+                        className="h-8 w-40 shrink-0"
+                      />
+                      <Input
+                        placeholder="Detalle / actividad"
+                        value={item.activity}
+                        onChange={(e) => updateTimingItem({ activity: e.target.value })}
+                        className="h-8 flex-1"
+                      />
+                      <button
+                        onClick={() => {
+                          setTiming((prev) => prev.filter((t) => t.id !== item.id));
+                          setTimingDirty(true);
+                        }}
+                        className="text-muted-foreground hover:text-destructive cursor-pointer p-1 shrink-0 no-print"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2 pl-0.5">
+                      <TypeaheadInput
+                        placeholder="Responsable"
+                        value={item.responsable ?? ""}
+                        onChange={(v) => updateTimingItem({ responsable: v, responsableContactId: null })}
+                        onSelectSuggestion={(s) => updateTimingItem({ responsable: s.label, responsableContactId: s.value ?? null })}
+                        fetchSuggestions={fetchResponsableSuggestions}
+                        className="h-7 text-xs w-48 shrink-0"
+                      />
+                      <Input
+                        placeholder="Notas / detalles"
+                        value={item.notes ?? ""}
+                        onChange={(e) => updateTimingItem({ notes: e.target.value })}
+                        className="h-7 text-xs flex-1"
+                      />
+                    </div>
+                  </div>
+                );
+              }}
+            />
+          )}
+
+          <div className="space-y-1.5 pt-1 no-print">
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="Hora"
+                value={newTimeLabel}
+                onChange={(e) => setNewTimeLabel(e.target.value)}
+                className="h-8 w-40 shrink-0"
+              />
+              <Input
+                placeholder="Detalle / actividad"
+                value={newActivity}
+                onChange={(e) => setNewActivity(e.target.value)}
+                className="h-8 flex-1"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <TypeaheadInput
+                placeholder="Responsable"
+                value={newTimingResponsable}
+                onChange={(v) => { setNewTimingResponsable(v); setNewTimingResponsableContactId(null); }}
+                onSelectSuggestion={(s) => { setNewTimingResponsable(s.label); setNewTimingResponsableContactId(s.value ?? null); }}
+                fetchSuggestions={fetchResponsableSuggestions}
+                className="h-7 text-xs w-48 shrink-0"
+              />
+              <Input
+                placeholder="Notas / detalles"
+                value={newTimingNotes}
+                onChange={(e) => setNewTimingNotes(e.target.value)}
+                className="h-7 text-xs flex-1"
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 shrink-0 cursor-pointer"
+                disabled={!newActivity.trim()}
+                onClick={() => {
+                  setTiming((prev) => [
+                    ...prev,
+                    {
+                      id: `tmp-${newId()}`,
+                      position: prev.length,
+                      timeLabel: newTimeLabel || null,
+                      activity: newActivity.trim(),
+                      responsable: newTimingResponsable || null,
+                      responsableContactId: newTimingResponsableContactId,
+                      notes: newTimingNotes || null,
+                    },
+                  ]);
+                  setNewTimeLabel("");
+                  setNewActivity("");
+                  setNewTimingResponsable("");
+                  setNewTimingResponsableContactId(null);
+                  setNewTimingNotes("");
+                  setTimingDirty(true);
+                }}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Costos */}
-      <Card>
+      <Card className="costs-card">
         <CardHeader className="flex flex-row items-center justify-between pb-3">
           <CardTitle className="text-sm font-medium flex items-center gap-1.5">
             <Wallet className="h-4 w-4" />
@@ -440,7 +633,7 @@ export default function EventDetailPage() {
                 {savingCosts ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Guardar costos"}
               </Button>
             )}
-            <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => window.print()}>
+            <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => printSection("costs")}>
               <Printer className="h-3.5 w-3.5 mr-1" />
               Imprimir
             </Button>
