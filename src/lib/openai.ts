@@ -139,6 +139,105 @@ export async function extractSpotifyStatsFromScreenshot(
   }
 }
 
+interface TicketTierExtraction {
+  label: string;
+  unitPrice: number | null;
+  quantitySold: number | null;
+  capacity: number | null;
+  statusLabel: string | null;
+}
+
+const TICKET_TIERS_SCHEMA = {
+  name: "ticket_tiers_extraction",
+  strict: true,
+  schema: {
+    type: "object",
+    properties: {
+      tiers: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            label: { type: "string" },
+            unitPrice: { type: ["number", "null"] },
+            quantitySold: { type: ["number", "null"] },
+            capacity: { type: ["number", "null"] },
+            statusLabel: { type: ["string", "null"] },
+          },
+          required: ["label", "unitPrice", "quantitySold", "capacity", "statusLabel"],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ["tiers"],
+    additionalProperties: false,
+  },
+};
+
+const TICKET_TIERS_PROMPT = `Esta es una captura de pantalla de un panel de venta de entradas (ej. PortalTickets, Passline, Ticketmaster, o similar). Muestra una lista de "tramos" o tipos de entrada (ej. "Preventa 1", "Preventa 2", "General", "Cortesía").
+
+Para cada tramo, extrae:
+- "label": el nombre del tramo tal como aparece (ej. "Preventa 1", "General O", "Cortesía").
+- "unitPrice": el PRECIO UNITARIO ACTUAL de ese tramo (busca específicamente un campo como "Precio actual" o el precio individual de una entrada -- NO el monto total/acumulado que a veces aparece junto al nombre del tramo, que es precio x cantidad vendida, no el precio unitario).
+- "quantitySold": la cantidad de tickets vendidos de ese tramo (busca "X TICKETS" o similar).
+- "capacity": el cupo total de ese tramo si aparece (ej. "/ 20 CUPOS" -> 20). Si no aparece, null.
+- "statusLabel": la etiqueta de estado si aparece (ej. "AGOTADA", "OCULTO", "ACTIVA"). Si no aparece, null.
+
+Reglas:
+- Un tramo con precio $0 y algún ticket vendido probablemente sea de cortesía -- aún así extráelo con unitPrice 0, no lo omitas.
+- Si un número no se puede leer con certeza, usa null para ese campo específico -- nunca inventes.
+- Ignora filas que sean claramente encabezados o totales generales, no tramos individuales.
+- Devuelve los tramos en el mismo orden en que aparecen en la imagen.`;
+
+/**
+ * Lee un pantallazo de una plataforma de venta de entradas y extrae los
+ * tramos (preventa, general, cortesía, etc.) con precio unitario y
+ * cantidad vendida. SIEMPRE se revisa/edita en el front antes de guardar.
+ */
+export async function extractTicketTiersFromScreenshot(
+  imageBase64: string,
+  mediaType: "image/jpeg" | "image/png" | "image/webp"
+): Promise<TicketTierExtraction[]> {
+  if (!apiKey) return [];
+
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: MODEL,
+      temperature: 0,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: TICKET_TIERS_PROMPT },
+            { type: "image_url", image_url: { url: `data:${mediaType};base64,${imageBase64}` } },
+          ],
+        },
+      ],
+      response_format: { type: "json_schema", json_schema: TICKET_TIERS_SCHEMA },
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    console.error("[openai] ticket tiers extraction failed", { status: res.status, body });
+    throw new Error(`OpenAI respondió con error (status ${res.status})`);
+  }
+
+  const data = await res.json();
+  const text: string | undefined = data?.choices?.[0]?.message?.content;
+  if (!text) return [];
+
+  try {
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed.tiers) ? parsed.tiers : [];
+  } catch (err) {
+    console.error("[openai] failed to parse ticket tiers JSON", { text, err });
+    return [];
+  }
+}
+
 interface MilestoneExtraction {
   title: string;
   dueDate: string | null; // YYYY-MM-DD

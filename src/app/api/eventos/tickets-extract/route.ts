@@ -1,0 +1,40 @@
+import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/supabase-server";
+import { extractTicketTiersFromScreenshot, isOpenAIEnabled } from "@/lib/openai";
+
+const MAX_BASE64_LENGTH = 8_000_000;
+
+export async function POST(request: NextRequest) {
+  const { error } = await requireAuth();
+  if (error) return error;
+
+  if (!isOpenAIEnabled()) {
+    return NextResponse.json({ error: "Lectura con IA no disponible (falta configurar OPENAI_API_KEY)" }, { status: 503 });
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
+  }
+
+  const { imageBase64, mediaType } = body as { imageBase64?: string; mediaType?: string };
+
+  if (!imageBase64) {
+    return NextResponse.json({ error: "Falta la imagen" }, { status: 400 });
+  }
+  if (imageBase64.length > MAX_BASE64_LENGTH) {
+    return NextResponse.json({ error: "La imagen es muy grande — intenta con una captura más chica" }, { status: 413 });
+  }
+  const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+  const type = allowedTypes.includes(mediaType ?? "") ? (mediaType as "image/jpeg" | "image/png" | "image/webp") : "image/jpeg";
+
+  try {
+    const tiers = await extractTicketTiersFromScreenshot(imageBase64, type);
+    return NextResponse.json({ tiers });
+  } catch (err) {
+    console.error("[eventos/tickets/extract] failed", err);
+    return NextResponse.json({ error: "No se pudo leer el pantallazo — intenta de nuevo o ingresa los datos a mano" }, { status: 502 });
+  }
+}

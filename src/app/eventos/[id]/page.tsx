@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useProject } from "@/lib/project-context";
@@ -20,10 +20,12 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Pencil, MapPin, Clock, Music4, Wallet, FileText, Link as LinkIcon,
   Plus, Trash2, Star, ExternalLink, Loader2, Lock, LockOpen, Printer, Receipt,
+  Ticket, Upload,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import type { LiveShow, ShowStatus, SetlistItem, CostItem, TimingItem } from "@/types/shows";
+import type { LiveShow, ShowStatus, SetlistItem, CostItem, TimingItem, TicketTier } from "@/types/shows";
+import { compressImage } from "@/lib/image-compress";
 
 const STATUS_CONFIG: Record<ShowStatus, { label: string; className: string }> = {
   cotizando: { label: "Cotizando", className: "bg-yellow-100 text-yellow-700" },
@@ -51,7 +53,7 @@ function newId() {
   return typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36);
 }
 
-type EventDetail = LiveShow & { setlist: SetlistItem[]; costItems: CostItem[]; timing: TimingItem[] };
+type EventDetail = LiveShow & { setlist: SetlistItem[]; costItems: CostItem[]; timing: TimingItem[]; ticketTiers: TicketTier[] };
 
 export default function EventDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -75,6 +77,16 @@ export default function EventDetailPage() {
   const [newTimingResponsable, setNewTimingResponsable] = useState("");
   const [newTimingResponsableContactId, setNewTimingResponsableContactId] = useState<string | null>(null);
   const [newTimingNotes, setNewTimingNotes] = useState("");
+
+  const [ticketTiers, setTicketTiers] = useState<TicketTier[]>([]);
+  const [ticketsDirty, setTicketsDirty] = useState(false);
+  const [savingTickets, setSavingTickets] = useState(false);
+  const [extractingTickets, setExtractingTickets] = useState(false);
+  const [newTierLabel, setNewTierLabel] = useState("");
+  const [newTierPrice, setNewTierPrice] = useState("");
+  const [newTierQty, setNewTierQty] = useState("");
+  const [newTierCapacity, setNewTierCapacity] = useState("");
+  const ticketFileInputRef = useRef<HTMLInputElement>(null);
 
   const [costItems, setCostItems] = useState<CostItem[]>([]);
   const [costsDirty, setCostsDirty] = useState(false);
@@ -104,6 +116,7 @@ export default function EventDetailPage() {
         setEvent(data);
         setSetlist(data.setlist ?? []);
         setTiming(data.timing ?? []);
+        setTicketTiers(data.ticketTiers ?? []);
         setCostItems(data.costItems ?? []);
         setEventLink(data.eventLink ?? "");
         setRiderLocal(data.riderLocal ?? "");
@@ -111,6 +124,7 @@ export default function EventDetailPage() {
         setSetlistDirty(false);
         setCostsDirty(false);
         setTimingDirty(false);
+        setTicketsDirty(false);
         setDetailsDirty(false);
       })
       .catch(() => setEvent(null))
@@ -165,6 +179,89 @@ export default function EventDetailPage() {
       toast.error("No se pudo guardar el timing");
     } finally {
       setSavingTiming(false);
+    }
+  }
+
+  async function saveTickets() {
+    setSavingTickets(true);
+    try {
+      const res = await fetch(`/api/eventos/${id}/tickets`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: ticketTiers.map((t) => ({
+            id: t.id.startsWith("tmp-") ? undefined : t.id,
+            label: t.label,
+            unitPrice: t.unitPrice,
+            quantitySold: t.quantitySold,
+            capacity: t.capacity,
+            statusLabel: t.statusLabel,
+          })),
+        }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Entradas guardadas");
+      load();
+    } catch {
+      toast.error("No se pudieron guardar las entradas");
+    } finally {
+      setSavingTickets(false);
+    }
+  }
+
+  async function applyTicketsToIncome() {
+    const total = ticketTiers.reduce((sum, t) => sum + t.unitPrice * t.quantitySold, 0);
+    try {
+      const res = await fetch(`/api/eventos/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticketIncome: total }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(`Entradas del evento actualizadas a ${formatCents(total)}`);
+      load();
+    } catch {
+      toast.error("No se pudo actualizar el ingreso por entradas");
+    }
+  }
+
+  async function handleTicketScreenshot(file: File) {
+    setExtractingTickets(true);
+    try {
+      const { base64, mediaType } = await compressImage(file);
+      const res = await fetch("/api/eventos/tickets-extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: base64, mediaType }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data?.error ?? "No se pudo leer el pantallazo");
+        return;
+      }
+      const tiers = Array.isArray(data.tiers) ? data.tiers : [];
+      if (tiers.length === 0) {
+        toast.info("No se encontraron tramos en la imagen -- revisa que se vea la tabla completa");
+        return;
+      }
+      setTicketTiers((prev) => [
+        ...prev,
+        ...tiers.map((t: { label: string; unitPrice: number | null; quantitySold: number | null; capacity: number | null; statusLabel: string | null }, i: number) => ({
+          id: `tmp-${newId()}`,
+          position: prev.length + i,
+          label: t.label || "Tramo",
+          unitPrice: t.unitPrice != null ? Math.round(t.unitPrice * 100) : 0,
+          quantitySold: t.quantitySold ?? 0,
+          capacity: t.capacity ?? null,
+          statusLabel: t.statusLabel ?? null,
+        })),
+      ]);
+      setTicketsDirty(true);
+      toast.success(`${tiers.length} tramo(s) leídos -- revisa los números antes de guardar`);
+    } catch {
+      toast.error("Error al procesar la imagen");
+    } finally {
+      setExtractingTickets(false);
     }
   }
 
@@ -611,6 +708,180 @@ export default function EventDetailPage() {
               </Button>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Venta de entradas */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <CardTitle className="text-sm font-medium flex items-center gap-1.5">
+            <Ticket className="h-4 w-4" />
+            Venta de entradas
+          </CardTitle>
+          <div className="flex items-center gap-2 no-print">
+            {ticketsDirty && (
+              <Button size="sm" className="h-7 text-xs cursor-pointer" disabled={savingTickets} onClick={saveTickets}>
+                {savingTickets ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Guardar entradas"}
+              </Button>
+            )}
+            <input
+              ref={ticketFileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void handleTicketScreenshot(file);
+                e.target.value = "";
+              }}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs cursor-pointer"
+              disabled={extractingTickets}
+              onClick={() => ticketFileInputRef.current?.click()}
+            >
+              {extractingTickets ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
+              {extractingTickets ? "Leyendo..." : "Subir pantallazo"}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {ticketTiers.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Sin tramos agregados todavía. Puedes agregarlos a mano o subir un pantallazo de tu plataforma de
+              tickets (PortalTickets, Passline, etc.) para que se lean solos.
+            </p>
+          ) : (
+            <SortableList
+              items={ticketTiers}
+              onReorder={(items) => { setTicketTiers(items); setTicketsDirty(true); }}
+              renderItem={(tier) => {
+                function updateTier(patch: Partial<TicketTier>) {
+                  setTicketTiers((prev) => prev.map((t) => (t.id === tier.id ? { ...t, ...patch } : t)));
+                  setTicketsDirty(true);
+                }
+                return (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      placeholder="Tramo (ej. Preventa 1)"
+                      value={tier.label}
+                      onChange={(e) => updateTier({ label: e.target.value })}
+                      className="h-8 flex-1"
+                    />
+                    <div className="w-28 shrink-0">
+                      <MoneyInput
+                        placeholder="Precio"
+                        value={tier.unitPrice ? String(tier.unitPrice / 100) : ""}
+                        onChange={(digits) => updateTier({ unitPrice: digits ? parseInt(digits, 10) * 100 : 0 })}
+                      />
+                    </div>
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      placeholder="Vendidas"
+                      value={tier.quantitySold || ""}
+                      onChange={(e) => updateTier({ quantitySold: parseInt(e.target.value, 10) || 0 })}
+                      className="h-8 w-24 shrink-0"
+                    />
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      placeholder="Cupos"
+                      value={tier.capacity ?? ""}
+                      onChange={(e) => updateTier({ capacity: e.target.value ? parseInt(e.target.value, 10) : null })}
+                      className="h-8 w-20 shrink-0"
+                    />
+                    <Input
+                      placeholder="Estado"
+                      value={tier.statusLabel ?? ""}
+                      onChange={(e) => updateTier({ statusLabel: e.target.value || null })}
+                      className="h-8 w-28 shrink-0 no-print"
+                    />
+                    <button
+                      onClick={() => {
+                        setTicketTiers((prev) => prev.filter((t) => t.id !== tier.id));
+                        setTicketsDirty(true);
+                      }}
+                      className="text-muted-foreground hover:text-destructive cursor-pointer p-1 shrink-0 no-print"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                );
+              }}
+            />
+          )}
+
+          <div className="flex items-center gap-2 pt-1 no-print">
+            <Input
+              placeholder="Tramo nuevo"
+              value={newTierLabel}
+              onChange={(e) => setNewTierLabel(e.target.value)}
+              className="h-8 flex-1"
+            />
+            <div className="w-28 shrink-0">
+              <MoneyInput placeholder="Precio" value={newTierPrice} onChange={setNewTierPrice} />
+            </div>
+            <Input
+              type="number"
+              inputMode="numeric"
+              placeholder="Vendidas"
+              value={newTierQty}
+              onChange={(e) => setNewTierQty(e.target.value)}
+              className="h-8 w-24 shrink-0"
+            />
+            <Input
+              type="number"
+              inputMode="numeric"
+              placeholder="Cupos"
+              value={newTierCapacity}
+              onChange={(e) => setNewTierCapacity(e.target.value)}
+              className="h-8 w-20 shrink-0"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 shrink-0 cursor-pointer"
+              disabled={!newTierLabel.trim()}
+              onClick={() => {
+                setTicketTiers((prev) => [
+                  ...prev,
+                  {
+                    id: `tmp-${newId()}`,
+                    position: prev.length,
+                    label: newTierLabel.trim(),
+                    unitPrice: newTierPrice ? parseInt(newTierPrice, 10) * 100 : 0,
+                    quantitySold: newTierQty ? parseInt(newTierQty, 10) : 0,
+                    capacity: newTierCapacity ? parseInt(newTierCapacity, 10) : null,
+                    statusLabel: null,
+                  },
+                ]);
+                setNewTierLabel("");
+                setNewTierPrice("");
+                setNewTierQty("");
+                setNewTierCapacity("");
+                setTicketsDirty(true);
+              }}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {ticketTiers.length > 0 && (
+            <div className="flex items-center justify-between border-t pt-2">
+              <p className="text-sm text-muted-foreground">
+                {ticketTiers.reduce((sum, t) => sum + t.quantitySold, 0)} entradas vendidas · Total:{" "}
+                <span className="font-semibold text-foreground">
+                  {formatCents(ticketTiers.reduce((sum, t) => sum + t.unitPrice * t.quantitySold, 0))}
+                </span>
+              </p>
+              <Button size="sm" variant="ghost" className="h-7 text-xs cursor-pointer no-print" onClick={applyTicketsToIncome}>
+                Usar como Entradas del evento
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 

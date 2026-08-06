@@ -1,5 +1,15 @@
 export type ShowStatus = "cotizando" | "confirmado" | "realizado" | "cancelado";
 
+export interface TicketTier {
+  id: string;
+  position: number;
+  label: string;
+  unitPrice: number;
+  quantitySold: number;
+  capacity: number | null;
+  statusLabel: string | null;
+}
+
 export interface TimingItem {
   id: string;
   position: number;

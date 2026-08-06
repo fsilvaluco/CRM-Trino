@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { EventFormDialog } from "@/components/events/EventFormDialog";
 import { useProject } from "@/lib/project-context";
 import { toast } from "sonner";
-import { Mic2, Plus, MapPin, Clock, Trash2, Pencil, BarChart2, Link as LinkIcon, Star } from "lucide-react";
+import { Mic2, Plus, MapPin, Clock, Trash2, Pencil, BarChart2, Link as LinkIcon, Star, Copy } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -60,6 +60,7 @@ export default function EventosPage() {
   const [editingShow, setEditingShow] = useState<LiveShow | null>(null);
   const [filterStatus, setFilterStatus] = useState<"all" | ShowStatus>("all");
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
   const targetProjectId = activeProject?.id ?? null;
 
@@ -92,6 +93,24 @@ export default function EventosPage() {
       toast.error("No se pudo actualizar el estado");
     } finally {
       setConfirmingId(null);
+    }
+  }
+
+  async function handleDuplicate(show: LiveShow) {
+    setDuplicatingId(show.id);
+    try {
+      const res = await fetch(`/api/eventos/${show.id}/duplicate`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "No se pudo duplicar el evento");
+        return;
+      }
+      toast.success("Evento duplicado -- se copió el setlist, el rider de la banda y la planilla de costos como plantilla");
+      await loadShows();
+    } catch {
+      toast.error("No se pudo duplicar el evento");
+    } finally {
+      setDuplicatingId(null);
     }
   }
 
@@ -282,6 +301,14 @@ export default function EventosPage() {
                         title="Editar"
                       >
                         <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDuplicate(show)}
+                        disabled={duplicatingId === show.id}
+                        className="text-muted-foreground hover:text-foreground cursor-pointer p-1.5 disabled:opacity-50"
+                        title="Duplicar"
+                      >
+                        <Copy className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => handleDelete(show)}
