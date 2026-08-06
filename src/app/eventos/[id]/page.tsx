@@ -68,6 +68,10 @@ export default function EventDetailPage() {
   const [setlistDirty, setSetlistDirty] = useState(false);
   const [savingSetlist, setSavingSetlist] = useState(false);
   const [newSongTitle, setNewSongTitle] = useState("");
+  const [extractingSetlist, setExtractingSetlist] = useState(false);
+  const [showSetlistPaste, setShowSetlistPaste] = useState(false);
+  const [setlistPasteText, setSetlistPasteText] = useState("");
+  const setlistFileInputRef = useRef<HTMLInputElement>(null);
 
   const [timing, setTiming] = useState<TimingItem[]>([]);
   const [timingDirty, setTimingDirty] = useState(false);
@@ -152,6 +156,92 @@ export default function EventDetailPage() {
       toast.error("No se pudo guardar el setlist");
     } finally {
       setSavingSetlist(false);
+    }
+  }
+
+  function appendSongs(titles: string[]) {
+    if (titles.length === 0) {
+      toast.info("No se encontraron canciones -- revisa que se vea la lista completa");
+      return;
+    }
+    setSetlist((prev) => [
+      ...prev,
+      ...titles.map((title, i) => ({ id: `tmp-${newId()}`, position: prev.length + i, title, notes: null })),
+    ]);
+    setSetlistDirty(true);
+    toast.success(`${titles.length} canción(es) agregadas -- revisa el orden antes de guardar`);
+  }
+
+  async function handleSetlistFile(file: File) {
+    setExtractingSetlist(true);
+    try {
+      const lowerName = file.name.toLowerCase();
+      if (file.type.startsWith("image/")) {
+        const { base64, mediaType } = await compressImage(file);
+        const res = await fetch("/api/eventos/setlist-extract", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: "image", imageBase64: base64, mediaType }),
+        });
+        const data = await res.json();
+        if (!res.ok) return toast.error(data?.error ?? "No se pudo leer la imagen");
+        appendSongs(data.songs ?? []);
+      } else if (file.type === "application/pdf" || lowerName.endsWith(".pdf")) {
+        const pdfBase64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve((reader.result as string).split(",")[1]);
+          reader.onerror = () => reject(new Error("No se pudo leer el archivo"));
+          reader.readAsDataURL(file);
+        });
+        const res = await fetch("/api/eventos/setlist-extract", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: "pdf", pdfBase64 }),
+        });
+        const data = await res.json();
+        if (!res.ok) return toast.error(data?.error ?? "No se pudo leer el PDF");
+        appendSongs(data.songs ?? []);
+      } else if (file.type === "text/plain" || lowerName.endsWith(".txt")) {
+        const text = await file.text();
+        const res = await fetch("/api/eventos/setlist-extract", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: "text", text }),
+        });
+        const data = await res.json();
+        if (!res.ok) return toast.error(data?.error ?? "No se pudo leer el archivo");
+        appendSongs(data.songs ?? []);
+      } else {
+        toast.error("Formato no soportado -- sube una imagen, PDF o .txt");
+      }
+    } catch {
+      toast.error("Error al procesar el archivo");
+    } finally {
+      setExtractingSetlist(false);
+    }
+  }
+
+  async function handleSetlistPaste() {
+    if (!setlistPasteText.trim()) return;
+    setExtractingSetlist(true);
+    try {
+      const res = await fetch("/api/eventos/setlist-extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "text", text: setlistPasteText }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data?.error ?? "No se pudo leer el texto");
+        return;
+      }
+      appendSongs(data.songs ?? []);
+      setSetlistPasteText("");
+      setShowSetlistPaste(false);
+    } catch {
+      toast.error("Error al procesar el texto");
+    } finally {
+      setExtractingSetlist(false);
     }
   }
 
@@ -496,11 +586,34 @@ export default function EventDetailPage() {
             <Music4 className="h-4 w-4" />
             Setlist
           </CardTitle>
-          {setlistDirty && (
-            <Button size="sm" className="h-7 text-xs cursor-pointer" disabled={savingSetlist} onClick={saveSetlist}>
-              {savingSetlist ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Guardar setlist"}
+          <div className="flex items-center gap-2">
+            {setlistDirty && (
+              <Button size="sm" className="h-7 text-xs cursor-pointer" disabled={savingSetlist} onClick={saveSetlist}>
+                {savingSetlist ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Guardar setlist"}
+              </Button>
+            )}
+            <input
+              ref={setlistFileInputRef}
+              type="file"
+              accept="image/*,.pdf,.txt,text/plain,application/pdf"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void handleSetlistFile(file);
+                e.target.value = "";
+              }}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs cursor-pointer"
+              disabled={extractingSetlist}
+              onClick={() => setlistFileInputRef.current?.click()}
+            >
+              {extractingSetlist ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
+              {extractingSetlist ? "Leyendo..." : "Subir archivo"}
             </Button>
-          )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
           {setlist.length === 0 ? (
@@ -560,6 +673,38 @@ export default function EventDetailPage() {
               <Plus className="h-4 w-4" />
             </Button>
           </div>
+
+          {showSetlistPaste ? (
+            <div className="space-y-2 pt-1 border-t">
+              <Textarea
+                placeholder="Pega el setlist acá, una canción por línea..."
+                value={setlistPasteText}
+                onChange={(e) => setSetlistPasteText(e.target.value)}
+                rows={4}
+                className="text-sm"
+              />
+              <div className="flex justify-end gap-2">
+                <Button size="sm" variant="ghost" className="h-7 text-xs cursor-pointer" onClick={() => setShowSetlistPaste(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-7 text-xs cursor-pointer"
+                  disabled={extractingSetlist || !setlistPasteText.trim()}
+                  onClick={handleSetlistPaste}
+                >
+                  {extractingSetlist ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Leer"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowSetlistPaste(true)}
+              className="text-xs text-muted-foreground hover:text-foreground cursor-pointer pt-1"
+            >
+              o pegar texto directamente
+            </button>
+          )}
         </CardContent>
       </Card>
 

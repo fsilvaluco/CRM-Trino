@@ -238,6 +238,122 @@ export async function extractTicketTiersFromScreenshot(
   }
 }
 
+const SETLIST_SCHEMA = {
+  name: "setlist_extraction",
+  strict: true,
+  schema: {
+    type: "object",
+    properties: {
+      songs: { type: "array", items: { type: "string" } },
+    },
+    required: ["songs"],
+    additionalProperties: false,
+  },
+};
+
+const SETLIST_IMAGE_PROMPT = `Esta imagen muestra un setlist (lista de canciones a tocar en un show), ya sea escrito a mano, en una nota, o en algún formato de lista.
+
+Extrae cada canción como un string, en el mismo orden en que aparecen en la imagen. Reglas:
+- Quita numeración (ej. "1.", "2)") y viñetas -- deja solo el nombre de la canción.
+- Si hay anotaciones extra junto al título (tonalidad, BPM, "acústico", nombre del intérprete si es sesionista, etc.), puedes dejarlas como parte del texto si están pegadas al nombre, pero no inventes nada que no esté escrito.
+- Si la imagen no es un setlist o no se puede leer ninguna canción con certeza, devuelve una lista vacía.`;
+
+const SETLIST_TEXT_PROMPT = `El siguiente texto es un setlist (lista de canciones a tocar en un show), posiblemente extraído de un PDF o pegado directamente. Puede tener numeración, viñetas, o líneas en blanco entremedio.
+
+Extrae cada canción como un string, en el mismo orden en que aparece. Reglas:
+- Quita numeración y viñetas -- deja solo el nombre de la canción (y anotaciones pegadas al título si las hay, como tonalidad).
+- Ignora líneas que sean claramente encabezados, notas generales, o texto que no sea el nombre de una canción (ej. "SETLIST GAMUZA", "Duración total: 45 min").
+- Si no se detecta ninguna canción, devuelve una lista vacía.
+
+Texto:
+"""
+{{TEXT}}
+"""`;
+
+/**
+ * Lee una imagen (foto de un papel, captura de nota, etc.) y extrae la
+ * lista de canciones. SIEMPRE se revisa/edita en el front antes de guardar.
+ */
+export async function extractSetlistFromImage(
+  imageBase64: string,
+  mediaType: "image/jpeg" | "image/png" | "image/webp"
+): Promise<string[]> {
+  if (!apiKey) return [];
+
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: MODEL,
+      temperature: 0,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: SETLIST_IMAGE_PROMPT },
+            { type: "image_url", image_url: { url: `data:${mediaType};base64,${imageBase64}` } },
+          ],
+        },
+      ],
+      response_format: { type: "json_schema", json_schema: SETLIST_SCHEMA },
+    }),
+  });
+
+  if (!res.ok) {
+    console.error("[openai] setlist image extraction failed", { status: res.status, body: await res.text() });
+    throw new Error(`OpenAI respondió con error (status ${res.status})`);
+  }
+
+  const data = await res.json();
+  const text: string | undefined = data?.choices?.[0]?.message?.content;
+  if (!text) return [];
+
+  try {
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed.songs) ? parsed.songs : [];
+  } catch (err) {
+    console.error("[openai] failed to parse setlist image JSON", { text, err });
+    return [];
+  }
+}
+
+/**
+ * Lee texto plano (pegado a mano, o extraído de un PDF/.txt) y extrae la
+ * lista de canciones. SIEMPRE se revisa/edita en el front antes de guardar.
+ */
+export async function extractSetlistFromText(rawText: string): Promise<string[]> {
+  if (!apiKey) return [];
+  if (!rawText.trim()) return [];
+
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: MODEL,
+      temperature: 0,
+      messages: [{ role: "user", content: SETLIST_TEXT_PROMPT.replace("{{TEXT}}", rawText.slice(0, 12000)) }],
+      response_format: { type: "json_schema", json_schema: SETLIST_SCHEMA },
+    }),
+  });
+
+  if (!res.ok) {
+    console.error("[openai] setlist text extraction failed", { status: res.status, body: await res.text() });
+    throw new Error(`OpenAI respondió con error (status ${res.status})`);
+  }
+
+  const data = await res.json();
+  const text: string | undefined = data?.choices?.[0]?.message?.content;
+  if (!text) return [];
+
+  try {
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed.songs) ? parsed.songs : [];
+  } catch (err) {
+    console.error("[openai] failed to parse setlist text JSON", { text, err });
+    return [];
+  }
+}
+
 interface MilestoneExtraction {
   title: string;
   dueDate: string | null; // YYYY-MM-DD
