@@ -37,6 +37,19 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" className={`${inter.variable} ${spaceGrotesk.variable} h-full antialiased`} suppressHydrationWarning>
+      <head>
+        {/* Aplica el tema ANTES del primer pintado -- sin este script, el
+            <html> siempre nace sin la clase "dark" y recien la agrega el
+            useEffect de ThemeInitializer, que corre despues de hidratar.
+            Eso genera un flash de tema claro en cada carga (casi siempre
+            imperceptible, pero se nota en casos como imprimir, donde el
+            estado que se captura es el de recien-cargado). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var raw=localStorage.getItem('user-prefs');var theme=raw?JSON.parse(raw).theme:'auto';var isDark=theme==='dark'||(theme!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(isDark)document.documentElement.classList.add('dark');}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body className="min-h-full flex" suppressHydrationWarning>
         <TooltipProvider>
           <AuthProvider>
