@@ -87,6 +87,32 @@
   --warning-foreground: #ffffff;
 }
 
+/* Pantallas de marca fija (login, activar cuenta) -- se ven siempre igual
+   sin importar el tema del usuario. Sin esto, si alguien tiene tema oscuro
+   seleccionado, el fondo de estas pantallas queda hardcodeado en blanco
+   pero el texto/bordes que usan variables de tema pasan a sus valores
+   oscuros (casi blancos) -- texto invisible sobre fondo blanco. */
+.auth-light-theme {
+  --background: #fafafa;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #4338ca;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #1e293b;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #f1f5f9;
+  --accent-foreground: #1e293b;
+  --destructive: #dc2626;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #4338ca;
+}
+
 .dark {
   --background: #0f172a;
   --foreground: #f8fafc;

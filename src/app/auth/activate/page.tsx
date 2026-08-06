@@ -172,7 +172,7 @@ export default function ActivatePage() {
   }
 
   return (
-    <div className="min-h-screen w-full flex bg-white">
+    <div className="min-h-screen w-full flex bg-white text-slate-900 auth-light-theme">
       <style>{`
         @keyframes login-drift {
           0%, 100% { transform: translate(0, 0) scale(1); }
