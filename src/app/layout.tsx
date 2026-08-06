@@ -1,10 +1,11 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { LocaleProvider } from "@/lib/locale-context";
 import { ThemeInitializer } from "@/components/layout/ThemeInitializer";
+import { ServiceWorkerRegistrar } from "@/components/layout/ServiceWorkerRegistrar";
 import { AuthProvider } from "@/lib/auth-context";
 import { AppShell } from "@/components/layout/AppShell";
 import { ProjectProvider } from "@/lib/project-context";
@@ -28,6 +29,18 @@ export const metadata: Metadata = {
   title: "Artist Pro",
   description:
     "CRM conversacional con pipeline de ventas, clasificacion automatica de leads y seguimiento inteligente.",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Artist Pro",
+  },
+  icons: {
+    apple: "/icons/apple-touch-icon.png",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#14162B",
 };
 
 export default function RootLayout({
@@ -57,6 +70,7 @@ export default function RootLayout({
               <NotificationsProvider>
               <LocaleProvider>
                 <ThemeInitializer />
+                <ServiceWorkerRegistrar />
                 <AppShell>
                   {children}
                 </AppShell>
