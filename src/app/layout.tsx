@@ -34,9 +34,6 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
     title: "Artist Pro",
   },
-  icons: {
-    apple: "/icons/apple-touch-icon.png",
-  },
 };
 
 export const viewport: Viewport = {
