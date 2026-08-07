@@ -82,6 +82,10 @@ export default function EventDetailPage() {
   const [newTimingResponsable, setNewTimingResponsable] = useState("");
   const [newTimingResponsableContactId, setNewTimingResponsableContactId] = useState<string | null>(null);
   const [newTimingNotes, setNewTimingNotes] = useState("");
+  const [extractingTiming, setExtractingTiming] = useState(false);
+  const [showTimingPaste, setShowTimingPaste] = useState(false);
+  const [timingPasteText, setTimingPasteText] = useState("");
+  const timingFileInputRef = useRef<HTMLInputElement>(null);
 
   const [ticketTiers, setTicketTiers] = useState<TicketTier[]>([]);
   const [ticketsDirty, setTicketsDirty] = useState(false);
@@ -243,6 +247,100 @@ export default function EventDetailPage() {
       toast.error("Error al procesar el texto");
     } finally {
       setExtractingSetlist(false);
+    }
+  }
+
+  function appendTimingItems(items: Array<{ timeLabel: string | null; activity: string; responsable: string | null; notes: string | null }>) {
+    if (items.length === 0) {
+      toast.info("No se encontraron filas -- revisa que se vea el cronograma completo");
+      return;
+    }
+    setTiming((prev) => [
+      ...prev,
+      ...items.map((it, i) => ({
+        id: `tmp-${newId()}`,
+        position: prev.length + i,
+        timeLabel: it.timeLabel,
+        activity: it.activity || "Sin detalle",
+        responsable: it.responsable,
+        responsableContactId: null,
+        notes: it.notes,
+      })),
+    ]);
+    setTimingDirty(true);
+    toast.success(`${items.length} fila(s) agregadas -- revisa el orden y los datos antes de guardar`);
+  }
+
+  async function handleTimingFile(file: File) {
+    setExtractingTiming(true);
+    try {
+      const lowerName = file.name.toLowerCase();
+      if (file.type.startsWith("image/")) {
+        const { base64, mediaType } = await compressImage(file);
+        const res = await fetch("/api/eventos/timing-extract", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: "image", imageBase64: base64, mediaType }),
+        });
+        const data = await res.json();
+        if (!res.ok) return toast.error(data?.error ?? "No se pudo leer la imagen");
+        appendTimingItems(data.items ?? []);
+      } else if (file.type === "application/pdf" || lowerName.endsWith(".pdf")) {
+        const pdfBase64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve((reader.result as string).split(",")[1]);
+          reader.onerror = () => reject(new Error("No se pudo leer el archivo"));
+          reader.readAsDataURL(file);
+        });
+        const res = await fetch("/api/eventos/timing-extract", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: "pdf", pdfBase64 }),
+        });
+        const data = await res.json();
+        if (!res.ok) return toast.error(data?.error ?? "No se pudo leer el PDF");
+        appendTimingItems(data.items ?? []);
+      } else if (file.type === "text/plain" || lowerName.endsWith(".txt")) {
+        const text = await file.text();
+        const res = await fetch("/api/eventos/timing-extract", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: "text", text }),
+        });
+        const data = await res.json();
+        if (!res.ok) return toast.error(data?.error ?? "No se pudo leer el archivo");
+        appendTimingItems(data.items ?? []);
+      } else {
+        toast.error("Formato no soportado -- sube una imagen, PDF o .txt");
+      }
+    } catch {
+      toast.error("Error al procesar el archivo");
+    } finally {
+      setExtractingTiming(false);
+    }
+  }
+
+  async function handleTimingPaste() {
+    if (!timingPasteText.trim()) return;
+    setExtractingTiming(true);
+    try {
+      const res = await fetch("/api/eventos/timing-extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "text", text: timingPasteText }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data?.error ?? "No se pudo leer el texto");
+        return;
+      }
+      appendTimingItems(data.items ?? []);
+      setTimingPasteText("");
+      setShowTimingPaste(false);
+    } catch {
+      toast.error("Error al procesar el texto");
+    } finally {
+      setExtractingTiming(false);
     }
   }
 
@@ -751,6 +849,27 @@ export default function EventDetailPage() {
                 {savingTiming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Guardar timing"}
               </Button>
             )}
+            <input
+              ref={timingFileInputRef}
+              type="file"
+              accept="image/*,.pdf,.txt,text/plain,application/pdf"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void handleTimingFile(file);
+                e.target.value = "";
+              }}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs cursor-pointer"
+              disabled={extractingTiming}
+              onClick={() => timingFileInputRef.current?.click()}
+            >
+              {extractingTiming ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
+              {extractingTiming ? "Leyendo..." : "Subir archivo"}
+            </Button>
             <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => printSection("timing")}>
               <Printer className="h-3.5 w-3.5 mr-1" />
               Imprimir
@@ -886,6 +1005,38 @@ export default function EventDetailPage() {
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
+
+            {showTimingPaste ? (
+              <div className="space-y-2 pt-1 border-t">
+                <Textarea
+                  placeholder="Pega el cronograma acá (hora, actividad, responsable, notas)..."
+                  value={timingPasteText}
+                  onChange={(e) => setTimingPasteText(e.target.value)}
+                  rows={4}
+                  className="text-sm"
+                />
+                <div className="flex justify-end gap-2">
+                  <Button size="sm" variant="ghost" className="h-7 text-xs cursor-pointer" onClick={() => setShowTimingPaste(false)}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs cursor-pointer"
+                    disabled={extractingTiming || !timingPasteText.trim()}
+                    onClick={handleTimingPaste}
+                  >
+                    {extractingTiming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Leer"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowTimingPaste(true)}
+                className="text-xs text-muted-foreground hover:text-foreground cursor-pointer pt-1"
+              >
+                o pegar texto directamente
+              </button>
+            )}
           </div>
           </div>
         </CardContent>

@@ -354,6 +354,144 @@ export async function extractSetlistFromText(rawText: string): Promise<string[]>
   }
 }
 
+interface TimingExtraction {
+  timeLabel: string | null;
+  activity: string;
+  responsable: string | null;
+  notes: string | null;
+}
+
+const TIMING_SCHEMA = {
+  name: "timing_extraction",
+  strict: true,
+  schema: {
+    type: "object",
+    properties: {
+      items: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            timeLabel: { type: ["string", "null"] },
+            activity: { type: "string" },
+            responsable: { type: ["string", "null"] },
+            notes: { type: ["string", "null"] },
+          },
+          required: ["timeLabel", "activity", "responsable", "notes"],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ["items"],
+    additionalProperties: false,
+  },
+};
+
+const TIMING_INSTRUCTIONS = `Esto es un cronograma/timing de un evento en vivo (montaje, soundcheck, apertura de puertas, show, desmontaje, etc.), típicamente con columnas como "Hora", "Actividad", "Responsable" y "Notas/Detalles".
+
+Para cada fila del cronograma extrae:
+- "timeLabel": la hora u horario tal como aparece (ej. "14:30", "15:00 - 16:30"). Si no hay hora para esa fila, null.
+- "activity": la actividad/detalle de esa fila (ej. "Montaje de estructuras y backline"). Este campo es obligatorio -- si no se puede determinar la actividad, no incluyas esa fila.
+- "responsable": quién está a cargo, si aparece (ej. "Diego Millán"). Si hay varios nombres, déjalos juntos como un string. Si no aparece, null.
+- "notes": notas o detalles adicionales de esa fila, si aparecen. Si no, null.
+
+Reglas:
+- Ignora encabezados de sección que no son filas reales (ej. "MONTAJE", "PRODUCCIÓN", "EVENTO", "DESMONTAJE" como títulos de bloque) -- esos no tienen su propia hora/actividad real, son separadores.
+- Ignora encabezados de tabla (ej. la fila que dice literalmente "Hora | Actividad | Responsable | Notas").
+- Mantén el orden en que aparecen las filas.
+- No inventes datos que no estén escritos -- usa null si no se puede leer con certeza.`;
+
+const TIMING_TEXT_PROMPT = `${TIMING_INSTRUCTIONS}
+
+Texto:
+"""
+{{TEXT}}
+"""`;
+
+/**
+ * Lee una imagen (foto o captura de un cronograma/timing) y extrae cada
+ * fila. SIEMPRE se revisa/edita en el front antes de guardar.
+ */
+export async function extractTimingFromImage(
+  imageBase64: string,
+  mediaType: "image/jpeg" | "image/png" | "image/webp"
+): Promise<TimingExtraction[]> {
+  if (!apiKey) return [];
+
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: MODEL,
+      temperature: 0,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: TIMING_INSTRUCTIONS },
+            { type: "image_url", image_url: { url: `data:${mediaType};base64,${imageBase64}` } },
+          ],
+        },
+      ],
+      response_format: { type: "json_schema", json_schema: TIMING_SCHEMA },
+    }),
+  });
+
+  if (!res.ok) {
+    console.error("[openai] timing image extraction failed", { status: res.status, body: await res.text() });
+    throw new Error(`OpenAI respondió con error (status ${res.status})`);
+  }
+
+  const data = await res.json();
+  const text: string | undefined = data?.choices?.[0]?.message?.content;
+  if (!text) return [];
+
+  try {
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed.items) ? parsed.items : [];
+  } catch (err) {
+    console.error("[openai] failed to parse timing image JSON", { text, err });
+    return [];
+  }
+}
+
+/**
+ * Lee texto plano (pegado a mano, o extraído de un PDF/.txt) y extrae cada
+ * fila del cronograma. SIEMPRE se revisa/edita en el front antes de guardar.
+ */
+export async function extractTimingFromText(rawText: string): Promise<TimingExtraction[]> {
+  if (!apiKey) return [];
+  if (!rawText.trim()) return [];
+
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: MODEL,
+      temperature: 0,
+      messages: [{ role: "user", content: TIMING_TEXT_PROMPT.replace("{{TEXT}}", rawText.slice(0, 12000)) }],
+      response_format: { type: "json_schema", json_schema: TIMING_SCHEMA },
+    }),
+  });
+
+  if (!res.ok) {
+    console.error("[openai] timing text extraction failed", { status: res.status, body: await res.text() });
+    throw new Error(`OpenAI respondió con error (status ${res.status})`);
+  }
+
+  const data = await res.json();
+  const text: string | undefined = data?.choices?.[0]?.message?.content;
+  if (!text) return [];
+
+  try {
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed.items) ? parsed.items : [];
+  } catch (err) {
+    console.error("[openai] failed to parse timing text JSON", { text, err });
+    return [];
+  }
+}
+
 interface MilestoneExtraction {
   title: string;
   dueDate: string | null; // YYYY-MM-DD
