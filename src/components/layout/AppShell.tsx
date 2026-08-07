@@ -8,7 +8,7 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 
 const PUBLIC_PATHS = ["/login", "/auth/activate", "/forgot-password", "/reset-password"];
-const PUBLIC_PREFIXES = ["/rate/", "/embed/"];
+const PUBLIC_PREFIXES = ["/rate/", "/embed/", "/e/"];
 const GUEST_ONLY_PATHS = ["/login", "/forgot-password"];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

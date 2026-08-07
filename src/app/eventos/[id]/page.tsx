@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Pencil, MapPin, Clock, Music4, Wallet, FileText, Link as LinkIcon,
   Plus, Trash2, Star, ExternalLink, Loader2, Lock, LockOpen, Printer, Receipt,
-  Ticket, Upload, Paperclip,
+  Ticket, Upload, Paperclip, Share2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -537,6 +537,16 @@ export default function EventDetailPage() {
     window.print();
   }
 
+  async function handleCopyShareLink() {
+    const url = `${window.location.origin}/e/${id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copiado -- se puede abrir sin cuenta (ve encabezado, timing, setlist y riders)");
+    } catch {
+      toast.info(url);
+    }
+  }
+
   async function handleCopyRatingLink() {
     const url = `${window.location.origin}/rate/${id}`;
     try {
@@ -716,6 +726,10 @@ export default function EventDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <Button size="sm" variant="outline" className="cursor-pointer" onClick={handleCopyShareLink}>
+            <Share2 className="h-4 w-4 mr-1.5" />
+            Compartir
+          </Button>
           {event.status === "realizado" && (
             <Button size="sm" variant="outline" className="cursor-pointer" onClick={handleCopyRatingLink}>
               <Star className="h-4 w-4 mr-1.5" />
