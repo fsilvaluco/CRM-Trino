@@ -25,6 +25,7 @@ import {
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import type { LiveShow, ShowStatus, SetlistItem, CostItem, TimingItem, TicketTier } from "@/types/shows";
+import { EventPrintHeader } from "@/components/events/EventPrintHeader";
 import { compressImage } from "@/lib/image-compress";
 
 const STATUS_CONFIG: Record<ShowStatus, { label: string; className: string }> = {
@@ -419,7 +420,7 @@ export default function EventDetailPage() {
     }
   }
 
-  function printSection(section: "costs" | "timing") {
+  function printSection(section: "costs" | "timing" | "setlist" | "todo") {
     document.body.setAttribute("data-print-section", section);
     window.print();
   }
@@ -488,6 +489,7 @@ export default function EventDetailPage() {
   const utilidadCents = (event.fee ?? 0) + (event.ticketIncome ?? 0) - (event.expenses ?? 0);
   const costsTotal = costItems.reduce((sum, c) => sum + (c.amount || 0), 0);
   const currentEvent = event;
+  const eventProject = projects.find((p) => p.id === event.projectId);
 
   async function fetchCostTypeSuggestions(query: string) {
     const res = await fetch(`/api/cost-item-types?search=${encodeURIComponent(query)}`);
@@ -509,8 +511,17 @@ export default function EventDetailPage() {
       <style>{`
         @media print {
           .no-print { display: none !important; }
-          body[data-print-section="costs"] .timing-card { display: none !important; }
-          body[data-print-section="timing"] .costs-card { display: none !important; }
+          [data-section] { display: none !important; }
+          [data-section="header"] { display: none !important; }
+          body[data-print-section="todo"] [data-section] { display: block !important; }
+          body[data-print-section="todo"] [data-section="header"] { display: flex !important; }
+          body[data-print-section="costs"] [data-section="header"] { display: flex !important; }
+          body[data-print-section="costs"] [data-section="summary"],
+          body[data-print-section="costs"] [data-section="costs"] { display: block !important; }
+          body[data-print-section="timing"] [data-section="header"] { display: flex !important; }
+          body[data-print-section="timing"] [data-section="timing"] { display: block !important; }
+          body[data-print-section="setlist"] [data-section="header"] { display: flex !important; }
+          body[data-print-section="setlist"] [data-section="setlist"] { display: block !important; }
         }
       `}</style>
 
@@ -549,6 +560,10 @@ export default function EventDetailPage() {
               Link de valoración
             </Button>
           )}
+          <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => printSection("todo")}>
+            <Printer className="h-4 w-4 mr-1.5" />
+            Imprimir todo
+          </Button>
           <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => setEditOpen(true)}>
             <Pencil className="h-4 w-4 mr-1.5" />
             Editar
@@ -556,16 +571,18 @@ export default function EventDetailPage() {
         </div>
       </div>
 
-      {/* Encabezado que solo se ve al imprimir -- el header de arriba de la pagina queda oculto */}
-      <div className="hidden print:block">
-        <p className="text-lg font-bold">{event.name}</p>
-        <p className="text-sm text-muted-foreground">
-          {formatDate(event.date)} · {event.venue}{event.city ? `, ${event.city}` : ""}
-        </p>
-      </div>
+      {/* Encabezado compartido por todas las impresiones -- logo/avatar del
+          proyecto (o el que sincroniza Instagram si no hay uno subido a mano),
+          nombre del proyecto, nombre y fecha del evento. */}
+      <EventPrintHeader
+        projectName={event.projectName}
+        projectAvatarUrl={eventProject?.avatarUrl ?? null}
+        eventName={event.name}
+        eventDateLabel={`${formatDate(event.date)} · ${event.venue}${event.city ? `, ${event.city}` : ""}`}
+      />
 
       {/* Resumen financiero */}
-      <div className="grid grid-cols-4 gap-3 costs-card">
+      <div className="grid grid-cols-4 gap-3" data-section="summary">
         <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Fee</p><p className="font-semibold">{formatCents(event.fee)}</p></CardContent></Card>
         <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Entradas</p><p className="font-semibold">{formatCents(event.ticketIncome)}</p></CardContent></Card>
         <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Egresos</p><p className="font-semibold">{formatCents(event.expenses)}</p></CardContent></Card>
@@ -580,13 +597,13 @@ export default function EventDetailPage() {
       </div>
 
       {/* Setlist */}
-      <Card className="no-print">
+      <Card data-section="setlist">
         <CardHeader className="flex flex-row items-center justify-between pb-3">
           <CardTitle className="text-sm font-medium flex items-center gap-1.5">
             <Music4 className="h-4 w-4" />
             Setlist
           </CardTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 no-print">
             {setlistDirty && (
               <Button size="sm" className="h-7 text-xs cursor-pointer" disabled={savingSetlist} onClick={saveSetlist}>
                 {savingSetlist ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Guardar setlist"}
@@ -613,103 +630,116 @@ export default function EventDetailPage() {
               {extractingSetlist ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
               {extractingSetlist ? "Leyendo..." : "Subir archivo"}
             </Button>
+            <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => printSection("setlist")}>
+              <Printer className="h-3.5 w-3.5 mr-1" />
+              Imprimir
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          {setlist.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Sin canciones agregadas todavía.</p>
-          ) : (
-            <SortableList
-              items={setlist}
-              onReorder={(items) => { setSetlist(items); setSetlistDirty(true); }}
-              renderItem={(song, index) => (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground w-5 shrink-0">{index + 1}.</span>
-                  <Input
-                    value={song.title}
-                    onChange={(e) => {
-                      setSetlist((prev) => prev.map((s) => (s.id === song.id ? { ...s, title: e.target.value } : s)));
-                      setSetlistDirty(true);
-                    }}
-                    className="h-8"
-                  />
-                  <button
-                    onClick={() => {
-                      setSetlist((prev) => prev.filter((s) => s.id !== song.id));
-                      setSetlistDirty(true);
-                    }}
-                    className="text-muted-foreground hover:text-destructive cursor-pointer p-1 shrink-0"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
-            />
+          {/* Version limpia, solo para imprimir/mandar a musicos -- sin inputs editables */}
+          {setlist.length > 0 && (
+            <ol className="hidden print:block list-decimal pl-5 space-y-1 text-sm">
+              {setlist.map((song) => <li key={song.id}>{song.title}</li>)}
+            </ol>
           )}
-          <div className="flex items-center gap-2 pt-1">
-            <Input
-              placeholder="Agregar canción..."
-              value={newSongTitle}
-              onChange={(e) => setNewSongTitle(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key !== "Enter" || !newSongTitle.trim()) return;
-                setSetlist((prev) => [...prev, { id: `tmp-${newId()}`, position: prev.length, title: newSongTitle.trim(), notes: null }]);
-                setNewSongTitle("");
-                setSetlistDirty(true);
-              }}
-              className="h-8"
-            />
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 shrink-0 cursor-pointer"
-              disabled={!newSongTitle.trim()}
-              onClick={() => {
-                setSetlist((prev) => [...prev, { id: `tmp-${newId()}`, position: prev.length, title: newSongTitle.trim(), notes: null }]);
-                setNewSongTitle("");
-                setSetlistDirty(true);
-              }}
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
 
-          {showSetlistPaste ? (
-            <div className="space-y-2 pt-1 border-t">
-              <Textarea
-                placeholder="Pega el setlist acá, una canción por línea..."
-                value={setlistPasteText}
-                onChange={(e) => setSetlistPasteText(e.target.value)}
-                rows={4}
-                className="text-sm"
+          <div className="no-print space-y-3">
+            {setlist.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Sin canciones agregadas todavía.</p>
+            ) : (
+              <SortableList
+                items={setlist}
+                onReorder={(items) => { setSetlist(items); setSetlistDirty(true); }}
+                renderItem={(song, index) => (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground w-5 shrink-0">{index + 1}.</span>
+                    <Input
+                      value={song.title}
+                      onChange={(e) => {
+                        setSetlist((prev) => prev.map((s) => (s.id === song.id ? { ...s, title: e.target.value } : s)));
+                        setSetlistDirty(true);
+                      }}
+                      className="h-8"
+                    />
+                    <button
+                      onClick={() => {
+                        setSetlist((prev) => prev.filter((s) => s.id !== song.id));
+                        setSetlistDirty(true);
+                      }}
+                      className="text-muted-foreground hover:text-destructive cursor-pointer p-1 shrink-0"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
               />
-              <div className="flex justify-end gap-2">
-                <Button size="sm" variant="ghost" className="h-7 text-xs cursor-pointer" onClick={() => setShowSetlistPaste(false)}>
-                  Cancelar
-                </Button>
-                <Button
-                  size="sm"
-                  className="h-7 text-xs cursor-pointer"
-                  disabled={extractingSetlist || !setlistPasteText.trim()}
-                  onClick={handleSetlistPaste}
-                >
-                  {extractingSetlist ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Leer"}
-                </Button>
-              </div>
+            )}
+            <div className="flex items-center gap-2 pt-1">
+              <Input
+                placeholder="Agregar canción..."
+                value={newSongTitle}
+                onChange={(e) => setNewSongTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter" || !newSongTitle.trim()) return;
+                  setSetlist((prev) => [...prev, { id: `tmp-${newId()}`, position: prev.length, title: newSongTitle.trim(), notes: null }]);
+                  setNewSongTitle("");
+                  setSetlistDirty(true);
+                }}
+                className="h-8"
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 shrink-0 cursor-pointer"
+                disabled={!newSongTitle.trim()}
+                onClick={() => {
+                  setSetlist((prev) => [...prev, { id: `tmp-${newId()}`, position: prev.length, title: newSongTitle.trim(), notes: null }]);
+                  setNewSongTitle("");
+                  setSetlistDirty(true);
+                }}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
             </div>
-          ) : (
-            <button
-              onClick={() => setShowSetlistPaste(true)}
-              className="text-xs text-muted-foreground hover:text-foreground cursor-pointer pt-1"
-            >
-              o pegar texto directamente
-            </button>
-          )}
+
+            {showSetlistPaste ? (
+              <div className="space-y-2 pt-1 border-t">
+                <Textarea
+                  placeholder="Pega el setlist acá, una canción por línea..."
+                  value={setlistPasteText}
+                  onChange={(e) => setSetlistPasteText(e.target.value)}
+                  rows={4}
+                  className="text-sm"
+                />
+                <div className="flex justify-end gap-2">
+                  <Button size="sm" variant="ghost" className="h-7 text-xs cursor-pointer" onClick={() => setShowSetlistPaste(false)}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs cursor-pointer"
+                    disabled={extractingSetlist || !setlistPasteText.trim()}
+                    onClick={handleSetlistPaste}
+                  >
+                    {extractingSetlist ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Leer"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowSetlistPaste(true)}
+                className="text-xs text-muted-foreground hover:text-foreground cursor-pointer pt-1"
+              >
+                o pegar texto directamente
+              </button>
+            )}
+          </div>
         </CardContent>
       </Card>
 
       {/* Timing / Cronograma */}
-      <Card className="timing-card">
+      <Card data-section="timing">
         <CardHeader className="flex flex-row items-center justify-between pb-3">
           <CardTitle className="text-sm font-medium flex items-center gap-1.5">
             <Clock className="h-4 w-4" />
@@ -728,13 +758,31 @@ export default function EventDetailPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="hidden print:block mb-2">
-            <p className="text-lg font-bold">{event.name}</p>
-            <p className="text-sm text-muted-foreground">
-              {formatDate(event.date)} · {event.venue}{event.city ? `, ${event.city}` : ""}
-            </p>
-          </div>
+          {/* Version limpia, solo para imprimir/mandar a produccion -- sin inputs editables */}
+          {timing.length > 0 && (
+            <table className="hidden print:table w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-300">
+                  <th className="text-left py-1 pr-3 font-medium">Hora</th>
+                  <th className="text-left py-1 pr-3 font-medium">Detalle</th>
+                  <th className="text-left py-1 pr-3 font-medium">Responsable</th>
+                  <th className="text-left py-1 font-medium">Notas</th>
+                </tr>
+              </thead>
+              <tbody>
+                {timing.map((item) => (
+                  <tr key={item.id} className="border-b border-slate-200">
+                    <td className="py-1 pr-3 whitespace-nowrap">{item.timeLabel || "—"}</td>
+                    <td className="py-1 pr-3">{item.activity}</td>
+                    <td className="py-1 pr-3">{item.responsable || "—"}</td>
+                    <td className="py-1">{item.notes || ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
 
+          <div className="no-print space-y-3">
           {timing.length === 0 ? (
             <p className="text-sm text-muted-foreground">Sin ítems en el cronograma todavía.</p>
           ) : (
@@ -766,7 +814,7 @@ export default function EventDetailPage() {
                           setTiming((prev) => prev.filter((t) => t.id !== item.id));
                           setTimingDirty(true);
                         }}
-                        className="text-muted-foreground hover:text-destructive cursor-pointer p-1 shrink-0 no-print"
+                        className="text-muted-foreground hover:text-destructive cursor-pointer p-1 shrink-0"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
@@ -793,21 +841,7 @@ export default function EventDetailPage() {
             />
           )}
 
-          <div className="space-y-1.5 pt-1 no-print">
-            <div className="flex items-center gap-2">
-              <Input
-                placeholder="Hora"
-                value={newTimeLabel}
-                onChange={(e) => setNewTimeLabel(e.target.value)}
-                className="h-8 w-40 shrink-0"
-              />
-              <Input
-                placeholder="Detalle / actividad"
-                value={newActivity}
-                onChange={(e) => setNewActivity(e.target.value)}
-                className="h-8 flex-1"
-              />
-            </div>
+          <div className="space-y-1.5 pt-1">
             <div className="flex items-center gap-2">
               <TypeaheadInput
                 placeholder="Responsable"
@@ -853,11 +887,12 @@ export default function EventDetailPage() {
               </Button>
             </div>
           </div>
+          </div>
         </CardContent>
       </Card>
 
       {/* Venta de entradas */}
-      <Card>
+      <Card data-section="tickets">
         <CardHeader className="flex flex-row items-center justify-between pb-3">
           <CardTitle className="text-sm font-medium flex items-center gap-1.5">
             <Ticket className="h-4 w-4" />
@@ -893,6 +928,31 @@ export default function EventDetailPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
+          {/* Version limpia, solo para "Imprimir todo" -- sin inputs editables */}
+          {ticketTiers.length > 0 && (
+            <table className="hidden print:table w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-300">
+                  <th className="text-left py-1 pr-3 font-medium">Tramo</th>
+                  <th className="text-right py-1 pr-3 font-medium">Precio</th>
+                  <th className="text-right py-1 pr-3 font-medium">Vendidas</th>
+                  <th className="text-right py-1 font-medium">Cupos</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ticketTiers.map((tier) => (
+                  <tr key={tier.id} className="border-b border-slate-200">
+                    <td className="py-1 pr-3">{tier.label}</td>
+                    <td className="py-1 pr-3 text-right">{formatCents(tier.unitPrice)}</td>
+                    <td className="py-1 pr-3 text-right">{tier.quantitySold}</td>
+                    <td className="py-1 text-right">{tier.capacity ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          <div className="no-print space-y-3">
           {ticketTiers.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Sin tramos agregados todavía. Puedes agregarlos a mano o subir un pantallazo de tu plataforma de
@@ -942,14 +1002,14 @@ export default function EventDetailPage() {
                       placeholder="Estado"
                       value={tier.statusLabel ?? ""}
                       onChange={(e) => updateTier({ statusLabel: e.target.value || null })}
-                      className="h-8 w-28 shrink-0 no-print"
+                      className="h-8 w-28 shrink-0"
                     />
                     <button
                       onClick={() => {
                         setTicketTiers((prev) => prev.filter((t) => t.id !== tier.id));
                         setTicketsDirty(true);
                       }}
-                      className="text-muted-foreground hover:text-destructive cursor-pointer p-1 shrink-0 no-print"
+                      className="text-muted-foreground hover:text-destructive cursor-pointer p-1 shrink-0"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -959,7 +1019,7 @@ export default function EventDetailPage() {
             />
           )}
 
-          <div className="flex items-center gap-2 pt-1 no-print">
+          <div className="flex items-center gap-2 pt-1">
             <Input
               placeholder="Tramo nuevo"
               value={newTierLabel}
@@ -1013,6 +1073,7 @@ export default function EventDetailPage() {
               <Plus className="h-4 w-4" />
             </Button>
           </div>
+          </div>
 
           {ticketTiers.length > 0 && (
             <div className="flex items-center justify-between border-t pt-2">
@@ -1031,7 +1092,7 @@ export default function EventDetailPage() {
       </Card>
 
       {/* Costos */}
-      <Card className="costs-card">
+      <Card data-section="costs">
         <CardHeader className="flex flex-row items-center justify-between pb-3">
           <CardTitle className="text-sm font-medium flex items-center gap-1.5">
             <Wallet className="h-4 w-4" />
@@ -1077,6 +1138,28 @@ export default function EventDetailPage() {
           {costItems.length === 0 ? (
             <p className="text-sm text-muted-foreground">Sin items de costo agregados todavía.</p>
           ) : (
+            <table className="hidden print:table w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-300">
+                  <th className="text-left py-1 pr-3 font-medium">Detalle</th>
+                  <th className="text-left py-1 pr-3 font-medium">Responsable</th>
+                  <th className="text-right py-1 font-medium">Monto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {costItems.map((item) => (
+                  <tr key={item.id} className="border-b border-slate-200">
+                    <td className="py-1 pr-3">{item.label}</td>
+                    <td className="py-1 pr-3">{item.responsable || "—"}</td>
+                    <td className="py-1 text-right">{formatCents(item.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          <div className="no-print space-y-3">
+          {costItems.length === 0 ? null : (
             <SortableList
               items={costItems}
               onReorder={(items) => { setCostItems(items); setCostsDirty(true); }}
@@ -1258,6 +1341,7 @@ export default function EventDetailPage() {
               </div>
             </div>
           )}
+          </div>
 
           {costItems.length > 0 && (
             <div className="flex items-center justify-between border-t pt-2">
@@ -1284,59 +1368,79 @@ export default function EventDetailPage() {
       </Card>
 
       {/* Riders + link */}
-      <Card className="no-print">
+      <Card data-section="riders">
         <CardHeader className="flex flex-row items-center justify-between pb-3">
           <CardTitle className="text-sm font-medium flex items-center gap-1.5">
             <FileText className="h-4 w-4" />
             Riders y link del evento
           </CardTitle>
           {detailsDirty && (
-            <Button size="sm" className="h-7 text-xs cursor-pointer" disabled={savingDetails} onClick={saveDetails}>
+            <Button size="sm" className="h-7 text-xs cursor-pointer no-print" disabled={savingDetails} onClick={saveDetails}>
               {savingDetails ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Guardar"}
             </Button>
           )}
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="event-link" className="text-xs flex items-center gap-1">
-              <LinkIcon className="h-3.5 w-3.5" />
-              Link del evento
-            </Label>
-            <div className="flex items-center gap-2">
-              <Input
-                id="event-link"
-                placeholder="https://..."
-                value={eventLink}
-                onChange={(e) => { setEventLink(e.target.value); setDetailsDirty(true); }}
-              />
-              {eventLink && (
-                <a href={eventLink} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground shrink-0">
-                  <ExternalLink className="h-4 w-4" />
-                </a>
-              )}
-            </div>
+          {/* Version limpia, solo para "Imprimir todo" */}
+          <div className="hidden print:block space-y-2 text-sm">
+            {eventLink && <p><span className="font-medium">Link del evento:</span> {eventLink}</p>}
+            {riderLocal && (
+              <div>
+                <p className="font-medium">Rider local (venue)</p>
+                <p className="whitespace-pre-wrap text-slate-700">{riderLocal}</p>
+              </div>
+            )}
+            {riderBanda && (
+              <div>
+                <p className="font-medium">Rider banda</p>
+                <p className="whitespace-pre-wrap text-slate-700">{riderBanda}</p>
+              </div>
+            )}
+            {!eventLink && !riderLocal && !riderBanda && <p className="text-slate-500">Sin riders ni link cargados.</p>}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="no-print space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="rider-local" className="text-xs">Rider local (venue)</Label>
-              <Textarea
-                id="rider-local"
-                rows={5}
-                placeholder="Equipamiento del venue, o pega el link a un PDF/Drive..."
-                value={riderLocal}
-                onChange={(e) => { setRiderLocal(e.target.value); setDetailsDirty(true); }}
-              />
+              <Label htmlFor="event-link" className="text-xs flex items-center gap-1">
+                <LinkIcon className="h-3.5 w-3.5" />
+                Link del evento
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="event-link"
+                  placeholder="https://..."
+                  value={eventLink}
+                  onChange={(e) => { setEventLink(e.target.value); setDetailsDirty(true); }}
+                />
+                {eventLink && (
+                  <a href={eventLink} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground shrink-0">
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                )}
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="rider-banda" className="text-xs">Rider banda</Label>
-              <Textarea
-                id="rider-banda"
-                rows={5}
-                placeholder="Requerimientos técnicos de la banda, o pega el link a un PDF/Drive..."
-                value={riderBanda}
-                onChange={(e) => { setRiderBanda(e.target.value); setDetailsDirty(true); }}
-              />
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="rider-local" className="text-xs">Rider local (venue)</Label>
+                <Textarea
+                  id="rider-local"
+                  rows={5}
+                  placeholder="Equipamiento del venue, o pega el link a un PDF/Drive..."
+                  value={riderLocal}
+                  onChange={(e) => { setRiderLocal(e.target.value); setDetailsDirty(true); }}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="rider-banda" className="text-xs">Rider banda</Label>
+                <Textarea
+                  id="rider-banda"
+                  rows={5}
+                  placeholder="Requerimientos técnicos de la banda, o pega el link a un PDF/Drive..."
+                  value={riderBanda}
+                  onChange={(e) => { setRiderBanda(e.target.value); setDetailsDirty(true); }}
+                />
+              </div>
             </div>
           </div>
         </CardContent>
