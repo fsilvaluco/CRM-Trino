@@ -29,6 +29,8 @@ function mapLiveShow(row: any) {
     riderLocal: row.rider_local ?? null,
     riderBanda: row.rider_banda ?? null,
     costSheetClosedAt: row.cost_sheet_closed_at ?? null,
+    costSheetClosingFilePath: row.cost_sheet_closing_file_path ?? null,
+    costSheetClosingFileName: row.cost_sheet_closing_file_name ?? null,
   };
 }
 

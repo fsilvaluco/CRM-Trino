@@ -61,6 +61,8 @@ export interface LiveShow {
   riderLocal: string | null;
   riderBanda: string | null;
   costSheetClosedAt: string | null;
+  costSheetClosingFilePath: string | null;
+  costSheetClosingFileName: string | null;
   createdAt: string;
   updatedAt: string;
   projectName: string | null;

@@ -20,13 +20,15 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Pencil, MapPin, Clock, Music4, Wallet, FileText, Link as LinkIcon,
   Plus, Trash2, Star, ExternalLink, Loader2, Lock, LockOpen, Printer, Receipt,
-  Ticket, Upload,
+  Ticket, Upload, Paperclip,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import type { LiveShow, ShowStatus, SetlistItem, CostItem, TimingItem, TicketTier } from "@/types/shows";
 import { EventPrintHeader } from "@/components/events/EventPrintHeader";
+import { EventPrintFooter } from "@/components/events/EventPrintFooter";
 import { compressImage } from "@/lib/image-compress";
+import { supabase } from "@/lib/supabase";
 
 const STATUS_CONFIG: Record<ShowStatus, { label: string; className: string }> = {
   cotizando: { label: "Cotizando", className: "bg-yellow-100 text-yellow-700" },
@@ -107,6 +109,8 @@ export default function EventDetailPage() {
   const [newCostComprobante, setNewCostComprobante] = useState("");
   const [newCostEsBhe, setNewCostEsBhe] = useState(false);
   const [closingCosts, setClosingCosts] = useState(false);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const closingFileInputRef = useRef<HTMLInputElement>(null);
 
   const costSheetClosed = Boolean(event?.costSheetClosedAt);
 
@@ -566,6 +570,52 @@ export default function EventDetailPage() {
     }
   }
 
+  function getClosingAttachmentUrl(filePath: string): string {
+    const { data } = supabase.storage.from("finances").getPublicUrl(filePath);
+    return data.publicUrl;
+  }
+
+  async function handleClosingAttachmentUpload(file: File) {
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("El archivo no puede superar 10 MB");
+      return;
+    }
+    setUploadingAttachment(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const storagePath = `event-closings/${id}/${Date.now()}.${ext}`;
+      const uploadResult = await supabase.storage.from("finances").upload(storagePath, file, { upsert: false });
+      if (uploadResult.error) {
+        toast.error("Error subiendo el archivo: " + uploadResult.error.message);
+        return;
+      }
+      const res = await fetch(`/api/eventos/${id}/costs/attachment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filePath: storagePath, fileName: file.name }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Documento adjuntado");
+      load();
+    } catch {
+      toast.error("No se pudo adjuntar el documento");
+    } finally {
+      setUploadingAttachment(false);
+    }
+  }
+
+  async function handleRemoveClosingAttachment() {
+    if (!confirm("¿Quitar el documento adjunto del cierre?")) return;
+    try {
+      const res = await fetch(`/api/eventos/${id}/costs/attachment`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      toast.success("Documento quitado");
+      load();
+    } catch {
+      toast.error("No se pudo quitar el documento");
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -610,15 +660,19 @@ export default function EventDetailPage() {
         @media print {
           .no-print { display: none !important; }
           [data-section] { display: none !important; }
-          [data-section="header"] { display: none !important; }
+          [data-section="header"], [data-section="footer"] { display: none !important; }
           body[data-print-section="todo"] [data-section] { display: block !important; }
-          body[data-print-section="todo"] [data-section="header"] { display: flex !important; }
-          body[data-print-section="costs"] [data-section="header"] { display: flex !important; }
+          body[data-print-section="todo"] [data-section="header"],
+          body[data-print-section="todo"] [data-section="footer"] { display: flex !important; }
+          body[data-print-section="costs"] [data-section="header"],
+          body[data-print-section="costs"] [data-section="footer"] { display: flex !important; }
           body[data-print-section="costs"] [data-section="summary"],
           body[data-print-section="costs"] [data-section="costs"] { display: block !important; }
-          body[data-print-section="timing"] [data-section="header"] { display: flex !important; }
+          body[data-print-section="timing"] [data-section="header"],
+          body[data-print-section="timing"] [data-section="footer"] { display: flex !important; }
           body[data-print-section="timing"] [data-section="timing"] { display: block !important; }
-          body[data-print-section="setlist"] [data-section="header"] { display: flex !important; }
+          body[data-print-section="setlist"] [data-section="header"],
+          body[data-print-section="setlist"] [data-section="footer"] { display: flex !important; }
           body[data-print-section="setlist"] [data-section="setlist"] { display: block !important; }
         }
       `}</style>
@@ -1275,6 +1329,27 @@ export default function EventDetailPage() {
                 {savingCosts ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Guardar costos"}
               </Button>
             )}
+            <input
+              ref={closingFileInputRef}
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png,.webp"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void handleClosingAttachmentUpload(file);
+                e.target.value = "";
+              }}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs cursor-pointer"
+              disabled={uploadingAttachment}
+              onClick={() => closingFileInputRef.current?.click()}
+            >
+              {uploadingAttachment ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Paperclip className="h-3.5 w-3.5 mr-1" />}
+              {uploadingAttachment ? "Subiendo..." : "Adjuntar documento"}
+            </Button>
             <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => printSection("costs")}>
               <Printer className="h-3.5 w-3.5 mr-1" />
               Imprimir
@@ -1298,6 +1373,27 @@ export default function EventDetailPage() {
               Caja cerrada{event.costSheetClosedAt ? ` el ${format(new Date(event.costSheetClosedAt), "d MMM yyyy, HH:mm", { locale: es })}` : ""}.
               Reábrela si necesitas corregir algo.
             </p>
+          )}
+
+          {event.costSheetClosingFilePath && (
+            <div className="flex items-center gap-2 rounded-md bg-muted/50 px-2.5 py-1.5 no-print">
+              <Paperclip className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <a
+                href={getClosingAttachmentUrl(event.costSheetClosingFilePath)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-primary hover:underline truncate"
+              >
+                {event.costSheetClosingFileName ?? "Documento adjunto"}
+              </a>
+              <button
+                onClick={handleRemoveClosingAttachment}
+                className="text-muted-foreground hover:text-destructive cursor-pointer ml-auto shrink-0"
+                title="Quitar"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
           )}
 
           {costItems.length === 0 ? (
@@ -1610,6 +1706,8 @@ export default function EventDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      <EventPrintFooter />
 
       <EventFormDialog
         open={editOpen}
