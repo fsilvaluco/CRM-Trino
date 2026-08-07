@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
   if (error) return error;
 
   const body = await request.json().catch(() => ({}));
-  const { projectId, dealId, venueId, name, date, eventTime, venue, address, city, notes, status, fee, ticketIncome, expenses } = body as {
+  const { projectId, dealId, venueId, name, date, eventTime, venue, address, city, notes, eventLink, status, fee, ticketIncome, expenses } = body as {
     projectId?: string;
     dealId?: string;
     venueId?: string | null;
@@ -87,6 +87,7 @@ export async function POST(request: NextRequest) {
     address?: string;
     city?: string;
     notes?: string;
+    eventLink?: string | null;
     status?: ShowStatus;
     fee?: number | null;
     ticketIncome?: number | null;
@@ -147,6 +148,7 @@ export async function POST(request: NextRequest) {
       address: resolvedAddress,
       city: resolvedCity,
       notes: notes || null,
+      event_link: eventLink || null,
       status: status || "cotizando",
       fee: fee ?? 0,
       ticket_income: ticketIncome ?? 0,

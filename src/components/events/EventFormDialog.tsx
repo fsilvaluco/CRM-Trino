@@ -19,7 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { MapPin } from "lucide-react";
+import { MapPin, Link as LinkIcon, ExternalLink } from "lucide-react";
 import { VenueCombobox } from "@/components/venues/VenueCombobox";
 import { MoneyInput } from "@/components/shared/MoneyInput";
 import type { LiveShow, ShowStatus } from "@/types/shows";
@@ -68,6 +68,7 @@ export function EventFormDialog({
   const [eventTime, setEventTime] = useState("");
   const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
   const [notes, setNotes] = useState("");
+  const [eventLink, setEventLink] = useState("");
   const [status, setStatus] = useState<ShowStatus>("cotizando");
   const [fee, setFee] = useState("");
   const [ticketIncome, setTicketIncome] = useState("");
@@ -83,6 +84,7 @@ export function EventFormDialog({
       setDate(editingShow.date);
       setEventTime(editingShow.eventTime ?? "");
       setNotes(editingShow.notes ?? "");
+      setEventLink(editingShow.eventLink ?? "");
       setStatus(editingShow.status);
       setFee(centsToPesos(editingShow.fee));
       setTicketIncome(centsToPesos(editingShow.ticketIncome));
@@ -135,6 +137,7 @@ export function EventFormDialog({
       setEventTime("");
       setSelectedVenue(null);
       setNotes("");
+      setEventLink("");
       setStatus("cotizando");
       setFee("");
       setTicketIncome("");
@@ -179,6 +182,7 @@ export function EventFormDialog({
           venue: selectedVenue.id ? undefined : selectedVenue.name,
           address: selectedVenue.id ? undefined : selectedVenue.address || null,
           notes: notes || null,
+          eventLink: eventLink || null,
           status,
           fee: pesosToCents(fee),
           ticketIncome: pesosToCents(ticketIncome),
@@ -302,6 +306,26 @@ export function EventFormDialog({
                 <Label htmlFor="show-expenses" className="text-xs">Egresos</Label>
                 <MoneyInput id="show-expenses" value={expenses} onChange={setExpenses} />
               </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="show-event-link" className="flex items-center gap-1">
+              <LinkIcon className="h-3.5 w-3.5" />
+              Link del evento
+            </Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="show-event-link"
+                placeholder="https://..."
+                value={eventLink}
+                onChange={(e) => setEventLink(e.target.value)}
+              />
+              {eventLink && (
+                <a href={eventLink} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground shrink-0">
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              )}
             </div>
           </div>
 
