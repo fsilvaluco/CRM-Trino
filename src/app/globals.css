@@ -166,3 +166,44 @@
     letter-spacing: -0.01em;
   }
 }
+
+/* ============================================================
+   Impresión (global, aplica a cualquier página de la app)
+   ============================================================
+   El layout usa una caja de altura fija con scroll (h-screen +
+   overflow-hidden/overflow-y-auto) para que el sidebar quede fijo mientras
+   el contenido hace scroll -- perfecto en pantalla, pero al imprimir el
+   navegador solo captura lo que "cabe" dentro de esa caja recortada, así
+   que cualquier impresión quedaba pegada a una sola página. Esto además
+   oculta el sidebar/header, que nunca estaban marcados como no-print. */
+@media print {
+  .no-print { display: none !important; }
+
+  aside, header {
+    display: none !important;
+  }
+
+  html, body {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  main {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* El div raíz de AppShell y su hijo flex también recortan con
+     overflow-hidden/h-screen -- sin esto el contenido sigue clippeado
+     aunque html/body/main ya estén libres. Van por clase de Tailwind
+     porque esos divs no tienen un id propio (App Router, no Pages
+     Router -- no existe un "#__next" acá). Forzar esto a "visible"/"auto"
+     al imprimir nunca debería romper nada, solo deja de recortar. */
+  .h-screen {
+    height: auto !important;
+  }
+  .overflow-hidden,
+  .overflow-y-auto {
+    overflow: visible !important;
+  }
+}
