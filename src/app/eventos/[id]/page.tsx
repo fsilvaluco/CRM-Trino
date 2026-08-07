@@ -52,6 +52,16 @@ function formatDate(d: string) {
   }
 }
 
+// El campo `address` suele venir de Google Places como direccion completa
+// (calle, comuna, region, pais...). Para el encabezado de impresion solo
+// queremos "calle n°, comuna" -- el primer segmento (antes de la primera
+// coma) es la calle+numero, y la comuna ya la tenemos aparte en `city`.
+function formatShortAddress(address: string | null, city: string | null): string | null {
+  const street = address?.split(",")[0]?.trim() || "";
+  const parts = [street, city].filter(Boolean);
+  return parts.length > 0 ? parts.join(", ") : null;
+}
+
 function newId() {
   return typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36);
 }
@@ -730,7 +740,8 @@ export default function EventDetailPage() {
         projectName={event.projectName}
         projectAvatarUrl={eventProject?.avatarUrl ?? null}
         eventName={event.name}
-        eventDateLabel={`${formatDate(event.date)} · ${event.venue}${event.city ? `, ${event.city}` : ""}`}
+        eventDateLabel={`${formatDate(event.date)} · ${event.venue}`}
+        addressLine={formatShortAddress(event.address, event.city)}
       />
 
       {/* Resumen financiero */}

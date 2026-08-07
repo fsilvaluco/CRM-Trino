@@ -5,11 +5,13 @@ export function EventPrintHeader({
   projectAvatarUrl,
   eventName,
   eventDateLabel,
+  addressLine,
 }: {
   projectName: string | null;
   projectAvatarUrl: string | null;
   eventName: string;
   eventDateLabel: string;
+  addressLine?: string | null;
 }) {
   return (
     <div data-section="header" className="hidden print:flex items-center gap-3 mb-4 pb-3 border-b border-slate-300">
@@ -25,6 +27,7 @@ export function EventPrintHeader({
         {projectName && <p className="text-xs uppercase tracking-wide text-slate-500">{projectName}</p>}
         <p className="text-lg font-bold text-slate-900 leading-tight">{eventName}</p>
         <p className="text-xs text-slate-500">{eventDateLabel}</p>
+        {addressLine && <p className="text-xs text-slate-500">{addressLine}</p>}
       </div>
     </div>
   );
