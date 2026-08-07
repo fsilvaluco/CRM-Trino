@@ -920,7 +920,7 @@ export default function EventDetailPage() {
                         placeholder="Hora (ej. 14:30 o 15:00-16:30)"
                         value={item.timeLabel ?? ""}
                         onChange={(e) => updateTimingItem({ timeLabel: e.target.value })}
-                        className="h-8 w-40 shrink-0"
+                        className="h-8 w-20 sm:w-40 shrink-0"
                       />
                       <Input
                         placeholder="Detalle / actividad"
@@ -945,7 +945,7 @@ export default function EventDetailPage() {
                         onChange={(v) => updateTimingItem({ responsable: v, responsableContactId: null })}
                         onSelectSuggestion={(s) => updateTimingItem({ responsable: s.label, responsableContactId: s.value ?? null })}
                         fetchSuggestions={fetchResponsableSuggestions}
-                        className="h-7 text-xs w-48 shrink-0"
+                        className="h-7 text-xs w-24 sm:w-48 shrink-0"
                       />
                       <Input
                         placeholder="Notas / detalles"
@@ -962,13 +962,27 @@ export default function EventDetailPage() {
 
           <div className="space-y-1.5 pt-1">
             <div className="flex items-center gap-2">
+              <Input
+                placeholder="Hora"
+                value={newTimeLabel}
+                onChange={(e) => setNewTimeLabel(e.target.value)}
+                className="h-8 w-20 sm:w-40 shrink-0"
+              />
+              <Input
+                placeholder="Detalle / actividad"
+                value={newActivity}
+                onChange={(e) => setNewActivity(e.target.value)}
+                className="h-8 flex-1"
+              />
+            </div>
+            <div className="flex items-center gap-2">
               <TypeaheadInput
                 placeholder="Responsable"
                 value={newTimingResponsable}
                 onChange={(v) => { setNewTimingResponsable(v); setNewTimingResponsableContactId(null); }}
                 onSelectSuggestion={(s) => { setNewTimingResponsable(s.label); setNewTimingResponsableContactId(s.value ?? null); }}
                 fetchSuggestions={fetchResponsableSuggestions}
-                className="h-7 text-xs w-48 shrink-0"
+                className="h-7 text-xs w-24 sm:w-48 shrink-0"
               />
               <Input
                 placeholder="Notas / detalles"
@@ -1126,7 +1140,7 @@ export default function EventDetailPage() {
                       onChange={(e) => updateTier({ label: e.target.value })}
                       className="h-8 flex-1"
                     />
-                    <div className="w-28 shrink-0">
+                    <div className="w-20 sm:w-28 shrink-0">
                       <MoneyInput
                         placeholder="Precio"
                         value={tier.unitPrice ? String(tier.unitPrice / 100) : ""}
@@ -1139,7 +1153,7 @@ export default function EventDetailPage() {
                       placeholder="Vendidas"
                       value={tier.quantitySold || ""}
                       onChange={(e) => updateTier({ quantitySold: parseInt(e.target.value, 10) || 0 })}
-                      className="h-8 w-24 shrink-0"
+                      className="h-8 w-16 sm:w-24 shrink-0"
                     />
                     <Input
                       type="number"
@@ -1147,13 +1161,13 @@ export default function EventDetailPage() {
                       placeholder="Cupos"
                       value={tier.capacity ?? ""}
                       onChange={(e) => updateTier({ capacity: e.target.value ? parseInt(e.target.value, 10) : null })}
-                      className="h-8 w-20 shrink-0"
+                      className="h-8 w-14 sm:w-20 shrink-0"
                     />
                     <Input
                       placeholder="Estado"
                       value={tier.statusLabel ?? ""}
                       onChange={(e) => updateTier({ statusLabel: e.target.value || null })}
-                      className="h-8 w-28 shrink-0"
+                      className="h-8 w-20 sm:w-28 shrink-0"
                     />
                     <button
                       onClick={() => {
@@ -1177,7 +1191,7 @@ export default function EventDetailPage() {
               onChange={(e) => setNewTierLabel(e.target.value)}
               className="h-8 flex-1"
             />
-            <div className="w-28 shrink-0">
+            <div className="w-20 sm:w-28 shrink-0">
               <MoneyInput placeholder="Precio" value={newTierPrice} onChange={setNewTierPrice} />
             </div>
             <Input
@@ -1186,7 +1200,7 @@ export default function EventDetailPage() {
               placeholder="Vendidas"
               value={newTierQty}
               onChange={(e) => setNewTierQty(e.target.value)}
-              className="h-8 w-24 shrink-0"
+              className="h-8 w-16 sm:w-24 shrink-0"
             />
             <Input
               type="number"
@@ -1194,7 +1208,7 @@ export default function EventDetailPage() {
               placeholder="Cupos"
               value={newTierCapacity}
               onChange={(e) => setNewTierCapacity(e.target.value)}
-              className="h-8 w-20 shrink-0"
+              className="h-8 w-14 sm:w-20 shrink-0"
             />
             <Button
               size="sm"
@@ -1335,7 +1349,7 @@ export default function EventDetailPage() {
                         fetchSuggestions={fetchCostTypeSuggestions}
                         className="h-8 flex-1"
                       />
-                      <div className="w-32 shrink-0">
+                      <div className="w-24 sm:w-32 shrink-0">
                         <MoneyInput
                           placeholder={item.esBhe ? "Líquido" : "$0"}
                           value={displayAmount ? String(displayAmount / 100) : ""}
@@ -1427,7 +1441,7 @@ export default function EventDetailPage() {
                   fetchSuggestions={fetchCostTypeSuggestions}
                   className="h-8 flex-1"
                 />
-                <div className="w-32 shrink-0">
+                <div className="w-24 sm:w-32 shrink-0">
                   <MoneyInput
                     placeholder={newCostEsBhe ? "Líquido" : "$0"}
                     value={newCostAmount}
