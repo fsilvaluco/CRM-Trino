@@ -1,7 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["better-sqlite3"],
+  // better-sqlite3: binario nativo, no se puede empaquetar.
+  // pdf-parse/pdfjs-dist: cargan archivos auxiliares (workers, fuentes) en
+  // tiempo de ejecución -- si Next los empaqueta con webpack en vez de
+  // dejarlos como dependencia externa de node_modules, esos archivos no
+  // se resuelven bien y pdf-parse falla en producción aunque funcione
+  // perfecto corriendo el mismo código directo con Node.
+  serverExternalPackages: ["better-sqlite3", "pdf-parse", "pdfjs-dist"],
   // "Shows en vivo" y "Métricas > Shows" se renombraron a "Eventos" -- estos
   // redirects son solo para que un link o marcador viejo a /shows no quede
   // en un 404.
