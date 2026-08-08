@@ -75,7 +75,7 @@ export async function PUT(
       },
       index: number
     ) => ({
-      ...(it.id ? { id: it.id } : {}),
+      ...(it.id ? { id: it.id } : { id: crypto.randomUUID() }),
       show_id: id,
       position: index,
       time_label: it.timeLabel || null,

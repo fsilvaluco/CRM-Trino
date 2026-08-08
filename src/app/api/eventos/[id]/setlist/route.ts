@@ -55,7 +55,7 @@ export async function PUT(
   }
 
   const rows = items.map((it: { id?: string; title: string; notes?: string | null }, index: number) => ({
-    ...(it.id ? { id: it.id } : {}),
+    ...(it.id ? { id: it.id } : { id: crypto.randomUUID() }),
     show_id: id,
     position: index,
     title: (it.title ?? "").trim() || "Sin título",
