@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { Loader2, MapPin, Clock, Music4, FileText, Users } from "lucide-react";
+import { Loader2, MapPin, Clock, Music4, FileText, Users, Navigation } from "lucide-react";
 
 interface PublicTimingItem {
   id: string;
@@ -79,7 +79,7 @@ export function PublicEventClient({ id }: { id: string }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="min-h-screen w-full flex items-center justify-center bg-white">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
@@ -87,17 +87,28 @@ export function PublicEventClient({ id }: { id: string }) {
 
   if (notFound || !event) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white text-center px-4">
+      <div className="min-h-screen w-full flex items-center justify-center bg-white text-center px-4">
         <p className="text-muted-foreground">Este link no existe o el evento fue eliminado.</p>
       </div>
     );
   }
 
   const addressLine = formatShortAddress(event.address, event.city);
+  const mapsQuery = event.address || [event.venue, event.city].filter(Boolean).join(", ");
+  const mapsUrl = mapsQuery ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}` : null;
 
   return (
-    <div className="min-h-screen bg-white text-slate-900">
+    <div className="min-h-screen w-full bg-white text-slate-900">
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
+        {/* Marca chica arriba, ademas del pie de pagina */}
+        <div className="flex justify-end">
+          <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo-icon.png" alt="" className="h-3.5 w-3.5 opacity-60" />
+            Artist Pro
+          </span>
+        </div>
+
         {/* Header */}
         <div className="flex items-center gap-3 pb-4 border-b border-slate-200">
           {event.projectAvatarUrl ? (
@@ -124,7 +135,17 @@ export function PublicEventClient({ id }: { id: string }) {
                 {event.venue}
               </span>
             </p>
-            {addressLine && <p className="text-xs text-slate-500">{addressLine}</p>}
+            {addressLine && mapsUrl && (
+              <a
+                href={mapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 mt-1 text-xs text-primary hover:underline"
+              >
+                <Navigation className="h-3 w-3" />
+                {addressLine}
+              </a>
+            )}
           </div>
         </div>
 
