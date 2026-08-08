@@ -66,7 +66,11 @@ export function EventsSummaryTab({ shows }: EventsSummaryTabProps) {
               <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
               <XAxis dataKey="venue" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => CLP.format(v)} width={90} />
-              <Tooltip formatter={(v) => [CLP.format(Number(v ?? 0)), "Utilidad"]} />
+              <Tooltip
+                contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8 }}
+                labelStyle={{ color: "#0f172a", fontWeight: 600 }}
+                formatter={(v) => [CLP.format(Number(v ?? 0)), "Utilidad"]}
+              />
               <Bar dataKey="utilidad" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>

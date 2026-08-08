@@ -119,7 +119,11 @@ export function SpotifyStatsCharts({ snapshots, followerMetrics }: SpotifyStatsC
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
             <XAxis dataKey="label" tick={{ fontSize: 11 }} />
             <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => NUM.format(v)} width={70} />
-            <Tooltip formatter={(v) => [v != null ? NUM.format(Number(v)) : "—", activeMetric.label]} />
+            <Tooltip
+              contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8 }}
+              labelStyle={{ color: "#0f172a", fontWeight: 600 }}
+              formatter={(v) => [v != null ? NUM.format(Number(v)) : "—", activeMetric.label]}
+            />
             <Line
               type="monotone"
               dataKey="value"

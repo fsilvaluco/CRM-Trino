@@ -105,7 +105,11 @@ export function InstagramDemographics() {
                   <Cell key={i} fill={GENDER_COLORS[i % GENDER_COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip formatter={(v) => NUM.format(Number(v))} />
+              <Tooltip
+                contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8 }}
+                labelStyle={{ color: "#0f172a", fontWeight: 600 }}
+                formatter={(v) => NUM.format(Number(v))}
+              />
             </PieChart>
           </ResponsiveContainer>
           <div className="space-y-1.5 text-sm">
@@ -132,7 +136,11 @@ export function InstagramDemographics() {
             <BarChart data={data!.age}>
               <XAxis dataKey="label" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip formatter={(v) => NUM.format(Number(v))} />
+              <Tooltip
+                contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8 }}
+                labelStyle={{ color: "#0f172a", fontWeight: 600 }}
+                formatter={(v) => NUM.format(Number(v))}
+              />
               <Bar dataKey="value" fill="#6366f1" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>

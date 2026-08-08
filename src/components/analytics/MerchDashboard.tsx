@@ -225,6 +225,8 @@ export function MerchDashboard({ products, salesByMonth }: MerchDashboardProps) 
             <XAxis dataKey="label" tick={{ fontSize: 11 }} />
             <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => CLP.format(v)} width={90} />
             <Tooltip
+              contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8 }}
+              labelStyle={{ color: "#0f172a", fontWeight: 600 }}
               formatter={(v, name) => {
                 if (name === "ventas") return [CLP.format(Number(v ?? 0)), "Ventas"];
                 return [NUM.format(Number(v ?? 0)), name === "unidades" ? "Unidades" : "Pedidos"];

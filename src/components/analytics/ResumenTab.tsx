@@ -32,7 +32,11 @@ function buildChartData(metrics: SocialMetric[]) {
   }
   return Object.entries(byDate).map(([date, platforms]) => ({
     date,
-    label: format(new Date(date), "d MMM", { locale: es }),
+    // Con año -- el historial de una plataforma puede abarcar mas de un
+    // año, y sin el año un punto de "27 jul 2024" y otro de "27 jul 2026"
+    // se ven idénticos en el eje/tooltip, prestándose a pensar que hay un
+    // punto "mal ubicado" cuando en realidad son fechas distintas.
+    label: format(new Date(date), "d MMM yyyy", { locale: es }),
     ...platforms,
   }));
 }
@@ -70,6 +74,8 @@ export function ResumenTab({ metrics, onRefresh }: ResumenTabProps) {
                 width={70}
               />
               <Tooltip
+                contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8 }}
+                labelStyle={{ color: "#0f172a", fontWeight: 600, marginBottom: 4 }}
                 formatter={(v, name) => [
                   new Intl.NumberFormat("es-CL").format(Number(v ?? 0)),
                   String(name),

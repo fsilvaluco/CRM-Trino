@@ -734,6 +734,14 @@ export default function EventDetailPage() {
           body[data-print-section="contacts"] [data-section="header"],
           body[data-print-section="contacts"] [data-section="footer"] { display: flex !important; }
           body[data-print-section="contacts"] [data-section="contacts"] { display: block !important; }
+          /* El reset generico de arriba (a block) rompe el grid de 4
+             columnas del resumen financiero -- se lo restaura a proposito,
+             siempre, sin importar que sección se esté imprimiendo. */
+          [data-section="summary"] {
+            display: grid !important;
+            grid-template-columns: repeat(4, 1fr) !important;
+            gap: 0.4rem !important;
+          }
         }
       `}</style>
 
@@ -745,10 +753,10 @@ export default function EventDetailPage() {
         Eventos
       </button>
 
-      <div className="flex items-start justify-between gap-4 no-print">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 no-print">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-2xl font-bold tracking-tight">{event.name}</h1>
+            <h1 className="text-lg sm:text-2xl font-bold tracking-tight leading-tight">{event.name}</h1>
             <Badge variant="secondary" className={`text-xs ${STATUS_CONFIG[event.status].className}`}>
               {STATUS_CONFIG[event.status].label}
             </Badge>
@@ -765,24 +773,24 @@ export default function EventDetailPage() {
             {event.projectName && <Badge variant="outline" className="text-xs">{event.projectName}</Badge>}
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Button size="sm" variant="outline" className="cursor-pointer" onClick={handleCopyShareLink}>
-            <Share2 className="h-4 w-4 mr-1.5" />
-            Compartir
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
+          <Button size="sm" variant="outline" className="cursor-pointer" onClick={handleCopyShareLink} title="Compartir">
+            <Share2 className="h-4 w-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Compartir</span>
           </Button>
           {event.status === "realizado" && (
-            <Button size="sm" variant="outline" className="cursor-pointer" onClick={handleCopyRatingLink}>
-              <Star className="h-4 w-4 mr-1.5" />
-              Link de valoración
+            <Button size="sm" variant="outline" className="cursor-pointer" onClick={handleCopyRatingLink} title="Link de valoración">
+              <Star className="h-4 w-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">Link de valoración</span>
             </Button>
           )}
-          <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => printSection("todo")}>
-            <Printer className="h-4 w-4 mr-1.5" />
-            Imprimir todo
+          <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => printSection("todo")} title="Imprimir todo">
+            <Printer className="h-4 w-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Imprimir todo</span>
           </Button>
-          <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => setEditOpen(true)}>
-            <Pencil className="h-4 w-4 mr-1.5" />
-            Editar
+          <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => setEditOpen(true)} title="Editar">
+            <Pencil className="h-4 w-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Editar</span>
           </Button>
         </div>
       </div>
@@ -800,13 +808,13 @@ export default function EventDetailPage() {
 
       {/* Resumen financiero */}
       <div className="grid grid-cols-4 gap-3" data-section="summary">
-        <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Fee</p><p className="font-semibold">{formatCents(event.fee)}</p></CardContent></Card>
-        <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Entradas</p><p className="font-semibold">{formatCents(event.ticketIncome)}</p></CardContent></Card>
-        <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Egresos</p><p className="font-semibold">{formatCents(event.expenses)}</p></CardContent></Card>
+        <Card><CardContent className="p-3 print:p-1.5"><p className="text-xs print:text-[9px] text-muted-foreground">Fee</p><p className="font-semibold print:text-xs print:whitespace-nowrap">{formatCents(event.fee)}</p></CardContent></Card>
+        <Card><CardContent className="p-3 print:p-1.5"><p className="text-xs print:text-[9px] text-muted-foreground">Entradas</p><p className="font-semibold print:text-xs print:whitespace-nowrap">{formatCents(event.ticketIncome)}</p></CardContent></Card>
+        <Card><CardContent className="p-3 print:p-1.5"><p className="text-xs print:text-[9px] text-muted-foreground">Egresos</p><p className="font-semibold print:text-xs print:whitespace-nowrap">{formatCents(event.expenses)}</p></CardContent></Card>
         <Card>
-          <CardContent className="p-3">
-            <p className="text-xs text-muted-foreground">Utilidad</p>
-            <p className={`font-semibold ${utilidadCents >= 0 ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}>
+          <CardContent className="p-3 print:p-1.5">
+            <p className="text-xs print:text-[9px] text-muted-foreground">Utilidad</p>
+            <p className={`font-semibold print:text-xs print:whitespace-nowrap ${utilidadCents >= 0 ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}>
               {formatCents(utilidadCents)}
             </p>
           </CardContent>
@@ -826,9 +834,9 @@ export default function EventDetailPage() {
                 {savingContacts ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Guardar contactos"}
               </Button>
             )}
-            <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => printSection("contacts")}>
-              <Printer className="h-3.5 w-3.5 mr-1" />
-              Imprimir
+            <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => printSection("contacts")} title="Imprimir">
+              <Printer className="h-3.5 w-3.5 sm:mr-1" />
+              <span className="hidden sm:inline">Imprimir</span>
             </Button>
           </div>
         </CardHeader>
@@ -870,26 +878,26 @@ export default function EventDetailPage() {
                     setContactsDirty(true);
                   }
                   return (
-                    <div className="flex items-center gap-2">
-                      <Input
-                        placeholder="Cargo (ej. Manager)"
-                        value={c.role ?? ""}
-                        onChange={(e) => updateContact({ role: e.target.value })}
-                        className="h-8 w-32 sm:w-40 shrink-0"
-                      />
+                    <div className="flex items-center gap-2 flex-wrap">
                       <TypeaheadInput
                         placeholder="Nombre"
                         value={c.name}
                         onChange={(v) => updateContact({ name: v, contactId: null })}
                         onSelectSuggestion={(s) => updateContact({ name: s.label, contactId: s.value ?? null })}
                         fetchSuggestions={fetchResponsableSuggestions}
-                        className="h-8 flex-1"
+                        className="h-8 w-full sm:flex-1 sm:w-auto sm:order-2"
+                      />
+                      <Input
+                        placeholder="Cargo (ej. Manager)"
+                        value={c.role ?? ""}
+                        onChange={(e) => updateContact({ role: e.target.value })}
+                        className="h-8 w-24 sm:w-40 shrink-0 sm:order-1"
                       />
                       <Input
                         placeholder="Teléfono"
                         value={c.phone ?? ""}
                         onChange={(e) => updateContact({ phone: e.target.value })}
-                        className="h-8 w-28 sm:w-36 shrink-0"
+                        className="h-8 w-24 sm:w-36 shrink-0"
                       />
                       <label className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0 cursor-pointer" title="Aparece en el link público">
                         <Checkbox checked={c.visibleOnShare} onCheckedChange={(v) => updateContact({ visibleOnShare: Boolean(v) })} />
@@ -910,26 +918,26 @@ export default function EventDetailPage() {
               />
             )}
 
-            <div className="flex items-center gap-2 pt-1">
-              <Input
-                placeholder="Cargo nuevo"
-                value={newContactRole}
-                onChange={(e) => setNewContactRole(e.target.value)}
-                className="h-8 w-32 sm:w-40 shrink-0"
-              />
+            <div className="flex items-center gap-2 flex-wrap pt-1">
               <TypeaheadInput
                 placeholder="Nombre"
                 value={newContactName}
                 onChange={(v) => { setNewContactName(v); setNewContactId(null); }}
                 onSelectSuggestion={(s) => { setNewContactName(s.label); setNewContactId(s.value ?? null); }}
                 fetchSuggestions={fetchResponsableSuggestions}
-                className="h-8 flex-1"
+                className="h-8 w-full sm:flex-1 sm:w-auto sm:order-2"
+              />
+              <Input
+                placeholder="Cargo nuevo"
+                value={newContactRole}
+                onChange={(e) => setNewContactRole(e.target.value)}
+                className="h-8 w-24 sm:w-40 shrink-0 sm:order-1"
               />
               <Input
                 placeholder="Teléfono"
                 value={newContactPhone}
                 onChange={(e) => setNewContactPhone(e.target.value)}
-                className="h-8 w-28 sm:w-36 shrink-0"
+                className="h-8 w-24 sm:w-36 shrink-0"
               />
               <Button
                 size="sm"
@@ -998,12 +1006,12 @@ export default function EventDetailPage() {
               disabled={extractingSetlist}
               onClick={() => setlistFileInputRef.current?.click()}
             >
-              {extractingSetlist ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
-              {extractingSetlist ? "Leyendo..." : "Subir archivo"}
+              {extractingSetlist ? <Loader2 className="h-3.5 w-3.5 animate-spin sm:mr-1" /> : <Upload className="h-3.5 w-3.5 sm:mr-1" />}
+              <span className="hidden sm:inline">{extractingSetlist ? "Leyendo..." : "Subir archivo"}</span>
             </Button>
-            <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => printSection("setlist")}>
-              <Printer className="h-3.5 w-3.5 mr-1" />
-              Imprimir
+            <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => printSection("setlist")} title="Imprimir">
+              <Printer className="h-3.5 w-3.5 sm:mr-1" />
+              <span className="hidden sm:inline">Imprimir</span>
             </Button>
           </div>
         </CardHeader>
@@ -1140,12 +1148,12 @@ export default function EventDetailPage() {
               disabled={extractingTiming}
               onClick={() => timingFileInputRef.current?.click()}
             >
-              {extractingTiming ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
-              {extractingTiming ? "Leyendo..." : "Subir archivo"}
+              {extractingTiming ? <Loader2 className="h-3.5 w-3.5 animate-spin sm:mr-1" /> : <Upload className="h-3.5 w-3.5 sm:mr-1" />}
+              <span className="hidden sm:inline">{extractingTiming ? "Leyendo..." : "Subir archivo"}</span>
             </Button>
-            <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => printSection("timing")}>
-              <Printer className="h-3.5 w-3.5 mr-1" />
-              Imprimir
+            <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => printSection("timing")} title="Imprimir">
+              <Printer className="h-3.5 w-3.5 sm:mr-1" />
+              <span className="hidden sm:inline">Imprimir</span>
             </Button>
           </div>
         </CardHeader>
@@ -1211,7 +1219,7 @@ export default function EventDetailPage() {
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
-                    <div className="flex items-center gap-2 pl-0.5">
+                    <div className="flex items-center gap-2 pl-0.5 flex-wrap">
                       <TypeaheadInput
                         placeholder="Responsable"
                         value={item.responsable ?? ""}
@@ -1360,8 +1368,8 @@ export default function EventDetailPage() {
               disabled={extractingTickets}
               onClick={() => ticketFileInputRef.current?.click()}
             >
-              {extractingTickets ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
-              {extractingTickets ? "Leyendo..." : "Subir pantallazo"}
+              {extractingTickets ? <Loader2 className="h-3.5 w-3.5 animate-spin sm:mr-1" /> : <Upload className="h-3.5 w-3.5 sm:mr-1" />}
+              <span className="hidden sm:inline">{extractingTickets ? "Leyendo..." : "Subir pantallazo"}</span>
             </Button>
           </div>
         </CardHeader>
@@ -1406,12 +1414,12 @@ export default function EventDetailPage() {
                   setTicketsDirty(true);
                 }
                 return (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Input
                       placeholder="Tramo (ej. Preventa 1)"
                       value={tier.label}
                       onChange={(e) => updateTier({ label: e.target.value })}
-                      className="h-8 flex-1"
+                      className="h-8 w-full sm:flex-1 sm:w-auto"
                     />
                     <div className="w-20 sm:w-28 shrink-0">
                       <MoneyInput
@@ -1440,7 +1448,7 @@ export default function EventDetailPage() {
                       placeholder="Estado"
                       value={tier.statusLabel ?? ""}
                       onChange={(e) => updateTier({ statusLabel: e.target.value || null })}
-                      className="h-8 w-20 sm:w-28 shrink-0"
+                      className="h-8 w-16 sm:w-28 shrink-0"
                     />
                     <button
                       onClick={() => {
@@ -1457,12 +1465,12 @@ export default function EventDetailPage() {
             />
           )}
 
-          <div className="flex items-center gap-2 pt-1">
+          <div className="flex items-center gap-2 flex-wrap pt-1">
             <Input
               placeholder="Tramo nuevo"
               value={newTierLabel}
               onChange={(e) => setNewTierLabel(e.target.value)}
-              className="h-8 flex-1"
+              className="h-8 w-full sm:flex-1 sm:w-auto"
             />
             <div className="w-20 sm:w-28 shrink-0">
               <MoneyInput placeholder="Precio" value={newTierPrice} onChange={setNewTierPrice} />
@@ -1565,23 +1573,24 @@ export default function EventDetailPage() {
               className="h-7 text-xs cursor-pointer"
               disabled={uploadingAttachment}
               onClick={() => closingFileInputRef.current?.click()}
+              title="Adjuntar documento"
             >
-              {uploadingAttachment ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Paperclip className="h-3.5 w-3.5 mr-1" />}
-              {uploadingAttachment ? "Subiendo..." : "Adjuntar documento"}
+              {uploadingAttachment ? <Loader2 className="h-3.5 w-3.5 animate-spin sm:mr-1" /> : <Paperclip className="h-3.5 w-3.5 sm:mr-1" />}
+              <span className="hidden sm:inline">{uploadingAttachment ? "Subiendo..." : "Adjuntar documento"}</span>
             </Button>
-            <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => printSection("costs")}>
-              <Printer className="h-3.5 w-3.5 mr-1" />
-              Imprimir
+            <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => printSection("costs")} title="Imprimir">
+              <Printer className="h-3.5 w-3.5 sm:mr-1" />
+              <span className="hidden sm:inline">Imprimir</span>
             </Button>
             {costSheetClosed ? (
-              <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" disabled={closingCosts} onClick={reopenCostSheet}>
-                <LockOpen className="h-3.5 w-3.5 mr-1" />
-                Reabrir
+              <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" disabled={closingCosts} onClick={reopenCostSheet} title="Reabrir">
+                <LockOpen className="h-3.5 w-3.5 sm:mr-1" />
+                <span className="hidden sm:inline">Reabrir</span>
               </Button>
             ) : (
-              <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" disabled={closingCosts} onClick={closeCostSheet}>
-                <Lock className="h-3.5 w-3.5 mr-1" />
-                Cerrar caja
+              <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" disabled={closingCosts} onClick={closeCostSheet} title="Cerrar caja">
+                <Lock className="h-3.5 w-3.5 sm:mr-1" />
+                <span className="hidden sm:inline">Cerrar caja</span>
               </Button>
             )}
           </div>
@@ -1692,7 +1701,7 @@ export default function EventDetailPage() {
                       </button>
                     </div>
 
-                    <div className="flex items-center gap-2 pl-0.5">
+                    <div className="flex items-center gap-2 pl-0.5 flex-wrap">
                       <TypeaheadInput
                         placeholder="Responsable (a quién se le paga)"
                         value={item.responsable ?? ""}
@@ -1708,7 +1717,7 @@ export default function EventDetailPage() {
                           value={item.comprobanteUrl ?? ""}
                           disabled={costSheetClosed}
                           onChange={(e) => updateItem({ comprobanteUrl: e.target.value })}
-                          className="h-7 text-xs w-36 no-print"
+                          className="h-7 text-xs w-24 sm:w-36 no-print"
                         />
                         {item.comprobanteUrl && (
                           <a href={item.comprobanteUrl} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground">

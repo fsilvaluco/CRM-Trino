@@ -97,7 +97,7 @@ export function MerchTab({ snapshots, onRefresh }: MerchTabProps) {
   const chartData = [...snapshots]
     .sort((a, b) => a.periodStart.localeCompare(b.periodStart))
     .map((s) => ({
-      label: format(new Date(s.periodStart), "d MMM", { locale: es }),
+      label: format(new Date(s.periodStart), "d MMM yyyy", { locale: es }),
       ventas: s.totalSales != null ? s.totalSales / 100 : 0,
     }));
 
@@ -131,7 +131,11 @@ export function MerchTab({ snapshots, onRefresh }: MerchTabProps) {
                 tickFormatter={(v) => CLP.format(v)}
                 width={90}
               />
-              <Tooltip formatter={(v) => [CLP.format(Number(v ?? 0)), "Ventas"]} />
+              <Tooltip
+                contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8 }}
+                labelStyle={{ color: "#0f172a", fontWeight: 600 }}
+                formatter={(v) => [CLP.format(Number(v ?? 0)), "Ventas"]}
+              />
               <Area
                 type="monotone"
                 dataKey="ventas"

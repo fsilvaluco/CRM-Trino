@@ -1,5 +1,5 @@
 # Bitácora de Trabajo — Auto-CRM
-_Última actualización: 7 de mayo de 2026_
+_Última actualización: 7 de agosto de 2026_
 
 > **Formato de tracking:** Registro histórico de trabajo realizado + pendientes actuales.  
 > Cada entrada incluye fecha, estado (🔨 En Progreso / ✅ Hecho), y notas de implementación detalladas.
@@ -8,7 +8,32 @@ _Última actualización: 7 de mayo de 2026_
 
 ## 🔴 Crítico (arreglar primero)
 
-_Ninguno — todos resueltos ✅_
+_Ninguno conocido — todos los reportes de bug de esta ronda (ver más abajo) están resueltos ✅_
+
+---
+
+## ⚠️ Por verificar / sin probar a fondo
+
+**Google Maps — comuna en direcciones reales**
+- El autocompletado de dirección (Venues) y el mapeo a comuna/región/país se probó con pocas direcciones reales de Santiago
+- Google a veces devuelve la comuna como `locality` y a veces como `sublocality_level_1` o `administrative_area_level_3` según la zona — el código intenta las tres en orden de prioridad, pero conviene probar con 3-4 venues reales más antes de confiar 100%
+- Si algún venue queda con comuna vacía o mal, es la primera cosa que hay que mirar ahí
+
+**pdf-parse en producción**
+- Se agregó `pdf-parse`/`pdfjs-dist` a `serverExternalPackages` en `next.config.ts` para arreglar un fallo en producción (funcionaba en Node normal pero no en el build de Next)
+- El diagnóstico es sólido (mismo patrón que ya se había resuelto antes para `better-sqlite3`) pero no se pudo reproducir el entorno real de Railway desde el sandbox de trabajo — si un PDF sigue sin leerse después del fix, hay que mirar logs de Railway directamente
+
+---
+
+## 🟢 Diferido a propósito (decisión del usuario, no son bugs)
+
+- **Notificaciones push** — la PWA ya está instalable (manifest + service worker), pero falta todo lo de push en sí: claves VAPID, tabla de suscripciones, permiso de notificación, y sobre todo decidir *qué* dispara una notificación (¿tarea asignada? ¿evento en 24h?)
+- **Botón "Enviar"** en Eventos (email/WhatsApp con destinatario) — quedó como idea para después de armar el link público; falta decidir si genera PDF en servidor o abre el cliente de correo/WhatsApp del usuario
+- **Timing general de gira** (coordinación de viajes, hoteles, traslados entre varias fechas) — distinto del Timing/Cronograma de un solo evento que ya existe; probablemente sea su propio módulo más adelante
+- **Agrupación por secciones en Timing** (encabezados tipo "MONTAJE / PRODUCCIÓN / EVENTO / DESMONTAJE" como en el PDF original) — hoy cada fila es independiente, sin agrupador visual
+- **Login con clave por evento** en el link público (`/e/[id]`) — hoy es 100% público sin restricción; se habló de un PIN corto por evento como paso intermedio antes de un login completo
+- **Ícono de Instagram/redes** en el header impreso cuando no hay logo propio — hoy cae a un círculo con la inicial del proyecto
+- **Revisión estética general (espaciados y tamaños)** — Francisco encontró una app de referencia (Notifica Legal) que se ve "más refinada" en cómo acomoda los espacios; pendiente sentarse en PC a revisar la app completa con ese nivel de pulido como referencia (no hay lista de cambios concreta todavía, es una revisión general a agendar)
 
 ---
 
@@ -56,6 +81,37 @@ _Ninguno — todos resueltos ✅_
 ---
 
 ## ✅ Completado recientemente
+
+**✅ Módulo Eventos — construcción completa** _(completado: agosto 2026, sesión larga)_
+
+Se unificó "Shows en vivo" + "Métricas > Shows" en un solo módulo **Eventos**, y se construyó encima toda una planilla de ejecución por evento. Resumen de lo que quedó (cada pieza tiene su propia migración numerada en `scripts/migrations/`):
+
+- **Merge Shows en vivo + Métricas > Shows** → módulo único `/eventos`, con `/analytics/eventos` como dashboard de solo lectura filtrado a estado "Realizado" (bug real encontrado: antes contaba eventos cancelados/cotizando en la utilidad).
+- **Venues como entidad propia** (como Empresas): combobox de búsqueda/creación en el formulario de evento, autocompletado de dirección con Google Places (server-side, la key nunca llega al navegador), campos de capacidad/mood/estacionamiento/backline/contacto/empresa asociada.
+- **Nombre propio del evento**, independiente del venue (ej. "PAMN" tocado en la Biblioteca de Quinta Normal).
+- **Fuente del trato + comisión Trino**: campo `source` en Tratos (Trino/Trino Nuevo/Artista antiguo/Artista nuevo) que determina si la comisión es % del ingreso neto (valor del trato) o % de la utilidad del evento vinculado. % editable por proyecto, override opcional por trato.
+- **Planilla de ejecución del evento**, todas como listas reordenables (drag-and-drop) con guardado explícito:
+  - **Setlist** — con lectura por IA de imagen, PDF o texto pegado.
+  - **Timing/Cronograma** — Hora/Detalle/Responsable/Notas, misma lectura por IA (imagen/PDF/texto).
+  - **Planilla de costos** — Detalle (autocompleta contra un catálogo de roles que crece solo), Responsable (autocompleta contra contactos del proyecto), Comprobante (link), casilla **BHE** que calcula automático bruto/retención (15,25% vigente 2026)/líquido.
+  - **Venta de entradas por tramo** — con lectura por IA de pantallazos de plataformas de ticketing (PortalTickets, etc.), distingue precio unitario de monto acumulado.
+  - **Contactos importantes** — Cargo/Nombre/Teléfono + casilla de visibilidad en el link público (apagada por defecto).
+- **Cierre de caja**: botón que deja la planilla de costos de solo lectura, con documento adjunto opcional (reusa el bucket de Storage que ya tenía Finanzas).
+- **Duplicar evento** (pensado para giras): copia nombre/venue/setlist/rider de banda/planilla de costos como plantilla; resetea fecha/estado/plata/venta de entradas.
+- **Impresión por partes o todo junto**: botones de Imprimir independientes en Setlist/Timing/Costos/Contactos (cada uno con su encabezado con logo del proyecto + nombre/fecha/dirección del evento), más "Imprimir todo" para mandarle un reporte completo a la directiva. Pie de página con marca de Artist Pro en todas.
+- **Link público sin login** (`/e/[id]`): header + contactos marcados + timing + setlist + riders (si existen). Metadata de OG/WhatsApp dinámica (título = nombre del evento, descripción con proyecto+fecha+venue, logo de Artist Pro como imagen). Teléfonos con botones de WhatsApp/llamada.
+- **PWA instalable** (`manifest.ts` + service worker mínimo sin cache agresivo + iconos con fondo navy de marca).
+- **Filtro por defecto "Próximos"** en la lista de Eventos (antes mostraba pasados primero); los pendientes de confirmar siguen visibles aunque ya pasaron.
+
+**Bugs reales encontrados y corregidos en el camino** (dejar constancia porque algunos son sutiles y podrían repetirse en otros módulos):
+- `Select` de base-ui no resuelve la etiqueta del valor seleccionado solo — hay que pasarle el label explícito como children, si no muestra el valor crudo (pasó con Proyecto/Artista mostrando un UUID).
+- El mapeo de deals para el Kanban (`CrmPageClient.tsx`) perdía campos al armar el objeto a mano — pasó dos veces (primero `isShow`, después `projectId`/`artistProjectId`) y rompía silenciosamente el popup "¿Armamos el evento?".
+- Bulk upsert a Supabase/PostgREST con arrays de objetos de **distinta forma** (algunos con `id`, otros sin) inserta `NULL` explícito en la columna faltante en vez de dejar que la base la genere — rompía con 500 al mezclar ítems nuevos y ya guardados en el mismo guardado. Afectaba a los cinco endpoints de listas reordenables (setlist/timing/costos/entradas/contactos); arreglado generando el `id` en el servidor para las filas nuevas también.
+- El layout general (`AppShell`) usa `h-screen`+`overflow-hidden` para el scroll fijo del sidebar — eso cortaba cualquier impresión a una sola página, y el sidebar/header nunca estaban marcados como `no-print`. Fix global en `globals.css`, no solo para Eventos.
+- El `<body>` raíz es `display:flex` — cualquier página nueva sin `w-full` explícito se encoge al ancho de su contenido en vez de ocupar toda la pantalla (pasó en el link público, dejaba una franja oscura al lado).
+- `metadata.icons` en Next.js **pisa por completo** la convención de archivo (`icon.png`) aunque solo se defina una sub-clave (`apple`) — apagó el favicon sin querer.
+
+---
 
 **✅ Refactor: Simplificación total del sistema de responsable** _(completado: 7 may 2026)_
 - **Problema persistente:** Dropdown de "Encargado del gasto" no cargaba miembros del proyecto correctamente

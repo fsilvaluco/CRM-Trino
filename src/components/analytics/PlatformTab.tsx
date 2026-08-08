@@ -125,7 +125,7 @@ export function PlatformTab({ platform, metrics, onRefresh, integration, comingS
       const entry = followersByDay.get(key);
       return {
         key,
-        label: format(date, "d MMM", { locale: es }),
+        label: format(date, "d MMM yyyy", { locale: es }),
         followers: entry ? entry.followers : null,
       };
     });
@@ -278,7 +278,11 @@ export function PlatformTab({ platform, metrics, onRefresh, integration, comingS
                 domain={["auto", "auto"]}
                 allowDecimals={false}
               />
-              <Tooltip formatter={(v) => [NUM.format(Number(v ?? 0)), "Seguidores"]} />
+              <Tooltip
+                contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8 }}
+                labelStyle={{ color: "#0f172a", fontWeight: 600 }}
+                formatter={(v) => [NUM.format(Number(v ?? 0)), "Seguidores"]}
+              />
               <Line
                 type="monotone"
                 dataKey="followers"
@@ -317,6 +321,8 @@ export function PlatformTab({ platform, metrics, onRefresh, integration, comingS
               <YAxis tick={{ fontSize: 11 }} width={40} allowDecimals={false} />
               <ReferenceLine y={0} className="stroke-border" />
               <Tooltip
+                contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8 }}
+                labelStyle={{ color: "#0f172a", fontWeight: 600 }}
                 formatter={(v) => {
                   const n = Number(v ?? 0);
                   return [`${n >= 0 ? "+" : ""}${NUM.format(n)}`, "Variación"];

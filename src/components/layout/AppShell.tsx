@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
+import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 
 const PUBLIC_PATHS = ["/login", "/auth/activate", "/forgot-password", "/reset-password"];
 const PUBLIC_PREFIXES = ["/rate/", "/embed/", "/e/"];
@@ -102,10 +103,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Header />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-background">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6 bg-background">
           {children}
         </main>
       </div>
+      <MobileBottomNav />
     </div>
   );
 }
