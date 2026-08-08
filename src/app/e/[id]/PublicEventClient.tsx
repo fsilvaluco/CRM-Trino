@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { Loader2, MapPin, Clock, Music4, FileText } from "lucide-react";
+import { Loader2, MapPin, Clock, Music4, FileText, Users } from "lucide-react";
 
 interface PublicTimingItem {
   id: string;
@@ -16,6 +16,13 @@ interface PublicTimingItem {
 interface PublicSetlistItem {
   id: string;
   title: string;
+}
+
+interface PublicContact {
+  id: string;
+  role: string | null;
+  name: string;
+  phone: string | null;
 }
 
 interface PublicEvent {
@@ -32,6 +39,7 @@ interface PublicEvent {
   projectAvatarUrl: string | null;
   timing: PublicTimingItem[];
   setlist: PublicSetlistItem[];
+  contacts: PublicContact[];
 }
 
 function formatDate(d: string) {
@@ -119,6 +127,31 @@ export function PublicEventClient({ id }: { id: string }) {
             {addressLine && <p className="text-xs text-slate-500">{addressLine}</p>}
           </div>
         </div>
+
+        {/* Contactos importantes -- solo los marcados para compartir */}
+        {event.contacts.length > 0 && (
+          <div>
+            <h2 className="text-sm font-semibold flex items-center gap-1.5 mb-3">
+              <Users className="h-4 w-4" />
+              Contactos importantes
+            </h2>
+            <div className="space-y-1.5">
+              {event.contacts.map((c) => (
+                <div key={c.id} className="flex items-center justify-between gap-3 text-sm border-b border-slate-100 pb-1.5">
+                  <div className="min-w-0">
+                    <span className="font-medium">{c.name}</span>
+                    {c.role && <span className="text-slate-500"> — {c.role}</span>}
+                  </div>
+                  {c.phone && (
+                    <a href={`tel:${c.phone}`} className="text-primary shrink-0 whitespace-nowrap">
+                      {c.phone}
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Timing */}
         <div>

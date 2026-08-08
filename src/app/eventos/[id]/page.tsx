@@ -20,11 +20,11 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Pencil, MapPin, Clock, Music4, Wallet, FileText, Link as LinkIcon,
   Plus, Trash2, Star, ExternalLink, Loader2, Lock, LockOpen, Printer, Receipt,
-  Ticket, Upload, Paperclip, Share2,
+  Ticket, Upload, Paperclip, Share2, Users,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import type { LiveShow, ShowStatus, SetlistItem, CostItem, TimingItem, TicketTier } from "@/types/shows";
+import type { LiveShow, ShowStatus, SetlistItem, CostItem, TimingItem, TicketTier, EventContact } from "@/types/shows";
 import { EventPrintHeader } from "@/components/events/EventPrintHeader";
 import { EventPrintFooter } from "@/components/events/EventPrintFooter";
 import { compressImage } from "@/lib/image-compress";
@@ -66,7 +66,7 @@ function newId() {
   return typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36);
 }
 
-type EventDetail = LiveShow & { setlist: SetlistItem[]; costItems: CostItem[]; timing: TimingItem[]; ticketTiers: TicketTier[] };
+type EventDetail = LiveShow & { setlist: SetlistItem[]; costItems: CostItem[]; timing: TimingItem[]; ticketTiers: TicketTier[]; eventContacts: EventContact[] };
 
 export default function EventDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -81,6 +81,14 @@ export default function EventDetailPage() {
   const [setlistDirty, setSetlistDirty] = useState(false);
   const [savingSetlist, setSavingSetlist] = useState(false);
   const [newSongTitle, setNewSongTitle] = useState("");
+
+  const [eventContacts, setEventContacts] = useState<EventContact[]>([]);
+  const [contactsDirty, setContactsDirty] = useState(false);
+  const [savingContacts, setSavingContacts] = useState(false);
+  const [newContactRole, setNewContactRole] = useState("");
+  const [newContactName, setNewContactName] = useState("");
+  const [newContactId, setNewContactId] = useState<string | null>(null);
+  const [newContactPhone, setNewContactPhone] = useState("");
   const [extractingSetlist, setExtractingSetlist] = useState(false);
   const [showSetlistPaste, setShowSetlistPaste] = useState(false);
   const [setlistPasteText, setSetlistPasteText] = useState("");
@@ -140,6 +148,7 @@ export default function EventDetailPage() {
         setSetlist(data.setlist ?? []);
         setTiming(data.timing ?? []);
         setTicketTiers(data.ticketTiers ?? []);
+        setEventContacts(data.eventContacts ?? []);
         setCostItems(data.costItems ?? []);
         setEventLink(data.eventLink ?? "");
         setRiderLocal(data.riderLocal ?? "");
@@ -148,6 +157,7 @@ export default function EventDetailPage() {
         setCostsDirty(false);
         setTimingDirty(false);
         setTicketsDirty(false);
+        setContactsDirty(false);
         setDetailsDirty(false);
       })
       .catch(() => setEvent(null))
@@ -358,6 +368,33 @@ export default function EventDetailPage() {
     }
   }
 
+  async function saveContacts() {
+    setSavingContacts(true);
+    try {
+      const res = await fetch(`/api/eventos/${id}/contacts`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: eventContacts.map((c) => ({
+            id: c.id.startsWith("tmp-") ? undefined : c.id,
+            role: c.role,
+            name: c.name,
+            contactId: c.contactId,
+            phone: c.phone,
+            visibleOnShare: c.visibleOnShare,
+          })),
+        }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Contactos guardados");
+      load();
+    } catch {
+      toast.error("No se pudieron guardar los contactos");
+    } finally {
+      setSavingContacts(false);
+    }
+  }
+
   async function saveTiming() {
     setSavingTiming(true);
     try {
@@ -532,7 +569,7 @@ export default function EventDetailPage() {
     }
   }
 
-  function printSection(section: "costs" | "timing" | "setlist" | "todo") {
+  function printSection(section: "costs" | "timing" | "setlist" | "contacts" | "todo") {
     document.body.setAttribute("data-print-section", section);
     window.print();
   }
@@ -694,6 +731,9 @@ export default function EventDetailPage() {
           body[data-print-section="setlist"] [data-section="header"],
           body[data-print-section="setlist"] [data-section="footer"] { display: flex !important; }
           body[data-print-section="setlist"] [data-section="setlist"] { display: block !important; }
+          body[data-print-section="contacts"] [data-section="header"],
+          body[data-print-section="contacts"] [data-section="footer"] { display: flex !important; }
+          body[data-print-section="contacts"] [data-section="contacts"] { display: block !important; }
         }
       `}</style>
 
@@ -772,6 +812,160 @@ export default function EventDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Contactos importantes */}
+      <Card data-section="contacts">
+        <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <CardTitle className="text-sm font-medium flex items-center gap-1.5">
+            <Users className="h-4 w-4" />
+            Contactos importantes
+          </CardTitle>
+          <div className="flex items-center gap-2 no-print">
+            {contactsDirty && (
+              <Button size="sm" className="h-7 text-xs cursor-pointer" disabled={savingContacts} onClick={saveContacts}>
+                {savingContacts ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Guardar contactos"}
+              </Button>
+            )}
+            <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => printSection("contacts")}>
+              <Printer className="h-3.5 w-3.5 mr-1" />
+              Imprimir
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* Version limpia, solo para imprimir -- sin inputs editables */}
+          {eventContacts.length > 0 && (
+            <table className="hidden print:table w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-300">
+                  <th className="text-left py-1 pr-3 font-medium">Cargo</th>
+                  <th className="text-left py-1 pr-3 font-medium">Nombre</th>
+                  <th className="text-left py-1 font-medium">Teléfono</th>
+                </tr>
+              </thead>
+              <tbody>
+                {eventContacts.map((c) => (
+                  <tr key={c.id} className="border-b border-slate-200">
+                    <td className="py-1 pr-3">{c.role || "—"}</td>
+                    <td className="py-1 pr-3">{c.name}</td>
+                    <td className="py-1">{c.phone || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          <div className="no-print space-y-3">
+            {eventContacts.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Sin contactos agregados todavía -- ej. manager, productor, encargado técnico, tour manager.
+              </p>
+            ) : (
+              <SortableList
+                items={eventContacts}
+                onReorder={(items) => { setEventContacts(items); setContactsDirty(true); }}
+                renderItem={(c) => {
+                  function updateContact(patch: Partial<EventContact>) {
+                    setEventContacts((prev) => prev.map((x) => (x.id === c.id ? { ...x, ...patch } : x)));
+                    setContactsDirty(true);
+                  }
+                  return (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        placeholder="Cargo (ej. Manager)"
+                        value={c.role ?? ""}
+                        onChange={(e) => updateContact({ role: e.target.value })}
+                        className="h-8 w-32 sm:w-40 shrink-0"
+                      />
+                      <TypeaheadInput
+                        placeholder="Nombre"
+                        value={c.name}
+                        onChange={(v) => updateContact({ name: v, contactId: null })}
+                        onSelectSuggestion={(s) => updateContact({ name: s.label, contactId: s.value ?? null })}
+                        fetchSuggestions={fetchResponsableSuggestions}
+                        className="h-8 flex-1"
+                      />
+                      <Input
+                        placeholder="Teléfono"
+                        value={c.phone ?? ""}
+                        onChange={(e) => updateContact({ phone: e.target.value })}
+                        className="h-8 w-28 sm:w-36 shrink-0"
+                      />
+                      <label className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0 cursor-pointer" title="Aparece en el link público">
+                        <Checkbox checked={c.visibleOnShare} onCheckedChange={(v) => updateContact({ visibleOnShare: Boolean(v) })} />
+                        <Share2 className="h-3.5 w-3.5" />
+                      </label>
+                      <button
+                        onClick={() => {
+                          setEventContacts((prev) => prev.filter((x) => x.id !== c.id));
+                          setContactsDirty(true);
+                        }}
+                        className="text-muted-foreground hover:text-destructive cursor-pointer p-1 shrink-0"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  );
+                }}
+              />
+            )}
+
+            <div className="flex items-center gap-2 pt-1">
+              <Input
+                placeholder="Cargo nuevo"
+                value={newContactRole}
+                onChange={(e) => setNewContactRole(e.target.value)}
+                className="h-8 w-32 sm:w-40 shrink-0"
+              />
+              <TypeaheadInput
+                placeholder="Nombre"
+                value={newContactName}
+                onChange={(v) => { setNewContactName(v); setNewContactId(null); }}
+                onSelectSuggestion={(s) => { setNewContactName(s.label); setNewContactId(s.value ?? null); }}
+                fetchSuggestions={fetchResponsableSuggestions}
+                className="h-8 flex-1"
+              />
+              <Input
+                placeholder="Teléfono"
+                value={newContactPhone}
+                onChange={(e) => setNewContactPhone(e.target.value)}
+                className="h-8 w-28 sm:w-36 shrink-0"
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 shrink-0 cursor-pointer"
+                disabled={!newContactName.trim()}
+                onClick={() => {
+                  setEventContacts((prev) => [
+                    ...prev,
+                    {
+                      id: `tmp-${newId()}`,
+                      position: prev.length,
+                      role: newContactRole || null,
+                      name: newContactName.trim(),
+                      contactId: newContactId,
+                      phone: newContactPhone || null,
+                      visibleOnShare: false,
+                    },
+                  ]);
+                  setNewContactRole("");
+                  setNewContactName("");
+                  setNewContactId(null);
+                  setNewContactPhone("");
+                  setContactsDirty(true);
+                }}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <Share2 className="h-3 w-3" />
+              El ícono marca si ese contacto aparece en el link público del evento (por defecto, no).
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Setlist */}
       <Card data-section="setlist">

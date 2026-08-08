@@ -24,7 +24,7 @@ export async function GET(
     return NextResponse.json({ error: "Evento no encontrado" }, { status: 404 });
   }
 
-  const [{ data: project }, { data: timingRows }, { data: setlistRows }] = await Promise.all([
+  const [{ data: project }, { data: timingRows }, { data: setlistRows }, { data: contactRows }] = await Promise.all([
     show.project_id
       ? admin.from("projects").select("name, avatar_url").eq("id", show.project_id).single()
       : Promise.resolve({ data: null }),
@@ -37,6 +37,12 @@ export async function GET(
       .from("event_setlist_items")
       .select("id, position, title, notes")
       .eq("show_id", id)
+      .order("position"),
+    admin
+      .from("event_contacts")
+      .select("id, position, role, name, phone")
+      .eq("show_id", id)
+      .eq("visible_on_share", true)
       .order("position"),
   ]);
 
@@ -60,5 +66,11 @@ export async function GET(
       notes: r.notes ?? null,
     })),
     setlist: (setlistRows ?? []).map((r) => ({ id: r.id, title: r.title })),
+    contacts: (contactRows ?? []).map((r) => ({
+      id: r.id,
+      role: r.role ?? null,
+      name: r.name,
+      phone: r.phone ?? null,
+    })),
   });
 }

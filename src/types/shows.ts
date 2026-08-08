@@ -10,6 +10,16 @@ export interface TicketTier {
   statusLabel: string | null;
 }
 
+export interface EventContact {
+  id: string;
+  position: number;
+  role: string | null;
+  name: string;
+  contactId: string | null;
+  phone: string | null;
+  visibleOnShare: boolean;
+}
+
 export interface TimingItem {
   id: string;
   position: number;
