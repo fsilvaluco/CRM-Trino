@@ -885,19 +885,19 @@ export default function EventDetailPage() {
                         onChange={(v) => updateContact({ name: v, contactId: null })}
                         onSelectSuggestion={(s) => updateContact({ name: s.label, contactId: s.value ?? null })}
                         fetchSuggestions={fetchResponsableSuggestions}
-                        className="h-8 w-full sm:flex-1 sm:w-auto sm:order-2"
+                        className="h-7 text-xs w-full sm:flex-1 sm:w-auto sm:order-2"
                       />
                       <Input
                         placeholder="Cargo (ej. Manager)"
                         value={c.role ?? ""}
                         onChange={(e) => updateContact({ role: e.target.value })}
-                        className="h-8 w-24 sm:w-40 shrink-0 sm:order-1"
+                        className="h-7 text-xs w-24 sm:w-40 shrink-0 sm:order-1"
                       />
                       <Input
                         placeholder="Teléfono"
                         value={c.phone ?? ""}
                         onChange={(e) => updateContact({ phone: e.target.value })}
-                        className="h-8 w-24 sm:w-36 shrink-0"
+                        className="h-7 text-xs w-24 sm:w-36 shrink-0"
                       />
                       <label className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0 cursor-pointer" title="Aparece en el link público">
                         <Checkbox checked={c.visibleOnShare} onCheckedChange={(v) => updateContact({ visibleOnShare: Boolean(v) })} />
@@ -925,19 +925,19 @@ export default function EventDetailPage() {
                 onChange={(v) => { setNewContactName(v); setNewContactId(null); }}
                 onSelectSuggestion={(s) => { setNewContactName(s.label); setNewContactId(s.value ?? null); }}
                 fetchSuggestions={fetchResponsableSuggestions}
-                className="h-8 w-full sm:flex-1 sm:w-auto sm:order-2"
+                className="h-7 text-xs w-full sm:flex-1 sm:w-auto sm:order-2"
               />
               <Input
                 placeholder="Cargo nuevo"
                 value={newContactRole}
                 onChange={(e) => setNewContactRole(e.target.value)}
-                className="h-8 w-24 sm:w-40 shrink-0 sm:order-1"
+                className="h-7 text-xs w-24 sm:w-40 shrink-0 sm:order-1"
               />
               <Input
                 placeholder="Teléfono"
                 value={newContactPhone}
                 onChange={(e) => setNewContactPhone(e.target.value)}
-                className="h-8 w-24 sm:w-36 shrink-0"
+                className="h-7 text-xs w-24 sm:w-36 shrink-0"
               />
               <Button
                 size="sm"
@@ -1039,7 +1039,7 @@ export default function EventDetailPage() {
                         setSetlist((prev) => prev.map((s) => (s.id === song.id ? { ...s, title: e.target.value } : s)));
                         setSetlistDirty(true);
                       }}
-                      className="h-8"
+                      className="h-8 text-sm"
                     />
                     <button
                       onClick={() => {
@@ -1065,7 +1065,7 @@ export default function EventDetailPage() {
                   setNewSongTitle("");
                   setSetlistDirty(true);
                 }}
-                className="h-8"
+                className="h-8 text-sm"
               />
               <Button
                 size="sm"
