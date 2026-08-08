@@ -59,6 +59,7 @@ export default function EventosPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingShow, setEditingShow] = useState<LiveShow | null>(null);
   const [filterStatus, setFilterStatus] = useState<"all" | ShowStatus>("all");
+  const [timeFilter, setTimeFilter] = useState<"upcoming" | "past" | "all">("upcoming");
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
@@ -136,7 +137,23 @@ export default function EventosPage() {
     }
   }
 
-  const filteredShows = shows.filter((s) => filterStatus === "all" || s.status === filterStatus);
+  function isPastDate(show: LiveShow): boolean {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const eventDate = new Date(`${show.date}T00:00:00`);
+    return eventDate < today;
+  }
+
+  const timeFilteredShows = shows.filter((s) => {
+    if (timeFilter === "all") return true;
+    const past = isPastDate(s);
+    // Bajo "Próximos" se sigue viendo un evento pasado si todavia necesita
+    // confirmación -- sigue pendiente de resolver, esconderlo seria peor.
+    if (timeFilter === "upcoming") return !past || needsConfirmation(s);
+    return past;
+  });
+
+  const filteredShows = timeFilteredShows.filter((s) => filterStatus === "all" || s.status === filterStatus);
 
   return (
     <div className="space-y-6">
@@ -163,6 +180,33 @@ export default function EventosPage() {
             Nuevo evento
           </Button>
         </div>
+      </div>
+
+      <div className="flex items-center gap-2 flex-wrap">
+        <Button
+          size="sm"
+          variant={timeFilter === "upcoming" ? "default" : "outline"}
+          className="cursor-pointer"
+          onClick={() => setTimeFilter("upcoming")}
+        >
+          Próximos
+        </Button>
+        <Button
+          size="sm"
+          variant={timeFilter === "past" ? "default" : "outline"}
+          className="cursor-pointer"
+          onClick={() => setTimeFilter("past")}
+        >
+          Pasados
+        </Button>
+        <Button
+          size="sm"
+          variant={timeFilter === "all" ? "default" : "outline"}
+          className="cursor-pointer"
+          onClick={() => setTimeFilter("all")}
+        >
+          Todos
+        </Button>
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
