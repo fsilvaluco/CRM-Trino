@@ -17,6 +17,18 @@ function normalizePressType(raw: string | null | undefined): "radio" | "tv" | "d
   return "digital";
 }
 
+/** Normaliza el texto libre de la columna "Estado" al enum que exige la
+ * base. Vacío/no reconocido cae en "realizado" -- una importacion masiva
+ * de historico es casi siempre de eventos que ya pasaron. */
+function normalizeShowStatus(raw: string | null | undefined): "cotizando" | "confirmado" | "realizado" | "cancelado" {
+  const text = (raw ?? "").toLowerCase().trim();
+  if (text.includes("cotiz")) return "cotizando";
+  if (text.includes("confirm")) return "confirmado";
+  if (text.includes("cancel")) return "cancelado";
+  if (text.includes("realiz")) return "realizado";
+  return "realizado";
+}
+
 interface RowError {
   row: number;
   reason: string;
@@ -207,15 +219,34 @@ export async function POST(request: NextRequest) {
       await insertBatch("social_metrics", followerRecords);
     }
   } else if (targetType === "shows") {
+    // artist_name no tiene relacion real con projectId -- su columna en
+    // la base quedo con un default viejo ("Gamuza") de cuando se probo la
+    // primera vez, asi que si no se fija a mano acá, cualquier importacion
+    // para otro proyecto quedaria con el artista equivocado.
+    let artistName = "Sin artista";
+    if (projectId) {
+      const { data: project } = await supabase.from("projects").select("name").eq("id", projectId).single();
+      if (project?.name) artistName = project.name;
+    }
+
     const records = validRows.map((r) => ({
       organization_id: orgId,
       project_id: projectId,
+      artist_name: artistName,
+      name: (r.name as string) || (r.venue as string) || "Sin título",
       date: r.date,
+      event_time: r.eventTime || null,
       venue: r.venue,
-      city: r.city,
-      fee: r.fee ?? 0,
-      ticket_income: r.ticketIncome ?? 0,
-      expenses: r.expenses ?? 0,
+      address: r.address || null,
+      city: r.city || "",
+      status: normalizeShowStatus(r.status as string | null),
+      // OJO: fee/ticketIncome/expenses vienen del CSV en pesos planos --
+      // toda la app (Eventos) guarda estos montos en centavos (x100), asi
+      // que hay que convertir antes de insertar. Sin esto quedaban
+      // guardados 100 veces mas chicos que el valor real.
+      fee: Math.round((r.fee as number) * 100) || 0,
+      ticket_income: Math.round((r.ticketIncome as number) * 100) || 0,
+      expenses: Math.round((r.expenses as number) * 100) || 0,
       notes: r.notes,
     }));
     await insertBatch("shows", records);
