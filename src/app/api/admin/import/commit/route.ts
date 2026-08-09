@@ -240,6 +240,7 @@ export async function POST(request: NextRequest) {
       address: r.address || null,
       city: r.city || "",
       status: normalizeShowStatus(r.status as string | null),
+      tour: r.tour || null,
       // OJO: fee/ticketIncome/expenses vienen del CSV en pesos planos --
       // toda la app (Eventos) guarda estos montos en centavos (x100), asi
       // que hay que convertir antes de insertar. Sin esto quedaban

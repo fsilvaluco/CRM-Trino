@@ -66,6 +66,7 @@ export const IMPORT_TARGETS: Record<ImportTargetType, { label: string; descripti
       { key: "address", label: "Dirección", type: "text", required: false },
       { key: "city", label: "Comuna", type: "text", required: false },
       { key: "status", label: "Estado (Realizado/Confirmado/Cotizando/Cancelado)", type: "text", required: false },
+      { key: "tour", label: "Gira", type: "text", required: false },
       { key: "fee", label: "Fee (CLP)", type: "number", required: false },
       { key: "ticketIncome", label: "Ingreso por entradas (CLP)", type: "number", required: false },
       { key: "expenses", label: "Egresos (CLP)", type: "number", required: false },

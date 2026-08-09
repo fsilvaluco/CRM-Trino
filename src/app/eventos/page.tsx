@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { EventFormDialog } from "@/components/events/EventFormDialog";
 import { useProject } from "@/lib/project-context";
@@ -59,6 +60,7 @@ export default function EventosPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingShow, setEditingShow] = useState<LiveShow | null>(null);
   const [filterStatus, setFilterStatus] = useState<"all" | ShowStatus>("all");
+  const [filterTour, setFilterTour] = useState<string>("all");
   const [timeFilter, setTimeFilter] = useState<"upcoming" | "past" | "all">("upcoming");
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
@@ -153,7 +155,11 @@ export default function EventosPage() {
     return past;
   });
 
-  const filteredShows = timeFilteredShows.filter((s) => filterStatus === "all" || s.status === filterStatus);
+  const filteredShows = timeFilteredShows
+    .filter((s) => filterStatus === "all" || s.status === filterStatus)
+    .filter((s) => filterTour === "all" || s.tour === filterTour);
+
+  const availableTours = [...new Set(shows.map((s) => s.tour).filter(Boolean) as string[])].sort();
 
   return (
     <div className="space-y-6">
@@ -229,6 +235,19 @@ export default function EventosPage() {
             {STATUS_CONFIG[s].label}
           </Button>
         ))}
+        {availableTours.length > 0 && (
+          <Select value={filterTour} onValueChange={(v) => setFilterTour(v ?? "all")}>
+            <SelectTrigger className="h-8 w-auto cursor-pointer">
+              <SelectValue>{filterTour === "all" ? "Todas las giras" : filterTour}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las giras</SelectItem>
+              {availableTours.map((t) => (
+                <SelectItem key={t} value={t}>{t}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {loading ? (
@@ -260,6 +279,11 @@ export default function EventosPage() {
                       </Badge>
                       {show.projectName && (
                         <Badge variant="outline" className="text-xs">{show.projectName}</Badge>
+                      )}
+                      {show.tour && (
+                        <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400">
+                          {show.tour}
+                        </Badge>
                       )}
                     </div>
                     <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">

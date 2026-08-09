@@ -25,6 +25,7 @@ function mapLiveShow(row: any) {
     projectName: row.projects?.name ?? row.artist_name ?? null,
     dealTitle: row.deals?.title ?? null,
     name: row.name ?? row.venue,
+    tour: row.tour ?? null,
   };
 }
 
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
   if (error) return error;
 
   const body = await request.json().catch(() => ({}));
-  const { projectId, dealId, venueId, name, date, eventTime, venue, address, city, notes, eventLink, status, fee, ticketIncome, expenses } = body as {
+  const { projectId, dealId, venueId, name, date, eventTime, venue, address, city, notes, eventLink, status, fee, ticketIncome, expenses, tour } = body as {
     projectId?: string;
     dealId?: string;
     venueId?: string | null;
@@ -92,6 +93,7 @@ export async function POST(request: NextRequest) {
     fee?: number | null;
     ticketIncome?: number | null;
     expenses?: number | null;
+    tour?: string | null;
   };
 
   const trimmedName = name?.trim() ?? "";
@@ -149,6 +151,7 @@ export async function POST(request: NextRequest) {
       city: resolvedCity,
       notes: notes || null,
       event_link: eventLink || null,
+      tour: tour || null,
       status: status || "cotizando",
       fee: fee ?? 0,
       ticket_income: ticketIncome ?? 0,

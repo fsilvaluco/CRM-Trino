@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { MapPin, Link as LinkIcon, ExternalLink } from "lucide-react";
 import { VenueCombobox } from "@/components/venues/VenueCombobox";
 import { MoneyInput } from "@/components/shared/MoneyInput";
+import { TypeaheadInput } from "@/components/events/TypeaheadInput";
 import type { LiveShow, ShowStatus } from "@/types/shows";
 import type { Venue } from "@/types/venues";
 
@@ -69,6 +70,7 @@ export function EventFormDialog({
   const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
   const [notes, setNotes] = useState("");
   const [eventLink, setEventLink] = useState("");
+  const [tour, setTour] = useState("");
   const [status, setStatus] = useState<ShowStatus>("cotizando");
   const [fee, setFee] = useState("");
   const [ticketIncome, setTicketIncome] = useState("");
@@ -85,6 +87,7 @@ export function EventFormDialog({
       setEventTime(editingShow.eventTime ?? "");
       setNotes(editingShow.notes ?? "");
       setEventLink(editingShow.eventLink ?? "");
+      setTour(editingShow.tour ?? "");
       setStatus(editingShow.status);
       setFee(centsToPesos(editingShow.fee));
       setTicketIncome(centsToPesos(editingShow.ticketIncome));
@@ -138,6 +141,7 @@ export function EventFormDialog({
       setSelectedVenue(null);
       setNotes("");
       setEventLink("");
+      setTour("");
       setStatus("cotizando");
       setFee("");
       setTicketIncome("");
@@ -183,6 +187,7 @@ export function EventFormDialog({
           address: selectedVenue.id ? undefined : selectedVenue.address || null,
           notes: notes || null,
           eventLink: eventLink || null,
+          tour: tour || null,
           status,
           fee: pesosToCents(fee),
           ticketIncome: pesosToCents(ticketIncome),
@@ -327,6 +332,21 @@ export function EventFormDialog({
                 </a>
               )}
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="show-tour">Gira (opcional)</Label>
+            <TypeaheadInput
+              value={tour}
+              onChange={setTour}
+              onSelectSuggestion={(s) => setTour(s.label)}
+              fetchSuggestions={async (query) => {
+                const res = await fetch(`/api/eventos/tours?projectId=${projectId}&search=${encodeURIComponent(query)}`);
+                if (!res.ok) return [];
+                return res.json();
+              }}
+              placeholder="Ej. La Amistad Hecha Bolero"
+            />
           </div>
 
           <div className="space-y-2">
