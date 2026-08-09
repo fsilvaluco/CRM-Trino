@@ -77,6 +77,24 @@ export function parseFlexibleNumber(raw: string | undefined | null): number | nu
 /** Convierte texto de planilla a fecha ISO (YYYY-MM-DD), tolerando
  * DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD y variantes con 2 dígitos de año.
  * Devuelve null si no se puede interpretar — nunca inventa una fecha. */
+/** Arma "YYYY-MM-DD" a partir de año/mes/día, pero si el "mes" que llegó
+ * no es un mes válido (1-12) y el "día" sí lo es, los intercambia -- cubre
+ * el caso real donde Excel/Sheets reescribe una fecha ISO cambiando el
+ * orden día/mes al abrir y volver a guardar un CSV (pasa más de lo que
+ * uno esperaría, sobre todo con configuración regional distinta a la
+ * que se usó para escribir el archivo originalmente). */
+function buildIsoDate(year: string, monthRaw: string, dayRaw: string): string | null {
+  let month = parseInt(monthRaw, 10);
+  let day = parseInt(dayRaw, 10);
+
+  if ((month < 1 || month > 12) && day >= 1 && day <= 12) {
+    [month, day] = [day, month];
+  }
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 export function parseFlexibleDate(raw: string | undefined | null): string | null {
   if (raw == null) return null;
   const trimmed = String(raw).trim();
@@ -86,7 +104,8 @@ export function parseFlexibleDate(raw: string | undefined | null): string | null
   let match = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
   if (match) {
     const [, y, m, d] = match;
-    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    const iso = buildIsoDate(y, m, d);
+    if (iso) return iso;
   }
 
   // DD-MM-YYYY o DD/MM/YYYY (formato chileno estándar)
@@ -94,7 +113,8 @@ export function parseFlexibleDate(raw: string | undefined | null): string | null
   if (match) {
     const [, d, m, yRaw] = match;
     const y = yRaw.length === 2 ? `20${yRaw}` : yRaw;
-    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    const iso = buildIsoDate(y, m, d);
+    if (iso) return iso;
   }
 
   // Último recurso: dejar que el motor de fechas de JS lo intente (cubre
