@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
-import { parseFlexibleDate, parseFlexibleNumber } from "@/lib/spreadsheet";
+import { parseFlexibleNumber, parseDateWithFormat, type DateFormatHint } from "@/lib/spreadsheet";
 import { IMPORT_TARGETS, type ImportTargetType } from "@/lib/import-schemas";
 import type { SocialPlatform } from "@/types/analytics";
 
@@ -38,13 +38,14 @@ function getField(
   row: Record<string, string>,
   mapping: Record<string, string | null>,
   fieldType: "text" | "number" | "date",
-  fieldKey: string
+  fieldKey: string,
+  dateFormats?: Record<string, DateFormatHint>
 ): string | number | null {
   const column = mapping[fieldKey];
   if (!column) return null;
   const raw = row[column];
   if (fieldType === "number") return parseFlexibleNumber(raw);
-  if (fieldType === "date") return parseFlexibleDate(raw);
+  if (fieldType === "date") return parseDateWithFormat(raw, dateFormats?.[fieldKey] ?? "auto");
   const trimmed = (raw ?? "").trim();
   return trimmed === "" ? null : trimmed;
 }
@@ -69,12 +70,16 @@ export async function POST(request: NextRequest) {
     rows,
     projectId,
     platform,
+    dateFormats,
+    updateExisting,
   } = body as {
     targetType?: ImportTargetType;
     mapping?: Record<string, string | null>;
     rows?: Record<string, string>[];
     projectId?: string;
     platform?: SocialPlatform;
+    dateFormats?: Record<string, DateFormatHint>;
+    updateExisting?: boolean;
   };
 
   if (!targetType || !IMPORT_TARGETS[targetType]) {
@@ -99,7 +104,7 @@ export async function POST(request: NextRequest) {
     let missingRequired: string | null = null;
 
     for (const field of fields) {
-      const value = getField(row, mapping, field.type, field.key);
+      const value = getField(row, mapping, field.type, field.key, dateFormats);
       if (field.required && value == null) {
         missingRequired = field.label;
       }
@@ -133,6 +138,7 @@ export async function POST(request: NextRequest) {
   }
 
   let insertedCount = 0;
+  let updatedCount = 0;
   const dbErrors: string[] = [];
 
   const insertBatch = async (table: string, records: Record<string, unknown>[]) => {
@@ -250,7 +256,38 @@ export async function POST(request: NextRequest) {
       expenses: Math.round((r.expenses as number) * 100) || 0,
       notes: r.notes,
     }));
-    await insertBatch("shows", records);
+
+    if (updateExisting && projectId) {
+      // Reimportar corrigiendo algo (ej. una fecha mal leida la primera
+      // vez) no debe crear duplicados -- se busca por nombre dentro del
+      // mismo proyecto y, si existe, se actualiza esa fila en vez de
+      // insertar una nueva.
+      const { data: existingShows } = await supabase
+        .from("shows")
+        .select("id, name")
+        .eq("project_id", projectId);
+
+      const existingByName = new Map((existingShows ?? []).map((s) => [s.name?.trim().toLowerCase(), s.id]));
+
+      const toInsert: typeof records = [];
+      for (const record of records) {
+        const existingId = existingByName.get(record.name.trim().toLowerCase());
+        if (existingId) {
+          const { error: updateError } = await supabase.from("shows").update(record).eq("id", existingId);
+          if (updateError) {
+            console.error("[admin/import/commit] update failed (shows)", updateError);
+            dbErrors.push(updateError.message);
+          } else {
+            updatedCount += 1;
+          }
+        } else {
+          toInsert.push(record);
+        }
+      }
+      if (toInsert.length > 0) await insertBatch("shows", toInsert);
+    } else {
+      await insertBatch("shows", records);
+    }
   } else if (targetType === "press_mentions") {
     const records = validRows.map((r) => ({
       organization_id: orgId,
@@ -273,6 +310,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     ok: dbErrors.length === 0,
     insertedCount,
+    updatedCount,
     skippedCount: rowErrors.length,
     rowErrors: rowErrors.slice(0, 20),
     totalRowErrors: rowErrors.length,

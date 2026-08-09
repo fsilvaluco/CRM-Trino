@@ -18,6 +18,37 @@ import type { SocialPlatform } from "@/types/analytics";
 
 type Step = "select" | "upload" | "mapping" | "result";
 
+/** Espejo liviano de parseDateWithFormat (server-side) solo para mostrar
+ * una vista previa en el paso de mapeo -- no vale la pena importar todo
+ * spreadsheet.ts (trae la librería xlsx) solo para esto. */
+function previewDate(raw: string, format: "auto" | "DMY" | "MDY" | "YMD"): string | null {
+  const trimmed = raw.trim();
+  const match = trimmed.match(/^(\d{1,4})[-/](\d{1,2})[-/](\d{1,4})/);
+  if (!match) return null;
+  const [, a, b, c] = match;
+
+  let year: string, month: string, day: string;
+  if (format === "auto") {
+    if (a.length === 4) [year, month, day] = [a, b, c];
+    else [day, month, year] = [a, b, c];
+  } else if (format === "YMD") {
+    [year, month, day] = [a, b, c];
+  } else if (format === "MDY") {
+    [month, day, year] = [a, b, c];
+  } else {
+    [day, month, year] = [a, b, c];
+  }
+  if (year.length === 2) year = `20${year}`;
+
+  let mNum = parseInt(month, 10);
+  let dNum = parseInt(day, 10);
+  if (format === "auto" && (mNum < 1 || mNum > 12) && dNum >= 1 && dNum <= 12) {
+    [mNum, dNum] = [dNum, mNum];
+  }
+  if (mNum < 1 || mNum > 12 || dNum < 1 || dNum > 31) return null;
+  return `${year}-${String(mNum).padStart(2, "0")}-${String(dNum).padStart(2, "0")}`;
+}
+
 interface ParseResponse {
   headers: string[];
   rows: Record<string, string>[];
@@ -29,6 +60,7 @@ interface ParseResponse {
 interface CommitResponse {
   ok: boolean;
   insertedCount: number;
+  updatedCount: number;
   skippedCount: number;
   rowErrors: { row: number; reason: string }[];
   totalRowErrors: number;
@@ -50,6 +82,8 @@ export default function ImportPage() {
   const [platform, setPlatform] = useState<SocialPlatform | "">("");
   const [parseResult, setParseResult] = useState<ParseResponse | null>(null);
   const [mapping, setMapping] = useState<Record<string, string | null>>({});
+  const [dateFormats, setDateFormats] = useState<Record<string, "auto" | "DMY" | "MDY" | "YMD">>({});
+  const [updateExisting, setUpdateExisting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [committing, setCommitting] = useState(false);
   const [result, setResult] = useState<CommitResponse | null>(null);
@@ -107,6 +141,8 @@ export default function ImportPage() {
           rows: parseResult.rows,
           projectId: activeProject?.id,
           platform: platform || undefined,
+          dateFormats,
+          updateExisting: targetType === "shows" ? updateExisting : undefined,
         }),
       });
       const data = await res.json();
@@ -127,6 +163,8 @@ export default function ImportPage() {
     setPlatform("");
     setParseResult(null);
     setMapping({});
+    setDateFormats({});
+    setUpdateExisting(false);
     setResult(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -246,31 +284,91 @@ export default function ImportPage() {
           <p className="text-sm font-medium">{parseResult.totalRows} filas detectadas — revisa el mapeo</p>
 
           <div className="space-y-3">
-            {fields.map((field) => (
-              <div key={field.key} className="grid grid-cols-2 gap-3 items-center">
-                <Label className="text-sm">
-                  {field.label}
-                  {field.required && <span className="text-destructive"> *</span>}
-                </Label>
-                <Select
-                  value={mapping[field.key] ?? "__none__"}
-                  onValueChange={(v) => setMapping((m) => ({ ...m, [field.key]: v === "__none__" ? null : v }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="No aplica" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">No aplica</SelectItem>
-                    {parseResult.headers.map((h) => (
-                      <SelectItem key={h} value={h}>
-                        {h}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ))}
+            {fields.map((field) => {
+              const column = mapping[field.key];
+              const sampleRaw = column ? parseResult.sampleRows.find((r) => r[column])?.[column] : null;
+              return (
+                <div key={field.key} className="space-y-1.5">
+                  <div className="grid grid-cols-2 gap-3 items-center">
+                    <Label className="text-sm">
+                      {field.label}
+                      {field.required && <span className="text-destructive"> *</span>}
+                    </Label>
+                    <Select
+                      value={mapping[field.key] ?? "__none__"}
+                      onValueChange={(v) => setMapping((m) => ({ ...m, [field.key]: v === "__none__" ? null : v }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="No aplica" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">No aplica</SelectItem>
+                        {parseResult.headers.map((h) => (
+                          <SelectItem key={h} value={h}>
+                            {h}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Las fechas se prestan a confusión día/mes -- en vez de
+                      adivinar, se elige el formato a mano mirando un dato
+                      real de la columna. */}
+                  {field.type === "date" && column && (
+                    <div className="grid grid-cols-2 gap-3 items-center pl-3">
+                      <p className="text-xs text-muted-foreground">
+                        Formato de fecha
+                        {sampleRaw && (
+                          <>
+                            {" "}— ej. <span className="font-mono">{sampleRaw}</span>
+                            {(() => {
+                              const preview = previewDate(sampleRaw, dateFormats[field.key] ?? "auto");
+                              return preview ? (
+                                <span className="text-foreground"> → {preview}</span>
+                              ) : (
+                                <span className="text-destructive"> → no se pudo leer</span>
+                              );
+                            })()}
+                          </>
+                        )}
+                      </p>
+                      <Select
+                        value={dateFormats[field.key] ?? "auto"}
+                        onValueChange={(v) => setDateFormats((m) => ({ ...m, [field.key]: v as "auto" | "DMY" | "MDY" | "YMD" }))}
+                      >
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="auto">Automático</SelectItem>
+                          <SelectItem value="DMY">DD-MM-AAAA</SelectItem>
+                          <SelectItem value="MDY">MM-DD-AAAA</SelectItem>
+                          <SelectItem value="YMD">AAAA-MM-DD</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
+
+          {targetType === "shows" && (
+            <label className="flex items-start gap-2 text-sm cursor-pointer rounded-md border bg-muted/30 p-3">
+              <input
+                type="checkbox"
+                checked={updateExisting}
+                onChange={(e) => setUpdateExisting(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                <span className="font-medium">Si el evento ya existe, actualizarlo en vez de duplicarlo.</span>{" "}
+                Busca por nombre dentro de este proyecto — útil para volver a subir el mismo archivo después de
+                corregir algo (ej. las fechas).
+              </span>
+            </label>
+          )}
 
           <div className="h-px bg-border" />
 
@@ -321,6 +419,7 @@ export default function ImportPage() {
             )}
             <p className="text-sm font-medium">
               {result.insertedCount} filas importadas
+              {result.updatedCount > 0 && `, ${result.updatedCount} actualizadas`}
               {result.skippedCount > 0 && `, ${result.skippedCount} omitidas`}
             </p>
           </div>

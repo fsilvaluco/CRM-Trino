@@ -95,6 +95,42 @@ function buildIsoDate(year: string, monthRaw: string, dayRaw: string): string | 
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+export type DateFormatHint = "auto" | "DMY" | "MDY" | "YMD";
+
+/** Parsea una fecha asumiendo un formato FIJO, elegido a mano por la
+ * persona (no adivina nada). Se usa cuando el auto-detectado de
+ * parseFlexibleDate no es confiable -- por ejemplo, después de que un
+ * archivo pasó por Excel/Sheets y reordenó día/mes de forma silenciosa,
+ * lo más seguro es que la persona mire la tabla de verdad y diga
+ * explícitamente "esto es DD-MM-AAAA". */
+export function parseDateWithFormat(raw: string | undefined | null, format: DateFormatHint): string | null {
+  if (format === "auto") return parseFlexibleDate(raw);
+  if (raw == null) return null;
+  const trimmed = String(raw).trim();
+  if (trimmed === "") return null;
+
+  const match = trimmed.match(/^(\d{1,4})[-/](\d{1,2})[-/](\d{1,4})/);
+  if (!match) return parseFlexibleDate(raw); // no calzó con el patrón numérico -- cae al intento genérico
+
+  const [, a, b, c] = match;
+  let year: string, month: string, day: string;
+
+  if (format === "YMD") {
+    [year, month, day] = [a, b, c];
+  } else if (format === "MDY") {
+    [month, day, year] = [a, b, c];
+  } else {
+    [day, month, year] = [a, b, c];
+  }
+  if (year.length === 2) year = `20${year}`;
+
+  const mNum = parseInt(month, 10);
+  const dNum = parseInt(day, 10);
+  if (mNum < 1 || mNum > 12 || dNum < 1 || dNum > 31) return null;
+
+  return `${year}-${String(mNum).padStart(2, "0")}-${String(dNum).padStart(2, "0")}`;
+}
+
 export function parseFlexibleDate(raw: string | undefined | null): string | null {
   if (raw == null) return null;
   const trimmed = String(raw).trim();
