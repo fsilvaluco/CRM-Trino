@@ -1796,6 +1796,43 @@ export default function EventDetailPage() {
                           onChange={(e) => updateItem({ comprobanteUrl: e.target.value })}
                           className="h-7 text-xs w-24 sm:w-36 no-print"
                         />
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png,.webp"
+                          className="hidden"
+                          id={`comprobante-upload-${item.id}`}
+                          disabled={costSheetClosed}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            e.target.value = "";
+                            if (!file) return;
+                            if (file.size > 25 * 1024 * 1024) {
+                              toast.error("El archivo no puede superar 25 MB");
+                              return;
+                            }
+                            try {
+                              const ext = file.name.split(".").pop();
+                              const storagePath = `cost-items/${id}/${item.id}-${Date.now()}.${ext}`;
+                              const uploadResult = await supabase.storage.from("finances").upload(storagePath, file, { upsert: false });
+                              if (uploadResult.error) {
+                                toast.error("Error subiendo el archivo: " + uploadResult.error.message);
+                                return;
+                              }
+                              const { data } = supabase.storage.from("finances").getPublicUrl(storagePath);
+                              updateItem({ comprobanteUrl: data.publicUrl });
+                              toast.success("Comprobante adjuntado");
+                            } catch {
+                              toast.error("No se pudo subir el archivo");
+                            }
+                          }}
+                        />
+                        <label
+                          htmlFor={`comprobante-upload-${item.id}`}
+                          className={`text-muted-foreground hover:text-foreground no-print ${costSheetClosed ? "opacity-40 pointer-events-none" : "cursor-pointer"}`}
+                          title="Subir comprobante (foto o PDF)"
+                        >
+                          <Paperclip className="h-3.5 w-3.5" />
+                        </label>
                         {item.comprobanteUrl && (
                           <a href={item.comprobanteUrl} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground">
                             <Receipt className="h-3.5 w-3.5" />
