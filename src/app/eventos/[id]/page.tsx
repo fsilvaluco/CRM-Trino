@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Pencil, MapPin, Clock, Music4, Wallet, FileText, Link as LinkIcon,
   Plus, Trash2, Star, ExternalLink, Loader2, Lock, LockOpen, Printer, Receipt,
-  Ticket, Upload, Paperclip, Share2, Users,
+  Ticket, Upload, Paperclip, Share2, Users, RefreshCw,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -135,6 +135,8 @@ export default function EventDetailPage() {
   const [eventLink, setEventLink] = useState("");
   const [riderLocal, setRiderLocal] = useState("");
   const [riderBanda, setRiderBanda] = useState("");
+  const [ticketSalesUrl, setTicketSalesUrl] = useState("");
+  const [syncingTickets, setSyncingTickets] = useState(false);
   const [detailsDirty, setDetailsDirty] = useState(false);
   const [savingDetails, setSavingDetails] = useState(false);
 
@@ -153,6 +155,7 @@ export default function EventDetailPage() {
         setEventLink(data.eventLink ?? "");
         setRiderLocal(data.riderLocal ?? "");
         setRiderBanda(data.riderBanda ?? "");
+        setTicketSalesUrl(data.ticketSalesUrl ?? "");
         setSetlistDirty(false);
         setCostsDirty(false);
         setTimingDirty(false);
@@ -505,6 +508,61 @@ export default function EventDetailPage() {
     }
   }
 
+  async function handleTicketSync() {
+    const trimmedUrl = ticketSalesUrl.trim();
+    if (!trimmedUrl) {
+      toast.error("Pega primero el link de estadísticas de la ticketera");
+      return;
+    }
+    if (ticketsDirty && !confirm("Tienes cambios sin guardar en los tramos -- sincronizar los va a reemplazar. ¿Seguir?")) {
+      return;
+    }
+    setSyncingTickets(true);
+    try {
+      // Guarda el link de una vez, para no tener que hacerlo aparte.
+      await fetch(`/api/eventos/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticketSalesUrl: trimmedUrl }),
+      });
+
+      const res = await fetch("/api/eventos/tickets-extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "url", url: trimmedUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data?.error ?? "No se pudo sincronizar");
+        return;
+      }
+      const tiers = Array.isArray(data.tiers) ? data.tiers : [];
+      if (tiers.length === 0) {
+        toast.info("No se encontraron tramos en esa página");
+        return;
+      }
+      // A diferencia del pantallazo (que agrega), sincronizar REEMPLAZA --
+      // es justamente para mantener los numeros al dia, no para acumular.
+      setTicketTiers(
+        tiers.map((t: { label: string; unitPrice: number | null; quantitySold: number | null; capacity: number | null; statusLabel: string | null }, i: number) => ({
+          id: `tmp-${newId()}`,
+          position: i,
+          label: t.label || "Tramo",
+          unitPrice: t.unitPrice != null ? Math.round(t.unitPrice * 100) : 0,
+          quantitySold: t.quantitySold ?? 0,
+          capacity: t.capacity ?? null,
+          statusLabel: t.statusLabel ?? null,
+        }))
+      );
+      setTicketsDirty(true);
+      toast.success(`${tiers.length} tramo(s) sincronizados -- revisa antes de guardar`);
+    } catch {
+      toast.error("Error al sincronizar");
+    } finally {
+      setSyncingTickets(false);
+    }
+  }
+
   async function saveCosts() {
     setSavingCosts(true);
     try {
@@ -541,7 +599,7 @@ export default function EventDetailPage() {
       const res = await fetch(`/api/eventos/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventLink: eventLink || null, riderLocal: riderLocal || null, riderBanda: riderBanda || null }),
+        body: JSON.stringify({ eventLink: eventLink || null, riderLocal: riderLocal || null, riderBanda: riderBanda || null, ticketSalesUrl: ticketSalesUrl || null }),
       });
       if (!res.ok) throw new Error();
       toast.success("Guardado");
@@ -1374,6 +1432,25 @@ export default function EventDetailPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div className="flex items-center gap-2 no-print">
+            <Input
+              placeholder="Link de estadísticas de la ticketera (PortalTickets, etc.)"
+              value={ticketSalesUrl}
+              onChange={(e) => setTicketSalesUrl(e.target.value)}
+              className="h-8 text-sm flex-1"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs cursor-pointer shrink-0"
+              disabled={syncingTickets}
+              onClick={handleTicketSync}
+            >
+              {syncingTickets ? <Loader2 className="h-3.5 w-3.5 animate-spin sm:mr-1" /> : <RefreshCw className="h-3.5 w-3.5 sm:mr-1" />}
+              <span className="hidden sm:inline">{syncingTickets ? "Sincronizando..." : "Sincronizar"}</span>
+            </Button>
+          </div>
+
           {/* Version limpia, solo para "Imprimir todo" -- sin inputs editables */}
           {ticketTiers.length > 0 && (
             <table className="hidden print:table w-full text-sm">

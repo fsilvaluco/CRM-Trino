@@ -492,6 +492,53 @@ export async function extractTimingFromText(rawText: string): Promise<TimingExtr
   }
 }
 
+const TICKET_TIERS_TEXT_PROMPT = `${TICKET_TIERS_PROMPT}
+
+Texto de la página (extraído de una web de venta de entradas, ej. PortalTickets):
+"""
+{{TEXT}}
+"""`;
+
+/**
+ * Lee texto plano (extraído del HTML de una página de estadísticas de
+ * ticketera, ej. PortalTickets/PortalDisc) y extrae los tramos. Pensado
+ * para el botón "Sincronizar" -- se puede re-ejecutar cuando quieran
+ * refrescar los números sin subir un pantallazo de nuevo.
+ */
+export async function extractTicketTiersFromText(rawText: string): Promise<TicketTierExtraction[]> {
+  if (!apiKey) return [];
+  if (!rawText.trim()) return [];
+
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: MODEL,
+      temperature: 0,
+      messages: [{ role: "user", content: TICKET_TIERS_TEXT_PROMPT.replace("{{TEXT}}", rawText.slice(0, 12000)) }],
+      response_format: { type: "json_schema", json_schema: TICKET_TIERS_SCHEMA },
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    console.error("[openai] ticket tiers text extraction failed", { status: res.status, body });
+    throw new Error(`OpenAI respondió con error (status ${res.status})`);
+  }
+
+  const data = await res.json();
+  const text: string | undefined = data?.choices?.[0]?.message?.content;
+  if (!text) return [];
+
+  try {
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed.tiers) ? parsed.tiers : [];
+  } catch (err) {
+    console.error("[openai] failed to parse ticket tiers text JSON", { text, err });
+    return [];
+  }
+}
+
 interface MilestoneExtraction {
   title: string;
   dueDate: string | null; // YYYY-MM-DD

@@ -31,6 +31,7 @@ function mapLiveShow(row: any) {
     costSheetClosedAt: row.cost_sheet_closed_at ?? null,
     costSheetClosingFilePath: row.cost_sheet_closing_file_path ?? null,
     costSheetClosingFileName: row.cost_sheet_closing_file_name ?? null,
+    ticketSalesUrl: row.ticket_sales_url ?? null,
   };
 }
 
@@ -126,7 +127,7 @@ export async function PUT(
   const {
     date, eventTime, venue, address, city, notes, status,
     fee, ticketIncome, expenses, venueId, name,
-    eventLink, riderLocal, riderBanda,
+    eventLink, riderLocal, riderBanda, ticketSalesUrl,
   } = body as {
     date?: string;
     eventTime?: string | null;
@@ -143,6 +144,7 @@ export async function PUT(
     eventLink?: string | null;
     riderLocal?: string | null;
     riderBanda?: string | null;
+    ticketSalesUrl?: string | null;
   };
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -184,6 +186,7 @@ export async function PUT(
   if (eventLink !== undefined) updates.event_link = eventLink || null;
   if (riderLocal !== undefined) updates.rider_local = riderLocal || null;
   if (riderBanda !== undefined) updates.rider_banda = riderBanda || null;
+  if (ticketSalesUrl !== undefined) updates.ticket_sales_url = ticketSalesUrl || null;
 
   const { data, error: dbError } = await supabase
     .from("shows")
