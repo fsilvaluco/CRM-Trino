@@ -404,7 +404,7 @@ export default function TasksPage() {
   // ── Shared JSX pieces ────────────────────────────────────────────────────
 
   const pageHeader = (
-    <div className="flex items-center justify-between">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Tareas</h1>
         <p className="text-muted-foreground">
@@ -417,9 +417,9 @@ export default function TasksPage() {
         </p>
       </div>
       <div className="flex gap-2">
-        <Button variant="outline" onClick={() => setShowImportDialog(true)} className="cursor-pointer">
-          <FileText className="h-4 w-4 mr-2" />
-          Importar cronograma
+        <Button variant="outline" onClick={() => setShowImportDialog(true)} className="cursor-pointer" title="Importar cronograma">
+          <FileText className="h-4 w-4 sm:mr-2" />
+          <span className="hidden sm:inline">Importar cronograma</span>
         </Button>
         <Button onClick={() => setShowForm(true)} className="cursor-pointer">
           <Plus className="h-4 w-4 mr-2" />

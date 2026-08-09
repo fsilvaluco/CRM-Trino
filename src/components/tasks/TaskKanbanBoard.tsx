@@ -10,7 +10,7 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, Clock, CheckCircle2 } from "lucide-react";
+import { AlertCircle, Clock, CheckCircle2, GripVertical } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/constants";
 import { ProjectTag } from "@/components/shared/ProjectTag";
@@ -103,10 +103,7 @@ function DraggableTaskCard({
     <div
       ref={setNodeRef}
       style={style}
-      {...listeners}
-      {...attributes}
-      onClick={() => onTaskClick?.(task.id)}
-      className={`relative bg-card border rounded-lg p-3 shadow-sm cursor-pointer active:cursor-grabbing select-none ${
+      className={`relative bg-card border rounded-lg p-3 shadow-sm select-none ${
         isDragging ? "opacity-50" : ""
       }`}
     >
@@ -116,42 +113,60 @@ function DraggableTaskCard({
           title="Actividad nueva sin ver"
         />
       )}
-      <p className="text-sm font-medium leading-snug">{task.title}</p>
 
-      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-        <Badge className={`text-xs ${priority.className}`} variant="secondary">
-          {priority.label}
-        </Badge>
-        <Badge variant="secondary" className="text-xs bg-muted text-muted-foreground">
-          {STATUS_LABELS[task.status]}
-        </Badge>
-      </div>
+      {/* Handle de arrastre dedicado -- el resto de la tarjeta queda libre
+          para hacer scroll horizontal del tablero sin ninguna ambigüedad.
+          touchAction:none va SOLO acá (no en toda la tarjeta), que es la
+          recomendación oficial de dnd-kit para este caso. */}
+      <button
+        {...listeners}
+        {...attributes}
+        style={{ touchAction: "none" }}
+        className="absolute top-2 right-2 p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-grab active:cursor-grabbing touch-none"
+        aria-label="Arrastrar para mover"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
 
-      {(task.dueDate || task.contactName || task.tagProjectName || (task.assignees && task.assignees.length > 0)) && (
-        <div className="mt-2 space-y-0.5">
-          {task.dueDate && (
-            <p className={`text-xs flex items-center gap-1 ${isOverdue ? "text-destructive" : "text-muted-foreground"}`}>
-              {isOverdue ? <AlertCircle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
-              {formatDate(task.dueDate)}
-            </p>
-          )}
-          {task.contactName && (
-            <p className="text-xs text-muted-foreground">{task.contactName}</p>
-          )}
-          {task.tagProjectName && (
-            <div className="mt-1">
-              <ProjectTag
-                name={task.tagProjectName}
-                color={task.tagProjectColor}
-                avatarUrl={task.tagProjectAvatarUrl}
-              />
-            </div>
-          )}
-          {task.assignees && task.assignees.length > 0 && (
-            <AssigneeAvatarStack assignees={task.assignees} />
-          )}
+      <div onClick={() => onTaskClick?.(task.id)} className="cursor-pointer pr-5">
+        <p className="text-sm font-medium leading-snug">{task.title}</p>
+
+        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+          <Badge className={`text-xs ${priority.className}`} variant="secondary">
+            {priority.label}
+          </Badge>
+          <Badge variant="secondary" className="text-xs bg-muted text-muted-foreground">
+            {STATUS_LABELS[task.status]}
+          </Badge>
         </div>
-      )}
+
+        {(task.dueDate || task.contactName || task.tagProjectName || (task.assignees && task.assignees.length > 0)) && (
+          <div className="mt-2 space-y-0.5">
+            {task.dueDate && (
+              <p className={`text-xs flex items-center gap-1 ${isOverdue ? "text-destructive" : "text-muted-foreground"}`}>
+                {isOverdue ? <AlertCircle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
+                {formatDate(task.dueDate)}
+              </p>
+            )}
+            {task.contactName && (
+              <p className="text-xs text-muted-foreground">{task.contactName}</p>
+            )}
+            {task.tagProjectName && (
+              <div className="mt-1">
+                <ProjectTag
+                  name={task.tagProjectName}
+                  color={task.tagProjectColor}
+                  avatarUrl={task.tagProjectAvatarUrl}
+                />
+              </div>
+            )}
+            {task.assignees && task.assignees.length > 0 && (
+              <AssigneeAvatarStack assignees={task.assignees} />
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

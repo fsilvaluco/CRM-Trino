@@ -1,13 +1,12 @@
 "use client";
 
-import { useRef, type PointerEvent as ReactPointerEvent } from "react";
 import { Card } from "@/components/ui/card";
 import { useLocale } from "@/lib/locale-context";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { ProjectTag } from "@/components/shared/ProjectTag";
 import { AssigneeAvatarStack, type AssigneeRef } from "@/components/shared/AssigneeAvatarStack";
-import { Clock } from "lucide-react";
+import { Clock, GripVertical } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -53,7 +52,6 @@ export function DealCard({
     transition,
     isDragging,
   } = useSortable({ id });
-  const pointerDownRef = useRef<{ x: number; y: number } | null>(null);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -61,41 +59,31 @@ export function DealCard({
     opacity: isDragging ? 0.5 : 1,
   };
 
-  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    pointerDownRef.current = { x: event.clientX, y: event.clientY };
-    listeners?.onPointerDown?.(event);
-  };
-
-  const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!onClick || isDragging) return;
-
-    const startPoint = pointerDownRef.current;
-    pointerDownRef.current = null;
-    if (!startPoint) return;
-
-    const distance = Math.hypot(event.clientX - startPoint.x, event.clientY - startPoint.y);
-    if (distance <= 5) {
-      onClick();
-    }
-  };
-
   return (
-    <Card
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-      onPointerDown={handlePointerDown}
-      onPointerUp={handlePointerUp}
-      className="relative p-3 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow"
-    >
+    <Card ref={setNodeRef} style={style} className="relative p-3 hover:shadow-md transition-shadow">
       {hasUnseenActivity && (
         <span
           className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-card"
           title="Actividad nueva sin ver"
         />
       )}
-      <div className="space-y-2">
+
+      {/* Handle de arrastre dedicado -- el resto de la tarjeta queda libre
+          para hacer scroll horizontal del tablero sin ninguna ambigüedad
+          (recomendación oficial de dnd-kit para tarjetas dentro de un
+          contenedor con scroll). */}
+      <button
+        {...attributes}
+        {...listeners}
+        style={{ touchAction: "none" }}
+        className="absolute top-2 right-2 p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-grab active:cursor-grabbing touch-none"
+        aria-label="Arrastrar para mover"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+
+      <div onClick={onClick} className="space-y-2 cursor-pointer pr-5">
         <p className="text-sm font-medium leading-tight">{title}</p>
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold text-primary">

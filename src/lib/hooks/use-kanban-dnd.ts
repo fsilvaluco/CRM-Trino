@@ -3,7 +3,7 @@ import {
   closestCorners,
   pointerWithin,
   rectIntersection,
-  PointerSensor,
+  MouseSensor,
   TouchSensor,
   useSensor,
   useSensors,
@@ -14,19 +14,20 @@ import {
 // Esta pieza es idéntica en ambos: sensores + estrategia de colisión. El resto
 // de cada board (cómo se agrupan las tarjetas, qué pasa al soltar, cómo se ve
 // la tarjeta) sigue siendo distinto a propósito y no vive aquí.
-
+//
+// Importante: dnd-kit indica explícitamente en su documentación que NO hay
+// que combinar PointerSensor con MouseSensor/TouchSensor -- Pointer ya cubre
+// mouse y touch a la vez, y mezclarlo con TouchSensor generaba conflictos
+// (el intento anterior de arreglar el scroll táctil con esa combinación no
+// funcionó). Por eso el mouse va por MouseSensor, no PointerSensor.
+// El otro cambio real está en las tarjetas (TaskKanbanBoard/DealCard): ahora
+// el arrastre se agarra desde un handle chico dedicado, no desde toda la
+// tarjeta -- así el resto de la tarjeta queda 100% libre para hacer scroll
+// nativo, sin ninguna ambigüedad de por medio (recomendación oficial de
+// dnd-kit para listas/tableros con scroll).
 export function useKanbanDnd() {
   const sensors = useSensors(
-    // Mouse/trackpad: alcanza con distancia -- no hay gesto de scroll
-    // nativo compitiendo por el mismo movimiento.
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    // Tactil: con distancia sola, el navegador nunca llega a decidir si es
-    // scroll o drag -- dnd-kit ya capturo el gesto desde el primer toque.
-    // Con delay, el toque puede moverse libre (para hacer scroll horizontal
-    // del tablero) durante los primeros 200ms; solo si el dedo se queda
-    // quieto ese rato sin moverse mas de "tolerance" px, ahi si se activa
-    // el drag. Es el patron recomendado por dnd-kit para tableros con
-    // scroll horizontal en touch.
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
   );
 
