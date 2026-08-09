@@ -249,7 +249,7 @@ export default function EventosPage() {
 
             return (
               <Card key={show.id} className="group">
-                <CardContent className="p-4 flex items-center justify-between gap-4">
+                <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
                       <Link href={`/eventos/${show.id}`} className="font-medium hover:underline">
@@ -320,7 +320,7 @@ export default function EventosPage() {
                       </button>
                     )}
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
+                  <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto shrink-0">
                     {hasMoney && (
                       <div className="text-right">
                         <p
@@ -335,7 +335,7 @@ export default function EventosPage() {
                         <p className="text-xs text-muted-foreground">utilidad</p>
                       </div>
                     )}
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => {
                           setEditingShow(show);
