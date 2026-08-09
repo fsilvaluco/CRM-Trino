@@ -4,6 +4,7 @@ import {
   pointerWithin,
   rectIntersection,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   type CollisionDetection,
@@ -16,7 +17,17 @@ import {
 
 export function useKanbanDnd() {
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+    // Mouse/trackpad: alcanza con distancia -- no hay gesto de scroll
+    // nativo compitiendo por el mismo movimiento.
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    // Tactil: con distancia sola, el navegador nunca llega a decidir si es
+    // scroll o drag -- dnd-kit ya capturo el gesto desde el primer toque.
+    // Con delay, el toque puede moverse libre (para hacer scroll horizontal
+    // del tablero) durante los primeros 200ms; solo si el dedo se queda
+    // quieto ese rato sin moverse mas de "tolerance" px, ahi si se activa
+    // el drag. Es el patron recomendado por dnd-kit para tableros con
+    // scroll horizontal en touch.
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
   );
 
   // closestCorners solo (el default de dnd-kit) calcula mal cuando una
