@@ -157,7 +157,12 @@ export default function EventosPage() {
 
   const filteredShows = timeFilteredShows
     .filter((s) => filterStatus === "all" || s.status === filterStatus)
-    .filter((s) => filterTour === "all" || s.tour === filterTour);
+    .filter((s) => filterTour === "all" || s.tour === filterTour)
+    // El API ya devuelve todo ascendente (mas antiguo primero). Para
+    // "Próximos" eso es lo que se quiere (lo que viene ahora, arriba).
+    // Para "Pasados"/"Todos" se invierte: lo más reciente arriba, lo más
+    // antiguo al final -- es como se espera navegar un historial.
+    .sort((a, b) => (timeFilter === "upcoming" ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date)));
 
   const availableTours = [...new Set(shows.map((s) => s.tour).filter(Boolean) as string[])].sort();
 
