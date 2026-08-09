@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { Loader2, MapPin, Clock, Music4, FileText, Users, Navigation, Phone } from "lucide-react";
+import { Loader2, MapPin, Clock, Music4, FileText, Users, Navigation, Phone, CalendarPlus } from "lucide-react";
 
 interface PublicTimingItem {
   id: string;
@@ -54,6 +54,106 @@ function formatShortAddress(address: string | null, city: string | null): string
   const street = address?.split(",")[0]?.trim() || "";
   const parts = [street, city].filter(Boolean);
   return parts.length > 0 ? parts.join(", ") : null;
+}
+
+/** Busca todas las horas "HH:MM" dentro de un texto libre (ej. "15:00 -
+ * 16:30" o "Show a las 20:00") y devuelve los minutos-desde-medianoche de
+ * cada una encontrada. */
+function extractMinutesOfDay(text: string): number[] {
+  const matches = [...text.matchAll(/(\d{1,2}):(\d{2})/g)];
+  return matches
+    .map(([, h, m]) => parseInt(h, 10) * 60 + parseInt(m, 10))
+    .filter((mins) => mins >= 0 && mins < 24 * 60);
+}
+
+function minutesToHHMM(mins: number): { h: number; m: number } {
+  return { h: Math.floor(mins / 60) % 24, m: mins % 60 };
+}
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+/** Fecha+hora local en formato ICS (flotante, sin zona horaria -- se
+ * interpreta como hora local del calendario que lo abre, que es lo que
+ * corresponde para un evento en vivo). */
+function icsDateTime(dateStr: string, hour: number, minute: number): string {
+  const [y, mo, d] = dateStr.split("-");
+  return `${y}${mo}${d}T${pad2(hour)}${pad2(minute)}00`;
+}
+
+function icsDateOnly(dateStr: string): string {
+  return dateStr.replaceAll("-", "");
+}
+
+/** Un dia calendario despues, en formato ICS (para el DTEND exclusivo de
+ * un evento de dia completo). */
+function icsDateOnlyPlusOneDay(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + 1);
+  return `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
+}
+
+function icsEscape(text: string): string {
+  return text.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+}
+
+function downloadIcs(event: PublicEvent, shareUrl: string) {
+  // Del Timing sacamos la hora mas temprana y la mas tardia mencionadas
+  // (cubre "de la primera actividad a la ultima"). Si no hay timing con
+  // horas legibles, cae a event.eventTime + una duracion default; si
+  // tampoco hay eso, queda como evento de dia completo.
+  const allMinutes = event.timing.flatMap((t) => (t.timeLabel ? extractMinutesOfDay(t.timeLabel) : []));
+
+  let dtstartLine: string;
+  let dtendLine: string;
+
+  if (allMinutes.length > 0) {
+    const startMin = Math.min(...allMinutes);
+    const endMinRaw = Math.max(...allMinutes);
+    const endMin = endMinRaw > startMin ? endMinRaw : startMin + 120; // evita duracion 0
+    const start = minutesToHHMM(startMin);
+    const end = minutesToHHMM(endMin);
+    dtstartLine = `DTSTART:${icsDateTime(event.date, start.h, start.m)}`;
+    dtendLine = `DTEND:${icsDateTime(event.date, end.h, end.m)}`;
+  } else if (event.eventTime) {
+    const [h, m] = event.eventTime.split(":").map((n) => parseInt(n, 10));
+    const startMin = h * 60 + m;
+    const end = minutesToHHMM(startMin + 180); // duracion default: 3h
+    dtstartLine = `DTSTART:${icsDateTime(event.date, h, m)}`;
+    dtendLine = `DTEND:${icsDateTime(event.date, end.h, end.m)}`;
+  } else {
+    dtstartLine = `DTSTART;VALUE=DATE:${icsDateOnly(event.date)}`;
+    dtendLine = `DTEND;VALUE=DATE:${icsDateOnlyPlusOneDay(event.date)}`;
+  }
+
+  const location = [event.venue, event.address].filter(Boolean).join(", ");
+  const description = `Más información: ${shareUrl}`;
+
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Artist Pro//Eventos//ES",
+    "BEGIN:VEVENT",
+    `UID:${event.name.replace(/\s+/g, "-")}-${event.date}@artistpro.app`,
+    dtstartLine,
+    dtendLine,
+    `SUMMARY:${icsEscape(event.name)}`,
+    `LOCATION:${icsEscape(location)}`,
+    `DESCRIPTION:${icsEscape(description)}`,
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ];
+
+  const blob = new Blob([lines.join("\r\n")], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${event.name.replace(/[^\w\-]+/g, "-").slice(0, 60) || "evento"}.ics`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 export function PublicEventClient({ id }: { id: string }) {
@@ -153,6 +253,14 @@ export function PublicEventClient({ id }: { id: string }) {
             )}
           </div>
         </div>
+
+        <button
+          onClick={() => downloadIcs(event, typeof window !== "undefined" ? window.location.href : "")}
+          className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
+        >
+          <CalendarPlus className="h-4 w-4" />
+          Agregar a mi calendario
+        </button>
 
         {/* Contactos importantes -- solo los marcados para compartir */}
         {event.contacts.length > 0 && (
