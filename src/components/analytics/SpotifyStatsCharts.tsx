@@ -122,6 +122,7 @@ export function SpotifyStatsCharts({ snapshots, followerMetrics }: SpotifyStatsC
             <Tooltip
               contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8 }}
               labelStyle={{ color: "#0f172a", fontWeight: 600 }}
+                itemStyle={{ color: "#0f172a" }}
               formatter={(v) => [v != null ? NUM.format(Number(v)) : "—", activeMetric.label]}
             />
             <Line

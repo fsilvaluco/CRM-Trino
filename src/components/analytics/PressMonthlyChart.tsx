@@ -58,7 +58,8 @@ export function PressMonthlyChart({ mentions }: PressMonthlyChartProps) {
           <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
           <XAxis dataKey="label" tick={{ fontSize: 11 }} />
           <YAxis tick={{ fontSize: 11 }} allowDecimals={false} width={30} />
-          <Tooltip contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8 }} labelStyle={{ color: "#0f172a", fontWeight: 600 }} />
+          <Tooltip contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8 }} labelStyle={{ color: "#0f172a", fontWeight: 600 }}
+                itemStyle={{ color: "#0f172a" }} />
           <Legend
             formatter={(value) => PRESS_SOURCE_LABELS[value as keyof typeof PRESS_SOURCE_LABELS] ?? value}
             wrapperStyle={{ fontSize: 12 }}

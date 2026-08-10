@@ -134,6 +134,7 @@ export function MerchTab({ snapshots, onRefresh }: MerchTabProps) {
               <Tooltip
                 contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8 }}
                 labelStyle={{ color: "#0f172a", fontWeight: 600 }}
+                itemStyle={{ color: "#0f172a" }}
                 formatter={(v) => [CLP.format(Number(v ?? 0)), "Ventas"]}
               />
               <Area

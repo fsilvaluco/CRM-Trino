@@ -281,6 +281,7 @@ export function PlatformTab({ platform, metrics, onRefresh, integration, comingS
               <Tooltip
                 contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8 }}
                 labelStyle={{ color: "#0f172a", fontWeight: 600 }}
+                itemStyle={{ color: "#0f172a" }}
                 formatter={(v) => [NUM.format(Number(v ?? 0)), "Seguidores"]}
               />
               <Line
@@ -323,6 +324,7 @@ export function PlatformTab({ platform, metrics, onRefresh, integration, comingS
               <Tooltip
                 contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8 }}
                 labelStyle={{ color: "#0f172a", fontWeight: 600 }}
+                itemStyle={{ color: "#0f172a" }}
                 formatter={(v) => {
                   const n = Number(v ?? 0);
                   return [`${n >= 0 ? "+" : ""}${NUM.format(n)}`, "Variación"];

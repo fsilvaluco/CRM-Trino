@@ -76,6 +76,7 @@ export function ResumenTab({ metrics, onRefresh }: ResumenTabProps) {
               <Tooltip
                 contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8 }}
                 labelStyle={{ color: "#0f172a", fontWeight: 600, marginBottom: 4 }}
+                itemStyle={{ color: "#0f172a" }}
                 formatter={(v, name) => [
                   new Intl.NumberFormat("es-CL").format(Number(v ?? 0)),
                   String(name),

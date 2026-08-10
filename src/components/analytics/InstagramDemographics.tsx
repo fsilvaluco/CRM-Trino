@@ -108,6 +108,7 @@ export function InstagramDemographics() {
               <Tooltip
                 contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8 }}
                 labelStyle={{ color: "#0f172a", fontWeight: 600 }}
+                itemStyle={{ color: "#0f172a" }}
                 formatter={(v) => NUM.format(Number(v))}
               />
             </PieChart>
@@ -139,6 +140,7 @@ export function InstagramDemographics() {
               <Tooltip
                 contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8 }}
                 labelStyle={{ color: "#0f172a", fontWeight: 600 }}
+                itemStyle={{ color: "#0f172a" }}
                 formatter={(v) => NUM.format(Number(v))}
               />
               <Bar dataKey="value" fill="#6366f1" radius={[4, 4, 0, 0]} />
