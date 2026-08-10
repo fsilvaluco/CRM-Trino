@@ -16,6 +16,7 @@ import { useProject } from "@/lib/project-context";
 import { formatDate } from "@/lib/constants";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 
 interface InstagramPost {
   id: string;
@@ -35,6 +36,8 @@ interface InstagramPost {
   updatedAt: string;
 }
 
+type SortKey = "postedAt" | "reach" | "views" | "likes" | "comments" | "saved" | "shares" | "engagement";
+
 const NUM = new Intl.NumberFormat("es-CL");
 
 const MEDIA_TYPE_LABELS: Record<string, string> = {
@@ -48,10 +51,47 @@ function truncateCaption(caption: string | null): string {
   return caption.length > 60 ? `${caption.slice(0, 60)}…` : caption;
 }
 
+/** Encabezado ordenable tipo Excel: clic muestra flecha y ordena
+ * descendente primero (para métricas, ver lo más alto arriba es lo más
+ * útil); un segundo clic invierte a ascendente. */
+function SortableHead({
+  label,
+  sortKey,
+  activeSort,
+  onSort,
+  align = "left",
+}: {
+  label: string;
+  sortKey: SortKey;
+  activeSort: { key: SortKey; dir: "asc" | "desc" };
+  onSort: (key: SortKey) => void;
+  align?: "left" | "right";
+}) {
+  const isActive = activeSort.key === sortKey;
+  return (
+    <TableHead className={align === "right" ? "text-right" : undefined}>
+      <button
+        onClick={() => onSort(sortKey)}
+        className={`inline-flex items-center gap-1 cursor-pointer hover:text-foreground ${
+          align === "right" ? "flex-row-reverse" : ""
+        } ${isActive ? "text-foreground" : "text-muted-foreground"}`}
+      >
+        {label}
+        {isActive ? (
+          activeSort.dir === "desc" ? <ArrowDown className="h-3 w-3" /> : <ArrowUp className="h-3 w-3" />
+        ) : (
+          <ArrowUpDown className="h-3 w-3 opacity-40" />
+        )}
+      </button>
+    </TableHead>
+  );
+}
+
 export function InstagramPostsList() {
   const { activeProject } = useProject();
   const [posts, setPosts] = useState<InstagramPost[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "postedAt", dir: "desc" });
 
   useEffect(() => {
     if (!activeProject) {
@@ -66,6 +106,10 @@ export function InstagramPostsList() {
       .finally(() => setLoading(false));
   }, [activeProject?.id]);
 
+  function handleSort(key: SortKey) {
+    setSort((prev) => (prev.key === key ? { key, dir: prev.dir === "desc" ? "asc" : "desc" } : { key, dir: "desc" }));
+  }
+
   if (loading) {
     return <div className="h-64 rounded-lg bg-muted animate-pulse" />;
   }
@@ -75,6 +119,12 @@ export function InstagramPostsList() {
     if (!latest || p.updatedAt > latest) return p.updatedAt;
     return latest;
   }, null);
+
+  const sortedPosts = [...posts].sort((a, b) => {
+    const av = sort.key === "postedAt" ? (a.postedAt ? new Date(a.postedAt).getTime() : -Infinity) : a[sort.key] ?? -Infinity;
+    const bv = sort.key === "postedAt" ? (b.postedAt ? new Date(b.postedAt).getTime() : -Infinity) : b[sort.key] ?? -Infinity;
+    return sort.dir === "asc" ? av - bv : bv - av;
+  });
 
   return (
     <Card>
@@ -99,18 +149,18 @@ export function InstagramPostsList() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Post</TableHead>
-                  <TableHead>Fecha</TableHead>
-                  <TableHead className="text-right">Alcance</TableHead>
-                  <TableHead className="text-right">Views</TableHead>
-                  <TableHead className="text-right">Me gusta</TableHead>
-                  <TableHead className="text-right">Comentarios</TableHead>
-                  <TableHead className="text-right">Guardados</TableHead>
-                  <TableHead className="text-right">Compartidos</TableHead>
-                  <TableHead className="text-right">Engagement</TableHead>
+                  <SortableHead label="Fecha" sortKey="postedAt" activeSort={sort} onSort={handleSort} />
+                  <SortableHead label="Alcance" sortKey="reach" activeSort={sort} onSort={handleSort} align="right" />
+                  <SortableHead label="Views" sortKey="views" activeSort={sort} onSort={handleSort} align="right" />
+                  <SortableHead label="Me gusta" sortKey="likes" activeSort={sort} onSort={handleSort} align="right" />
+                  <SortableHead label="Comentarios" sortKey="comments" activeSort={sort} onSort={handleSort} align="right" />
+                  <SortableHead label="Guardados" sortKey="saved" activeSort={sort} onSort={handleSort} align="right" />
+                  <SortableHead label="Compartidos" sortKey="shares" activeSort={sort} onSort={handleSort} align="right" />
+                  <SortableHead label="Engagement" sortKey="engagement" activeSort={sort} onSort={handleSort} align="right" />
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {posts.map((post) => (
+                {sortedPosts.map((post) => (
                   <TableRow key={post.id}>
                     <TableCell>
                       <div className="flex items-center gap-2 min-w-0">
