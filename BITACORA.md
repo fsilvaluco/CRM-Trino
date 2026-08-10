@@ -1,6 +1,6 @@
 # Bitácora de Trabajo — Auto-CRM
-_Checkpoint v1.1 — 9 de agosto de 2026, ~23:30 hrs (cierre de sesión larga)_
-_Checkpoint anterior: v1.0 — 7 de agosto de 2026_
+_Checkpoint v1.2 — 10 de agosto de 2026 (revisión de pendientes con Francisco)_
+_Checkpoint anterior: v1.1 — 9 de agosto de 2026_
 
 > **Formato de tracking:** Registro histórico de trabajo realizado + pendientes actuales.  
 > Cada entrada incluye fecha, estado (🔨 En Progreso / ✅ Hecho), y notas de implementación detalladas.
@@ -11,51 +11,73 @@ _Checkpoint anterior: v1.0 — 7 de agosto de 2026_
 
 ## 🔴 Crítico (arreglar primero)
 
-**Confirmar que el último paquete se aplicó y se probó** _(pendiente al cierre de esta sesión)_
-- Último envío: fixes de gráficos de Métricas (tooltip invisible, agrupación por mes en Eventos) — Francisco no había confirmado aplicar+probar todavía cuando se cerró la sesión
-- Antes de seguir construyendo sobre Métricas/Eventos, confirmar que quedó bien
-
-_Fuera de eso, ningún bug crítico conocido sin resolver._
+_Ningún bug crítico conocido sin resolver._
+- ✅ Confirmado por Francisco (10 ago 2026): el paquete de fixes de gráficos de Métricas + agrupación por mes en Eventos quedó bien aplicado y probado.
 
 ---
 
 ## ⚠️ Por verificar / sin probar a fondo
 
 **Google Maps — comuna en direcciones reales**
-- Sigue sin probarse a fondo con muchas direcciones reales (ver checkpoint anterior)
-- Ahora es más urgente: se crearon 10 venues nuevos con dirección "Por definir" (ver más abajo) que Francisco va a completar a mano — buen momento para validar que el autocompletado de comuna funciona bien con esas direcciones reales cuando las ingrese
+- Francisco lo va a verificar él mismo a medida que completa a mano las direcciones reales de los 10 venues nuevos (quedaron con dirección "Por definir")
 
-**pdf-parse en producción**
-- Sigue sin confirmación explícita de que funciona en Railway (ver checkpoint anterior) — pero Francisco hizo importaciones CSV grandes después de este fix sin quejarse de PDFs específicamente, así que probablemente esté bien. No hay confirmación 100% directa.
+✅ **pdf-parse en producción** — confirmado ok (10 ago 2026), sin más acción.
 
 ---
 
 ## 🟢 Diferido a propósito (decisión del usuario, no son bugs)
 
-- **Notificaciones push**, **botón "Enviar"**, **Timing general de gira**, **agrupación por secciones en Timing**, **login con clave por evento en el link público**, **ícono de Instagram/redes en el header impreso** — sin cambios desde el checkpoint anterior, siguen todos pendientes tal como se dejaron
-- **Revisión estética general (espaciados y tamaños)** — se avanzó *parcialmente*: se corrigió el tamaño de letra en Setlist/Contactos (heredaban `text-base` de 16px en celular en vez de `text-sm`/`text-xs` como el resto de las secciones) y se reordenaron varias filas para que no se corten en celular. Pero la revisión estética *general* con la app de referencia (Notifica Legal) que Francisco quería agendar en PC sigue sin hacerse — esto fueron fixes puntuales de bugs, no esa revisión completa.
-- **Sync automático/periódico de venta de entradas** — hoy el botón "Sincronizar" en Venta de entradas es manual (lee el link de la ticketera al apretarlo). Un sync automático periódico requeriría un cron job, similar a como ya funciona la sincro de Instagram.
-- **Direcciones reales de venues** — se crearon 10 fichas de Venue nuevas a partir de eventos ya cargados (ver sección de completado), pero quedaron con dirección "Por definir" — Francisco las va a completar a mano con las direcciones reales. Los 7 eventos de la gira "La Amistad Hecha Bolero" quedaron con venue "Por definir" (no una ficha real) porque no se sabía el venue real al momento de importar — van a necesitar edición manual cuando se sepan.
+- **Notificaciones push**, **Timing general de gira**, **agrupación por secciones en Timing** — sin cambios, siguen pendientes tal como se dejaron
+- ✅ **Ícono de Instagram/redes en el header impreso** — Francisco confirma que ya está, cerrado
+- **Login con clave por evento en el link público** — sigue diferido, Francisco lo va a hacer más adelante
+- **Direcciones reales de venues** — tarea manual de Francisco (10 venues nuevos + 7 eventos de la gira "La Amistad Hecha Bolero"), no requiere desarrollo — solo pendiente de que él las complete
 
 ---
 
 ## 🟠 Importante (esta semana)
 
-**2. Kanban de tareas — delay de 2 segundos** _(creado: 6 may 2026)_
-- Investigar si el delay viene del optimistic update o de la query de revalidación
-- Implementar actualización optimista real (actualizar UI antes de que confirme el server)
-- Ayuda en multiusuario también (no esperar respuesta para mostrar el cambio)
-- **Estado:** Diferido para después (decisión del usuario)
-- **Estimado:** 2-3 horas
+**Botón "Confirmar Timing" — envío de correo a contactos del evento** _(idea nueva de Francisco, agregado: 10 ago 2026)_
+- Reemplaza al genérico "botón Enviar" diferido — esta es la especificación concreta que Francisco quiere avanzar
+- **Selección de destinatarios:** se eligen desde los Contactos del evento (Contactos Importantes) — necesita UI para marcar/seleccionar a quién se le manda
+- **Flujo:**
+  1. Botón **"Confirmar Timing"** (estado inicial, timing aún no enviado) → al apretarlo, envía correo a los contactos seleccionados. Asunto/cuerpo tipo: *"Ya tenemos el timing confirmado para el evento [nombre]"* / *"Ya tienes disponible para revisar el timing del próximo evento"* + link al timing del evento
+  2. Una vez enviado, el botón cambia de texto/estado — pasa a **"Reenviar actualización"**
+  3. Si se modifica algo del timing **después** de haberlo enviado, apretar ese botón manda un correo distinto: *"Han actualizado la información, revisa el timing actualizado..."*
+  4. **Correo automático el día anterior al evento** (recordatorio, no depende de un botón): *"Mañana es el día, tienes todo preparado, [lo que corresponda], recuerda revisar el timing"*
+- **Por definir / a diseñar:**
+  - Cómo se rastrea el estado "enviado" vs "modificado desde el último envío" (¿timestamp de último envío + timestamp de última edición del timing, comparados?)
+  - Qué servicio de envío de correo se usa (¿Gmail vía la integración ya conectada, o un servicio transaccional tipo Resend/SendGrid?)
+  - El recordatorio del día anterior necesita un cron job (similar al de sync de Instagram) que revise eventos con fecha = mañana y dispare el correo automáticamente
+  - Definir textos finales de los 3 correos (confirmación / actualización / recordatorio) — Francisco dio la idea general, falta redacción final
+
+**Sync automático de venta de entradas — 2 veces al día** _(especificado: 10 ago 2026)_
+- Antes diferido sin definir; Francisco ya definió el horario: cron job a las **12:00** y **00:00**
+- Reutiliza la misma lógica que ya tiene el botón "Sincronizar" manual (lee el link de la ticketera), solo que disparado por cron en vez de por click — similar al cron diario de Instagram
+
+**Venues compartidos entre proyectos — solución implementada** _(agregado: 10 ago 2026, implementado: 10 ago 2026)_
+- **Diseño acordado con Francisco:** los venues son un catálogo compartido (nombre + dirección, comuna/región/país, lat/lng) — igual que el buscador de lugares de PortalTickets. Cualquier proyecto puede encontrar y reutilizar un venue que otro proyecto ya cargó. Pero todo lo que tiene valor comercial (capacidad, contacto, mood, descripción, website, instagram, empresa asociada) queda **privado por proyecto** en una tabla nueva `venue_project_details` — si Francisco vende Katarsis/Trino como servicio a otro cliente, esos datos operativos de Gamuza no se filtran.
+- Un proyecto solo ve un venue en su página `/venues` si ya tiene datos guardados ahí (`onlyUsed=true`). El selector de venue al crear un evento sigue mostrando el catálogo completo (para poder reutilizar), marcando "nunca usado por tu proyecto" cuando corresponde — y al seleccionar uno nuevo para el proyecto, el formulario pide llenar los datos privados desde cero.
+- "Eliminar" en `/venues` ahora solo quita los datos privados del proyecto (deja de "usar" el venue) — nunca borra el venue del catálogo compartido, porque otro proyecto puede seguir usándolo.
+- **Backfill:** los 10 venues que existen hoy son todos de Gamuza (confirmado por Francisco) — la migración copia sus datos privados actuales a `venue_project_details` con ese proyecto.
+- **Verificado:** `tsc --noEmit` y `eslint` limpios en los 8 archivos tocados. (`next build` no se pudo probar completo en este sandbox por bloqueo de red a Google Fonts — no relacionado al cambio, debería compilar bien en Railway.)
+- **✅ Migración aplicada directo en Supabase (10 ago 2026).** Antes de correrla se descubrió que no eran 10 venues sino **13** (había 3 más antiguos — Plaza Victoria, Biblioteca Quinta Normal, Kilombo Bar — sin `project_id` asignado); se verificó vía sus eventos (`shows.project_id`) que también son de Gamuza, así que el backfill los incluyó a los 13. `venue_project_details` quedó con 13 filas, todas Gamuza. Sin nuevos warnings de seguridad en Supabase Advisors.
+- **Falta:** aplicar el código (patch/zip de abajo) y probar el flujo en la app.
+
+~~**Kanban de tareas — delay de 2 segundos**~~ _(creado: 6 may 2026, cerrado: 10 ago 2026)_
+- ✅ Francisco confirma que este problema ya no ocurre / ya está solucionado — sin acción pendiente
 
 ---
 
 ## 🟡 Mejoras UX (próximas semanas)
 
+**Auditoría de tamaños de letra en toda la app** _(agregado: 10 ago 2026, reemplaza "revisión estética general")_
+- Francisco quiere el mismo fix que se hizo en Setlist/Contactos (heredaban `text-base` 16px en celular en vez de `text-sm`/`text-xs`) pero aplicado y verificado en **toda la app**, no solo en las secciones puntuales ya corregidas
+- Primer paso: hacer una auditoría (recorrer todas las páginas/componentes y listar dónde falta el tamaño correcto) antes de meterle mano al fix — así se corrige todo de una vez y no de nuevo a parches
+- La revisión estética *completa* con la app de referencia (Notifica Legal) sigue siendo un tema aparte, sin agendar todavía
+
 **4. Importar / Exportar tablas**
-- Exportar: Tareas a CSV, Contactos con sus empresas a CSV
-- Importar: subir CSV de tareas, contactos
-- El endpoint `/api/export` ya existe para contactos/deals — extender a tareas
+- ✅ Importar: confirmado ok (CSV de tareas, contactos)
+- Exportar: Tareas a CSV, Contactos con sus empresas a CSV — **estado sin confirmar**, hay que revisar si quedó funcionando (el endpoint `/api/export` ya existe para contactos/deals, faltaría confirmar que cubre tareas)
 
 **5. Vista Carta Gantt en Tareas**
 - Vista visual de tareas con fechas de inicio / deadline en línea de tiempo
@@ -76,8 +98,9 @@ _Fuera de eso, ningún bug crítico conocido sin resolver._
 
 ## 🔵 Futuro lejano
 
-**7. Módulo de seguimiento RRSS** (TikTok, Instagram, etc.)
-- Registrar publicaciones, métricas, campañas
+**7. Módulo de seguimiento RRSS** _(alcance actualizado: 10 ago 2026)_
+- ✅ Instagram ya está cubierto (Métricas + sync ya implementado)
+- Falta: **TikTok** y **YouTube** — registrar publicaciones, métricas, campañas
 - Conectar con deals/contactos
 
 ---

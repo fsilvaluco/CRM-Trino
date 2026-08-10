@@ -12,6 +12,18 @@ function mapVenue(row: any) {
     country: row.country ?? null,
     latitude: row.latitude ?? null,
     longitude: row.longitude ?? null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapDetails(row: any) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    venueId: row.venue_id,
+    projectId: row.project_id,
     capacityStanding: row.capacity_standing ?? null,
     capacitySeated: row.capacity_seated ?? null,
     mood: row.mood ?? null,
@@ -29,17 +41,23 @@ function mapVenue(row: any) {
   };
 }
 
+// GET /api/venues/[id]?projectId=xxx -- datos de catálogo (compartidos),
+// y si se pasa `projectId`, incluye también `details` (o `null` si ese
+// proyecto nunca usó este venue). Sin `projectId`, `details` viene null.
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
   const { supabase, orgId, error } = await requireAuth();
   if (error) return error;
 
+  const { searchParams } = new URL(request.url);
+  const projectId = searchParams.get("projectId");
+
   const { data, error: dbError } = await supabase
     .from("venues")
-    .select("*, contacts ( name ), companies ( name )")
+    .select("*")
     .eq("id", id)
     .eq("organization_id", orgId!)
     .is("deleted_at", null)
@@ -49,9 +67,24 @@ export async function GET(
     return NextResponse.json({ error: "Venue no encontrado" }, { status: 404 });
   }
 
-  return NextResponse.json(mapVenue(data));
+  let details = null;
+  if (projectId) {
+    const { data: detailRow } = await supabase
+      .from("venue_project_details")
+      .select("*, contacts ( name ), companies ( name )")
+      .eq("venue_id", id)
+      .eq("project_id", projectId)
+      .maybeSingle();
+    details = mapDetails(detailRow ?? null);
+  }
+
+  return NextResponse.json({ ...mapVenue(data), details });
 }
 
+// PUT /api/venues/[id] -- edita SOLO los datos de catálogo (nombre,
+// dirección, comuna/región/país, lat/lng). Estos cambios los ve
+// cualquier proyecto que use este venue -- por eso no se tocan datos
+// privados aquí (eso es PUT /api/venues/[id]/details).
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -87,30 +120,12 @@ export async function PUT(
   if (body.country !== undefined) updates.country = body.country || null;
   if (body.latitude !== undefined) updates.latitude = typeof body.latitude === "number" ? body.latitude : null;
   if (body.longitude !== undefined) updates.longitude = typeof body.longitude === "number" ? body.longitude : null;
-  if (body.capacityStanding !== undefined) {
-    updates.capacity_standing = typeof body.capacityStanding === "number" ? body.capacityStanding : null;
-  }
-  if (body.capacitySeated !== undefined) {
-    updates.capacity_seated = typeof body.capacitySeated === "number" ? body.capacitySeated : null;
-  }
-  if (body.mood !== undefined) updates.mood = body.mood || null;
-  if (body.description !== undefined) updates.description = body.description || null;
-  if (body.parkingAvailable !== undefined) {
-    updates.parking_available = typeof body.parkingAvailable === "boolean" ? body.parkingAvailable : null;
-  }
-  if (body.backlineAvailable !== undefined) {
-    updates.backline_available = typeof body.backlineAvailable === "boolean" ? body.backlineAvailable : null;
-  }
-  if (body.website !== undefined) updates.website = body.website || null;
-  if (body.instagram !== undefined) updates.instagram = body.instagram || null;
-  if (body.contactId !== undefined) updates.contact_id = body.contactId || null;
-  if (body.companyId !== undefined) updates.company_id = body.companyId || null;
 
   const { data, error: dbError } = await supabase
     .from("venues")
     .update(updates)
     .eq("id", id)
-    .select("*, contacts ( name ), companies ( name )")
+    .select("*")
     .single();
 
   if (dbError) {
@@ -118,8 +133,8 @@ export async function PUT(
   }
 
   // Si el nombre o direccion cambiaron, refrescar la copia denormalizada
-  // en los eventos que apuntan a este venue -- para que Métricas y las
-  // tarjetas de Eventos no queden mostrando datos viejos.
+  // en TODOS los eventos que apuntan a este venue (de cualquier
+  // proyecto) -- el venue es compartido, así que el fix es global.
   if (updates.name !== undefined || updates.address !== undefined) {
     const showUpdates: Record<string, unknown> = {};
     if (updates.name !== undefined) showUpdates.venue = updates.name;
@@ -130,45 +145,57 @@ export async function PUT(
   return NextResponse.json(mapVenue(data));
 }
 
+// DELETE /api/venues/[id]?projectId=xxx -- OJO: esto NO borra el venue
+// del catálogo compartido (otros proyectos pueden seguir usándolo).
+// Solo elimina la ficha de detalles PRIVADOS del proyecto que pide el
+// borrado -- equivale a "ya no uso este venue en mi proyecto". El
+// venue de catálogo se mantiene mientras algún otro proyecto lo use.
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, orgId, error } = await requireAuth();
+  const { supabase, orgId, isAdmin, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
-  const { data: existing, error: findErr } = await supabase
-    .from("venues")
-    .select("id")
-    .eq("id", id)
-    .eq("organization_id", orgId!)
-    .is("deleted_at", null)
-    .single();
+  const { searchParams } = new URL(request.url);
+  const projectId = searchParams.get("projectId");
+  if (!projectId) {
+    return NextResponse.json({ error: "projectId es requerido" }, { status: 400 });
+  }
 
-  if (findErr || !existing) {
-    return NextResponse.json({ error: "Venue no encontrado" }, { status: 404 });
+  const { data: proj } = await supabase
+    .from("projects")
+    .select("id")
+    .eq("id", projectId)
+    .eq("organization_id", orgId!)
+    .single();
+  if (!proj) return NextResponse.json({ error: "Proyecto no encontrado" }, { status: 404 });
+  if (!isAdmin && allowedProjectIds && !allowedProjectIds.includes(projectId)) {
+    return NextResponse.json({ error: "Sin acceso al proyecto" }, { status: 403 });
   }
 
   const { count } = await supabase
     .from("shows")
     .select("id", { count: "exact", head: true })
-    .eq("venue_id", id);
+    .eq("venue_id", id)
+    .eq("project_id", projectId);
 
   if ((count ?? 0) > 0) {
     return NextResponse.json(
-      { error: `No se puede eliminar: hay ${count} evento(s) usando este venue.` },
+      { error: `No se puede quitar: hay ${count} evento(s) de este proyecto usando este venue.` },
       { status: 409 }
     );
   }
 
   const { error: dbError } = await supabase
-    .from("venues")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("id", id);
+    .from("venue_project_details")
+    .delete()
+    .eq("venue_id", id)
+    .eq("project_id", projectId);
 
   if (dbError) {
-    return NextResponse.json({ error: `Error al eliminar el venue: ${dbError.message}` }, { status: 500 });
+    return NextResponse.json({ error: `Error al quitar el venue: ${dbError.message}` }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });

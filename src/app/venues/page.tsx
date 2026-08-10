@@ -7,50 +7,74 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { VenueFormDialog } from "@/components/venues/VenueFormDialog";
+import { useProject } from "@/lib/project-context";
 import { toast } from "sonner";
 import { MapPin, Plus, Pencil, Trash2, Search, Users2, Building2 } from "lucide-react";
-import type { Venue } from "@/types/venues";
+import type { VenueWithDetails } from "@/types/venues";
 
 export default function VenuesPage() {
-  const [venues, setVenues] = useState<Venue[]>([]);
+  const { activeProject } = useProject();
+  const [venues, setVenues] = useState<VenueWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
-  const [editingVenue, setEditingVenue] = useState<Venue | null>(null);
+  const [editingVenue, setEditingVenue] = useState<VenueWithDetails | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // Esta página muestra SOLO los venues que el proyecto activo ya usó
+  // (onlyUsed=true) -- si otro proyecto cargó un venue pero el nuestro
+  // nunca lo tocó, no aparece aquí. Para reutilizar un venue de otro
+  // proyecto hay que buscarlo desde el selector de "nuevo evento", que
+  // sí muestra el catálogo completo.
   const load = useCallback(() => {
+    if (!activeProject?.id) {
+      setVenues([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
-    const params = search ? `?search=${encodeURIComponent(search)}` : "";
-    fetch(`/api/venues${params}`)
+    const params = new URLSearchParams({ onlyUsed: "true", projectId: activeProject.id });
+    if (search) params.set("search", search);
+    fetch(`/api/venues?${params.toString()}`)
       .then((r) => r.json())
       .then((d) => setVenues(Array.isArray(d) ? d : []))
       .catch(() => setVenues([]))
       .finally(() => setLoading(false));
-  }, [search]);
+  }, [search, activeProject?.id]);
 
   useEffect(() => {
     const id = window.setTimeout(load, 200);
     return () => window.clearTimeout(id);
   }, [load]);
 
-  async function handleDelete(venue: Venue) {
-    if (!confirm(`¿Eliminar el venue "${venue.name}"? Esta acción no se puede deshacer.`)) return;
+  async function handleDelete(venue: VenueWithDetails) {
+    if (!activeProject?.id) return;
+    if (!confirm(`¿Quitar "${venue.name}" de tus venues? El lugar sigue existiendo en el catálogo si otro proyecto lo usa -- esto solo quita tus datos privados (capacidad, contacto, etc.). Esta acción no se puede deshacer.`)) return;
     setDeletingId(venue.id);
     try {
-      const res = await fetch(`/api/venues/${venue.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/venues/${venue.id}?projectId=${activeProject.id}`, { method: "DELETE" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error(data.error ?? "No se pudo eliminar el venue");
+        toast.error(data.error ?? "No se pudo quitar el venue");
         return;
       }
       setVenues((prev) => prev.filter((v) => v.id !== venue.id));
-      toast.success("Venue eliminado");
+      toast.success("Venue quitado de tu proyecto");
     } catch {
-      toast.error("No se pudo eliminar el venue");
+      toast.error("No se pudo quitar el venue");
     } finally {
       setDeletingId(null);
     }
+  }
+
+  if (!activeProject?.id) {
+    return (
+      <EmptyState
+        icon={MapPin}
+        title="Selecciona un proyecto"
+        description="Los venues son privados por proyecto -- elige un proyecto arriba para ver los suyos."
+      />
+    );
   }
 
   return (
@@ -58,7 +82,10 @@ export default function VenuesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Venues</h1>
-          <p className="text-muted-foreground">Lugares reutilizables para tus eventos</p>
+          <p className="text-muted-foreground">
+            Lugares que {activeProject.name} ya usó. Para reutilizar uno cargado por otro
+            proyecto, búscalo desde el selector de venue al crear un evento.
+          </p>
         </div>
         <Button
           className="cursor-pointer"
@@ -95,9 +122,10 @@ export default function VenuesPage() {
       ) : (
         <div className="space-y-3">
           {venues.map((venue) => {
+            const details = venue.details;
             const capacityParts = [
-              venue.capacityStanding != null ? `${venue.capacityStanding} parado` : null,
-              venue.capacitySeated != null ? `${venue.capacitySeated} sentado` : null,
+              details?.capacityStanding != null ? `${details.capacityStanding} parado` : null,
+              details?.capacitySeated != null ? `${details.capacitySeated} sentado` : null,
             ].filter(Boolean);
 
             return (
@@ -106,7 +134,7 @@ export default function VenuesPage() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
                       <p className="font-medium">{venue.name}</p>
-                      {venue.mood && <Badge variant="outline" className="text-xs">{venue.mood}</Badge>}
+                      {details?.mood && <Badge variant="outline" className="text-xs">{details.mood}</Badge>}
                     </div>
                     <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
                       <span className="flex items-center gap-1">
@@ -120,15 +148,15 @@ export default function VenuesPage() {
                           {capacityParts.join(" / ")}
                         </span>
                       )}
-                      {venue.companyName && (
+                      {details?.companyName && (
                         <span className="flex items-center gap-1">
                           <Building2 className="h-3.5 w-3.5" />
-                          {venue.companyName}
+                          {details.companyName}
                         </span>
                       )}
                     </div>
-                    {venue.description && (
-                      <p className="text-sm text-muted-foreground mt-1.5">{venue.description}</p>
+                    {details?.description && (
+                      <p className="text-sm text-muted-foreground mt-1.5">{details.description}</p>
                     )}
                   </div>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
@@ -146,7 +174,7 @@ export default function VenuesPage() {
                       onClick={() => handleDelete(venue)}
                       disabled={deletingId === venue.id}
                       className="text-muted-foreground hover:text-destructive cursor-pointer p-1.5 disabled:opacity-50"
-                      title="Eliminar"
+                      title="Quitar de mis venues"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -162,6 +190,7 @@ export default function VenuesPage() {
         open={formOpen}
         onClose={() => setFormOpen(false)}
         editingVenue={editingVenue}
+        projectId={activeProject.id}
         onSaved={load}
       />
     </div>

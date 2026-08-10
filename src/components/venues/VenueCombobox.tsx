@@ -17,35 +17,43 @@ import {
 } from "@/components/ui/command";
 import { VenueFormDialog } from "@/components/venues/VenueFormDialog";
 import { ChevronsUpDown, Plus, MapPin } from "lucide-react";
-import type { Venue } from "@/types/venues";
+import type { VenueWithDetails } from "@/types/venues";
 
 export function VenueCombobox({
   value,
   selectedVenue,
   onSelect,
+  projectId,
 }: {
   /** venue_id seleccionado, o null si no hay ninguno */
   value: string | null;
   /** El objeto completo del venue seleccionado (para mostrar nombre/dirección sin otro fetch) */
-  selectedVenue: Venue | null;
-  onSelect: (venue: Venue | null) => void;
+  selectedVenue: VenueWithDetails | null;
+  onSelect: (venue: VenueWithDetails | null) => void;
+  /** Proyecto activo -- el buscador muestra el catálogo COMPLETO de la
+   * organización (para poder reutilizar venues de otros proyectos, como
+   * el buscador de PortalTickets), pero usa este id para saber si el
+   * proyecto activo ya tiene datos privados guardados para cada venue. */
+  projectId: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Venue[]>([]);
+  const [results, setResults] = useState<VenueWithDetails[]>([]);
   const [loading, setLoading] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const debounceRef = useRef<number | null>(null);
 
   const search = useCallback((q: string) => {
     setLoading(true);
-    const params = q ? `?search=${encodeURIComponent(q)}` : "";
-    fetch(`/api/venues${params}`)
+    const params = new URLSearchParams();
+    if (q) params.set("search", q);
+    if (projectId) params.set("projectId", projectId);
+    fetch(`/api/venues?${params.toString()}`)
       .then((r) => (r.ok ? r.json() : []))
       .then((d) => setResults(Array.isArray(d) ? d : []))
       .catch(() => setResults([]))
       .finally(() => setLoading(false));
-  }, []);
+  }, [projectId]);
 
   useEffect(() => {
     if (!open) return;
@@ -99,7 +107,10 @@ export function VenueCombobox({
                   >
                     <div className="flex flex-col min-w-0">
                       <span className="truncate">{venue.name}</span>
-                      <span className="text-xs text-muted-foreground truncate">{venue.address}</span>
+                      <span className="text-xs text-muted-foreground truncate">
+                        {venue.address}
+                        {!venue.details && " · nunca usado por tu proyecto"}
+                      </span>
                     </div>
                   </CommandItem>
                 ))}
@@ -127,6 +138,7 @@ export function VenueCombobox({
         onClose={() => setFormOpen(false)}
         editingVenue={null}
         initialName={query.trim()}
+        projectId={projectId}
         onSaved={(venue) => {
           onSelect(venue);
           setFormOpen(false);

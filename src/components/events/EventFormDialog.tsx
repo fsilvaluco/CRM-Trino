@@ -24,7 +24,7 @@ import { VenueCombobox } from "@/components/venues/VenueCombobox";
 import { MoneyInput } from "@/components/shared/MoneyInput";
 import { TypeaheadInput } from "@/components/events/TypeaheadInput";
 import type { LiveShow, ShowStatus } from "@/types/shows";
-import type { Venue } from "@/types/venues";
+import type { VenueWithDetails } from "@/types/venues";
 
 const STATUS_LABELS: Record<ShowStatus, string> = {
   cotizando: "Cotizando",
@@ -67,7 +67,7 @@ export function EventFormDialog({
   const [name, setName] = useState("");
   const [date, setDate] = useState("");
   const [eventTime, setEventTime] = useState("");
-  const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
+  const [selectedVenue, setSelectedVenue] = useState<VenueWithDetails | null>(null);
   const [notes, setNotes] = useState("");
   const [eventLink, setEventLink] = useState("");
   const [tour, setTour] = useState("");
@@ -95,7 +95,7 @@ export function EventFormDialog({
 
       if (editingShow.venueId) {
         setLoadingVenue(true);
-        fetch(`/api/venues/${editingShow.venueId}`)
+        fetch(`/api/venues/${editingShow.venueId}?projectId=${editingShow.projectId ?? ""}`)
           .then((r) => (r.ok ? r.json() : null))
           .then((v) => setSelectedVenue(v))
           .catch(() => setSelectedVenue(null))
@@ -115,21 +115,10 @@ export function EventFormDialog({
                 country: null,
                 latitude: null,
                 longitude: null,
-                capacityStanding: null,
-                capacitySeated: null,
-                mood: null,
-                description: null,
-                parkingAvailable: null,
-                backlineAvailable: null,
-                website: null,
-                instagram: null,
-                contactId: null,
-                companyId: null,
-                contactName: null,
-                companyName: null,
                 createdAt: "",
                 updatedAt: "",
-              } satisfies Venue)
+                details: null,
+              } satisfies VenueWithDetails)
             : null
         );
       }
@@ -261,11 +250,16 @@ export function EventFormDialog({
             <Label>Venue</Label>
             {loadingVenue ? (
               <div className="h-9 rounded-md border bg-muted/40 animate-pulse" />
+            ) : !projectId ? (
+              <p className="text-xs text-muted-foreground border rounded-md px-3 py-2">
+                Elige un proyecto arriba primero -- los venues son privados por proyecto.
+              </p>
             ) : (
               <VenueCombobox
                 value={selectedVenue?.id || null}
                 selectedVenue={selectedVenue}
                 onSelect={setSelectedVenue}
+                projectId={projectId}
               />
             )}
             {selectedVenue?.address && (

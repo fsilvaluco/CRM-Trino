@@ -12,6 +12,18 @@ function mapVenue(row: any) {
     country: row.country ?? null,
     latitude: row.latitude ?? null,
     longitude: row.longitude ?? null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapDetails(row: any) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    venueId: row.venue_id,
+    projectId: row.project_id,
     capacityStanding: row.capacity_standing ?? null,
     capacitySeated: row.capacity_seated ?? null,
     mood: row.mood ?? null,
@@ -29,34 +41,108 @@ function mapVenue(row: any) {
   };
 }
 
-// GET /api/venues?search=xxx -- lista para el combobox de Eventos y para
-// la pagina de administracion /venues. `search` filtra por nombre
-// (ilike) -- se usa para el autocompletado del combobox.
+// GET /api/venues?search=xxx&projectId=yyy&onlyUsed=true
+//
+// Los venues son un catálogo COMPARTIDO por toda la organización
+// (nombre + dirección, como el buscador de PortalTickets) -- cualquier
+// proyecto puede encontrar y reutilizar un venue que otro proyecto ya
+// cargó. Los datos privados (capacidad, contacto, etc.) viven aparte en
+// `venue_project_details`.
+//
+// Dos modos:
+// - Sin `onlyUsed` (usado por el combobox de "nuevo evento"): devuelve
+//   el catálogo COMPLETO de la organización que matchea `search`. Si
+//   se pasa `projectId`, cada venue trae `details` (o `null` si el
+//   proyecto activo nunca usó ese venue -- el form parte en blanco).
+// - Con `onlyUsed=true` (usado por la página /venues del proyecto):
+//   requiere `projectId` y devuelve SOLO los venues que ese proyecto ya
+//   usó (tiene fila en venue_project_details) -- así un proyecto no ve
+//   venues de otros proyectos que nunca ha tocado.
 export async function GET(request: NextRequest) {
-  const { supabase, orgId, error } = await requireAuth();
+  const { supabase, orgId, isAdmin, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search");
+  const projectIdParam = searchParams.get("projectId");
+  const onlyUsed = searchParams.get("onlyUsed") === "true";
 
-  let query = supabase
+  if (projectIdParam) {
+    const { data: proj } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("id", projectIdParam)
+      .eq("organization_id", orgId!)
+      .single();
+    if (!proj) {
+      return NextResponse.json({ error: "Proyecto no encontrado" }, { status: 404 });
+    }
+    if (!isAdmin && allowedProjectIds && !allowedProjectIds.includes(projectIdParam)) {
+      return NextResponse.json({ error: "Sin acceso al proyecto" }, { status: 403 });
+    }
+  }
+
+  if (onlyUsed) {
+    if (!projectIdParam) {
+      return NextResponse.json({ error: "projectId es requerido para onlyUsed" }, { status: 400 });
+    }
+
+    let query = supabase
+      .from("venue_project_details")
+      .select("*, contacts ( name ), companies ( name ), venues!inner ( * )")
+      .eq("project_id", projectIdParam)
+      .is("venues.deleted_at", null)
+      .order("created_at", { ascending: false });
+
+    if (search) query = query.ilike("venues.name", `%${search}%`);
+
+    const { data, error: dbError } = await query;
+    if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
+
+    const result = (data ?? []).map((row) => ({
+      ...mapVenue(row.venues),
+      details: mapDetails(row),
+    }));
+    return NextResponse.json(result);
+  }
+
+  // Modo catálogo completo (combobox de eventos)
+  let venueQuery = supabase
     .from("venues")
-    .select("*, contacts ( name ), companies ( name )")
+    .select("*")
     .eq("organization_id", orgId!)
     .is("deleted_at", null)
     .order("name", { ascending: true });
 
-  if (search) query = query.ilike("name", `%${search}%`);
+  if (search) venueQuery = venueQuery.ilike("name", `%${search}%`);
 
-  const { data, error: dbError } = await query;
+  const { data: venueRows, error: dbError } = await venueQuery;
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
 
-  return NextResponse.json((data ?? []).map(mapVenue));
+  const venues = venueRows ?? [];
+
+  if (!projectIdParam || venues.length === 0) {
+    return NextResponse.json(venues.map((v) => ({ ...mapVenue(v), details: null })));
+  }
+
+  const { data: detailRows } = await supabase
+    .from("venue_project_details")
+    .select("*, contacts ( name ), companies ( name )")
+    .eq("project_id", projectIdParam)
+    .in("venue_id", venues.map((v) => v.id));
+
+  const detailsByVenueId = new Map((detailRows ?? []).map((d) => [d.venue_id, d]));
+
+  return NextResponse.json(
+    venues.map((v) => ({ ...mapVenue(v), details: mapDetails(detailsByVenueId.get(v.id) ?? null) }))
+  );
 }
 
-// POST /api/venues -- crea un venue. Solo nombre y direccion son
-// obligatorios; el resto se puede ir completando despues (a mano o, mas
-// adelante, sugerido por Google Places).
+// POST /api/venues -- crea un venue NUEVO en el catálogo compartido.
+// Solo datos de catálogo (nombre, dirección, comuna/región/país,
+// lat/lng): esta ficha va a poder verla y reutilizarla cualquier
+// proyecto de la organización. Los datos privados del proyecto se
+// crean por separado en POST /api/venues/[id]/details.
 export async function POST(request: NextRequest) {
   const { supabase, user, orgId, error } = await requireAuth();
   if (error) return error;
@@ -86,23 +172,41 @@ export async function POST(request: NextRequest) {
       country: body.country || null,
       latitude: typeof body.latitude === "number" ? body.latitude : null,
       longitude: typeof body.longitude === "number" ? body.longitude : null,
-      capacity_standing: typeof body.capacityStanding === "number" ? body.capacityStanding : null,
-      capacity_seated: typeof body.capacitySeated === "number" ? body.capacitySeated : null,
-      mood: body.mood || null,
-      description: body.description || null,
-      parking_available: typeof body.parkingAvailable === "boolean" ? body.parkingAvailable : null,
-      backline_available: typeof body.backlineAvailable === "boolean" ? body.backlineAvailable : null,
-      website: body.website || null,
-      instagram: body.instagram || null,
-      contact_id: body.contactId || null,
-      company_id: body.companyId || null,
     })
-    .select("*, contacts ( name ), companies ( name )")
+    .select("*")
     .single();
 
   if (dbError) {
     return NextResponse.json({ error: `Error al crear el venue: ${dbError.message}` }, { status: 500 });
   }
 
-  return NextResponse.json(mapVenue(data), { status: 201 });
+  // Si viene con projectId, de una crea también la fila de detalles
+  // privados para ese proyecto (típicamente vacía, o con lo que se
+  // llenó en el mismo form de "crear venue al vuelo" en un evento).
+  let details = null;
+  const projectId = typeof body.projectId === "string" ? body.projectId : null;
+  if (projectId) {
+    const { data: detailRow } = await supabase
+      .from("venue_project_details")
+      .insert({
+        venue_id: data.id,
+        project_id: projectId,
+        created_by: user!.id,
+        capacity_standing: typeof body.capacityStanding === "number" ? body.capacityStanding : null,
+        capacity_seated: typeof body.capacitySeated === "number" ? body.capacitySeated : null,
+        mood: body.mood || null,
+        description: body.description || null,
+        parking_available: typeof body.parkingAvailable === "boolean" ? body.parkingAvailable : null,
+        backline_available: typeof body.backlineAvailable === "boolean" ? body.backlineAvailable : null,
+        website: body.website || null,
+        instagram: body.instagram || null,
+        contact_id: body.contactId || null,
+        company_id: body.companyId || null,
+      })
+      .select("*, contacts ( name ), companies ( name )")
+      .single();
+    details = mapDetails(detailRow ?? null);
+  }
+
+  return NextResponse.json({ ...mapVenue(data), details }, { status: 201 });
 }
