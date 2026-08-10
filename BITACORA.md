@@ -1,39 +1,41 @@
 # Bitácora de Trabajo — Auto-CRM
-_Última actualización: 7 de agosto de 2026_
+_Checkpoint v1.1 — 9 de agosto de 2026, ~23:30 hrs (cierre de sesión larga)_
+_Checkpoint anterior: v1.0 — 7 de agosto de 2026_
 
 > **Formato de tracking:** Registro histórico de trabajo realizado + pendientes actuales.  
 > Cada entrada incluye fecha, estado (🔨 En Progreso / ✅ Hecho), y notas de implementación detalladas.
+> Este checkpoint existe para poder empezar una conversación nueva sin perder contexto — si estás
+> retomando desde acá, lee primero "🔴 Crítico" y "⚠️ Por verificar" antes de construir nada.
 
 ---
 
 ## 🔴 Crítico (arreglar primero)
 
-_Ninguno conocido — todos los reportes de bug de esta ronda (ver más abajo) están resueltos ✅_
+**Confirmar que el último paquete se aplicó y se probó** _(pendiente al cierre de esta sesión)_
+- Último envío: fixes de gráficos de Métricas (tooltip invisible, agrupación por mes en Eventos) — Francisco no había confirmado aplicar+probar todavía cuando se cerró la sesión
+- Antes de seguir construyendo sobre Métricas/Eventos, confirmar que quedó bien
+
+_Fuera de eso, ningún bug crítico conocido sin resolver._
 
 ---
 
 ## ⚠️ Por verificar / sin probar a fondo
 
 **Google Maps — comuna en direcciones reales**
-- El autocompletado de dirección (Venues) y el mapeo a comuna/región/país se probó con pocas direcciones reales de Santiago
-- Google a veces devuelve la comuna como `locality` y a veces como `sublocality_level_1` o `administrative_area_level_3` según la zona — el código intenta las tres en orden de prioridad, pero conviene probar con 3-4 venues reales más antes de confiar 100%
-- Si algún venue queda con comuna vacía o mal, es la primera cosa que hay que mirar ahí
+- Sigue sin probarse a fondo con muchas direcciones reales (ver checkpoint anterior)
+- Ahora es más urgente: se crearon 10 venues nuevos con dirección "Por definir" (ver más abajo) que Francisco va a completar a mano — buen momento para validar que el autocompletado de comuna funciona bien con esas direcciones reales cuando las ingrese
 
 **pdf-parse en producción**
-- Se agregó `pdf-parse`/`pdfjs-dist` a `serverExternalPackages` en `next.config.ts` para arreglar un fallo en producción (funcionaba en Node normal pero no en el build de Next)
-- El diagnóstico es sólido (mismo patrón que ya se había resuelto antes para `better-sqlite3`) pero no se pudo reproducir el entorno real de Railway desde el sandbox de trabajo — si un PDF sigue sin leerse después del fix, hay que mirar logs de Railway directamente
+- Sigue sin confirmación explícita de que funciona en Railway (ver checkpoint anterior) — pero Francisco hizo importaciones CSV grandes después de este fix sin quejarse de PDFs específicamente, así que probablemente esté bien. No hay confirmación 100% directa.
 
 ---
 
 ## 🟢 Diferido a propósito (decisión del usuario, no son bugs)
 
-- **Notificaciones push** — la PWA ya está instalable (manifest + service worker), pero falta todo lo de push en sí: claves VAPID, tabla de suscripciones, permiso de notificación, y sobre todo decidir *qué* dispara una notificación (¿tarea asignada? ¿evento en 24h?)
-- **Botón "Enviar"** en Eventos (email/WhatsApp con destinatario) — quedó como idea para después de armar el link público; falta decidir si genera PDF en servidor o abre el cliente de correo/WhatsApp del usuario
-- **Timing general de gira** (coordinación de viajes, hoteles, traslados entre varias fechas) — distinto del Timing/Cronograma de un solo evento que ya existe; probablemente sea su propio módulo más adelante
-- **Agrupación por secciones en Timing** (encabezados tipo "MONTAJE / PRODUCCIÓN / EVENTO / DESMONTAJE" como en el PDF original) — hoy cada fila es independiente, sin agrupador visual
-- **Login con clave por evento** en el link público (`/e/[id]`) — hoy es 100% público sin restricción; se habló de un PIN corto por evento como paso intermedio antes de un login completo
-- **Ícono de Instagram/redes** en el header impreso cuando no hay logo propio — hoy cae a un círculo con la inicial del proyecto
-- **Revisión estética general (espaciados y tamaños)** — Francisco encontró una app de referencia (Notifica Legal) que se ve "más refinada" en cómo acomoda los espacios; pendiente sentarse en PC a revisar la app completa con ese nivel de pulido como referencia (no hay lista de cambios concreta todavía, es una revisión general a agendar)
+- **Notificaciones push**, **botón "Enviar"**, **Timing general de gira**, **agrupación por secciones en Timing**, **login con clave por evento en el link público**, **ícono de Instagram/redes en el header impreso** — sin cambios desde el checkpoint anterior, siguen todos pendientes tal como se dejaron
+- **Revisión estética general (espaciados y tamaños)** — se avanzó *parcialmente*: se corrigió el tamaño de letra en Setlist/Contactos (heredaban `text-base` de 16px en celular en vez de `text-sm`/`text-xs` como el resto de las secciones) y se reordenaron varias filas para que no se corten en celular. Pero la revisión estética *general* con la app de referencia (Notifica Legal) que Francisco quería agendar en PC sigue sin hacerse — esto fueron fixes puntuales de bugs, no esa revisión completa.
+- **Sync automático/periódico de venta de entradas** — hoy el botón "Sincronizar" en Venta de entradas es manual (lee el link de la ticketera al apretarlo). Un sync automático periódico requeriría un cron job, similar a como ya funciona la sincro de Instagram.
+- **Direcciones reales de venues** — se crearon 10 fichas de Venue nuevas a partir de eventos ya cargados (ver sección de completado), pero quedaron con dirección "Por definir" — Francisco las va a completar a mano con las direcciones reales. Los 7 eventos de la gira "La Amistad Hecha Bolero" quedaron con venue "Por definir" (no una ficha real) porque no se sabía el venue real al momento de importar — van a necesitar edición manual cuando se sepan.
 
 ---
 
@@ -82,7 +84,61 @@ _Ninguno conocido — todos los reportes de bug de esta ronda (ver más abajo) e
 
 ## ✅ Completado recientemente
 
-**✅ Módulo Eventos — construcción completa** _(completado: agosto 2026, sesión larga)_
+**✅ Continuación de sesión — mobile, importador masivo, Métricas de Eventos, Venues** _(completado: 9 de agosto de 2026)_
+
+Segunda mitad de la misma sesión larga del módulo Eventos (ver v1.0 más abajo para la primera mitad). Resumen:
+
+**Mobile / responsive**
+- Botones con solo ícono en pantallas angostas en toda la página de detalle de evento (Setlist, Timing, Costos: Subir archivo/Imprimir/Adjuntar documento/Cerrar caja) — el texto vuelve desde `sm:` hacia arriba
+- Encabezado de la página de evento y de la lista de Eventos pasan a apilarse en columna en celular en vez de apretujarse al lado del título
+- Filas de Venta de entradas y Contactos partidas en 2 líneas en celular (5 campos no entran en una sola línea sin importar cuánto se achique la letra)
+- Setlist y Contactos: letra ajustada a `text-sm`/`text-xs` — heredaban el `text-base` (16px) que el `Input` base usa a propósito en celular para que iOS no haga zoom al enfocar un campo; el resto de las secciones ya tenía el tamaño correcto, estas dos no
+- Barra de navegación inferior en celular (`MobileBottomNav.tsx`): Dashboard, Eventos, Tareas, Métricas — inspirada en una app de referencia (Notifica Legal) que Francisco encontró con buena UX de accesos rápidos; CRM se dejó fuera a propósito (trabajo de Kanban/formularios largos, mejor en escritorio)
+- **Fix real de drag-and-drop en touch** (Tareas y Tratos): el intento inicial (agregar `TouchSensor` con delay junto al `PointerSensor` existente) no funcionó — la documentación de dnd-kit dice explícitamente que no hay que mezclar `PointerSensor` con `TouchSensor`/`MouseSensor`. Solución correcta y ya confirmada: **handle de arrastre dedicado** (ícono `GripVertical` en la esquina de cada tarjeta) en vez de que toda la tarjeta sea arrastrable — deja el resto de la tarjeta 100% libre para scroll nativo sin ninguna ambigüedad. Motor de sensores cambiado a `MouseSensor` + `TouchSensor` (nunca `PointerSensor` junto a estos). Aplicado en `TaskKanbanBoard.tsx` y `DealCard.tsx` (comparten el hook `useKanbanDnd`)
+- Fix relacionado: el layout general (`<main>`) solo bloqueaba scroll vertical, no horizontal — cualquier desborde (como el Kanban) arrastraba a toda la página con él en vez de quedarse contenido en su propia barra de scroll. Se agregó `overflow-x-hidden` global en `AppShell.tsx`
+
+**Gráficos de Métricas — bug sistémico de tooltip**
+- El fix anterior (labelStyle) solo arreglaba el **título** del tooltip; el **valor** de abajo seguía invisible por la misma causa (heredaba el color casi-blanco del tema oscuro) porque le faltaba también `itemStyle`. Corregido en los 8 gráficos que ya se habían tocado antes (ResumenTab, PlatformTab, MerchTab, EventsSummaryTab, MerchDashboard, SpotifyStatsCharts, InstagramDemographics, PressMonthlyChart)
+- `EventsSummaryTab` (Métricas > Eventos) reestructurado: el gráfico agrupa utilidad **por mes** (no un bloque por evento individual, que se vuelve ilegible con muchos eventos históricos) + selector de rango arriba (3/6/12 meses o Todo), mismo patrón que ya usa Instagram/Spotify
+- Encabezados ordenables tipo Excel (flecha ↓/↑) en la tabla "Posts y Reels" de Instagram — clic ordena descendente primero, segundo clic invierte
+
+**Importador masivo — reforzado tras usarlo de verdad con datos reales**
+- Ampliado el target "shows" (ya existía, era de antes de la unificación a Eventos): se agregaron Nombre, Estado, Hora, Dirección, Gira como columnas soportadas
+- **Bug real encontrado y corregido:** el importador guardaba fee/entradas/egresos sin convertir a centavos — quedaban 100 veces más chicos que el valor real
+- **Bug real encontrado y corregido (fechas):** el parser de fechas asumía ciegamente el orden año-mes-día sin validar rangos — si una fecha pasaba por Excel/Sheets y volvía con día/mes reordenado (pasó de verdad, un CSV real llegó con `2025-21-02`), la importación fallaba con error de Postgres en vez de corregirse sola. Ahora valida rangos y hace swap automático si el "mes" es inválido pero el "día" calza como mes
+- **Selector de formato de fecha con vista previa real**, agregado en el paso de mapeo de columnas — en vez de que el sistema adivine el orden día/mes, la persona lo elige mirando un dato real de su archivo y una vista previa de cómo quedaría interpretado. Esto es necesario a propósito: fechas ambiguas (día y mes ambos ≤12) no se pueden adivinar bien de forma automática, "esto siempre va a pasar" con archivos que pasan por Excel
+- **"Actualizar si ya existe" para Eventos** — checkbox que busca por nombre dentro del mismo proyecto y actualiza en vez de duplicar; pensado específicamente para poder volver a subir el mismo CSV después de corregir algo (ej. una fecha mal leída la primera vez) sin ir acumulando duplicados
+- Se generaron y depuraron a mano ~21 eventos históricos de Gamuza + 2 de Simplemente Yo desde un reporte real de PortalTickets.cl (Excel de ventas de tickets), con harness de verificación cruzada entre dos versiones del reporte (uno agregado por ticket individual, otro ya agregado por evento con fecha/hora real) para no dejar pasar fechas mal inferidas
+
+**Venta de entradas — sync directo desde el link de la ticketera**
+- Además del pantallazo (ya existía), ahora se puede pegar el link público de estadísticas de PortalTickets y sincronizar directo: el servidor abre la página, limpia el HTML a texto plano, y la IA extrae los tramos — confirmado contra una URL real antes de construir
+- A diferencia del pantallazo (que agrega tramos), sincronizar **reemplaza** todos los tramos — tiene sentido para mantener los números al día sin duplicar
+
+**Campo "Gira" en eventos**
+- Campo de texto simple con autocompletado (no se mezcló con el módulo Campañas existente, que es para marketing/prensa con empresa/contacto asociado — se evaluó a propósito y se descartó por no calzar)
+- Filtro "Todas las giras" en la lista de Eventos, etiqueta visible en cada tarjeta, soportado también en el importador masivo
+
+**Adjuntar comprobante en Planilla de costos**
+- Antes solo se podía pegar un link; ahora también se puede subir una foto o PDF directo (máx. 25MB), que llena el mismo campo de texto con la URL del archivo subido — sin necesidad de columna nueva en la base
+
+**Venues creados a partir de eventos existentes**
+- Se revisaron los eventos de Gamuza y se crearon 10 fichas de Venue nuevas para los venues que solo estaban como texto libre (Bar Ramblas, El Nuevo Peregrino, El Viejo, Espacio La Aldea, Estudio Vinilo, Jardín Mallinkrodt, La Perrera, Lemutt Bar, Sala Los Leones, Taberna Pirata), con la comuna ya conocida por contexto y dirección "Por definir" para completar a mano
+- Los 15 eventos correspondientes quedaron re-vinculados (`venue_id`) a estas fichas nuevas, no solo con el texto libre
+- No se creó ficha para "Por definir" (7 eventos de la gira "La Amistad Hecha Bolero") — es un placeholder, no un venue real
+
+**Orden del menú lateral** — Dashboard, CRM, Métricas, Eventos, Campañas, Tareas, Finanzas (antes CRM estaba después de Métricas, y Campañas antes de Eventos)
+
+**Botón "Agregar a mi calendario" en el link público del evento** (`/e/[id]`)
+- Genera un archivo `.ics` (estándar universal, funciona en Google/Apple/Outlook) con: nombre del evento, horario tomado del Timing (primera actividad a última — se probó extrayendo min/max de textos libres como "15:00 - 16:30"), dirección, y un link de vuelta a la misma página pública en la descripción
+
+**Otros fixes chicos de esta continuación:**
+- El grid de 4 columnas del resumen financiero se rompía en "Imprimir todo" porque una regla genérica de impresión (pensada para separar secciones) también le pisaba el `display:grid` a esas tarjetas — se restauró a propósito y se achicó letra/relleno solo para impresión
+- La tarjeta de evento en la lista de Eventos cortaba el título en celular porque el bloque de "utilidad" tenía ancho fijo y nunca cedía espacio — mismo patrón de fix que en la página de detalle (apilar en columna en celular)
+- Los íconos de editar/duplicar/eliminar en la lista de Eventos solo aparecían "al pasar el mouse" — en celular (sin hover) quedaban invisibles e inutilizables; ahora siempre visibles en touch, con hover solo desde escritorio
+
+---
+
+**✅ Módulo Eventos — construcción completa** _(completado: agosto 2026, sesión larga — primera mitad)_
 
 Se unificó "Shows en vivo" + "Métricas > Shows" en un solo módulo **Eventos**, y se construyó encima toda una planilla de ejecución por evento. Resumen de lo que quedó (cada pieza tiene su propia migración numerada en `scripts/migrations/`):
 
