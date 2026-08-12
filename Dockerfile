@@ -23,6 +23,12 @@ ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
 ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 ENV NEXT_PUBLIC_VAPID_PUBLIC_KEY=$NEXT_PUBLIC_VAPID_PUBLIC_KEY
 
+# Diagnostico temporal -- confirmar en el log de "docker build" (no el de
+# Next.js) si el build-arg realmente llego. Sacar una vez resuelto. Usa solo
+# utilidades POSIX (el shell default de node:22-slim es dash, no bash --
+# ${#VAR} y ${VAR:0:10} son sintaxis de bash, no funcionan aca).
+RUN echo "[docker-debug] largo=$(printf %s "$NEXT_PUBLIC_VAPID_PUBLIC_KEY" | wc -c) primeros10=$(printf %s "$NEXT_PUBLIC_VAPID_PUBLIC_KEY" | cut -c1-10)"
+
 # Build the application
 RUN npm run build
 
