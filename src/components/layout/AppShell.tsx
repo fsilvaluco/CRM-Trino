@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
+import { AutoRequestPushPermission } from "@/components/layout/AutoRequestPushPermission";
 
 const PUBLIC_PATHS = ["/login", "/auth/activate", "/forgot-password", "/reset-password"];
 const PUBLIC_PREFIXES = ["/rate/", "/embed/", "/e/"];
@@ -100,6 +101,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Autenticado: layout completo con sidebar fijo y contenido aislado
   return (
     <div className="flex h-screen w-screen overflow-hidden">
+      <AutoRequestPushPermission />
       <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Header />

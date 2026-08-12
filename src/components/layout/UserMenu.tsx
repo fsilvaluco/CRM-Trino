@@ -14,13 +14,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ProfileEditSheet } from "./ProfileEditSheet";
 import { PreferencesSheet } from "./PreferencesSheet";
-import { LogOut, UserCircle, Settings2 } from "lucide-react";
+import { LogOut, UserCircle, Settings2, BellRing, Loader2 } from "lucide-react";
+import { usePushNotifications } from "@/lib/use-push-notifications";
 
 export function UserMenu() {
   const { user, signOut } = useAuth();
   const router = useRouter();
   const [profileOpen, setProfileOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
+  const { status: pushStatus, busy: pushBusy, enable: enablePush } = usePushNotifications();
 
   const fullName =
     user?.user_metadata?.full_name ||
@@ -81,6 +83,22 @@ export function UserMenu() {
             <Settings2 className="h-4 w-4 mr-2" />
             Preferencias
           </DropdownMenuItem>
+
+          {/* Solo se muestra si todavia no esta activado -- si ya esta "on"
+              no tiene sentido mostrarla aca (el toggle de Configuracion >
+              Proyecto sigue siendo donde se desactiva). Cubre tanto al que
+              nunca vio el prompt automatico como al que lo rechazo y
+              cambio de opinion. */}
+          {pushStatus === "off" && (
+            <DropdownMenuItem
+              className="cursor-pointer"
+              onClick={() => enablePush()}
+              disabled={pushBusy}
+            >
+              {pushBusy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <BellRing className="h-4 w-4 mr-2" />}
+              Activar Notificaciones
+            </DropdownMenuItem>
+          )}
 
           <div className="h-px bg-border my-1" />
 

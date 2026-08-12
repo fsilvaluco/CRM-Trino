@@ -34,6 +34,23 @@ _Ningún bug crítico conocido sin resolver._
 
 ---
 
+## 🟣 Pendientes grandes (para más adelante, sin agendar todavía)
+
+**Roles y permisos granulares** _(agregado: 12 ago 2026)_
+- Hoy el modelo es simple: `owner`/`admin` (ve y edita todo, `adminOnly` en el menú) vs `member` (acceso a los proyectos que tenga asignados en `project_members`, sin distinción de solo-lectura vs edición dentro de un módulo)
+- Francisco quiere algo más fino: zonas que ciertos usuarios no vean directamente, zonas de solo-lectura (ven pero no editan) para otros, y un permiso aparte para poder invitar gente (no todo el que edita debería poder invitar)
+- Falta diseñar: ¿permisos por módulo (Finanzas, Eventos, CRM...) o por acción (ver/editar/invitar) cruzados con módulo? ¿se define por usuario individual o por un "rol" reusable que se le asigna a varios? — conversar con Francisco antes de tocar el modelo de datos, es un cambio estructural (afecta `requireAuth`, todas las API routes que chequean `isAdmin`)
+
+**Login con Google** _(agregado: 12 ago 2026, "para más adelante")_
+- Hoy el login es solo email/password vía Supabase Auth
+- Agregar Google como proveedor OAuth adicional (Supabase Auth lo soporta nativo) — requiere crear credenciales OAuth en Google Cloud Console y activar el provider en Supabase, más el botón "Continuar con Google" en `/login`
+
+**Panel admin-only tipo "intranet"** _(agregado: 12 ago 2026, idea a madurar)_
+- Francisco (como owner) quiere una vista separada, solo para él, con: logs del sistema, panel de usuarios (activos/inactivos), en qué proyectos está asignado cada uno
+- Idea suelta: "quizás funciona como una intranet para trabajadores de la app, no para usuarios" — falta definir bien el alcance (¿qué logs? ¿de qué se considera "activo"? ¿solo lectura o también gestión de usuarios desde ahí, duplicando `/settings/team`?) antes de construir
+
+---
+
 ## 🟠 Importante (esta semana)
 
 **Notificaciones push — Web Push nativo implementado** _(agregado: 12 ago 2026)_

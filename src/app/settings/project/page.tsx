@@ -183,7 +183,9 @@ export default function ProjectSettingsPage() {
           <CardContent className="space-y-3">
             <NotificationToggle />
             <p className="text-xs text-muted-foreground">
-              Llegan aunque tengas el CRM cerrado (funcionan como una app instalada). Se activan por
+              Llegan aunque tengas el CRM cerrado (funcionan como una app instalada). Se piden solas al entrar
+              a la app la primera vez -- si las rechazaste o cerraste el permiso sin decidir, actívalas acá o
+              desde &quot;Activar Notificaciones&quot; en tu foto de perfil (arriba a la derecha). Se activan por
               dispositivo/navegador -- si usas el CRM en el celular y en el notebook, actívalas en cada uno.
             </p>
           </CardContent>

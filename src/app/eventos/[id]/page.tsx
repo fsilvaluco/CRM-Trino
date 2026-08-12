@@ -816,9 +816,15 @@ export default function EventDetailPage() {
           body[data-print-section="contacts"] [data-section="footer"] { display: flex !important; }
           body[data-print-section="contacts"] [data-section="contacts"] { display: block !important; }
           /* El reset generico de arriba (a block) rompe el grid de 4
-             columnas del resumen financiero -- se lo restaura a proposito,
-             siempre, sin importar que sección se esté imprimiendo. */
-          [data-section="summary"] {
+             columnas del resumen financiero -- se lo restaura a proposito
+             en los 2 modos donde aparece (todo/costs). Tiene que calzar
+             la MISMA especificidad que las reglas de arriba (body[data-
+             print-section="x"] [data-section]) para ganarles -- un
+             selector [data-section="summary"] suelto pierde contra esas
+             aunque venga despues en el archivo, porque en CSS ante un
+             empate de !important manda la especificidad, no el orden. */
+          body[data-print-section="todo"] [data-section="summary"],
+          body[data-print-section="costs"] [data-section="summary"] {
             display: grid !important;
             grid-template-columns: repeat(4, 1fr) !important;
             gap: 0.4rem !important;
@@ -1996,10 +2002,12 @@ export default function EventDetailPage() {
 
           <div className="hidden print:grid grid-cols-2 gap-8 pt-12">
             <div className="text-center text-sm">
-              <div className="border-t border-foreground pt-1">Firma responsable de producción</div>
+              <div className="border-t border-foreground pt-1">Firma Productor</div>
             </div>
             <div className="text-center text-sm">
-              <div className="border-t border-foreground pt-1">Firma quien recibe/autoriza</div>
+              <div className="border-t border-foreground pt-1">
+                Firma Rep. {event.projectName || "Proyecto"}
+              </div>
             </div>
           </div>
         </CardContent>
