@@ -121,6 +121,7 @@ export default function EventDetailPage() {
   const [costItems, setCostItems] = useState<CostItem[]>([]);
   const [costsDirty, setCostsDirty] = useState(false);
   const [savingCosts, setSavingCosts] = useState(false);
+  const [profitSplitNote, setProfitSplitNote] = useState("");
   const [newCostLabel, setNewCostLabel] = useState("");
   const [newCostAmount, setNewCostAmount] = useState("");
   const [newCostResponsable, setNewCostResponsable] = useState("");
@@ -153,6 +154,7 @@ export default function EventDetailPage() {
         setTicketTiers(data.ticketTiers ?? []);
         setEventContacts(data.eventContacts ?? []);
         setCostItems(data.costItems ?? []);
+        setProfitSplitNote(data.profitSplitNote ?? "");
         setEventLink(data.eventLink ?? "");
         setRiderLocal(data.riderLocal ?? "");
         setRiderBanda(data.riderBanda ?? "");
@@ -567,24 +569,31 @@ export default function EventDetailPage() {
   async function saveCosts() {
     setSavingCosts(true);
     try {
-      const res = await fetch(`/api/eventos/${id}/costs`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          items: costItems.map((c) => ({
-            id: c.id.startsWith("tmp-") ? undefined : c.id,
-            label: c.label,
-            amount: c.amount,
-            notes: c.notes,
-            responsable: c.responsable,
-            responsableContactId: c.responsableContactId,
-            comprobanteUrl: c.comprobanteUrl,
-            esBhe: c.esBhe,
-            liquidoAmount: c.liquidoAmount,
-          })),
+      const [itemsRes, noteRes] = await Promise.all([
+        fetch(`/api/eventos/${id}/costs`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            items: costItems.map((c) => ({
+              id: c.id.startsWith("tmp-") ? undefined : c.id,
+              label: c.label,
+              amount: c.amount,
+              notes: c.notes,
+              responsable: c.responsable,
+              responsableContactId: c.responsableContactId,
+              comprobanteUrl: c.comprobanteUrl,
+              esBhe: c.esBhe,
+              liquidoAmount: c.liquidoAmount,
+            })),
+          }),
         }),
-      });
-      if (!res.ok) throw new Error();
+        fetch(`/api/eventos/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ profitSplitNote: profitSplitNote.trim() || null }),
+        }),
+      ]);
+      if (!itemsRes.ok || !noteRes.ok) throw new Error();
       toast.success("Costos guardados");
       load();
     } catch {
@@ -774,6 +783,11 @@ export default function EventDetailPage() {
 
   const utilidadCents = (event.fee ?? 0) + (event.ticketIncome ?? 0) - (event.expenses ?? 0);
   const costsTotal = costItems.reduce((sum, c) => sum + (c.amount || 0), 0);
+  // Default asumido si no se escribe una nota puntual -- casos como "toda
+  // la utilidad se va a cubrir un costo de un viaje" necesitan decirlo
+  // explícito en vez de mostrar este reparto que en ese evento no aplica.
+  const defaultProfitSplitNote = `Utilidad se reparte en 70% ${event.projectName || "Proyecto"} y 30% Productor`;
+  const resolvedProfitSplitNote = profitSplitNote.trim() || defaultProfitSplitNote;
   const currentEvent = event;
   const eventProject = projects.find((p) => p.id === event.projectId);
 
@@ -1999,6 +2013,27 @@ export default function EventDetailPage() {
               )}
             </div>
           )}
+
+          <div className="no-print space-y-1.5 pt-1">
+            <Label htmlFor="profit-split-note" className="text-xs text-muted-foreground">
+              Reparto de utilidad (aparece en la impresión)
+            </Label>
+            <Textarea
+              id="profit-split-note"
+              rows={2}
+              disabled={costSheetClosed}
+              placeholder={defaultProfitSplitNote}
+              value={profitSplitNote}
+              onChange={(e) => { setProfitSplitNote(e.target.value); setCostsDirty(true); }}
+              className="text-sm"
+            />
+            <p className="text-xs text-muted-foreground">
+              Vacío = se usa el reparto por defecto de arriba. Solo escribe algo acá cuando el reparto real de
+              este evento es distinto (ej. toda la utilidad se va a cubrir un costo puntual).
+            </p>
+          </div>
+
+          <p className="hidden print:block text-sm pt-2">{resolvedProfitSplitNote}</p>
 
           <div className="hidden print:grid grid-cols-2 gap-8 pt-12">
             <div className="text-center text-sm">
