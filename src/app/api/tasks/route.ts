@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { getViewedAtMap, getLatestCommentAtMap, isUnseen, latestActivityAt } from "@/lib/entity-views";
+import { sendPushToUsers } from "@/lib/push";
+
+function taskUrl(taskId: string): string {
+  const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  return `${base}/tasks?taskId=${taskId}`;
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapTask(row: any, hasUnseenActivity = false) {
@@ -187,6 +193,16 @@ export async function POST(request: NextRequest) {
     if (assignError) {
       console.error("Failed to assign users to task:", assignError);
       // Non-fatal: task was created, just assignment failed
+    } else {
+      // Fire-and-forget: no bloquea la respuesta ni falla la creacion de la
+      // tarea si el push falla. No se notifica a quien la crea si se
+      // auto-asigno.
+      const notifyIds = assigneeIds.filter((id): id is string => typeof id === "string" && id !== user!.id);
+      void sendPushToUsers(notifyIds, {
+        title: "Nueva tarea asignada",
+        body: title.trim(),
+        url: taskUrl(data.id as string),
+      });
     }
   }
 

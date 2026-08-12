@@ -1496,13 +1496,14 @@ export default function EventDetailPage() {
                       placeholder="Tramo (ej. Preventa 1)"
                       value={tier.label}
                       onChange={(e) => updateTier({ label: e.target.value })}
-                      className="h-8 w-full sm:flex-1 sm:w-auto"
+                      className="h-7 text-xs w-full sm:flex-1 sm:w-auto"
                     />
                     <div className="w-20 sm:w-28 shrink-0">
                       <MoneyInput
                         placeholder="Precio"
                         value={tier.unitPrice ? String(tier.unitPrice / 100) : ""}
                         onChange={(digits) => updateTier({ unitPrice: digits ? parseInt(digits, 10) * 100 : 0 })}
+                        className="h-7 text-xs"
                       />
                     </div>
                     <Input
@@ -1511,7 +1512,7 @@ export default function EventDetailPage() {
                       placeholder="Vendidas"
                       value={tier.quantitySold || ""}
                       onChange={(e) => updateTier({ quantitySold: parseInt(e.target.value, 10) || 0 })}
-                      className="h-8 w-16 sm:w-24 shrink-0"
+                      className="h-7 text-xs w-16 sm:w-24 shrink-0"
                     />
                     <Input
                       type="number"
@@ -1519,13 +1520,13 @@ export default function EventDetailPage() {
                       placeholder="Cupos"
                       value={tier.capacity ?? ""}
                       onChange={(e) => updateTier({ capacity: e.target.value ? parseInt(e.target.value, 10) : null })}
-                      className="h-8 w-14 sm:w-20 shrink-0"
+                      className="h-7 text-xs w-14 sm:w-20 shrink-0"
                     />
                     <Input
                       placeholder="Estado"
                       value={tier.statusLabel ?? ""}
                       onChange={(e) => updateTier({ statusLabel: e.target.value || null })}
-                      className="h-8 w-16 sm:w-28 shrink-0"
+                      className="h-7 text-xs w-16 sm:w-28 shrink-0"
                     />
                     <button
                       onClick={() => {
@@ -1547,10 +1548,10 @@ export default function EventDetailPage() {
               placeholder="Tramo nuevo"
               value={newTierLabel}
               onChange={(e) => setNewTierLabel(e.target.value)}
-              className="h-8 w-full sm:flex-1 sm:w-auto"
+              className="h-7 text-xs w-full sm:flex-1 sm:w-auto"
             />
             <div className="w-20 sm:w-28 shrink-0">
-              <MoneyInput placeholder="Precio" value={newTierPrice} onChange={setNewTierPrice} />
+              <MoneyInput placeholder="Precio" value={newTierPrice} onChange={setNewTierPrice} className="h-7 text-xs" />
             </div>
             <Input
               type="number"
@@ -1558,7 +1559,7 @@ export default function EventDetailPage() {
               placeholder="Vendidas"
               value={newTierQty}
               onChange={(e) => setNewTierQty(e.target.value)}
-              className="h-8 w-16 sm:w-24 shrink-0"
+              className="h-7 text-xs w-16 sm:w-24 shrink-0"
             />
             <Input
               type="number"
@@ -1566,7 +1567,7 @@ export default function EventDetailPage() {
               placeholder="Cupos"
               value={newTierCapacity}
               onChange={(e) => setNewTierCapacity(e.target.value)}
-              className="h-8 w-14 sm:w-20 shrink-0"
+              className="h-7 text-xs w-14 sm:w-20 shrink-0"
             />
             <Button
               size="sm"
@@ -1748,7 +1749,7 @@ export default function EventDetailPage() {
                         disabled={costSheetClosed}
                         onChange={(v) => updateItem({ label: v })}
                         fetchSuggestions={fetchCostTypeSuggestions}
-                        className="h-8 flex-1"
+                        className="h-7 text-xs flex-1"
                       />
                       <div className="w-24 sm:w-32 shrink-0">
                         <MoneyInput
@@ -1763,7 +1764,7 @@ export default function EventDetailPage() {
                               updateItem({ amount: cents });
                             }
                           }}
-                          className="h-8"
+                          className="h-7 text-xs"
                         />
                       </div>
                       <button
@@ -1877,14 +1878,14 @@ export default function EventDetailPage() {
                   value={newCostLabel}
                   onChange={setNewCostLabel}
                   fetchSuggestions={fetchCostTypeSuggestions}
-                  className="h-8 flex-1"
+                  className="h-7 text-xs flex-1"
                 />
                 <div className="w-24 sm:w-32 shrink-0">
                   <MoneyInput
                     placeholder={newCostEsBhe ? "Líquido" : "$0"}
                     value={newCostAmount}
                     onChange={setNewCostAmount}
-                    className="h-8"
+                    className="h-7 text-xs"
                   />
                 </div>
               </div>

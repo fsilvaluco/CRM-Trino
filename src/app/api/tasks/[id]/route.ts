@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { markEntityViewed } from "@/lib/entity-views";
+import { sendPushToUsers } from "@/lib/push";
+
+function taskUrl(taskId: string): string {
+  const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  return `${base}/tasks?taskId=${taskId}`;
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapTask(row: any) {
@@ -113,11 +119,20 @@ export async function PUT(
   }
 
   const { data: existing, error: findErr } = await supabase
-    .from("tasks").select("id, status, completed_at").eq("id", id).single();
+    .from("tasks").select("id, title, status, completed_at").eq("id", id).single();
 
   if (findErr || !existing) {
     return NextResponse.json({ error: "Tarea no encontrada" }, { status: 404 });
   }
+
+  // Se lee ANTES de tocar task_assignees para poder distinguir mas abajo
+  // quienes son asignados NUEVOS (a esos se les manda push, no a los que ya
+  // estaban asignados y solo se re-guardo la lista).
+  const { data: prevAssignees } = await supabase
+    .from("task_assignees")
+    .select("user_id")
+    .eq("task_id", id);
+  const prevAssigneeIds = new Set((prevAssignees ?? []).map((a) => a.user_id as string));
 
   const DONE_STATUSES = ["listo", "descartado"];
   const { title, description, status, priority, dueDate, contactId, companyId, dealId, projectId, artistProjectId, subprojectId, referenceUrl } = body as Record<string, string | undefined>;
@@ -185,6 +200,17 @@ export async function PUT(
       if (insertAssigneesError) {
         return NextResponse.json({ error: `Error al actualizar responsables: ${insertAssigneesError.message}` }, { status: 500 });
       }
+    }
+
+    // Solo notificar a quienes son NUEVOS en la tarea (no a los que ya
+    // estaban asignados) y nunca a quien hizo el cambio si se auto-asigno.
+    const newAssigneeIds = uniqueAssigneeIds.filter((uid) => !prevAssigneeIds.has(uid) && uid !== user!.id);
+    if (newAssigneeIds.length > 0) {
+      void sendPushToUsers(newAssigneeIds, {
+        title: "Te asignaron una tarea",
+        body: (title ?? (existing.title as string)) || "Tarea sin titulo",
+        url: taskUrl(id),
+      });
     }
   }
 

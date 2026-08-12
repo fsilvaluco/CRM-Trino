@@ -1,52 +1,107 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Bell, BellOff } from "lucide-react";
+import { Bell, BellOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-function getInitialState() {
-  if (typeof window === "undefined") return { supported: false, enabled: false };
-  if (!("Notification" in window)) return { supported: false, enabled: false };
-  return {
-    supported: true,
-    enabled: localStorage.getItem("crm-notifications") === "true",
-  };
+// Convierte la VAPID public key (base64url) al Uint8Array que pide
+// PushManager.subscribe(). No hay helper nativo para esto -- es el snippet
+// estandar que aparece en la doc de Web Push.
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
 }
 
-export function NotificationToggle() {
-  const initial = getInitialState();
-  const [enabled, setEnabled] = useState(initial.enabled);
-  const supported = initial.supported;
+type Status = "unsupported" | "loading" | "off" | "on";
 
-  const toggle = async () => {
-    if (!supported) {
-      toast.error("Tu navegador no soporta notificaciones");
+export function NotificationToggle() {
+  const [status, setStatus] = useState<Status>("loading");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    async function checkStatus() {
+      if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+        setStatus("unsupported");
+        return;
+      }
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        const sub = await registration.pushManager.getSubscription();
+        setStatus(sub ? "on" : "off");
+      } catch {
+        setStatus("off");
+      }
+    }
+    checkStatus();
+  }, []);
+
+  async function enable() {
+    const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    if (!publicKey) {
+      toast.error("Notificaciones push no configuradas todavia");
       return;
     }
 
-    if (!enabled) {
+    setBusy(true);
+    try {
       const permission = await Notification.requestPermission();
-      if (permission === "granted") {
-        localStorage.setItem("crm-notifications", "true");
-        setEnabled(true);
-        toast.success("Notificaciones activadas");
-
-        // Show test notification
-        new Notification("Artist Pro", {
-          body: "Las notificaciones estan activas. Te avisaremos de seguimientos pendientes.",
-        });
-      } else {
+      if (permission !== "granted") {
         toast.error("Permiso de notificaciones denegado");
+        return;
       }
-    } else {
-      localStorage.setItem("crm-notifications", "false");
-      setEnabled(false);
-      toast.success("Notificaciones desactivadas");
-    }
-  };
 
-  if (!supported) return null;
+      const registration = await navigator.serviceWorker.ready;
+      const sub = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
+      });
+
+      const res = await fetch("/api/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(sub.toJSON()),
+      });
+      if (!res.ok) throw new Error("No se pudo guardar la suscripcion");
+
+      setStatus("on");
+      toast.success("Notificaciones activadas");
+    } catch (err) {
+      console.error("[push] error al activar:", err);
+      toast.error("No se pudieron activar las notificaciones");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function disable() {
+    setBusy(true);
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const sub = await registration.pushManager.getSubscription();
+      if (sub) {
+        await fetch("/api/push/subscribe", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint: sub.endpoint }),
+        });
+        await sub.unsubscribe();
+      }
+      setStatus("off");
+      toast.success("Notificaciones desactivadas");
+    } catch (err) {
+      console.error("[push] error al desactivar:", err);
+      toast.error("No se pudieron desactivar las notificaciones");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (status === "unsupported") return null;
+
+  const enabled = status === "on";
 
   return (
     <div className="flex items-center justify-between p-3 rounded-lg border">
@@ -57,23 +112,22 @@ export function NotificationToggle() {
           <BellOff className="h-5 w-5 text-muted-foreground" />
         )}
         <div>
-          <p className="text-sm font-medium">
-            Notificaciones del navegador
-          </p>
+          <p className="text-sm font-medium">Notificaciones de tareas asignadas</p>
           <p className="text-xs text-muted-foreground">
             {enabled
-              ? "Recibiras alertas de seguimientos vencidos"
-              : "Activa para recibir alertas de seguimientos"}
+              ? "Te avisamos en este dispositivo cuando te asignen una tarea"
+              : "Activa para recibir un aviso cuando te asignen una tarea"}
           </p>
         </div>
       </div>
       <Button
         variant={enabled ? "default" : "outline"}
         size="sm"
-        onClick={toggle}
+        onClick={enabled ? disable : enable}
+        disabled={status === "loading" || busy}
         className="cursor-pointer"
       >
-        {enabled ? "Desactivar" : "Activar"}
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : enabled ? "Desactivar" : "Activar"}
       </Button>
     </div>
   );

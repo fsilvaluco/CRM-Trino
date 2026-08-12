@@ -183,7 +183,8 @@ export default function ProjectSettingsPage() {
           <CardContent className="space-y-3">
             <NotificationToggle />
             <p className="text-xs text-muted-foreground">
-              Las notificaciones te avisan cuando tienes seguimientos vencidos. Se verifican cada 5 minutos mientras el CRM está abierto.
+              Llegan aunque tengas el CRM cerrado (funcionan como una app instalada). Se activan por
+              dispositivo/navegador -- si usas el CRM en el celular y en el notebook, actívalas en cada uno.
             </p>
           </CardContent>
         </Card>

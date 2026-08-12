@@ -27,7 +27,7 @@ _Ningún bug crítico conocido sin resolver._
 
 ## 🟢 Diferido a propósito (decisión del usuario, no son bugs)
 
-- **Notificaciones push**, **Timing general de gira**, **agrupación por secciones en Timing** — sin cambios, siguen pendientes tal como se dejaron
+- **Timing general de gira**, **agrupación por secciones en Timing** — sin cambios, siguen pendientes tal como se dejaron
 - ✅ **Ícono de Instagram/redes en el header impreso** — Francisco confirma que ya está, cerrado
 - **Login con clave por evento en el link público** — sigue diferido, Francisco lo va a hacer más adelante
 - **Direcciones reales de venues** — tarea manual de Francisco (10 venues nuevos + 7 eventos de la gira "La Amistad Hecha Bolero"), no requiere desarrollo — solo pendiente de que él las complete
@@ -35,6 +35,23 @@ _Ningún bug crítico conocido sin resolver._
 ---
 
 ## 🟠 Importante (esta semana)
+
+**Notificaciones push — Web Push nativo implementado** _(agregado: 12 ago 2026)_
+- **Auditoría de letra chica primero:** se revisó `src/app/eventos/[id]/page.tsx` (único archivo con filas densas tipo planilla) y se encontraron 2 gaps reales que la bitácora daba por cerrados: Costos (fila Detalle+Monto sin `text-xs`, inconsistente con la fila Responsable+Comprobante del mismo ítem) y Venta de entradas/tramos (ningún campo tenía el tamaño reducido). Corregidos ambos, en fila existente y en "agregar nuevo". `tsc`/`eslint` limpios.
+- **Decisión de arquitectura:** Web Push API nativa (VAPID), sin servicio externo (OneSignal, etc.) — consistente con "100% local" del proyecto. Diseñado para que el salto futuro a app nativa (Capacitor/Android/iOS) sea agregar un canal nuevo (`push_subscriptions.channel`), no rediseñar: la lógica de negocio (quién se notifica y por qué) vive separada del transporte (`sendPushToUsers()` en `src/lib/push.ts`).
+- **Implementado:**
+  - Migración `064_push_subscriptions.sql` (tabla `push_subscriptions`, RLS: cada usuario ve/borra solo las suyas; el envío usa el service role para leer suscripciones de otros usuarios)
+  - `src/lib/push.ts` — helper server-only, limpia solas las suscripciones vencidas (410/404)
+  - `/api/push/subscribe` (POST/DELETE) — guarda/borra la suscripción del navegador
+  - `public/sw.js` — handlers `push` (muestra la notificación) y `notificationclick` (enfoca pestaña existente o abre una nueva)
+  - `NotificationToggle.tsx` reescrito: antes solo pedía permiso y mostraba una notificación de prueba local; ahora se suscribe de verdad vía `PushManager` y guarda la suscripción en el backend
+  - Trigger: al crear una tarea con `assigneeIds` (`POST /api/tasks`) o al agregar un asignado nuevo a una tarea existente (`PUT /api/tasks/[id]`, con diff contra los asignados previos para no reenviar a quien ya estaba) — nunca se notifica a quien hizo la asignación si se auto-asignó
+  - Claves VAPID generadas y puestas en `.env.local` (no committeadas); documentadas en `.env.example`
+- **Falta:**
+  - Configurar `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` en Railway (producción) — las de `.env.local` son solo para desarrollo local
+  - Aplicar la migración 064 en Supabase
+  - Probar de punta a punta con dos usuarios reales (asignar tarea → llega push al celular/notebook del asignado)
+  - Recordatorio del día anterior al evento (mencionado en el ítem de "Confirmar Timing" más abajo) todavía no está conectado a este sistema — quedaría como otro caller de `sendPushToUsers()` una vez exista el cron
 
 **Botón "Confirmar Timing" — envío de correo a contactos del evento** _(idea nueva de Francisco, agregado: 10 ago 2026)_
 - Reemplaza al genérico "botón Enviar" diferido — esta es la especificación concreta que Francisco quiere avanzar
