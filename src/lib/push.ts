@@ -1,6 +1,9 @@
 import webpush from "web-push";
 import { createAdminClient } from "@/lib/supabase-admin";
 
+// (Forzando rebuild: Railway reusaba el bundle cacheado del mismo commit y
+// no recogia las variables NEXT_PUBLIC_VAPID_* recien agregadas -- 12 ago 2026)
+
 // ─── Envío de Web Push ────────────────────────────────────────────────────
 // Server-only. Diseñado a propósito para que el "disparo" (quién se
 // notifica y por qué) esté separado del "canal" (cómo se entrega). Hoy solo
