@@ -17,6 +17,13 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 
 type Status = "unsupported" | "loading" | "off" | "on";
 
+// Leida a nivel de modulo (no adentro de una funcion) -- es el mismo patron
+// que ya usa src/lib/supabase.ts para NEXT_PUBLIC_SUPABASE_URL, que si se
+// resuelve bien en build. Con Turbopack la sustitucion de NEXT_PUBLIC_* en
+// build-time no estaba pegando cuando el acceso vivia dentro del cuerpo de
+// una funcion async.
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+
 export function NotificationToggle() {
   const [status, setStatus] = useState<Status>("loading");
   const [busy, setBusy] = useState(false);
@@ -39,10 +46,7 @@ export function NotificationToggle() {
   }, []);
 
   async function enable() {
-    // Leido en cada click (no memorizado a nivel de modulo) para evitar
-    // quedar pegado a un valor cacheado del build si la env var cambia.
-    const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-    if (!publicKey) {
+    if (!VAPID_PUBLIC_KEY) {
       toast.error("Notificaciones push no configuradas todavia");
       return;
     }
@@ -58,7 +62,7 @@ export function NotificationToggle() {
       const registration = await navigator.serviceWorker.ready;
       const sub = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
       });
 
       const res = await fetch("/api/push/subscribe", {
