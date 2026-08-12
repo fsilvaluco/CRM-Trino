@@ -1,24 +1,5 @@
 import type { NextConfig } from "next";
 
-// Diagnostico temporal: confirmar en los logs de build de Railway si
-// NEXT_PUBLIC_VAPID_PUBLIC_KEY realmente esta presente en el entorno que ve
-// `next build` (distinto del entorno del contenedor ya corriendo). Sacar
-// una vez resuelto.
-console.log(
-  "[build-debug] NEXT_PUBLIC_VAPID_PUBLIC_KEY presente:",
-  Boolean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY),
-  "largo:",
-  (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "").length
-);
-console.log(
-  "[build-debug] NEXT_PUBLIC_SUPABASE_URL presente:",
-  Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL)
-);
-console.log(
-  "[build-debug] todas las NEXT_PUBLIC_* visibles en build:",
-  Object.keys(process.env).filter((k) => k.startsWith("NEXT_PUBLIC_")).sort()
-);
-
 const nextConfig: NextConfig = {
   // better-sqlite3: binario nativo, no se puede empaquetar.
   // pdf-parse/pdfjs-dist: cargan archivos auxiliares (workers, fuentes) en
