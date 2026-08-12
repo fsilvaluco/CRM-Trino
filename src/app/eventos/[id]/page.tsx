@@ -639,7 +639,23 @@ export default function EventDetailPage() {
 
   function printSection(section: "costs" | "timing" | "setlist" | "contacts" | "todo") {
     document.body.setAttribute("data-print-section", section);
+
+    // El navegador usa document.title como nombre por defecto al Guardar
+    // como PDF -- para Costos (la hoja de cierre) se pone YYMMDD - Cierre
+    // [evento] para que quede prolijo y ordenado por fecha al guardarlo.
+    // Se restaura el titulo real de la pagina despues de imprimir.
+    const originalTitle = document.title;
+    if (section === "costs" && event) {
+      try {
+        const datePrefix = format(new Date(`${event.date}T00:00:00`), "yyMMdd");
+        document.title = `${datePrefix} - Cierre ${event.name}`;
+      } catch {
+        // Si la fecha viene rara, mejor no tocar el titulo que romper el print.
+      }
+    }
+
     window.print();
+    document.title = originalTitle;
   }
 
   async function handleCopyShareLink() {
@@ -2033,7 +2049,9 @@ export default function EventDetailPage() {
             </p>
           </div>
 
-          <p className="hidden print:block text-sm pt-2">{resolvedProfitSplitNote}</p>
+          <p className="hidden print:block text-sm pt-2 text-justify">
+            <span className="font-medium">Nota:</span> {resolvedProfitSplitNote}
+          </p>
 
           <div className="hidden print:grid grid-cols-2 gap-8 pt-12">
             <div className="text-center text-sm">
