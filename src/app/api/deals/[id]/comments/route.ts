@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { markEntityViewed } from "@/lib/entity-views";
+import { sendPushToUsers } from "@/lib/push";
+
+function siteUrl(path: string): string {
+  const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  return `${base}${path}`;
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapDealComment(row: any) {
@@ -109,6 +115,11 @@ export async function POST(
           snippet: content.trim().slice(0, 200),
         }))
       );
+      void sendPushToUsers(uniqueMentioned, {
+        title: `${resolvedAuthor} te mencionó en un deal`,
+        body: content.trim().slice(0, 150),
+        url: siteUrl(`/deals/${id}`),
+      });
     }
   }
 

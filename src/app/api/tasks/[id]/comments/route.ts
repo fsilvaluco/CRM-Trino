@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { markEntityViewed } from "@/lib/entity-views";
+import { sendPushToUsers } from "@/lib/push";
+
+function taskUrl(taskId: string): string {
+  const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  return `${base}/tasks?taskId=${taskId}`;
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapTaskComment(row: any) {
@@ -156,6 +162,11 @@ export async function POST(
               snippet: trimmedContent.slice(0, 200),
             }))
           );
+          void sendPushToUsers(uniqueMentioned, {
+            title: `${normalizedAuthor} te mencionó en una tarea`,
+            body: trimmedContent.slice(0, 150),
+            url: taskUrl(id),
+          });
         }
       }
       return NextResponse.json(mapTaskComment(result.data), { status: 201 });

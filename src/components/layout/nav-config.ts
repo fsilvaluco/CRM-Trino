@@ -23,6 +23,7 @@ import {
   CreditCard,
   Mic2,
   MapPin,
+  BellRing,
 } from "lucide-react";
 import { type LucideIcon } from "lucide-react";
 
@@ -138,6 +139,13 @@ export const settingsConfig: NavLeaf[] = [
     href: "/settings/billing",
     label: "Facturación",
     icon: CreditCard,
+    adminOnly: true,
+  },
+  {
+    type: "leaf",
+    href: "/settings/notifications",
+    label: "Notificaciones",
+    icon: BellRing,
     adminOnly: true,
   },
 ];

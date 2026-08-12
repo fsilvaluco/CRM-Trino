@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Pencil, MapPin, Clock, Music4, Wallet, FileText, Link as LinkIcon,
   Plus, Trash2, Star, ExternalLink, Loader2, Lock, LockOpen, Printer, Receipt,
-  Ticket, Upload, Paperclip, Share2, Users, RefreshCw,
+  Ticket, Upload, Paperclip, Share2, Users, RefreshCw, BellRing,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -76,6 +76,7 @@ export default function EventDetailPage() {
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
+  const [notifyingChange, setNotifyingChange] = useState(false);
 
   const [setlist, setSetlist] = useState<SetlistItem[]>([]);
   const [setlistDirty, setSetlistDirty] = useState(false);
@@ -652,6 +653,28 @@ export default function EventDetailPage() {
     }
   }
 
+  async function handleNotifyChanges() {
+    setNotifyingChange(true);
+    try {
+      const res = await fetch(`/api/eventos/${id}/notify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "No se pudo notificar");
+      if (data.notified === 0) {
+        toast.info("Nadie más en el proyecto tiene notificaciones activadas todavía");
+      } else {
+        toast.success(`Notificación enviada a ${data.notified} persona${data.notified === 1 ? "" : "s"} del proyecto`);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al notificar");
+    } finally {
+      setNotifyingChange(false);
+    }
+  }
+
   async function closeCostSheet() {
     if (costsDirty) {
       toast.error("Guarda los costos primero antes de cerrar la caja");
@@ -835,6 +858,17 @@ export default function EventDetailPage() {
           <Button size="sm" variant="outline" className="cursor-pointer" onClick={handleCopyShareLink} title="Compartir">
             <Share2 className="h-4 w-4 sm:mr-1.5" />
             <span className="hidden sm:inline">Compartir</span>
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="cursor-pointer"
+            onClick={handleNotifyChanges}
+            disabled={notifyingChange}
+            title="Avisar al proyecto que algo cambió en este evento"
+          >
+            {notifyingChange ? <Loader2 className="h-4 w-4 sm:mr-1.5 animate-spin" /> : <BellRing className="h-4 w-4 sm:mr-1.5" />}
+            <span className="hidden sm:inline">Notificar cambios</span>
           </Button>
           {event.status === "realizado" && (
             <Button size="sm" variant="outline" className="cursor-pointer" onClick={handleCopyRatingLink} title="Link de valoración">

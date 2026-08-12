@@ -52,6 +52,21 @@ _Ningún bug crítico conocido sin resolver._
   - **Nota para el futuro:** cualquier variable `NEXT_PUBLIC_*` nueva que se necesite en el navegador tiene que agregarse en 2 lugares — Railway (Variables) Y el `Dockerfile` (`ARG`+`ENV`) — no basta con Railway solo. De paso quedó pendiente (no urgente, no bloquea nada, tiene fallback silencioso): `NEXT_PUBLIC_SITE_URL` (usado en `forgot-password/page.tsx`) y `NEXT_PUBLIC_META_APP_ID` (no se encontró usado en ningún componente cliente, podría ser código muerto) tampoco están declaradas como `ARG` en el Dockerfile — si alguna vez dejan de comportarse bien, este es el motivo.
 - **Falta:** probar de punta a punta con un usuario real (activar el toggle en Configuración > Proyecto, asignarle una tarea, confirmar que llega la notificación al celular/notebook)
 
+**Notificaciones push — 5 tipos nuevos agregados sobre la base anterior** _(agregado: 12 ago 2026)_
+- Reutiliza toda la infraestructura de arriba (`sendPushToUsers()`, `push_subscriptions`) — nada de esto cambia el transporte, solo agrega triggers nuevos.
+- **Menciones en comentarios** (`@usuario` en tareas y deals) — ya existía el sistema de menciones (tabla `mentions`, usado por `NotificationPopover`); ahora además dispara un push. Enganchado en `POST /api/tasks/[id]/comments` y `POST /api/deals/[id]/comments`.
+- **Tareas por vencer**: avisos a 5, 2 y 1 día antes del `due_date`, solo si la tarea no está en `listo`/`descartado`. Notifica a los `task_assignees`.
+- **Deals por vencer**: mismo esquema (5/2/1 días) sobre `expected_close`, excluyendo deals en una etapa `is_won`/`is_lost`. Notifica a los `deal_assignees`.
+- **Evento mañana**: eventos en estado `confirmado` con fecha = mañana, avisa a todo `project_members` del proyecto del evento.
+- Los 3 de arriba corren en un cron nuevo: **`/api/cron/daily-reminders`** (mismo patrón `CRON_SECRET` que `sync-instagram`/`detect-leads`). Deduplicación real vía tabla nueva `reminder_log` (UNIQUE por tipo+entidad+umbral) — si el cron se reintenta el mismo día no se manda el aviso de nuevo.
+- **Botón manual "Notificar cambios"** en la página de detalle de Evento — dispara al toque (no espera al cron) un push a todo el proyecto avisando que algo cambió. `POST /api/eventos/[id]/notify`.
+- **Notificación de admin con mensaje libre** — página nueva **Configuración > Notificaciones** (`/settings/notifications`, solo admins), con selector de audiencia (toda la organización o un proyecto puntual) + título/mensaje + historial de lo mandado. `POST`/`GET /api/admin/broadcast`.
+- **Migración `065_notification_infra.sql`** aplicada en Supabase: tabla `reminder_log` (dedup, sin policies a propósito — solo el cron con service role la toca) y `admin_broadcasts` (historial, RLS: solo admins de la org ven sus propios broadcasts vía `is_org_admin()`).
+- `tsc`, `eslint` y `next build` completo limpios.
+- **Falta:**
+  - **Crear el Cron Job en Railway** para `/api/cron/daily-reminders` (mismo patrón que los crons de Instagram/Shopify/detect-leads que ya existen ahí) — corre diario, reusa el `CRON_SECRET` que ya está configurado, no necesita variable nueva.
+  - Probar cada tipo con datos reales (mencionar a alguien, una tarea/deal por vencer, un evento de mañana, mandar un broadcast de prueba).
+
 **Botón "Confirmar Timing" — envío de correo a contactos del evento** _(idea nueva de Francisco, agregado: 10 ago 2026)_
 - Reemplaza al genérico "botón Enviar" diferido — esta es la especificación concreta que Francisco quiere avanzar
 - **Selección de destinatarios:** se eligen desde los Contactos del evento (Contactos Importantes) — necesita UI para marcar/seleccionar a quién se le manda
