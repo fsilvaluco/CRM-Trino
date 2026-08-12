@@ -39,6 +39,8 @@ export function NotificationToggle() {
   }, []);
 
   async function enable() {
+    // Leido en cada click (no memorizado a nivel de modulo) para evitar
+    // quedar pegado a un valor cacheado del build si la env var cambia.
     const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
     if (!publicKey) {
       toast.error("Notificaciones push no configuradas todavia");
