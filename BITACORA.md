@@ -53,6 +53,18 @@ _Ningún bug crítico conocido sin resolver._
 
 ## 🟠 Importante (esta semana)
 
+**Firma virtual del cierre de caja** _(agregado: 12 ago 2026)_
+- Nueva página `/eventos/[id]/firmar` — solo-lectura del resumen financiero + planilla de costos + nota de reparto, con un botón "Estoy de acuerdo" (confirmación explícita, irreversible) para aprobar el cierre. Pensada para compartir el link (botón "Link de firma" junto a Reabrir, visible solo con la caja cerrada) con el equipo del proyecto.
+- **Firmantes = automático**: los `project_members` del proyecto del evento, calculados en caliente (no se guardan aparte) — si alguien entra o sale del proyecto después, la lista de requeridos cambia sola.
+- **Bloqueante**: mientras no firmen todos, el evento muestra el badge "Pendiente de aprobación (X/Y)" en la Planilla de costos; cuando firman todos pasa a "Aprobado por todos".
+- **Acceso restringido de verdad** (no solo por login): la API (`/api/eventos/[id]/signatures`) valida que quien pide los datos sea `project_member` de ESE proyecto específico (o admin) — alguien de otro proyecto de la misma organización no puede ver ni firmar este cierre.
+- **Log auditable**: cada fila de `event_closing_signatures` guarda quién (perfil completo, no solo ID) y cuándo exacto — se muestra en la página de firma junto a cada firmante.
+- **Reabrir caja borra las firmas** — si se reabre es porque algo va a cambiar en la planilla, las firmas viejas quedarían aprobando una versión que ya no es la que se vuelve a cerrar.
+- Push automático al resto del equipo cuando alguien firma (y uno especial cuando queda 100% aprobado), reusando `sendPushToUsers()`.
+- **Migración `067_event_closing_signatures.sql`** aplicada en Supabase.
+- **Hallazgo colateral (no arreglado, fuera de alcance de este cambio):** `GET /api/eventos/[id]` (el endpoint general que usa la página de edición completa del evento) no filtra por proyecto — cualquier miembro de la organización puede ver el detalle completo de cualquier evento de cualquier proyecto, no solo del suyo. La página nueva de firma NO tiene este problema (usa su propio endpoint con chequeo de `allowedProjectIds`), pero valdría la pena revisar el endpoint general en algún momento si el aislamiento por proyecto importa en otras partes de Eventos.
+- **Falta:** probar de punta a punta con Joaquín/Gonzalo/Francisco en el evento real de Gamuza que mencionó.
+
 **Notificaciones push — Web Push nativo implementado** _(agregado: 12 ago 2026)_
 - **Auditoría de letra chica primero:** se revisó `src/app/eventos/[id]/page.tsx` (único archivo con filas densas tipo planilla) y se encontraron 2 gaps reales que la bitácora daba por cerrados: Costos (fila Detalle+Monto sin `text-xs`, inconsistente con la fila Responsable+Comprobante del mismo ítem) y Venta de entradas/tramos (ningún campo tenía el tamaño reducido). Corregidos ambos, en fila existente y en "agregar nuevo". `tsc`/`eslint` limpios.
 - **Decisión de arquitectura:** Web Push API nativa (VAPID), sin servicio externo (OneSignal, etc.) — consistente con "100% local" del proyecto. Diseñado para que el salto futuro a app nativa (Capacitor/Android/iOS) sea agregar un canal nuevo (`push_subscriptions.channel`), no rediseñar: la lógica de negocio (quién se notifica y por qué) vive separada del transporte (`sendPushToUsers()` en `src/lib/push.ts`).

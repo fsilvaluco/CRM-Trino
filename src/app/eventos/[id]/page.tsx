@@ -122,6 +122,7 @@ export default function EventDetailPage() {
   const [costsDirty, setCostsDirty] = useState(false);
   const [savingCosts, setSavingCosts] = useState(false);
   const [profitSplitNote, setProfitSplitNote] = useState("");
+  const [signatureStatus, setSignatureStatus] = useState<{ signedCount: number; requiredCount: number; allSigned: boolean } | null>(null);
   const [newCostLabel, setNewCostLabel] = useState("");
   const [newCostAmount, setNewCostAmount] = useState("");
   const [newCostResponsable, setNewCostResponsable] = useState("");
@@ -165,6 +166,22 @@ export default function EventDetailPage() {
         setTicketsDirty(false);
         setContactsDirty(false);
         setDetailsDirty(false);
+
+        if (data.costSheetClosedAt) {
+          fetch(`/api/eventos/${id}/signatures`)
+            .then((r) => (r.ok ? r.json() : null))
+            .then((sig) => {
+              if (!sig) return;
+              setSignatureStatus({
+                signedCount: sig.signatures.length,
+                requiredCount: sig.requiredSigners.length,
+                allSigned: sig.allSigned,
+              });
+            })
+            .catch(() => setSignatureStatus(null));
+        } else {
+          setSignatureStatus(null);
+        }
       })
       .catch(() => setEvent(null))
       .finally(() => setLoading(false));
@@ -1697,6 +1714,16 @@ export default function EventDetailPage() {
                 Cerrada
               </Badge>
             )}
+            {signatureStatus && (
+              <Badge
+                variant="secondary"
+                className={`text-xs ml-1 ${signatureStatus.allSigned ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}
+              >
+                {signatureStatus.allSigned
+                  ? "Aprobado por todos"
+                  : `Pendiente de aprobación (${signatureStatus.signedCount}/${signatureStatus.requiredCount})`}
+              </Badge>
+            )}
           </CardTitle>
           <div className="flex items-center gap-2 no-print">
             {costsDirty && (
@@ -1731,10 +1758,30 @@ export default function EventDetailPage() {
               <span className="hidden sm:inline">Imprimir</span>
             </Button>
             {costSheetClosed ? (
-              <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" disabled={closingCosts} onClick={reopenCostSheet} title="Reabrir">
-                <LockOpen className="h-3.5 w-3.5 sm:mr-1" />
-                <span className="hidden sm:inline">Reabrir</span>
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs cursor-pointer"
+                  onClick={async () => {
+                    const url = `${window.location.origin}/eventos/${id}/firmar`;
+                    try {
+                      await navigator.clipboard.writeText(url);
+                      toast.success("Link copiado -- solo lo pueden abrir los integrantes de este proyecto (con su cuenta)");
+                    } catch {
+                      toast.info(url);
+                    }
+                  }}
+                  title="Copiar link para que el equipo apruebe el cierre"
+                >
+                  <Share2 className="h-3.5 w-3.5 sm:mr-1" />
+                  <span className="hidden sm:inline">Link de firma</span>
+                </Button>
+                <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" disabled={closingCosts} onClick={reopenCostSheet} title="Reabrir">
+                  <LockOpen className="h-3.5 w-3.5 sm:mr-1" />
+                  <span className="hidden sm:inline">Reabrir</span>
+                </Button>
+              </>
             ) : (
               <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" disabled={closingCosts} onClick={closeCostSheet} title="Cerrar caja">
                 <Lock className="h-3.5 w-3.5 sm:mr-1" />
