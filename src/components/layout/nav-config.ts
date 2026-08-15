@@ -24,6 +24,7 @@ import {
   Mic2,
   MapPin,
   BellRing,
+  QrCode,
 } from "lucide-react";
 import { type LucideIcon } from "lucide-react";
 
@@ -96,6 +97,12 @@ export const navConfig: NavItem[] = [
     href: "/campanas",
     label: "Campañas",
     icon: Megaphone,
+  },
+  {
+    type: "leaf",
+    href: "/qr-codes",
+    label: "Códigos QR",
+    icon: QrCode,
   },
   {
     type: "leaf",

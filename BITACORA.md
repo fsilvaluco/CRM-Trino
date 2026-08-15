@@ -53,6 +53,14 @@ _Ningún bug crítico conocido sin resolver._
 
 ## 🟠 Importante (esta semana)
 
+**Creador de códigos QR con seguimiento de escaneos** _(agregado: 14 ago 2026)_
+- Nueva sección **Códigos QR** (`/qr-codes`, en el menú lateral) — por proyecto. Cada QR generado apunta a `artistpro.app/q/{slug}` en vez de directo al destino real: ese endpoint público registra el escaneo (`qr_scans`) y recién ahí redirige.
+- **Seguimiento por QR individual, no por link**: se puede crear más de un QR apuntando exactamente al mismo destino (ej. "Flyer show Valparaíso" y "Bio Instagram", ambos al mismo link de streaming) — cada uno cuenta sus propios escaneos por separado, para comparar cuál funciona mejor.
+- Imagen del QR generada 100% en el navegador (librería `qrcode`, sin servicio externo) — se puede descargar como PNG.
+- El slug es estable: si se edita el link de destino de un QR ya creado, el QR físico ya impreso/pegado sigue funcionando (apunta al slug, no al destino final).
+- Migración `068_qr_codes.sql` (`qr_codes` + `qr_scans`) aplicada en Supabase.
+- **Pendiente / diferido a propósito, dejado explícitamente para después:** creador de links de pre-save (Spotify/iTunes/Deezer) — Francisco lo pidió pero pidió ver primero el creador de QR.
+
 **Firma virtual del cierre de caja** _(agregado: 12 ago 2026)_
 - Nueva página `/eventos/[id]/firmar` — solo-lectura del resumen financiero + planilla de costos + nota de reparto, con un botón "Estoy de acuerdo" (confirmación explícita, irreversible) para aprobar el cierre. Pensada para compartir el link (botón "Link de firma" junto a Reabrir, visible solo con la caja cerrada) con el equipo del proyecto.
 - **Firmantes = automático**: los `project_members` del proyecto del evento, calculados en caliente (no se guardan aparte) — si alguien entra o sale del proyecto después, la lista de requeridos cambia sola.
