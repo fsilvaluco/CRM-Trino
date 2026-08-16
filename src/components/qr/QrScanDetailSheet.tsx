@@ -33,18 +33,29 @@ function QrScanDetailContent({ itemId }: { itemId: string }) {
       .catch(() => setScans([]));
   }, [itemId]);
 
-  const chartData = useMemo(() => {
-    if (!scans) return [];
-    const byDay = new Map<string, { label: string; count: number; sortKey: string }>();
+  // Si toda la actividad cae en un solo día (ej. un pico de 60 escaneos en
+  // una hora), agrupar por día deja UNA sola barra -- inútil para ver
+  // cuándo hubo más actividad. En ese caso se agrupa por hora en vez de
+  // por día.
+  const { chartData, bucket } = useMemo(() => {
+    if (!scans || scans.length === 0) return { chartData: [], bucket: "day" as const };
+
+    const distinctDays = new Set(scans.map((iso) => format(new Date(iso), "yyyy-MM-dd")));
+    const useHourly = distinctDays.size <= 1;
+
+    const byBucket = new Map<string, { label: string; count: number; sortKey: string }>();
     for (const iso of scans) {
       const d = new Date(iso);
-      const sortKey = format(d, "yyyy-MM-dd");
-      const label = format(d, "d MMM", { locale: es });
-      const existing = byDay.get(sortKey);
+      const sortKey = useHourly ? format(d, "yyyy-MM-dd'T'HH") : format(d, "yyyy-MM-dd");
+      const label = useHourly ? format(d, "HH:00") : format(d, "d MMM", { locale: es });
+      const existing = byBucket.get(sortKey);
       if (existing) existing.count += 1;
-      else byDay.set(sortKey, { label, count: 1, sortKey });
+      else byBucket.set(sortKey, { label, count: 1, sortKey });
     }
-    return [...byDay.values()].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+    return {
+      chartData: [...byBucket.values()].sort((a, b) => a.sortKey.localeCompare(b.sortKey)),
+      bucket: useHourly ? ("hour" as const) : ("day" as const),
+    };
   }, [scans]);
 
   if (scans === null) {
@@ -65,9 +76,11 @@ function QrScanDetailContent({ itemId }: { itemId: string }) {
 
   return (
     <>
-      {chartData.length > 1 && (
+      {scans.length > 1 && chartData.length > 0 && (
         <div>
-          <p className="text-xs font-medium text-muted-foreground mb-3">Escaneos por día</p>
+          <p className="text-xs font-medium text-muted-foreground mb-3">
+            {bucket === "hour" ? "Escaneos por hora" : "Escaneos por día"}
+          </p>
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-border" />

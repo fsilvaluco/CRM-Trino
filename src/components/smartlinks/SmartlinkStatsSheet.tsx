@@ -31,19 +31,28 @@ function SmartlinkStatsContent({ smartlinkId }: { smartlinkId: string }) {
       .catch(() => setEvents([]));
   }, [smartlinkId]);
 
-  const viewsChartData = useMemo(() => {
-    if (!events) return [];
-    const byDay = new Map<string, { label: string; count: number; sortKey: string }>();
-    for (const e of events) {
-      if (e.eventType !== "view") continue;
+  // Mismo criterio que el detalle de QR: si todas las vistas caen en un
+  // solo día, agrupar por día da una sola barra -- se agrupa por hora en
+  // ese caso.
+  const { viewsChartData, viewsBucket } = useMemo(() => {
+    if (!events) return { viewsChartData: [], viewsBucket: "day" as const };
+    const views = events.filter((e) => e.eventType === "view");
+    const distinctDays = new Set(views.map((e) => format(new Date(e.occurredAt), "yyyy-MM-dd")));
+    const useHourly = distinctDays.size <= 1;
+
+    const byBucket = new Map<string, { label: string; count: number; sortKey: string }>();
+    for (const e of views) {
       const d = new Date(e.occurredAt);
-      const sortKey = format(d, "yyyy-MM-dd");
-      const label = format(d, "d MMM", { locale: es });
-      const existing = byDay.get(sortKey);
+      const sortKey = useHourly ? format(d, "yyyy-MM-dd'T'HH") : format(d, "yyyy-MM-dd");
+      const label = useHourly ? format(d, "HH:00") : format(d, "d MMM", { locale: es });
+      const existing = byBucket.get(sortKey);
       if (existing) existing.count += 1;
-      else byDay.set(sortKey, { label, count: 1, sortKey });
+      else byBucket.set(sortKey, { label, count: 1, sortKey });
     }
-    return [...byDay.values()].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+    return {
+      viewsChartData: [...byBucket.values()].sort((a, b) => a.sortKey.localeCompare(b.sortKey)),
+      viewsBucket: useHourly ? ("hour" as const) : ("day" as const),
+    };
   }, [events]);
 
   const clicksByPlatform = useMemo(() => {
@@ -73,9 +82,11 @@ function SmartlinkStatsContent({ smartlinkId }: { smartlinkId: string }) {
 
   return (
     <>
-      {viewsChartData.length > 1 && (
+      {totalViews > 1 && viewsChartData.length > 0 && (
         <div>
-          <p className="text-xs font-medium text-muted-foreground mb-3">Vistas por día</p>
+          <p className="text-xs font-medium text-muted-foreground mb-3">
+            {viewsBucket === "hour" ? "Vistas por hora" : "Vistas por día"}
+          </p>
           <ResponsiveContainer width="100%" height={160}>
             <BarChart data={viewsChartData} margin={{ top: 4, right: 8, left: -20, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
