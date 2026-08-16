@@ -34,6 +34,22 @@ export interface ScrapedOg {
   siteName: string | null;
 }
 
+// El valor de un atributo HTML (ej. content="Gamuza &amp; Maceradoz") viene
+// con entidades codificadas -- si no se decodifican aca y despues se
+// vuelven a escapar al armar nuestro propio HTML, queda "&amp;amp;"
+// (doble-escapado). Cubre las entidades que realmente aparecen en texto
+// libre (nombres, titulos): & < > " ' y las numericas.
+function decodeHtmlEntities(s: string): string {
+  return s
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'");
+}
+
 function extractMeta(html: string, attr: "property" | "name", key: string): string | null {
   // El orden de los atributos en <meta> varia entre sitios (content antes o
   // despues de property/name) -- se prueban ambos ordenes.
@@ -43,7 +59,7 @@ function extractMeta(html: string, attr: "property" | "name", key: string): stri
   ];
   for (const re of patterns) {
     const match = html.match(re);
-    if (match) return match[1];
+    if (match) return decodeHtmlEntities(match[1]);
   }
   return null;
 }
@@ -65,8 +81,10 @@ export async function scrapeOgTags(url: string): Promise<ScrapedOg> {
     image = new URL(image, url).toString();
   }
 
+  const titleTag = html.match(/<title>([^<]*)<\/title>/i)?.[1];
+
   return {
-    title: extractMeta(html, "property", "og:title") ?? html.match(/<title>([^<]*)<\/title>/i)?.[1] ?? null,
+    title: extractMeta(html, "property", "og:title") ?? (titleTag ? decodeHtmlEntities(titleTag) : null),
     description: extractMeta(html, "property", "og:description") ?? extractMeta(html, "name", "description"),
     image,
     siteName: extractMeta(html, "property", "og:site_name"),

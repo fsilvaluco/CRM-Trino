@@ -67,7 +67,12 @@ export async function GET(
   if (isLinkPreviewBot(userAgent)) {
     try {
       const og = await scrapeOgTags(qr.destination_url);
-      return new NextResponse(renderPreviewHtml(request.url, og), {
+      // request.url refleja el host interno del contenedor (localhost:8080
+      // detras del proxy de Railway), no el dominio publico -- se arma a
+      // mano con NEXT_PUBLIC_SITE_URL, mismo patron que el resto de la app.
+      const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+      const shortUrl = `${base}/q/${slug}`;
+      return new NextResponse(renderPreviewHtml(shortUrl, og), {
         headers: { "Content-Type": "text/html; charset=utf-8" },
       });
     } catch (err) {
