@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { QrFormDialog, type QrCodeItem } from "@/components/qr/QrFormDialog";
 import { QrImage, generateQrDataUrl } from "@/components/qr/QrImage";
+import { QrScanDetailSheet } from "@/components/qr/QrScanDetailSheet";
 import { useProject } from "@/lib/project-context";
 import { toast } from "sonner";
 import { QrCode, Plus, Pencil, Trash2, Copy, Download, ScanLine } from "lucide-react";
@@ -20,6 +21,7 @@ export default function QrCodesPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<QrCodeItem | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [viewingScans, setViewingScans] = useState<QrCodeItem | null>(null);
 
   const load = useCallback(() => {
     if (!activeProject?.id) {
@@ -143,7 +145,11 @@ export default function QrCodesPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-2">
+                <button
+                  onClick={() => setViewingScans(item)}
+                  className="w-full flex items-center justify-between text-xs text-muted-foreground border-t pt-2 cursor-pointer hover:text-foreground"
+                  title="Ver actividad de escaneos"
+                >
                   <Badge variant="secondary" className="text-xs">
                     <ScanLine className="h-3 w-3 mr-1" />
                     {item.scanCount} escaneo{item.scanCount === 1 ? "" : "s"}
@@ -151,7 +157,7 @@ export default function QrCodesPage() {
                   {item.lastScannedAt && (
                     <span>último {formatDistanceToNow(new Date(item.lastScannedAt), { addSuffix: true, locale: es })}</span>
                   )}
-                </div>
+                </button>
 
                 <div className="flex items-center gap-1 pt-1">
                   <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer flex-1" onClick={() => handleDownload(item)}>
@@ -185,6 +191,7 @@ export default function QrCodesPage() {
         projectId={activeProject.id}
         editing={editing}
       />
+      <QrScanDetailSheet item={viewingScans} onClose={() => setViewingScans(null)} />
     </div>
   );
 }
