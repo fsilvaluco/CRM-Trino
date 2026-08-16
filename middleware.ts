@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase-admin";
 
 const PUBLIC_PATHS = new Set([
   "/login",
@@ -12,29 +13,43 @@ const PUBLIC_PATHS = new Set([
 
 const ADMIN_ONLY_PREFIXES = ["/settings/team", "/settings/project", "/settings/org"];
 
-// Dominio corto opcional para los QR/links (ej. "artspr.cl") -- si esta
-// configurado y el Host de la request calza, "artspr.cl/abc123" se
-// reescribe por dentro a "/q/abc123" (el mismo endpoint publico que ya
-// registra el escaneo y redirige). No hace falta duplicar nada: es
-// literalmente el mismo Next.js sirviendo dos dominios. Sin la variable de
-// entorno configurada, esto no hace nada -- artistpro.app sigue igual.
+// Dominio corto opcional para los QR/Smartlinks (ej. "artspr.cl") -- si
+// esta configurado y el Host de la request calza, "artspr.cl/abc123" se
+// reescribe por dentro a "/q/abc123" o "/s/abc123" segun de cual de las dos
+// tablas sea el slug (QR y Smartlink comparten el mismo namespace, ver
+// src/lib/short-slug.ts). Sin la variable de entorno configurada, esto no
+// hace nada -- artistpro.app sigue igual.
 const SHORT_LINK_DOMAINS = (process.env.SHORT_LINK_DOMAINS ?? "")
   .split(",")
   .map((d) => d.trim().toLowerCase())
   .filter(Boolean);
+
+async function resolveShortSlugPrefix(slug: string): Promise<"/q" | "/s" | null> {
+  const supabase = createAdminClient();
+  const [qr, smartlink] = await Promise.all([
+    supabase.from("qr_codes").select("id").eq("slug", slug).maybeSingle(),
+    supabase.from("smartlinks").select("id").eq("slug", slug).maybeSingle(),
+  ]);
+  if (qr.data) return "/q";
+  if (smartlink.data) return "/s";
+  return null;
+}
 
 export async function middleware(request: NextRequest) {
   const host = (request.headers.get("host") ?? "").toLowerCase().split(":")[0];
   if (SHORT_LINK_DOMAINS.includes(host)) {
     const url = request.nextUrl.clone();
     if (url.pathname === "/" || url.pathname === "") {
-      url.pathname = "/";
       url.hostname = process.env.NEXT_PUBLIC_SITE_URL
         ? new URL(process.env.NEXT_PUBLIC_SITE_URL).hostname
         : "artistpro.app";
       return NextResponse.redirect(url);
     }
-    url.pathname = `/q${url.pathname}`;
+    const slug = url.pathname.slice(1);
+    // Default a /q si no se encuentra en ninguna tabla -- esa ruta ya sabe
+    // manejar un slug inexistente (redirige a "/" en vez de tirar error).
+    const prefix = (await resolveShortSlugPrefix(slug)) ?? "/q";
+    url.pathname = `${prefix}${url.pathname}`;
     return NextResponse.rewrite(url);
   }
 

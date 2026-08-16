@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
-import { generateQrSlug } from "@/lib/qr-slug";
+import { generateAvailableSlug, isSlugTaken, normalizeCustomSlug } from "@/lib/short-slug";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapQr(row: any) {
@@ -52,9 +52,11 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(withStats);
 }
 
-// POST /api/qr -- crea un QR nuevo. El slug se genera solo (reintenta si
-// por mala suerte choca con uno existente -- con 7 caracteres del alfabeto
-// usado la probabilidad es minúscula, pero no imposible).
+// POST /api/qr -- crea un QR nuevo. Sin customSlug, el slug se genera solo.
+// Con customSlug, se normaliza (minusculas, sin acentos/espacios) y se
+// valida que no choque con otro QR NI con un Smartlink -- comparten el
+// mismo namespace de slugs porque ambos se resuelven desde la raiz del
+// dominio corto.
 export async function POST(request: NextRequest) {
   const { supabase, user, orgId, isAdmin, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
@@ -63,6 +65,7 @@ export async function POST(request: NextRequest) {
   const label = typeof body?.label === "string" ? body.label.trim() : "";
   const destinationUrl = typeof body?.destinationUrl === "string" ? body.destinationUrl.trim() : "";
   const projectId = typeof body?.projectId === "string" ? body.projectId : "";
+  const customSlugInput = typeof body?.customSlug === "string" ? body.customSlug.trim() : "";
 
   if (!label) return NextResponse.json({ error: "El nombre es requerido" }, { status: 400 });
   if (!destinationUrl) return NextResponse.json({ error: "El link de destino es requerido" }, { status: 400 });
@@ -76,11 +79,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
   }
 
-  let slug = generateQrSlug();
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const { data: clash } = await supabase.from("qr_codes").select("id").eq("slug", slug).maybeSingle();
-    if (!clash) break;
-    slug = generateQrSlug();
+  let slug: string;
+  if (customSlugInput) {
+    const normalized = normalizeCustomSlug(customSlugInput);
+    if (!normalized) {
+      return NextResponse.json({ error: "El link personalizado debe tener entre 3 y 40 letras/números/guiones" }, { status: 400 });
+    }
+    if (await isSlugTaken(supabase, normalized)) {
+      return NextResponse.json({ error: `"${normalized}" ya está en uso, elige otro` }, { status: 409 });
+    }
+    slug = normalized;
+  } else {
+    slug = await generateAvailableSlug(supabase);
   }
 
   const { data, error: dbError } = await supabase

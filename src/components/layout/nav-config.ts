@@ -25,6 +25,8 @@ import {
   MapPin,
   BellRing,
   QrCode,
+  Wrench,
+  Link2,
 } from "lucide-react";
 import { type LucideIcon } from "lucide-react";
 
@@ -99,10 +101,13 @@ export const navConfig: NavItem[] = [
     icon: Megaphone,
   },
   {
-    type: "leaf",
-    href: "/qr-codes",
-    label: "Códigos QR",
-    icon: QrCode,
+    type: "group",
+    label: "Herramientas",
+    icon: Wrench,
+    children: [
+      { type: "leaf", href: "/smartlinks", label: "Smartlink", icon: Link2 },
+      { type: "leaf", href: "/qr-codes", label: "Códigos QR", icon: QrCode },
+    ],
   },
   {
     type: "leaf",

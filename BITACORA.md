@@ -49,9 +49,27 @@ _Ningún bug crítico conocido sin resolver._
 - Francisco (como owner) quiere una vista separada, solo para él, con: logs del sistema, panel de usuarios (activos/inactivos), en qué proyectos está asignado cada uno
 - Idea suelta: "quizás funciona como una intranet para trabajadores de la app, no para usuarios" — falta definir bien el alcance (¿qué logs? ¿de qué se considera "activo"? ¿solo lectura o también gestión de usuarios desde ahí, duplicando `/settings/team`?) antes de construir
 
+**Pre-save real (Spotify/Apple Music/Deezer)** _(agregado: 14 ago 2026, confirmado explícitamente para después el 16 ago 2026)_
+- Requiere OAuth propio con cada plataforma (Spotify Developer Dashboard, Apple MusicKit — necesita cuenta paga de Apple Developer, Deezer) + guardar tokens de fans + un cron el día del lanzamiento que dispare el "save" para todos los que dieron permiso
+- Tamaño comparable a las integraciones que ya existen (Gmail/Meta/Shopify en Configuración > Integraciones) — necesita su propia sesión, y Francisco tiene que crear las apps de desarrollador en cada plataforma primero (cuentas suyas, no se pueden crear desde acá)
+
+**Creador de dossier / EPK** _(agregado: 16 ago 2026, idea suelta)_
+- Mencionado de pasada junto con el pre-save — sin definir alcance todavía (¿PDF descargable? ¿página web tipo one-pager con bio/fotos/rider/contacto? ¿plantilla por proyecto?)
+
 ---
 
 ## 🟠 Importante (esta semana)
+
+**Herramienta de Smartlink** _(agregado: 16 ago 2026)_
+- Nuevo grupo **Herramientas** en el menú (antes "Códigos QR" era un ítem suelto) con **Smartlink** y **Códigos QR** adentro.
+- Un smartlink es una página pública (`/s/{slug}`) con carátula + nombre de canción/artista + un botón por plataforma (Spotify, Apple Music, YouTube Music, YouTube, Deezer, Tidal, SoundCloud, iTunes, Bandcamp, u "Otra" con nombre libre) — iconos de marca reales vía `simple-icons`. Pensada como "link en la bio" para un lanzamiento.
+- **Tracking de verdad, no solo un contador total**: se registra cada vista de la página Y cada click, **por plataforma** — el panel de detalle (mismo patrón que QR: click en el badge de la tarjeta) muestra vistas por día en un gráfico + un ranking de qué plataforma se clickeó más. Los clicks pasan por `/s/{slug}/go/{linkId}` (mismo patrón de redirect+log que los QR) para que el conteo sea confiable.
+- **Meta tags reales para el preview de WhatsApp**: como el Smartlink es una página de Next.js de verdad (no un redirect puro como el QR), usa `generateMetadata()` nativo con la carátula/título — no necesitó el truco de detectar bots que sí hizo falta para `/q/[slug]`. Igual se excluyen esos bots del conteo de "vistas" para no inflar la métrica.
+- **Link corto personalizable** (pedido explícito): al crear un QR o un Smartlink ahora se puede escribir el slug a mano (ej. `/q/flyer-valpo` en vez de uno random) — ambos comparten el mismo "namespace" de slugs (`src/lib/short-slug.ts`), así que un QR y un Smartlink nunca pueden chocar con el mismo link corto aunque estén en tablas separadas.
+- **Preparado para el dominio corto propio** (artspr.cl, aún sin comprar): el middleware que ya resolvía `artspr.cl/{slug} → /q/{slug}` ahora primero revisa en cuál de las dos tablas (`qr_codes` o `smartlinks`) vive el slug y reescribe al prefijo correcto — cuando se compre el dominio, QR y Smartlink van a funcionar igual de bien desde la raíz, sin código nuevo.
+- Migración `069_smartlinks.sql` (`smartlinks` + `smartlink_links` + `smartlink_events`) aplicada en Supabase.
+- **Diferido a propósito, ya lo dijo Francisco explícitamente:** pre-save real (OAuth con Spotify/Apple Music/Deezer, cron el día del lanzamiento) y un creador de dossier/EPK — quedan para después, son su propia sesión.
+- **Falta:** subida de carátula directa (hoy es pegar una URL de imagen ya alojada en otro lado — más simple para este v1, pero valdría la pena un upload directo más adelante); probar el flujo completo con un lanzamiento real.
 
 **Creador de códigos QR con seguimiento de escaneos** _(agregado: 14 ago 2026)_
 - Nueva sección **Códigos QR** (`/qr-codes`, en el menú lateral) — por proyecto. Cada QR generado apunta a `artistpro.app/q/{slug}` en vez de directo al destino real: ese endpoint público registra el escaneo (`qr_scans`) y recién ahí redirige.

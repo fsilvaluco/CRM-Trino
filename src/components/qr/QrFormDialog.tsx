@@ -41,12 +41,14 @@ export function QrFormDialog({
 }) {
   const [label, setLabel] = useState("");
   const [destinationUrl, setDestinationUrl] = useState("");
+  const [customSlug, setCustomSlug] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (open) {
       setLabel(editing?.label ?? "");
       setDestinationUrl(editing?.destinationUrl ?? "");
+      setCustomSlug("");
     }
   }, [open, editing]);
 
@@ -75,7 +77,7 @@ export function QrFormDialog({
         : await fetch("/api/qr", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ label: label.trim(), destinationUrl: destinationUrl.trim(), projectId }),
+            body: JSON.stringify({ label: label.trim(), destinationUrl: destinationUrl.trim(), projectId, customSlug: customSlug.trim() || undefined }),
           });
 
       const data = await res.json().catch(() => ({}));
@@ -127,6 +129,21 @@ export function QrFormDialog({
               </p>
             )}
           </div>
+
+          {!editing && (
+            <div className="space-y-2">
+              <Label htmlFor="qr-slug">Link corto personalizado (opcional)</Label>
+              <Input
+                id="qr-slug"
+                placeholder="ej. flyer-valpo"
+                value={customSlug}
+                onChange={(e) => setCustomSlug(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Vacío = se genera uno random. Una vez creado no se puede cambiar.
+              </p>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
