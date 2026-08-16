@@ -12,7 +12,32 @@ const PUBLIC_PATHS = new Set([
 
 const ADMIN_ONLY_PREFIXES = ["/settings/team", "/settings/project", "/settings/org"];
 
+// Dominio corto opcional para los QR/links (ej. "artspr.cl") -- si esta
+// configurado y el Host de la request calza, "artspr.cl/abc123" se
+// reescribe por dentro a "/q/abc123" (el mismo endpoint publico que ya
+// registra el escaneo y redirige). No hace falta duplicar nada: es
+// literalmente el mismo Next.js sirviendo dos dominios. Sin la variable de
+// entorno configurada, esto no hace nada -- artistpro.app sigue igual.
+const SHORT_LINK_DOMAINS = (process.env.SHORT_LINK_DOMAINS ?? "")
+  .split(",")
+  .map((d) => d.trim().toLowerCase())
+  .filter(Boolean);
+
 export async function middleware(request: NextRequest) {
+  const host = (request.headers.get("host") ?? "").toLowerCase().split(":")[0];
+  if (SHORT_LINK_DOMAINS.includes(host)) {
+    const url = request.nextUrl.clone();
+    if (url.pathname === "/" || url.pathname === "") {
+      url.pathname = "/";
+      url.hostname = process.env.NEXT_PUBLIC_SITE_URL
+        ? new URL(process.env.NEXT_PUBLIC_SITE_URL).hostname
+        : "artistpro.app";
+      return NextResponse.redirect(url);
+    }
+    url.pathname = `/q${url.pathname}`;
+    return NextResponse.rewrite(url);
+  }
+
   const response = NextResponse.next({ request });
 
   // Solo refresca la sesión — el redirect lo maneja cada página con requireAuth()
