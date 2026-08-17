@@ -68,6 +68,18 @@ function newId() {
 
 type EventDetail = LiveShow & { setlist: SetlistItem[]; costItems: CostItem[]; timing: TimingItem[]; ticketTiers: TicketTier[]; eventContacts: EventContact[] };
 
+interface CostSubmission {
+  id: string;
+  label: string;
+  responsable: string | null;
+  amount: number;
+  comprobanteUrl: string | null;
+  notes: string | null;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+  submitterName: string | null;
+}
+
 export default function EventDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -133,6 +145,10 @@ export default function EventDetailPage() {
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const closingFileInputRef = useRef<HTMLInputElement>(null);
 
+  const [costSubmissions, setCostSubmissions] = useState<CostSubmission[]>([]);
+  const [canReviewSubmissions, setCanReviewSubmissions] = useState(false);
+  const [reviewingSubmissionId, setReviewingSubmissionId] = useState<string | null>(null);
+
   const costSheetClosed = Boolean(event?.costSheetClosedAt);
 
   const [eventLink, setEventLink] = useState("");
@@ -187,9 +203,48 @@ export default function EventDetailPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
+  const loadCostSubmissions = useCallback(() => {
+    fetch(`/api/eventos/${id}/cost-submissions`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data) return;
+        setCostSubmissions(data.submissions ?? []);
+        setCanReviewSubmissions(Boolean(data.canReview));
+      })
+      .catch(() => {});
+  }, [id]);
+
   useEffect(() => {
     load();
-  }, [load]);
+    loadCostSubmissions();
+  }, [load, loadCostSubmissions]);
+
+  async function reviewSubmission(submissionId: string, decision: "approve" | "reject") {
+    if (decision === "reject") {
+      const confirmed = window.confirm("¿Rechazar este gasto reportado?");
+      if (!confirmed) return;
+    }
+    setReviewingSubmissionId(submissionId);
+    try {
+      const res = await fetch(`/api/eventos/${id}/cost-submissions/${submissionId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error || "No se pudo revisar el gasto");
+        return;
+      }
+      toast.success(decision === "approve" ? "Gasto aprobado y agregado a la Planilla" : "Gasto rechazado");
+      loadCostSubmissions();
+      if (decision === "approve") load();
+    } catch {
+      toast.error("No se pudo revisar el gasto");
+    } finally {
+      setReviewingSubmissionId(null);
+    }
+  }
 
   async function saveSetlist() {
     setSavingSetlist(true);
@@ -1757,6 +1812,26 @@ export default function EventDetailPage() {
               <Printer className="h-3.5 w-3.5 sm:mr-1" />
               <span className="hidden sm:inline">Imprimir</span>
             </Button>
+            {!costSheetClosed && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs cursor-pointer no-print"
+                onClick={async () => {
+                  const url = `${window.location.origin}/eventos/${id}/gastos`;
+                  try {
+                    await navigator.clipboard.writeText(url);
+                    toast.success("Link copiado -- solo lo pueden abrir los integrantes de este proyecto (con su cuenta)");
+                  } catch {
+                    toast.info(url);
+                  }
+                }}
+                title="Copiar link para que reporten sus gastos"
+              >
+                <Share2 className="h-3.5 w-3.5 sm:mr-1" />
+                <span className="hidden sm:inline">Link para gastos</span>
+              </Button>
+            )}
             {costSheetClosed ? (
               <>
                 <Button
@@ -1816,6 +1891,48 @@ export default function EventDetailPage() {
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
+            </div>
+          )}
+
+          {canReviewSubmissions && costSubmissions.some((s) => s.status === "pending") && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-2.5 space-y-2 no-print">
+              <p className="text-xs font-medium text-amber-800">Gastos reportados pendientes de aprobar</p>
+              {costSubmissions
+                .filter((s) => s.status === "pending")
+                .map((s) => (
+                  <div key={s.id} className="flex items-start justify-between gap-2 bg-white/70 rounded-md p-2">
+                    <div className="min-w-0 text-xs">
+                      <p className="font-medium text-foreground truncate">{s.label} · {formatCents(s.amount)}</p>
+                      <p className="text-muted-foreground">
+                        {s.submitterName ?? "Alguien"}{s.responsable ? ` · Responsable: ${s.responsable}` : ""}
+                      </p>
+                      {s.comprobanteUrl && (
+                        <a href={s.comprobanteUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1 mt-0.5">
+                          <Receipt className="h-3 w-3" /> Ver comprobante
+                        </a>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-6 px-2 text-xs cursor-pointer"
+                        disabled={reviewingSubmissionId === s.id}
+                        onClick={() => reviewSubmission(s.id, "reject")}
+                      >
+                        Rechazar
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="h-6 px-2 text-xs cursor-pointer"
+                        disabled={reviewingSubmissionId === s.id}
+                        onClick={() => reviewSubmission(s.id, "approve")}
+                      >
+                        {reviewingSubmissionId === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "Aprobar"}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
             </div>
           )}
 

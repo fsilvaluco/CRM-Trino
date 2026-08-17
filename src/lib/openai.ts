@@ -238,6 +238,133 @@ export async function extractTicketTiersFromScreenshot(
   }
 }
 
+export interface ReceiptExtraction {
+  amount: number | null;
+  vendor: string | null;
+  description: string | null;
+}
+
+const FALLBACK_RECEIPT: ReceiptExtraction = { amount: null, vendor: null, description: null };
+
+const RECEIPT_SCHEMA = {
+  name: "receipt_extraction",
+  strict: true,
+  schema: {
+    type: "object",
+    properties: {
+      amount: { type: ["number", "null"] },
+      vendor: { type: ["string", "null"] },
+      description: { type: ["string", "null"] },
+    },
+    required: ["amount", "vendor", "description"],
+    additionalProperties: false,
+  },
+};
+
+const RECEIPT_PROMPT = `Este es un comprobante de un gasto (boleta, factura, recibo de transferencia, captura de un pago, etc.), asociado a un evento en vivo.
+
+Extrae:
+- "amount": el MONTO TOTAL pagado (el total final, no un subtotal ni un ítem individual dentro del comprobante). Como número, sin símbolo de moneda ni puntos/comas de miles (ej. $45.000 -> 45000).
+- "vendor": el nombre del comercio, proveedor o persona que emitió el comprobante, si aparece.
+- "description": una descripción corta de qué es el gasto, si se puede inferir (ej. "Arriendo de sonido", "Transporte equipo"). Si no se puede inferir nada razonable, null.
+
+Reglas:
+- Si el monto total no se puede leer con certeza, usa null -- nunca inventes un número.
+- Si el comprobante tiene varios montos (subtotal, IVA, total), usa el TOTAL final.
+- Los montos vienen normalmente en pesos chilenos (CLP), sin decimales.`;
+
+/**
+ * Lee una imagen (foto de una boleta/factura/comprobante) y extrae el
+ * monto total pagado. SIEMPRE es solo una sugerencia editable -- quien
+ * reporta el gasto revisa/corrige el monto antes de enviar.
+ */
+export async function extractReceiptFromImage(
+  imageBase64: string,
+  mediaType: "image/jpeg" | "image/png" | "image/webp"
+): Promise<ReceiptExtraction> {
+  if (!apiKey) return FALLBACK_RECEIPT;
+
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: MODEL,
+      temperature: 0,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: RECEIPT_PROMPT },
+            { type: "image_url", image_url: { url: `data:${mediaType};base64,${imageBase64}` } },
+          ],
+        },
+      ],
+      response_format: { type: "json_schema", json_schema: RECEIPT_SCHEMA },
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    console.error("[openai] receipt image extraction failed", { status: res.status, body });
+    throw new Error(`OpenAI respondió con error (status ${res.status})`);
+  }
+
+  const data = await res.json();
+  const text: string | undefined = data?.choices?.[0]?.message?.content;
+  if (!text) return FALLBACK_RECEIPT;
+
+  try {
+    return { ...FALLBACK_RECEIPT, ...JSON.parse(text) };
+  } catch (err) {
+    console.error("[openai] failed to parse receipt image JSON", { text, err });
+    return FALLBACK_RECEIPT;
+  }
+}
+
+const RECEIPT_TEXT_PROMPT = `${RECEIPT_PROMPT}
+
+Texto extraído del documento (PDF):
+"""
+{{TEXT}}
+"""`;
+
+/**
+ * Lee texto plano (extraído de un PDF) y extrae el monto total del
+ * comprobante. Mismo criterio que extractReceiptFromImage.
+ */
+export async function extractReceiptFromText(rawText: string): Promise<ReceiptExtraction> {
+  if (!apiKey) return FALLBACK_RECEIPT;
+  if (!rawText.trim()) return FALLBACK_RECEIPT;
+
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: MODEL,
+      temperature: 0,
+      messages: [{ role: "user", content: RECEIPT_TEXT_PROMPT.replace("{{TEXT}}", rawText.slice(0, 12000)) }],
+      response_format: { type: "json_schema", json_schema: RECEIPT_SCHEMA },
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    console.error("[openai] receipt text extraction failed", { status: res.status, body });
+    throw new Error(`OpenAI respondió con error (status ${res.status})`);
+  }
+
+  const data = await res.json();
+  const text: string | undefined = data?.choices?.[0]?.message?.content;
+  if (!text) return FALLBACK_RECEIPT;
+
+  try {
+    return { ...FALLBACK_RECEIPT, ...JSON.parse(text) };
+  } catch (err) {
+    console.error("[openai] failed to parse receipt text JSON", { text, err });
+    return FALLBACK_RECEIPT;
+  }
+}
+
 const SETLIST_SCHEMA = {
   name: "setlist_extraction",
   strict: true,

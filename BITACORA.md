@@ -169,6 +169,17 @@ _Ningún bug crítico conocido sin resolver._
 
 ## 🟠 Importante (esta semana)
 
+**Reportar gastos por link (con lectura de comprobante por IA)** _(agregado: 17 ago 2026)_
+- Botón **"Link para gastos"** en la Planilla de costos (junto a Imprimir, visible mientras la caja no esté cerrada) — copia el link de `/eventos/[id]/gastos` para compartirlo con el equipo del proyecto.
+- Página **`/eventos/[id]/gastos`**: cualquier integrante del proyecto, logueado con su cuenta, ve "Hola [nombre], deja tu gasto acá" y un formulario (Ítem con el mismo catálogo autocompletado que usa la Planilla, Responsable, Monto, comprobante y notas). Debajo, ve el estado de sus propios gastos ya reportados (pendiente/aprobado/rechazado).
+- **Lectura del comprobante con IA**: al subir la foto/PDF, `gpt-4.1-mini` lee el monto total y lo rellena como sugerencia editable en el campo Monto (nunca se envía sin que la persona lo vea/confirme) — mismo patrón ya usado en setlist/timing/tickets (`extractReceiptFromImage`/`extractReceiptFromText` en `src/lib/openai.ts`, endpoint `/api/eventos/cost-submissions-extract`).
+- **Queda "pendiente" en una tabla aparte** (`event_cost_submissions`, migración `070_event_cost_submissions.sql`) — nunca toca `event_cost_items` directamente hasta que se aprueba, para no arriesgar el guardado-completo de la Planilla (ese PUT borra cualquier fila que no venga en el payload).
+- **Aprobación restringida a admins de la organización** (decisión explícita de Francisco): en la Planilla de costos aparece un panel amarillo "Gastos reportados pendientes de aprobar" con Aprobar/Rechazar por fila. Aprobar inserta una fila nueva normal en `event_cost_items` (editable después, igual que cualquier ítem agregado a mano); rechazar solo marca el estado, sin crear nada.
+- Push automático: a los admins cuando llega un gasto nuevo, y a quien lo reportó cuando se aprueba o rechaza (reusa `sendPushToUsers()`).
+- Bloqueado si la caja ya está cerrada (mismo criterio que editar la Planilla directamente).
+- Migración `070_event_cost_submissions.sql` aplicada en Supabase — mismo patrón de RLS org-wide que `event_cost_items`/`event_closing_signatures` (el filtrado fino por proyecto y por rol lo hace la API, no la policy).
+- **Falta:** probar el flujo de punta a punta con un gasto real (alguien del equipo sube un comprobante real, un admin lo aprueba).
+
 **Herramienta de Smartlink** _(agregado: 16 ago 2026)_
 - Nuevo grupo **Herramientas** en el menú (antes "Códigos QR" era un ítem suelto) con **Smartlink** y **Códigos QR** adentro.
 - Un smartlink es una página pública (`/s/{slug}`) con carátula + nombre de canción/artista + un botón por plataforma (Spotify, Apple Music, YouTube Music, YouTube, Deezer, Tidal, SoundCloud, iTunes, Bandcamp, u "Otra" con nombre libre) — iconos de marca reales vía `simple-icons`. Pensada como "link en la bio" para un lanzamiento.
