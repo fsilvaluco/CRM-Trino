@@ -1,11 +1,120 @@
 # Bitácora de Trabajo — Auto-CRM
-_Checkpoint v1.2 — 10 de agosto de 2026 (revisión de pendientes con Francisco)_
-_Checkpoint anterior: v1.1 — 9 de agosto de 2026_
+_Checkpoint v1.3 — 16 de agosto de 2026 (cierre de sesión larga, 12-16 ago)_
+_Checkpoint anterior: v1.2 — 10 de agosto de 2026_
 
 > **Formato de tracking:** Registro histórico de trabajo realizado + pendientes actuales.  
 > Cada entrada incluye fecha, estado (🔨 En Progreso / ✅ Hecho), y notas de implementación detalladas.
 > Este checkpoint existe para poder empezar una conversación nueva sin perder contexto — si estás
-> retomando desde acá, lee primero "🔴 Crítico" y "⚠️ Por verificar" antes de construir nada.
+> retomando desde acá, lee primero **"🤝 Cómo trabajamos"**, después "🔴 Crítico" y "⚠️ Por verificar"
+> antes de construir nada.
+
+---
+
+## 🤝 Cómo trabajamos (leer esto primero al retomar)
+
+Esta sesión (12-16 ago 2026) fue larga y con harto ida-y-vuelta. Estas son las reglas del juego que
+quedaron establecidas con Francisco — asumirlas desde el arranque de la próxima conversación, no
+esperar a que las repita:
+
+**Flujo de cada cambio:**
+1. Verificar `npx tsc --noEmit` + `npx eslint <archivos tocados>` + `npm run build` completo **antes** de
+   cada commit — nunca pushear sin los 3 limpios.
+2. Commit + `git push origin main` directo (Francisco no pide branch/PR para este proyecto).
+3. Railway despliega solo al pushear. Esperar el deploy activamente: pedir `curl .../api/version` para
+   anotar el `buildId` actual, pushear, y usar `Bash` en background con un loop `until` que compare el
+   `buildId` nuevo contra el viejo — avisar cuando cambie, **nunca decir "listo" sin haber confirmado el
+   deploy real** (pasó más de una vez que el deploy que parecía terminado en realidad era el commit
+   anterior, o que el build fallaba silenciosamente).
+4. Verificar en producción con pruebas reales (`curl`, a veces con `-A` para simular un user-agent
+   específico) — no asumir que porque compiló, funciona. Varios bugs de esta sesión solo se
+   detectaron así (el contador de escaneos en 0, el `og:url` con `localhost:8080`, etc.)
+5. **Migraciones de Supabase las corre Claude siempre**, vía el MCP de Supabase (`apply_migration`),
+   nunca pedirle a Francisco que las corra a mano — instrucción explícita de Francisco (12 ago 2026).
+6. Después de cada feature grande, actualizar esta bitácora (sección correspondiente) **antes** de dar
+   el trabajo por cerrado — es lo que permite retomar sin repetir contexto.
+
+**Con los datos reales de Francisco (Supabase) — regla dura, aprendida por un incidente real:**
+Durante la depuración del contador de QR, Claude corrió `DELETE FROM qr_scans WHERE qr_id = ...` sin
+filtrar por cuáles filas eran específicamente las de sus propias pruebas de curl — probablemente borró
+también un clic real de Francisco que cayó justo en el medio. **Nunca más un DELETE ancho sobre una
+tabla con datos reales del usuario.** Si hace falta limpiar filas de prueba, filtrar por algo que las
+identifique sin ambigüedad (ej. `user_agent = 'curl/...'` o un marcador explícito), o simplemente no
+tocar la tabla y avisarle a Francisco que van a quedar un par de filas de prueba de más.
+
+**Estilo de las respuestas:** Francisco prefiere que se le muestre evidencia concreta (output de curl,
+query a la base, número exacto) en vez de "ya debería estar funcionando". Cuando algo se rompe, prefiere
+que se le explique la causa raíz real encontrada, no solo "ya lo arreglé".
+
+---
+
+## 🔧 Lecciones técnicas de esta sesión (para no repetir)
+
+Bugs reales encontrados y su causa raíz — dejar constancia porque varios son sutiles y se pueden repetir
+en otras partes del código:
+
+- **`void promesa.insert(...)` (fire-and-forget) no garantiza terminar** antes de que el proceso pase a
+  la siguiente request en un Route Handler — el registro de escaneos de QR se perdía siempre en
+  silencio (el redirect funcionaba perfecto, el INSERT no). Fix: usar `after()` de `next/server`, que sí
+  garantiza que el trabajo en segundo plano corra hasta el final. Aplicar este patrón en cualquier
+  "logueo sin bloquear la respuesta" nuevo.
+- **Variables `NEXT_PUBLIC_*` nuevas no le llegan al build si el proyecto usa `Dockerfile`** (no
+  Nixpacks, aunque `railway.toml` diga `builder = "nixpacks"` — ese campo no se está usando de verdad).
+  Docker solo pasa al build las variables que el `Dockerfile` declara explícitamente con `ARG`+`ENV`.
+  Hay que agregar la variable en **2 lugares** siempre: Railway (Variables) Y el `Dockerfile`. Runtime y
+  build-time son entornos distintos en un build por Dockerfile — por eso `/api/health` podía ver la
+  variable bien (runtime) mientras el bundle del navegador seguía sin ella (build-time).
+- **Especificidad CSS en reglas `@media print`**: un selector más específico definido ANTES en el
+  archivo gana sobre uno menos específico definido DESPUÉS, aunque `!important` esté en ambos — el
+  orden en el archivo solo desempata cuando la especificidad es IGUAL. Rompió el grid de 4 columnas del
+  resumen financiero al imprimir Costos.
+- **Los bots de preview (WhatsApp/Facebook/Slack/Telegram/etc.) no siguen redirects HTTP** para leer los
+  meta tags `og:*` de la página final — hay que detectar su user-agent y servirles HTML con los tags
+  copiados directamente (`src/lib/link-preview-bots.ts`). Si la página es Next.js real (no un redirect
+  puro), `generateMetadata()` nativo alcanza sin necesitar este truco.
+- **Valores HTML scrapeados de otro sitio ya vienen con entidades codificadas** (`&amp;`) — si se
+  vuelven a escapar al armar el HTML propio, queda `&amp;amp;`. Decodificar antes de re-escapar.
+- **`request.url` dentro de un Route Handler refleja el host interno del contenedor** (`localhost:8080`
+  detrás del proxy de Railway), no el dominio público — para armar URLs absolutas correctas, usar
+  `NEXT_PUBLIC_SITE_URL` (mismo patrón ya usado en `taskUrl()`/`siteUrl()` en otras rutas).
+- **`eslint-plugin-react-hooks` (`set-state-in-effect`) rechaza un `setState` síncrono seguido de un
+  fetch en el mismo efecto** (aunque esté detrás de un `if`/guard clause) — no rechaza un `setState`
+  síncrono solo (sin fetch después). Para "resetear estado + cargar datos nuevos cuando cambia un prop",
+  separar en un sub-componente remontado por `key={id}` en vez de resetear a mano dentro del efecto.
+- **Gráficos de barras agrupados por día quedan con una sola barra (invisibles)** cuando toda la
+  actividad cae en un solo día — hay que detectar ese caso y agrupar por hora en su lugar (aplicado en
+  `QrScanDetailSheet.tsx` y `SmartlinkStatsSheet.tsx`).
+- **Supabase/PostgREST con joins a `profiles` infiere el tipo como array** (no objeto) cuando TypeScript
+  no tiene los tipos generados de la base — para joins ambiguos (una tabla con más de una FK al mismo
+  destino), especificar el nombre exacto de la FK (`profiles!task_assignees_user_id_fkey`), patrón ya
+  usado en varias rutas.
+
+---
+
+## 📦 Qué se construyó en esta sesión (12-16 ago 2026) — resumen ejecutivo
+
+Sesión larga, todo mergeado a `main` y verificado en producción. Detalle completo de cada uno en
+**"🟠 Importante"** más abajo — esto es solo el mapa para orientarse rápido:
+
+1. **Notificaciones push (Web Push nativo, VAPID)** — toggle en Configuración + auto-prompt al entrar +
+   botón en el menú de perfil. 5 triggers: tarea asignada, mención en comentario, tarea/deal por vencer
+   (5/2/1 días), evento mañana, broadcast de admin. Cron `/api/cron/daily-reminders` **creado pero
+   todavía sin el Cron Job en Railway** (ver pendiente abajo).
+2. **Firma virtual del cierre de caja** — `/eventos/[id]/firmar`, firmantes = `project_members` del
+   proyecto, bloqueante hasta que firmen todos, log auditable.
+3. **Auditoría de tamaño de letra** — 2 gaps reales encontrados y corregidos en Costos/Venta de entradas
+   del módulo Eventos.
+4. **Nota de reparto de utilidad + firmas Productor/Rep + nombre de archivo al imprimir** en la Planilla
+   de costos.
+5. **Creador de Códigos QR con tracking de escaneos** (`/qr-codes`) — slug corto, imagen generada en el
+   navegador, preview correcto en WhatsApp (detección de bots + meta tags copiados del destino).
+6. **Herramienta de Smartlink** (`/smartlinks`) — página tipo "link en la bio" con un botón por
+   plataforma (Spotify/Apple Music/etc.), tracking de vistas y clicks por plataforma.
+7. **Link corto personalizable + soporte para dominio propio** (`artspr.cl`, aún sin comprar) — QR y
+   Smartlink comparten namespace de slugs, el middleware ya sabe resolver ambos desde la raíz del
+   dominio corto el día que se compre.
+8. **3 bugs de producción encontrados y corregidos** (contador de QR en 0, preview de WhatsApp sin
+   datos, gráfico de actividad invisible con datos de un solo día) — causas raíz documentadas arriba en
+   "🔧 Lecciones técnicas".
 
 ---
 
