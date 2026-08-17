@@ -41,6 +41,7 @@ export interface CostItem {
   id: string;
   position: number;
   label: string;
+  category: string | null;
   responsable: string | null;
   responsableContactId: string | null;
   comprobanteUrl: string | null;

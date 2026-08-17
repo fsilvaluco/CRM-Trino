@@ -8,9 +8,15 @@ function siteUrl(path: string): string {
 }
 
 // PUT /api/eventos/[id]/cost-submissions/[subId] -- aprobar o rechazar un
-// gasto reportado. Solo admins. Aprobar inserta un event_cost_items nuevo
-// (aparece en la Planilla como cualquier fila agregada a mano, editable
-// después) y deja el envío marcado "approved" con el link al item creado.
+// gasto reportado. Solo admins.
+// - Aprobar: inserta un event_cost_items nuevo (aparece en la Planilla
+//   como cualquier fila agregada a mano, editable después) y deja el
+//   envío marcado "approved" con el link al item creado, como historial.
+// - Rechazar: BORRA el envío por completo (a pedido explícito de
+//   Francisco) -- no queda un registro "rechazado" dando vueltas, y la
+//   persona puede volver a reportar el mismo gasto corregido sin fricción.
+//   El motivo (si lo escribió el admin) solo viaja en el push, no se
+//   guarda en ningún lado.
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; subId: string }> }
@@ -42,62 +48,68 @@ export async function PUT(
     return NextResponse.json({ error: "Este gasto ya fue revisado" }, { status: 409 });
   }
 
-  let costItemId: string | null = null;
+  if (decision === "reject") {
+    const { error: deleteError } = await supabase.from("event_cost_submissions").delete().eq("id", subId);
+    if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 500 });
 
-  if (decision === "approve") {
-    const { data: show } = await supabase.from("shows").select("cost_sheet_closed_at").eq("id", id).single();
-    if (show?.cost_sheet_closed_at) {
-      return NextResponse.json(
-        { error: "La caja de este evento está cerrada -- reábrela primero para aprobar gastos nuevos." },
-        { status: 409 }
-      );
-    }
+    void sendPushToUsers([submission.submitted_by], {
+      title: "Tu gasto fue rechazado",
+      body: `"${submission.label}"${reviewNote ? `: ${reviewNote}` : ""} -- puedes volver a reportarlo corregido`,
+      url: siteUrl(`/eventos/${id}/gastos`),
+    });
 
-    const { count } = await supabase
-      .from("event_cost_items")
-      .select("id", { count: "exact", head: true })
-      .eq("show_id", id);
-
-    const { data: costItem, error: costItemError } = await supabase
-      .from("event_cost_items")
-      .insert({
-        show_id: id,
-        position: count ?? 0,
-        label: submission.label,
-        amount: submission.amount,
-        notes: submission.notes,
-        responsable: submission.responsable,
-        responsable_contact_id: submission.responsable_contact_id,
-        comprobante_url: submission.comprobante_url,
-      })
-      .select("id")
-      .single();
-
-    if (costItemError) return NextResponse.json({ error: costItemError.message }, { status: 500 });
-    costItemId = costItem.id;
+    return NextResponse.json({ ok: true, deleted: true });
   }
+
+  const { data: show } = await supabase.from("shows").select("cost_sheet_closed_at").eq("id", id).single();
+  if (show?.cost_sheet_closed_at) {
+    return NextResponse.json(
+      { error: "La caja de este evento está cerrada -- reábrela primero para aprobar gastos nuevos." },
+      { status: 409 }
+    );
+  }
+
+  const { count } = await supabase
+    .from("event_cost_items")
+    .select("id", { count: "exact", head: true })
+    .eq("show_id", id);
+
+  const { data: costItem, error: costItemError } = await supabase
+    .from("event_cost_items")
+    .insert({
+      show_id: id,
+      position: count ?? 0,
+      label: submission.label,
+      category: submission.category,
+      amount: submission.amount,
+      notes: submission.notes,
+      responsable: submission.responsable,
+      responsable_contact_id: submission.responsable_contact_id,
+      comprobante_url: submission.comprobante_url,
+    })
+    .select("id")
+    .single();
+
+  if (costItemError) return NextResponse.json({ error: costItemError.message }, { status: 500 });
 
   const { error: updateError } = await supabase
     .from("event_cost_submissions")
     .update({
-      status: decision === "approve" ? "approved" : "rejected",
+      status: "approved",
       reviewed_by: user!.id,
       reviewed_at: new Date().toISOString(),
       review_note: reviewNote || null,
-      cost_item_id: costItemId,
+      cost_item_id: costItem.id,
     })
     .eq("id", subId);
 
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
 
   void sendPushToUsers([submission.submitted_by], {
-    title: decision === "approve" ? "Tu gasto fue aprobado" : "Tu gasto fue rechazado",
-    body:
-      decision === "approve"
-        ? `"${submission.label}" ya quedó en la Planilla de costos`
-        : `"${submission.label}"${reviewNote ? `: ${reviewNote}` : " fue rechazado"}`,
+    title: "Tu gasto fue aprobado",
+    body: `"${submission.label}" ya quedó en la Planilla de costos`,
     url: siteUrl(`/eventos/${id}/gastos`),
   });
 
-  return NextResponse.json({ ok: true, costItemId });
+  return NextResponse.json({ ok: true, costItemId: costItem.id });
 }

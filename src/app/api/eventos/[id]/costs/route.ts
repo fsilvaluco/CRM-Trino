@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { isCostCategory } from "@/lib/cost-categories";
 
 export async function GET(
   _request: NextRequest,
@@ -22,6 +23,7 @@ export async function GET(
       id: r.id,
       position: r.position,
       label: r.label,
+      category: r.category ?? null,
       responsable: r.responsable ?? null,
       responsableContactId: r.responsable_contact_id ?? null,
       comprobanteUrl: r.comprobante_url ?? null,
@@ -74,6 +76,7 @@ export async function PUT(
       it: {
         id?: string;
         label: string;
+        category?: string | null;
         amount?: number;
         notes?: string | null;
         responsable?: string | null;
@@ -88,6 +91,7 @@ export async function PUT(
       show_id: id,
       position: index,
       label: (it.label ?? "").trim() || "Sin título",
+      category: isCostCategory(it.category) ? it.category : null,
       amount: typeof it.amount === "number" ? it.amount : 0,
       notes: it.notes || null,
       responsable: it.responsable || null,

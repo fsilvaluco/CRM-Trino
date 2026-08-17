@@ -15,7 +15,9 @@ import { SortableList } from "@/components/events/SortableList";
 import { TypeaheadInput } from "@/components/events/TypeaheadInput";
 import { MoneyInput } from "@/components/shared/MoneyInput";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { liquidoToBruto, retencionFromBruto, BHE_RETENTION_RATE } from "@/lib/bhe";
+import { COST_CATEGORIES } from "@/lib/cost-categories";
 import { toast } from "sonner";
 import {
   ArrowLeft, Pencil, MapPin, Clock, Music4, Wallet, FileText, Link as LinkIcon,
@@ -71,6 +73,7 @@ type EventDetail = LiveShow & { setlist: SetlistItem[]; costItems: CostItem[]; t
 interface CostSubmission {
   id: string;
   label: string;
+  category: string | null;
   responsable: string | null;
   amount: number;
   comprobanteUrl: string | null;
@@ -136,6 +139,7 @@ export default function EventDetailPage() {
   const [profitSplitNote, setProfitSplitNote] = useState("");
   const [signatureStatus, setSignatureStatus] = useState<{ signedCount: number; requiredCount: number; allSigned: boolean } | null>(null);
   const [newCostLabel, setNewCostLabel] = useState("");
+  const [newCostCategory, setNewCostCategory] = useState<string | null>(null);
   const [newCostAmount, setNewCostAmount] = useState("");
   const [newCostResponsable, setNewCostResponsable] = useState("");
   const [newCostResponsableContactId, setNewCostResponsableContactId] = useState<string | null>(null);
@@ -219,24 +223,20 @@ export default function EventDetailPage() {
     loadCostSubmissions();
   }, [load, loadCostSubmissions]);
 
-  async function reviewSubmission(submissionId: string, decision: "approve" | "reject") {
-    if (decision === "reject") {
-      const confirmed = window.confirm("¿Rechazar este gasto reportado?");
-      if (!confirmed) return;
-    }
+  async function reviewSubmission(submissionId: string, decision: "approve" | "reject", reviewNote?: string) {
     setReviewingSubmissionId(submissionId);
     try {
       const res = await fetch(`/api/eventos/${id}/cost-submissions/${submissionId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ decision }),
+        body: JSON.stringify({ decision, reviewNote: reviewNote || null }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         toast.error(data.error || "No se pudo revisar el gasto");
         return;
       }
-      toast.success(decision === "approve" ? "Gasto aprobado y agregado a la Planilla" : "Gasto rechazado");
+      toast.success(decision === "approve" ? "Gasto aprobado y agregado a la Planilla" : "Gasto rechazado y eliminado");
       loadCostSubmissions();
       if (decision === "approve") load();
     } catch {
@@ -1894,20 +1894,30 @@ export default function EventDetailPage() {
             </div>
           )}
 
+          {/* Colores hardcodeados a propósito (no text-foreground/text-muted-foreground):
+              este panel siempre se ve sobre fondo claro (amber/blanco), pero esos son
+              variables de tema -- en modo oscuro resuelven a un color casi blanco y el
+              texto queda invisible sobre el fondo claro. Mismo tipo de bug que el de los
+              tooltips de los gráficos (ver BITACORA). */}
           {canReviewSubmissions && costSubmissions.some((s) => s.status === "pending") && (
             <div className="rounded-md border border-amber-300 bg-amber-50 p-2.5 space-y-2 no-print">
-              <p className="text-xs font-medium text-amber-800">Gastos reportados pendientes de aprobar</p>
+              <p className="text-xs font-medium text-amber-900">Gastos reportados pendientes de aprobar</p>
               {costSubmissions
                 .filter((s) => s.status === "pending")
                 .map((s) => (
-                  <div key={s.id} className="flex items-start justify-between gap-2 bg-white/70 rounded-md p-2">
-                    <div className="min-w-0 text-xs">
-                      <p className="font-medium text-foreground truncate">{s.label} · {formatCents(s.amount)}</p>
-                      <p className="text-muted-foreground">
-                        {s.submitterName ?? "Alguien"}{s.responsable ? ` · Responsable: ${s.responsable}` : ""}
+                  <div key={s.id} className="flex items-start justify-between gap-2 bg-white rounded-md p-2 border border-amber-200">
+                    <div className="min-w-0 text-xs space-y-0.5">
+                      <p className="font-medium text-slate-900">{s.label} · {formatCents(s.amount)}</p>
+                      <p className="text-slate-500">
+                        {format(new Date(s.createdAt), "d MMM yyyy, HH:mm", { locale: es })}
                       </p>
+                      <p className="text-slate-600">
+                        {s.category ? <span className="inline-block rounded bg-slate-100 px-1.5 py-0.5 mr-1 text-slate-700">{s.category}</span> : null}
+                        Reportado por {s.submitterName ?? "alguien"}{s.responsable ? ` · Responsable: ${s.responsable}` : ""}
+                      </p>
+                      {s.notes && <p className="text-slate-500 italic">{s.notes}</p>}
                       {s.comprobanteUrl && (
-                        <a href={s.comprobanteUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1 mt-0.5">
+                        <a href={s.comprobanteUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-700 hover:underline inline-flex items-center gap-1 mt-0.5">
                           <Receipt className="h-3 w-3" /> Ver comprobante
                         </a>
                       )}
@@ -1916,9 +1926,16 @@ export default function EventDetailPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-6 px-2 text-xs cursor-pointer"
+                        className="h-6 px-2 text-xs cursor-pointer border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
                         disabled={reviewingSubmissionId === s.id}
-                        onClick={() => reviewSubmission(s.id, "reject")}
+                        onClick={() => {
+                          const note = window.prompt(
+                            `¿Rechazar "${s.label}" (${formatCents(s.amount)})? Este envío se elimina y ${s.submitterName ?? "quien lo reportó"} puede volver a enviarlo corregido.\n\nMotivo (opcional, se le avisa a la persona):`,
+                            ""
+                          );
+                          if (note === null) return;
+                          void reviewSubmission(s.id, "reject", note);
+                        }}
                       >
                         Rechazar
                       </Button>
@@ -1943,6 +1960,7 @@ export default function EventDetailPage() {
               <thead>
                 <tr className="border-b border-slate-300">
                   <th className="text-left py-1 pr-3 font-medium">Detalle</th>
+                  <th className="text-left py-1 pr-3 font-medium">Categoría</th>
                   <th className="text-left py-1 pr-3 font-medium">Responsable</th>
                   <th className="text-right py-1 font-medium">Monto</th>
                 </tr>
@@ -1951,6 +1969,7 @@ export default function EventDetailPage() {
                 {costItems.map((item) => (
                   <tr key={item.id} className="border-b border-slate-200">
                     <td className="py-1 pr-3">{item.label}</td>
+                    <td className="py-1 pr-3">{item.category || "—"}</td>
                     <td className="py-1 pr-3">{item.responsable || "—"}</td>
                     <td className="py-1 text-right">{formatCents(item.amount)}</td>
                   </tr>
@@ -1985,6 +2004,20 @@ export default function EventDetailPage() {
                         fetchSuggestions={fetchCostTypeSuggestions}
                         className="h-7 text-xs flex-1"
                       />
+                      <Select
+                        value={item.category ?? undefined}
+                        onValueChange={(v) => updateItem({ category: v ?? null })}
+                        disabled={costSheetClosed}
+                      >
+                        <SelectTrigger className="h-7 text-xs w-28 sm:w-36 shrink-0">
+                          <SelectValue placeholder="Categoría">{item.category ?? "Categoría"}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {COST_CATEGORIES.map((c) => (
+                            <SelectItem key={c} value={c}>{c}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <div className="w-24 sm:w-32 shrink-0">
                         <MoneyInput
                           placeholder={item.esBhe ? "Líquido" : "$0"}
@@ -2114,6 +2147,16 @@ export default function EventDetailPage() {
                   fetchSuggestions={fetchCostTypeSuggestions}
                   className="h-7 text-xs flex-1"
                 />
+                <Select value={newCostCategory ?? undefined} onValueChange={(v) => setNewCostCategory(v ?? null)}>
+                  <SelectTrigger className="h-7 text-xs w-28 sm:w-36 shrink-0">
+                    <SelectValue placeholder="Categoría">{newCostCategory ?? "Categoría"}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COST_CATEGORIES.map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <div className="w-24 sm:w-32 shrink-0">
                   <MoneyInput
                     placeholder={newCostEsBhe ? "Líquido" : "$0"}
@@ -2156,6 +2199,7 @@ export default function EventDetailPage() {
                         id: `tmp-${newId()}`,
                         position: prev.length,
                         label: newCostLabel.trim(),
+                        category: newCostCategory,
                         amount: newCostEsBhe ? liquidoToBruto(cents) : cents,
                         liquidoAmount: newCostEsBhe ? cents : null,
                         esBhe: newCostEsBhe,
@@ -2166,6 +2210,7 @@ export default function EventDetailPage() {
                       },
                     ]);
                     setNewCostLabel("");
+                    setNewCostCategory(null);
                     setNewCostAmount("");
                     setNewCostResponsable("");
                     setNewCostResponsableContactId(null);

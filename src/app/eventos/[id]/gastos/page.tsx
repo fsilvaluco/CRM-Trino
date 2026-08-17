@@ -15,6 +15,8 @@ import { es } from "date-fns/locale";
 import { supabase } from "@/lib/supabase";
 import { TypeaheadInput } from "@/components/events/TypeaheadInput";
 import { MoneyInput } from "@/components/shared/MoneyInput";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { COST_CATEGORIES } from "@/lib/cost-categories";
 
 const CLP = new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
 
@@ -33,6 +35,7 @@ function formatDate(iso: string) {
 interface Submission {
   id: string;
   label: string;
+  category: string | null;
   responsable: string | null;
   amount: number;
   comprobanteUrl: string | null;
@@ -84,6 +87,7 @@ export default function ReportarGastoPage() {
   const [mySubmissions, setMySubmissions] = useState<Submission[]>([]);
 
   const [label, setLabel] = useState("");
+  const [category, setCategory] = useState<string | null>(null);
   const [responsable, setResponsable] = useState("");
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
@@ -200,6 +204,10 @@ export default function ReportarGastoPage() {
       toast.error("Escribe el detalle del gasto");
       return;
     }
+    if (!category) {
+      toast.error("Selecciona una categoría");
+      return;
+    }
     const pesos = parseInt(amount.replace(/\D/g, ""), 10);
     if (!Number.isFinite(pesos) || pesos <= 0) {
       toast.error("Ingresa un monto válido");
@@ -213,6 +221,7 @@ export default function ReportarGastoPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           label: label.trim(),
+          category,
           responsable: responsable.trim() || null,
           amount: pesos * 100,
           comprobanteUrl,
@@ -226,6 +235,7 @@ export default function ReportarGastoPage() {
       }
       toast.success("Gasto enviado -- queda pendiente de aprobación");
       setLabel("");
+      setCategory(null);
       setAmount("");
       setNotes("");
       setComprobanteUrl(null);
@@ -293,6 +303,20 @@ export default function ReportarGastoPage() {
               </div>
 
               <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Categoría</label>
+                <Select value={category ?? undefined} onValueChange={(v) => setCategory(v ?? null)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecciona una categoría">{category ?? "Selecciona una categoría"}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COST_CATEGORIES.map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Responsable</label>
                 <Input placeholder="A quién se le paga" value={responsable} onChange={(e) => setResponsable(e.target.value)} />
               </div>
@@ -355,11 +379,8 @@ export default function ReportarGastoPage() {
                 <div className="min-w-0">
                   <p className="text-sm font-medium truncate">{s.label}</p>
                   <p className="text-xs text-muted-foreground">
-                    {formatCents(s.amount)} · {formatDate(s.createdAt)}
+                    {s.category ? `${s.category} · ` : ""}{formatCents(s.amount)} · {formatDate(s.createdAt)}
                   </p>
-                  {s.status === "rejected" && s.reviewNote && (
-                    <p className="text-xs text-destructive mt-0.5">Motivo: {s.reviewNote}</p>
-                  )}
                 </div>
                 {statusBadge(s.status)}
               </div>

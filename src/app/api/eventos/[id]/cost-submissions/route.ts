@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { sendPushToUsers } from "@/lib/push";
+import { isCostCategory } from "@/lib/cost-categories";
 
 function siteUrl(path: string): string {
   const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -16,6 +17,7 @@ interface SubmissionProfile {
 interface SubmissionRow {
   id: string;
   label: string;
+  category: string | null;
   responsable: string | null;
   responsable_contact_id: string | null;
   amount: number;
@@ -34,6 +36,7 @@ function mapSubmission(r: SubmissionRow) {
   return {
     id: r.id,
     label: r.label,
+    category: r.category,
     responsable: r.responsable,
     responsableContactId: r.responsable_contact_id,
     amount: r.amount,
@@ -78,7 +81,7 @@ export async function GET(
   let query = supabase
     .from("event_cost_submissions")
     .select(
-      "id, label, responsable, responsable_contact_id, amount, comprobante_url, notes, status, review_note, reviewed_at, created_at, submitted_by, submitter:profiles!event_cost_submissions_submitted_by_fkey ( full_name, email, avatar_url ), reviewer:profiles!event_cost_submissions_reviewed_by_fkey ( full_name, email, avatar_url )"
+      "id, label, category, responsable, responsable_contact_id, amount, comprobante_url, notes, status, review_note, reviewed_at, created_at, submitted_by, submitter:profiles!event_cost_submissions_submitted_by_fkey ( full_name, email, avatar_url ), reviewer:profiles!event_cost_submissions_reviewed_by_fkey ( full_name, email, avatar_url )"
     )
     .eq("show_id", id)
     .order("created_at", { ascending: false });
@@ -137,6 +140,7 @@ export async function POST(
   const body = await request.json().catch(() => ({}));
   const {
     label,
+    category,
     responsable,
     responsableContactId,
     amount,
@@ -144,6 +148,7 @@ export async function POST(
     notes,
   } = body as {
     label?: string;
+    category?: string | null;
     responsable?: string | null;
     responsableContactId?: string | null;
     amount?: number;
@@ -154,6 +159,9 @@ export async function POST(
   const trimmedLabel = (label ?? "").trim();
   if (!trimmedLabel) {
     return NextResponse.json({ error: "Falta el detalle del gasto" }, { status: 400 });
+  }
+  if (!isCostCategory(category)) {
+    return NextResponse.json({ error: "Selecciona una categoría" }, { status: 400 });
   }
   const cents = typeof amount === "number" && Number.isFinite(amount) ? Math.max(0, Math.round(amount)) : 0;
   if (cents <= 0) {
@@ -166,6 +174,7 @@ export async function POST(
       show_id: id,
       submitted_by: user!.id,
       label: trimmedLabel,
+      category,
       responsable: responsable || null,
       responsable_contact_id: responsableContactId || null,
       amount: cents,
