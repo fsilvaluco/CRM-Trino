@@ -27,6 +27,8 @@ export async function GET(
       responsable: r.responsable ?? null,
       responsableContactId: r.responsable_contact_id ?? null,
       comprobanteUrl: r.comprobante_url ?? null,
+      pagado: r.pagado ?? false,
+      comprobantePagoUrl: r.comprobante_pago_url ?? null,
       esBhe: r.es_bhe ?? false,
       liquidoAmount: r.liquido_amount ?? null,
       amount: r.amount,
@@ -82,6 +84,8 @@ export async function PUT(
         responsable?: string | null;
         responsableContactId?: string | null;
         comprobanteUrl?: string | null;
+        pagado?: boolean;
+        comprobantePagoUrl?: string | null;
         esBhe?: boolean;
         liquidoAmount?: number | null;
       },
@@ -97,6 +101,8 @@ export async function PUT(
       responsable: it.responsable || null,
       responsable_contact_id: it.responsableContactId || null,
       comprobante_url: it.comprobanteUrl || null,
+      pagado: it.pagado ?? false,
+      comprobante_pago_url: it.comprobantePagoUrl || null,
       es_bhe: it.esBhe ?? false,
       liquido_amount: typeof it.liquidoAmount === "number" ? it.liquidoAmount : null,
     })

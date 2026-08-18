@@ -22,7 +22,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Pencil, MapPin, Clock, Music4, Wallet, FileText, Link as LinkIcon,
   Plus, Trash2, Star, ExternalLink, Loader2, Lock, LockOpen, Printer, Receipt,
-  Ticket, Upload, Paperclip, Share2, Users, RefreshCw, BellRing,
+  Ticket, Upload, Paperclip, Share2, Users, RefreshCw, BellRing, Banknote,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -1962,7 +1962,8 @@ export default function EventDetailPage() {
                   <th className="text-left py-1 pr-3 font-medium">Detalle</th>
                   <th className="text-left py-1 pr-3 font-medium">Categoría</th>
                   <th className="text-left py-1 pr-3 font-medium">Responsable</th>
-                  <th className="text-right py-1 font-medium">Monto</th>
+                  <th className="text-right py-1 pr-3 font-medium">Monto</th>
+                  <th className="text-left py-1 font-medium">Pagado</th>
                 </tr>
               </thead>
               <tbody>
@@ -1971,7 +1972,8 @@ export default function EventDetailPage() {
                     <td className="py-1 pr-3">{item.label}</td>
                     <td className="py-1 pr-3">{item.category || "—"}</td>
                     <td className="py-1 pr-3">{item.responsable || "—"}</td>
-                    <td className="py-1 text-right">{formatCents(item.amount)}</td>
+                    <td className="py-1 pr-3 text-right">{formatCents(item.amount)}</td>
+                    <td className="py-1">{item.pagado ? "Sí" : "No"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -2131,6 +2133,63 @@ export default function EventDetailPage() {
                         {" · "}Recibe en efectivo: {formatCents(item.liquidoAmount)}
                       </p>
                     )}
+
+                    {/* Pago del ítem: el comprobante de arriba es la boleta/factura del
+                        GASTO (cuánto se debe); este es distinto -- comprobante de que
+                        YA SE LE PAGÓ (ej. captura de la transferencia), llega después. */}
+                    <div className="flex items-center gap-2 pl-0.5 flex-wrap no-print">
+                      <label className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0 cursor-pointer">
+                        <Checkbox
+                          checked={item.pagado}
+                          disabled={costSheetClosed}
+                          onCheckedChange={(checked) => updateItem({ pagado: Boolean(checked) })}
+                        />
+                        Pagado
+                      </label>
+                      <input
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png,.webp"
+                        className="hidden"
+                        id={`comprobante-pago-upload-${item.id}`}
+                        disabled={costSheetClosed}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          e.target.value = "";
+                          if (!file) return;
+                          if (file.size > 25 * 1024 * 1024) {
+                            toast.error("El archivo no puede superar 25 MB");
+                            return;
+                          }
+                          try {
+                            const ext = file.name.split(".").pop();
+                            const storagePath = `cost-items/${id}/${item.id}-pago-${Date.now()}.${ext}`;
+                            const uploadResult = await supabase.storage.from("finances").upload(storagePath, file, { upsert: false });
+                            if (uploadResult.error) {
+                              toast.error("Error subiendo el archivo: " + uploadResult.error.message);
+                              return;
+                            }
+                            const { data } = supabase.storage.from("finances").getPublicUrl(storagePath);
+                            updateItem({ comprobantePagoUrl: data.publicUrl, pagado: true });
+                            toast.success("Comprobante de pago adjuntado");
+                          } catch {
+                            toast.error("No se pudo subir el archivo");
+                          }
+                        }}
+                      />
+                      <label
+                        htmlFor={`comprobante-pago-upload-${item.id}`}
+                        className={`flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground ${costSheetClosed ? "opacity-40 pointer-events-none" : "cursor-pointer"}`}
+                        title="Subir comprobante de transferencia"
+                      >
+                        <Paperclip className="h-3.5 w-3.5" />
+                        {item.comprobantePagoUrl ? "Cambiar comprobante de pago" : "Adjuntar comprobante de pago"}
+                      </label>
+                      {item.comprobantePagoUrl && (
+                        <a href={item.comprobantePagoUrl} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground" title="Ver comprobante de pago">
+                          <Banknote className="h-3.5 w-3.5" />
+                        </a>
+                      )}
+                    </div>
                   </div>
                 );
               }}
@@ -2206,6 +2265,8 @@ export default function EventDetailPage() {
                         responsable: newCostResponsable || null,
                         responsableContactId: newCostResponsableContactId,
                         comprobanteUrl: newCostComprobante || null,
+                        pagado: false,
+                        comprobantePagoUrl: null,
                         notes: null,
                       },
                     ]);

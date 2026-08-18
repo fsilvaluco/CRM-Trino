@@ -45,6 +45,8 @@ export interface CostItem {
   responsable: string | null;
   responsableContactId: string | null;
   comprobanteUrl: string | null;
+  pagado: boolean;
+  comprobantePagoUrl: string | null;
   esBhe: boolean;
   liquidoAmount: number | null;
   amount: number;

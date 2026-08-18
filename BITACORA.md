@@ -186,6 +186,13 @@ _Ningún bug crítico conocido sin resolver._
   - Migración `071_cost_categories.sql` aplicada en Supabase -- columna `category` en `event_cost_items` y `event_cost_submissions`, con CHECK constraint que debe calzar exactamente con la lista en `cost-categories.ts` si se agrega/saca una categoría.
 - **Falta:** probar el flujo de punta a punta con un gasto real (alguien del equipo sube un comprobante real, un admin lo aprueba).
 
+**Comprobante de pago (transferencia) separado del comprobante de gasto** _(agregado: 18 ago 2026)_
+- Cada ítem de la Planilla de costos ya tenía un "comprobante" -- pero ese es la boleta/factura del GASTO (cuánto se debe). Ahora hay uno segundo, distinto: el comprobante de que YA SE LE PAGÓ a esa persona/proveedor (ej. captura de la transferencia), con checkbox **"Pagado"** al lado.
+- Fila nueva en cada ítem de costo: checkbox Pagado + botón para adjuntar foto/PDF del comprobante de transferencia (mismo bucket `finances`, mismo límite 25MB) + ícono para verlo. Subir el comprobante marca "Pagado" automáticamente; el checkbox también se puede tildar solo (por si se pagó en efectivo, sin comprobante).
+- Columna "Pagado" (Sí/No) agregada a la tabla de impresión de Costos.
+- Al **duplicar un evento**, ya se excluía a propósito el comprobante y el flag BHE por fila (para no arrastrar datos de un pago ya hecho) -- `pagado`/`comprobante_pago_url` quedan en su default (`false`/`null`) sin necesitar cambios ahí.
+- Migración `073_cost_item_payment_proof.sql` aplicada en Supabase (`pagado boolean`, `comprobante_pago_url text` en `event_cost_items`). No aplica a los gastos reportados por link (`event_cost_submissions`) -- el pago se marca después de aprobado, ya como ítem normal de la Planilla.
+
 **Herramienta de Smartlink** _(agregado: 16 ago 2026)_
 - Nuevo grupo **Herramientas** en el menú (antes "Códigos QR" era un ítem suelto) con **Smartlink** y **Códigos QR** adentro.
 - Un smartlink es una página pública (`/s/{slug}`) con carátula + nombre de canción/artista + un botón por plataforma (Spotify, Apple Music, YouTube Music, YouTube, Deezer, Tidal, SoundCloud, iTunes, Bandcamp, u "Otra" con nombre libre) — iconos de marca reales vía `simple-icons`. Pensada como "link en la bio" para un lanzamiento.
