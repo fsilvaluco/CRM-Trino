@@ -942,27 +942,8 @@ export default function EventDetailPage() {
         Eventos
       </button>
 
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 no-print">
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-lg sm:text-2xl font-bold tracking-tight leading-tight">{event.name}</h1>
-            <Badge variant="secondary" className={`text-xs ${STATUS_CONFIG[event.status].className}`}>
-              {STATUS_CONFIG[event.status].label}
-            </Badge>
-          </div>
-          <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1 flex-wrap">
-            <span className="capitalize">{formatDate(event.date)}</span>
-            {event.eventTime && (
-              <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{event.eventTime}</span>
-            )}
-            <span className="flex items-center gap-1">
-              <MapPin className="h-3.5 w-3.5" />
-              {event.venue}{event.city ? `, ${event.city}` : ""}
-            </span>
-            {event.projectName && <Badge variant="outline" className="text-xs">{event.projectName}</Badge>}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap shrink-0">
+      <div className="flex flex-col gap-3 no-print">
+        <div className="flex items-center justify-end gap-2 flex-wrap">
           <Button size="sm" variant="outline" className="cursor-pointer" onClick={handleCopyShareLink} title="Compartir">
             <Share2 className="h-4 w-4 sm:mr-1.5" />
             <span className="hidden sm:inline">Compartir</span>
@@ -992,6 +973,25 @@ export default function EventDetailPage() {
             <Pencil className="h-4 w-4 sm:mr-1.5" />
             <span className="hidden sm:inline">Editar</span>
           </Button>
+        </div>
+        <div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-lg sm:text-2xl font-bold tracking-tight leading-tight">{event.name}</h1>
+            <Badge variant="secondary" className={`text-xs ${STATUS_CONFIG[event.status].className}`}>
+              {STATUS_CONFIG[event.status].label}
+            </Badge>
+          </div>
+          <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1 flex-wrap">
+            <span className="capitalize">{formatDate(event.date)}</span>
+            {event.eventTime && (
+              <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{event.eventTime}</span>
+            )}
+            <span className="flex items-center gap-1">
+              <MapPin className="h-3.5 w-3.5" />
+              {event.venue}{event.city ? `, ${event.city}` : ""}
+            </span>
+            {event.projectName && <Badge variant="outline" className="text-xs">{event.projectName}</Badge>}
+          </div>
         </div>
       </div>
 
