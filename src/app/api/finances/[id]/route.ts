@@ -51,8 +51,15 @@ export async function PUT(
     updates.currency = body.currency ?? "CLP";
   }
 
-  // Archivos: solo si hay cambios (no implementamos edición de archivo por ahora)
-  // Si el usuario quiere cambiar el archivo, tendrá que crear una nueva transacción
+  // Archivos: se usa para adjuntar/reemplazar el comprobante de una
+  // transacción ya existente (ej. al hacer match de un comprobante subido
+  // con IA contra un gasto del presupuesto que aún no tenía archivo).
+  if (body.filePath !== undefined) {
+    updates.file_path = body.filePath ?? null;
+  }
+  if (body.fileName !== undefined) {
+    updates.file_name = body.fileName ?? null;
+  }
 
   const { error: dbError } = await supabase
     .from("transactions")

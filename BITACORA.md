@@ -462,6 +462,14 @@ _Ningún bug crítico conocido sin resolver._
 
 ## ✅ Completado recientemente
 
+**✅ Fix "Devoluciones pendientes" falsas + Adjuntar comprobante con IA (Finanzas)** _(agregado: 19 ago 2026)_
+
+Dos cosas en la misma sesión, sobre el presupuesto del LP "Los Últimos Románticos" ya cargado en Finanzas:
+
+1. **Fix de datos:** al importar las ~40 líneas del presupuesto, el nombre del proveedor (Claudio Becerra, Collage, Crismol, DimePipe, etc.) había quedado guardado en el campo `responsible_name` de la transacción. Ese campo es para "un miembro del equipo que pagó de su bolsillo y hay que devolverle la plata" — no para el proveedor externo al que se le paga. Esto hacía que ~24 gastos reales del presupuesto aparecieran mal en la pestaña "Devoluciones pendientes". Corregido con un `UPDATE` acotado por `project_id` + `type = 'expense'` + `reimbursed = false` que limpió esos 24 registros (verificado con `RETURNING`, ningún dato se borró).
+
+2. **Nueva función — "Adjuntar comprobante (IA)"** (botón nuevo en Finanzas, junto a "Nuevo Comprobante"): se sube una foto o PDF del comprobante de pago, la IA lo lee (reutiliza `extractReceiptFromImage`/`extractReceiptFromText` de `src/lib/openai.ts`, ya usado en Costos de eventos) y busca entre los gastos del presupuesto que todavía no tienen comprobante adjunto cuál podría ser. Si encuentra una coincidencia razonable (por monto + similitud de texto en descripción/categoría) pregunta *"¿Este pago se hizo para pagar 'X'?"* — si se confirma, el archivo queda adjunto a esa transacción existente (sin crear una nueva). Si no encuentra nada, pregunta *"¿Este pago podría ser el gasto nuevo 'X'?"* y, si se confirma, crea la transacción con los datos leídos por la IA y el comprobante ya adjunto. Nuevo endpoint `POST /api/finances/match-receipt`; `PUT /api/finances/[id]` ahora también acepta `filePath`/`fileName` para adjuntar/reemplazar comprobante en una transacción ya existente (antes explícitamente no se soportaba).
+
 **✅ Continuación de sesión — mobile, importador masivo, Métricas de Eventos, Venues** _(completado: 9 de agosto de 2026)_
 
 Segunda mitad de la misma sesión larga del módulo Eventos (ver v1.0 más abajo para la primera mitad). Resumen:

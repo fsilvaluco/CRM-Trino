@@ -6,9 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
-  Plus, FileText, ExternalLink, Check, Trash2, Loader2, TrendingUp, TrendingDown, DollarSign, User, Pencil
+  Plus, FileText, ExternalLink, Check, Trash2, Loader2, TrendingUp, TrendingDown, DollarSign, User, Pencil, Sparkles
 } from "lucide-react";
 import { TransactionForm } from "@/components/finances/TransactionForm";
+import { AttachReceiptDialog } from "@/components/finances/AttachReceiptDialog";
 import { useProject } from "@/lib/project-context";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
@@ -175,6 +176,7 @@ export default function FinancesPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [showAttachReceipt, setShowAttachReceipt] = useState(false);
 
   const loadTransactions = useCallback(async () => {
     setLoading(true);
@@ -246,10 +248,16 @@ export default function FinancesPage() {
             {isAllProjects || !activeProject ? "Todos los proyectos" : `Proyecto: ${activeProject.name}`}
           </p>
         </div>
-        <Button onClick={() => setShowForm(true)} className="cursor-pointer">
-          <Plus className="h-4 w-4 mr-2" />
-          Nuevo Comprobante
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setShowAttachReceipt(true)} className="cursor-pointer">
+            <Sparkles className="h-4 w-4 mr-2" />
+            Adjuntar comprobante (IA)
+          </Button>
+          <Button onClick={() => setShowForm(true)} className="cursor-pointer">
+            <Plus className="h-4 w-4 mr-2" />
+            Nuevo Comprobante
+          </Button>
+        </div>
       </div>
 
       {/* KPIs */}
@@ -331,6 +339,13 @@ export default function FinancesPage() {
           fileUrl: editingTransaction.fileUrl,
           fileName: editingTransaction.fileName,
         } : undefined}
+      />
+
+      <AttachReceiptDialog
+        open={showAttachReceipt}
+        onClose={() => setShowAttachReceipt(false)}
+        onDone={loadTransactions}
+        projectId={activeProjectId}
       />
     </div>
   );
