@@ -30,9 +30,14 @@ import { useProject } from "@/lib/project-context";
 
 const EXPENSE_CATEGORIES = [
   "Transporte", "Alimentación", "Equipamiento", "Producción",
-  "Marketing", "Servicios", "Arriendo", "Otro",
+  "Marketing", "Servicios", "Arriendo",
+  // Producción musical (masters/singles/LP) -- agregadas 19 ago 2026 para
+  // presupuestos de grabación/lanzamiento, ej. "LP Los Últimos Románticos".
+  "Masterización", "Mezcla", "Grabación", "Prensa/PR", "Video", "Fotografía", "Campaña ADS",
+  "Pago de préstamo",
+  "Otro",
 ];
-const INCOME_CATEGORIES = ["Venta", "Patrocinio", "Subsidio", "Transferencia", "Otro"];
+const INCOME_CATEGORIES = ["Venta", "Patrocinio", "Subsidio", "Transferencia", "Préstamo", "Otro"];
 
 // Helper para obtener URL pública del archivo (bucket debe ser público)
 const getFilePublicUrl = (filePath: string): string => {
