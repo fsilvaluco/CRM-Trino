@@ -649,11 +649,14 @@ export default function EventDetailPage() {
             items: costItems.map((c) => ({
               id: c.id.startsWith("tmp-") ? undefined : c.id,
               label: c.label,
+              category: c.category,
               amount: c.amount,
               notes: c.notes,
               responsable: c.responsable,
               responsableContactId: c.responsableContactId,
               comprobanteUrl: c.comprobanteUrl,
+              pagado: c.pagado,
+              comprobantePagoUrl: c.comprobantePagoUrl,
               esBhe: c.esBhe,
               liquidoAmount: c.liquidoAmount,
             })),
@@ -1812,26 +1815,6 @@ export default function EventDetailPage() {
               <Printer className="h-3.5 w-3.5 sm:mr-1" />
               <span className="hidden sm:inline">Imprimir</span>
             </Button>
-            {!costSheetClosed && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 text-xs cursor-pointer no-print"
-                onClick={async () => {
-                  const url = `${window.location.origin}/eventos/${id}/gastos`;
-                  try {
-                    await navigator.clipboard.writeText(url);
-                    toast.success("Link copiado -- solo lo pueden abrir los integrantes de este proyecto (con su cuenta)");
-                  } catch {
-                    toast.info(url);
-                  }
-                }}
-                title="Copiar link para que reporten sus gastos"
-              >
-                <Share2 className="h-3.5 w-3.5 sm:mr-1" />
-                <span className="hidden sm:inline">Link para gastos</span>
-              </Button>
-            )}
             {costSheetClosed ? (
               <>
                 <Button
