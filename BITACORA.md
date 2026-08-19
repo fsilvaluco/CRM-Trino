@@ -212,10 +212,25 @@ _Ningún bug crítico conocido sin resolver._
 
 ## 🟣 Pendientes grandes (para más adelante, sin agendar todavía)
 
-**Roles y permisos granulares** _(agregado: 12 ago 2026)_
-- Hoy el modelo es simple: `owner`/`admin` (ve y edita todo, `adminOnly` en el menú) vs `member` (acceso a los proyectos que tenga asignados en `project_members`, sin distinción de solo-lectura vs edición dentro de un módulo)
-- Francisco quiere algo más fino: zonas que ciertos usuarios no vean directamente, zonas de solo-lectura (ven pero no editan) para otros, y un permiso aparte para poder invitar gente (no todo el que edita debería poder invitar)
-- Falta diseñar: ¿permisos por módulo (Finanzas, Eventos, CRM...) o por acción (ver/editar/invitar) cruzados con módulo? ¿se define por usuario individual o por un "rol" reusable que se le asigna a varios? — conversar con Francisco antes de tocar el modelo de datos, es un cambio estructural (afecta `requireAuth`, todas las API routes que chequean `isAdmin`)
+**✅ Roles y permisos granulares -- Fase 1: Costos de eventos + Deals** _(agregado: 12 ago 2026, diseñado y construido: 19 ago 2026)_
+- **Diseño acordado con Francisco** (ver conversación del 19 ago): reusar `project_members.role`, que ya existía con `admin`/`member`/`artist` pero era **puramente decorativo** -- ninguna ruta lo miraba para restringir nada (confirmado al revisar el código: Gonzalo estaba etiquetado "Artista" pero veía exactamente lo mismo que un admin). Se agregó un 4to valor, `staff`.
+  - **Admin / Member** (a nivel de proyecto): sin cambios, acceso completo.
+  - **Artist**: ve los Deals de su proyecto pero de **solo lectura** (no crea/edita/mueve de etapa/borra) -- **no ve nada de plata de eventos** (ni el resumen Fee/Ingresos/Egresos/Utilidad, ni el detalle de la Planilla de costos).
+  - **Staff** (sonidista, asistente de producción, etc.): igual que Artist en Costos, pero el **módulo de Deals/CRM queda oculto del menú por completo** (ni lectura).
+  - El resto de Eventos (Setlist, Timing, Contactos, info general) sigue **visible y editable** por cualquiera con acceso al proyecto -- eso es Fase 2 (ver abajo).
+- **Implementación:**
+  - Migraciones `074_staff_project_role.sql` (agrega `staff` al `CHECK` de `project_members.role`) y `075_staff_org_role.sql` (mismo en `organization_members.role`, porque el flujo de invitación graba el rol elegido en ambas tablas a la vez).
+  - `src/lib/project-roles.ts` -- única fuente de verdad de qué puede ver/editar cada rol (`canViewDeals`, `canEditDeals`, `canViewEventCosts`), para no repetir la lógica en cada endpoint.
+  - **Backend** (todas las rutas relevantes revisadas y protegidas, no solo las que muestra la UI -- defensa real, no solo ocultar botones): `GET/PUT /api/eventos/[id]/costs`, `POST /api/eventos/[id]/costs/close`, `POST /api/eventos/[id]/costs/reopen`, `GET/POST /api/deals`, `GET/PUT /api/deals/[id]` (DELETE ya era admin-only), `GET/PUT /api/pipeline` (tablero + mover de etapa).
+  - `GET/PUT /api/eventos/[id]` (el que usa la página del evento) ahora manda `fee`/`ticketIncome`/`expenses` en `null` y `costItems: []` para roles restringidos, más un flag `canViewCosts` que el front usa para ocultar la Card completa de Costos y el resumen financiero -- así no hace falta bloquear toda la página, solo la parte de plata.
+  - **De paso, se corrigió un gap de seguridad preexistente**: `GET /api/deals` y `GET /api/pipeline` no validaban `allowedProjectIds` en absoluto -- cualquier member autenticado podía pedir `?projectId=<cualquier-proyecto-de-otro-cliente>` y ver esos deals. Ahora sí se valida.
+  - **Frontend:** `project-context.tsx` expone `activeProjectRole`/`canViewDealsModule`/`canEditDeals`/`canViewEventCosts` calculados a partir del `role` que trae cada proyecto (tanto para admin -- siempre `"admin"` -- como para member, leído de `project_members`). El Sidebar oculta "Tratos" del grupo CRM cuando `!canViewDealsModule`.
+  - UI para asignar el rol actualizada en 3 lugares: `MemberAccessSheet.tsx` (gestionar acceso por proyecto, con explicación de cada rol), `OrgMembersPanel.tsx` (invitar usuario nuevo), y el email de invitación (`resend.ts`).
+- **Deliberadamente fuera de esta fase 1** (confirmado con Francisco antes de empezar):
+  - **Finanzas general y Métricas** -- siguen con el acceso de hoy (cualquiera con el proyecto asignado los ve completos). Se suman si Francisco los pide.
+  - **Edición condicionada por persona** (el caso de Daniela: "que pueda rellenar Timing si le doy permiso") -- Francisco confirmó que quiere esto **por persona individual**, no por rol fijo. Requiere una columna nueva (ej. `project_members.can_edit_event_ops boolean`) + UI para prenderlo caso a caso + chequeo en los endpoints de Setlist/Timing/Contactos. No construido todavía, queda para cuando efectivamente incorpore a Rodrick/Daniela.
+- **⚠️ Inconsistencia encontrada, sin resolver todavía:** la firma virtual del cierre de caja (`/eventos/[id]/firmar`) exige que **todos** los `project_members` del proyecto aprueben, incluyendo a alguien con rol `artist`/`staff` -- pero esa misma persona ya no puede ver el detalle de lo que está aprobando (la Planilla le llega vacía). Hay que decidir con Francisco si los roles restringidos deberían quedar afuera de los firmantes requeridos, o si se les debería mostrar el resumen solo en esa pantalla puntual.
+- **Falta probar con un usuario real**: convertir a Gonzalo a `artist` (ya lo está, solo falta que el permiso realmente tome efecto tras el deploy) y confirmar que no ve Costos pero sí ve/lee sus Deals; cuando Francisco agregue a Rodrick/Daniela como `staff`, confirmar que ni siquiera ven el ítem "Tratos" en el menú.
 
 **Login con Google** _(agregado: 12 ago 2026, "para más adelante")_
 - Hoy el login es solo email/password vía Supabase Auth

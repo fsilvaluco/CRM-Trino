@@ -38,6 +38,7 @@ const ROLE_LABELS: Record<string, string> = {
   admin: "Admin",
   member: "Miembro",
   artist: "Artista",
+  staff: "Staff técnico",
 };
 
 const ROLE_BADGE_CLASSNAMES: Record<string, string> = {
@@ -45,6 +46,7 @@ const ROLE_BADGE_CLASSNAMES: Record<string, string> = {
   admin: "bg-blue-500/15 text-blue-300 border-blue-500/40",
   member: "bg-slate-500/15 text-slate-300 border-slate-500/40",
   artist: "bg-emerald-500/15 text-emerald-300 border-emerald-500/40",
+  staff: "bg-amber-500/15 text-amber-300 border-amber-500/40",
 };
 
 const STATUS_LABELS: Record<Member["status"], string> = {
@@ -323,7 +325,7 @@ export function OrgMembersPanel() {
                 <ChevronDown className="h-3.5 w-3.5" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {["admin", "member", "artist"].map((r) => (
+                {["admin", "member", "artist", "staff"].map((r) => (
                   <DropdownMenuItem key={r} onClick={() => setInviteRole(r)}>
                     {ROLE_LABELS[r]}
                   </DropdownMenuItem>

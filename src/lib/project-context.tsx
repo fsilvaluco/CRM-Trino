@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useMemo, R
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 import { applyProjectThemeColor, resetProjectThemeColor } from "@/lib/theme-palettes";
+import type { ProjectRole } from "@/lib/project-roles";
 
 export interface ProjectOption {
   id: string;
@@ -12,6 +13,12 @@ export interface ProjectOption {
   avatarUrl?: string | null;
   avatarSource?: string | null;
   driveUrl?: string | null;
+  // Rol del usuario en ESTE proyecto -- "admin" siempre para owner/admin de
+  // la organización (bypass total), o el valor de `project_members.role`
+  // para el resto. `null` = sin restricciones conocidas (no debería pasar
+  // para un member real, pero por las dudas no se trata como restringido).
+  // Ver src/lib/project-roles.ts para qué puede ver/editar cada rol.
+  role?: ProjectRole | null;
 }
 
 export type OrgRole = "owner" | "admin" | "member";
@@ -26,6 +33,11 @@ interface ProjectContextValue {
   isAdmin: boolean;
   orgRole: OrgRole | null;
   loading: boolean;
+  // Permisos del proyecto activo -- ver src/lib/project-roles.ts
+  activeProjectRole: ProjectRole | null;
+  canViewDealsModule: boolean;
+  canEditDeals: boolean;
+  canViewEventCosts: boolean;
 }
 
 const ProjectContext = createContext<ProjectContextValue | null>(null);
@@ -130,13 +142,14 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
             avatarUrl: p.avatar_url,
             avatarSource: p.avatar_source,
             driveUrl: p.drive_url,
+            role: "admin" as const,
           })
         );
       } else {
         // Member: solo los proyectos asignados en project_members
         const { data: memberships, error: membershipsError } = await supabase
           .from("project_members")
-          .select("project_id")
+          .select("project_id, role")
           .eq("user_id", userId)
           .eq("organization_id", memberRow.organization_id);
 
@@ -145,6 +158,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         }
 
         const projectIds = (memberships ?? []).map((m: { project_id: string }) => m.project_id);
+        const roleByProjectId = new Map(
+          (memberships ?? []).map((m: { project_id: string; role: string }) => [m.project_id, m.role as ProjectRole])
+        );
         if (projectIds.length === 0) {
           setProjects([]);
           if (typeof window !== "undefined") {
@@ -173,6 +189,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
             avatarUrl: p.avatar_url,
             avatarSource: p.avatar_source,
             driveUrl: p.drive_url,
+            role: roleByProjectId.get(p.id) ?? null,
           })
         );
       }
@@ -268,6 +285,13 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   const isAdmin = orgRole === "owner" || orgRole === "admin";
 
+  // Rol granular del proyecto activo -- "Todos los proyectos" (activeProject
+  // null) solo lo puede ver un admin, así que ahí siempre es "admin".
+  const activeProjectRole: ProjectRole | null = isAdmin ? "admin" : activeProject?.role ?? null;
+  const canViewDealsModule = activeProjectRole !== "staff";
+  const canEditDeals = activeProjectRole === "admin" || activeProjectRole === "member";
+  const canViewEventCosts = activeProjectRole === "admin" || activeProjectRole === "member";
+
   const contextValue = useMemo(
     () => ({
       activeProject,
@@ -279,8 +303,24 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       isAdmin,
       orgRole,
       loading,
+      activeProjectRole,
+      canViewDealsModule,
+      canEditDeals,
+      canViewEventCosts,
     }),
-    [activeProject, isAdmin, loading, orgRole, projects, reloadProjects, setActiveProject]
+    [
+      activeProject,
+      isAdmin,
+      loading,
+      orgRole,
+      projects,
+      reloadProjects,
+      setActiveProject,
+      activeProjectRole,
+      canViewDealsModule,
+      canEditDeals,
+      canViewEventCosts,
+    ]
   );
 
   return (

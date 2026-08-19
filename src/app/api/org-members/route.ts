@@ -4,9 +4,9 @@ import { createAdminClient } from "@/lib/supabase-admin";
 import { sendEmail, buildInviteEmailHtml } from "@/lib/resend";
 
 type MemberStatus = "pending" | "active";
-type MemberRole = "owner" | "admin" | "member" | "artist";
+type MemberRole = "owner" | "admin" | "member" | "artist" | "staff";
 
-const ASSIGNABLE_MEMBER_ROLES = new Set<MemberRole>(["admin", "member", "artist"]);
+const ASSIGNABLE_MEMBER_ROLES = new Set<MemberRole>(["admin", "member", "artist", "staff"]);
 
 function isMissingStatusColumn(message: string | undefined): boolean {
   if (!message) return false;
@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
   const normalizedLastName = lastName?.trim() || "";
   const normalizedPhone = phone?.trim() || null;
   const fullName = [normalizedFirstName, normalizedLastName].filter(Boolean).join(" ").trim() || null;
-  const allowedRoles = new Set(["admin", "member", "artist"]);
+  const allowedRoles = new Set(["admin", "member", "artist", "staff"]);
   if (!normalizedEmail) return NextResponse.json({ error: "Email requerido" }, { status: 400 });
   if (!normalizedFirstName || !normalizedLastName) {
     return NextResponse.json({ error: "Nombre y apellido son requeridos" }, { status: 400 });

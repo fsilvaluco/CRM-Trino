@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { getProjectRole, canViewDeals, canEditDeals } from "@/lib/project-roles";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapDeal(row: any) {
@@ -44,11 +45,21 @@ function mapDeal(row: any) {
 }
 
 export async function GET(request: NextRequest) {
-  const { supabase, error } = await requireAuth();
+  const { supabase, user, isAdmin, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get("projectId");
+
+  if (projectId) {
+    if (!isAdmin && allowedProjectIds && !allowedProjectIds.includes(projectId)) {
+      return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
+    }
+    const role = await getProjectRole(supabase, user!.id, projectId);
+    if (!canViewDeals(isAdmin, role)) {
+      return NextResponse.json({ error: "Sin acceso a Deals para tu rol" }, { status: 403 });
+    }
+  }
 
   let query = supabase
     .from("deals")
@@ -89,7 +100,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { supabase, user, orgId, error } = await requireAuth();
+  const { supabase, user, orgId, isAdmin, error } = await requireAuth();
   if (error) return error;
 
   let body;
@@ -100,6 +111,12 @@ export async function POST(request: NextRequest) {
   }
 
   const { title, value, valueType, percentageValue, taxType, stageId, contactId, companyId, expectedClose, probability, notes, referenceUrl, isShow, projectId, artistProjectId, assigneeIds, source, commissionRate } = body;
+
+  const dealProjectId = artistProjectId || projectId || null;
+  const dealRole = await getProjectRole(supabase, user!.id, dealProjectId);
+  if (!canEditDeals(isAdmin, dealRole)) {
+    return NextResponse.json({ error: "Tu rol no puede crear deals en este proyecto" }, { status: 403 });
+  }
 
   const ALLOWED_SOURCES = new Set(["trino", "trino_nuevo", "artista_antiguo", "artista_nuevo"]);
   const normalizedSource = ALLOWED_SOURCES.has(source) ? source : null;

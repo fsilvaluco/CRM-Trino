@@ -1,14 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { isCostCategory } from "@/lib/cost-categories";
+import { getProjectRole, canViewEventCosts } from "@/lib/project-roles";
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, user, isAdmin, error } = await requireAuth();
   if (error) return error;
+
+  const { data: show } = await supabase.from("shows").select("project_id").eq("id", id).single();
+  const role = await getProjectRole(supabase, user!.id, show?.project_id ?? null);
+  if (!canViewEventCosts(isAdmin, role)) {
+    return NextResponse.json({ error: "Sin acceso a los costos de este evento" }, { status: 403 });
+  }
 
   const { data, error: dbError } = await supabase
     .from("event_cost_items")
@@ -44,10 +51,14 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, orgId, error } = await requireAuth();
+  const { supabase, user, orgId, isAdmin, error } = await requireAuth();
   if (error) return error;
 
-  const { data: show } = await supabase.from("shows").select("cost_sheet_closed_at").eq("id", id).single();
+  const { data: show } = await supabase.from("shows").select("cost_sheet_closed_at, project_id").eq("id", id).single();
+  const role = await getProjectRole(supabase, user!.id, show?.project_id ?? null);
+  if (!canViewEventCosts(isAdmin, role)) {
+    return NextResponse.json({ error: "Sin acceso a los costos de este evento" }, { status: 403 });
+  }
   if (show?.cost_sheet_closed_at) {
     return NextResponse.json(
       { error: "La caja de este evento está cerrada. Reábrela primero para editar los costos." },

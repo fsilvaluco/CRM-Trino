@@ -162,7 +162,17 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   // que el menu mostrara "Admin" cuando en realidad los botones de
   // eliminar (que si usan project-context) lo ocultaban correctamente.
   // Ahora ambos usan exactamente la misma fuente.
-  const { isAdmin, activeProject } = useProject();
+  const { isAdmin, activeProject, canViewDealsModule } = useProject();
+
+  // Rol "staff" (sonidista, asistente de producción, etc.): el módulo de
+  // Deals/CRM queda oculto por completo del menú -- ver src/lib/project-roles.ts.
+  const visibleNavConfig = canViewDealsModule
+    ? navConfig
+    : navConfig.map((item) =>
+        item.type === "group"
+          ? { ...item, children: item.children.filter((c) => c.moduleKey !== "deals") }
+          : item
+      );
 
   return (
     <aside
@@ -210,7 +220,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           collapsed ? "px-2" : "px-3"
         )}
       >
-        {navConfig.map((item) =>
+        {visibleNavConfig.map((item) =>
           item.type === "group" ? (
             <GroupNav
               key={item.label}

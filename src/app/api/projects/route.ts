@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { DEFAULT_GOAL_TITLES, type GoalMetricType } from "@/lib/goals";
+import type { ProjectRole } from "@/lib/project-roles";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapProject(row: any) {
+function mapProject(row: any, myRole: ProjectRole | "admin" | null) {
   return {
     id: row.id,
     name: row.name,
@@ -19,11 +20,16 @@ function mapProject(row: any) {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     companyName: row.project_company?.name ?? row.companies?.name ?? null,
+    // Rol del usuario actual en ESTE proyecto (admin de la org = "admin"
+    // siempre, sin importar si tiene fila en project_members) -- lo usa el
+    // front para ocultar Deals/Costos a artist/staff sin tener que
+    // consultarlo aparte en cada página. Ver src/lib/project-roles.ts.
+    myRole,
   };
 }
 
 export async function GET(request: NextRequest) {
-  const { supabase, allowedProjectIds, error } = await requireAuth();
+  const { supabase, user, isAdmin, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
@@ -48,7 +54,21 @@ export async function GET(request: NextRequest) {
   const { data, error: dbError } = await query;
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
 
-  return NextResponse.json((data ?? []).map(mapProject));
+  let roleByProjectId = new Map<string, ProjectRole>();
+  if (!isAdmin && data && data.length > 0) {
+    const { data: memberRows } = await supabase
+      .from("project_members")
+      .select("project_id, role")
+      .eq("user_id", user!.id)
+      .in("project_id", data.map((p) => p.id));
+    roleByProjectId = new Map(
+      (memberRows ?? []).map((m: { project_id: string; role: string }) => [m.project_id, m.role as ProjectRole])
+    );
+  }
+
+  return NextResponse.json(
+    (data ?? []).map((p) => mapProject(p, isAdmin ? "admin" : roleByProjectId.get(p.id) ?? null))
+  );
 }
 
 
@@ -128,5 +148,5 @@ export async function POST(request: NextRequest) {
     console.error("[projects POST] fallo al sembrar metas default:", goalsSeedError);
   }
 
-  return NextResponse.json(mapProject(data), { status: 201 });
+  return NextResponse.json(mapProject(data, "admin"), { status: 201 });
 }

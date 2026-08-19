@@ -68,7 +68,7 @@ function newId() {
   return typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36);
 }
 
-type EventDetail = LiveShow & { setlist: SetlistItem[]; costItems: CostItem[]; timing: TimingItem[]; ticketTiers: TicketTier[]; eventContacts: EventContact[] };
+type EventDetail = LiveShow & { setlist: SetlistItem[]; costItems: CostItem[]; timing: TimingItem[]; ticketTiers: TicketTier[]; eventContacts: EventContact[]; canViewCosts?: boolean };
 
 interface CostSubmission {
   id: string;
@@ -1009,20 +1009,23 @@ export default function EventDetailPage() {
         addressLine={formatShortAddress(event.address, event.city)}
       />
 
-      {/* Resumen financiero */}
-      <div className="grid grid-cols-4 gap-3" data-section="summary">
-        <Card><CardContent className="p-3 print:p-1.5"><p className="text-xs print:text-[9px] text-muted-foreground">Fee</p><p className="font-semibold print:text-xs print:whitespace-nowrap">{formatCents(event.fee)}</p></CardContent></Card>
-        <Card><CardContent className="p-3 print:p-1.5"><p className="text-xs print:text-[9px] text-muted-foreground">Entradas</p><p className="font-semibold print:text-xs print:whitespace-nowrap">{formatCents(event.ticketIncome)}</p></CardContent></Card>
-        <Card><CardContent className="p-3 print:p-1.5"><p className="text-xs print:text-[9px] text-muted-foreground">Egresos</p><p className="font-semibold print:text-xs print:whitespace-nowrap">{formatCents(event.expenses)}</p></CardContent></Card>
-        <Card>
-          <CardContent className="p-3 print:p-1.5">
-            <p className="text-xs print:text-[9px] text-muted-foreground">Utilidad</p>
-            <p className={`font-semibold print:text-xs print:whitespace-nowrap ${utilidadCents >= 0 ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}>
-              {formatCents(utilidadCents)}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Resumen financiero -- oculto para roles restringidos (artist/staff),
+          ver canViewCosts en GET /api/eventos/[id]. */}
+      {event.canViewCosts !== false && (
+        <div className="grid grid-cols-4 gap-3" data-section="summary">
+          <Card><CardContent className="p-3 print:p-1.5"><p className="text-xs print:text-[9px] text-muted-foreground">Fee</p><p className="font-semibold print:text-xs print:whitespace-nowrap">{formatCents(event.fee)}</p></CardContent></Card>
+          <Card><CardContent className="p-3 print:p-1.5"><p className="text-xs print:text-[9px] text-muted-foreground">Entradas</p><p className="font-semibold print:text-xs print:whitespace-nowrap">{formatCents(event.ticketIncome)}</p></CardContent></Card>
+          <Card><CardContent className="p-3 print:p-1.5"><p className="text-xs print:text-[9px] text-muted-foreground">Egresos</p><p className="font-semibold print:text-xs print:whitespace-nowrap">{formatCents(event.expenses)}</p></CardContent></Card>
+          <Card>
+            <CardContent className="p-3 print:p-1.5">
+              <p className="text-xs print:text-[9px] text-muted-foreground">Utilidad</p>
+              <p className={`font-semibold print:text-xs print:whitespace-nowrap ${utilidadCents >= 0 ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}>
+                {formatCents(utilidadCents)}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Contactos importantes */}
       <Card data-section="contacts">
@@ -1760,7 +1763,9 @@ export default function EventDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Costos */}
+      {/* Costos -- Card completa oculta para roles restringidos (artist/staff),
+          ver canViewCosts en GET /api/eventos/[id]. */}
+      {event.canViewCosts !== false && (
       <Card data-section="costs">
         <CardHeader className="flex flex-row items-center justify-between pb-3">
           <CardTitle className="text-sm font-medium flex items-center gap-1.5">
@@ -2331,6 +2336,7 @@ export default function EventDetailPage() {
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Riders + link */}
       <Card data-section="riders">

@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
   if (!projectId || !userId) {
     return NextResponse.json({ error: "projectId y userId requeridos" }, { status: 400 });
   }
-  if (role && !["admin", "member", "artist"].includes(role)) {
+  if (role && !["admin", "member", "artist", "staff"].includes(role)) {
     return NextResponse.json({ error: "role invalido" }, { status: 400 });
   }
 
@@ -122,7 +122,7 @@ export async function PATCH(request: NextRequest) {
   if (!projectId || !userId || !role) {
     return NextResponse.json({ error: "projectId, userId y role requeridos" }, { status: 400 });
   }
-  if (!["admin", "member", "artist"].includes(role)) {
+  if (!["admin", "member", "artist", "staff"].includes(role)) {
     return NextResponse.json({ error: "role invalido" }, { status: 400 });
   }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { markEntityViewed, getViewedAtMap, getLatestCommentAtMap, isUnseen, latestActivityAt } from "@/lib/entity-views";
+import { getProjectRole, canViewDeals, canEditDeals } from "@/lib/project-roles";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapStage(stage: any, deals: any[], unseenMap: Map<string, boolean>) {
@@ -53,11 +54,21 @@ function mapStage(stage: any, deals: any[], unseenMap: Map<string, boolean>) {
 }
 
 export async function GET(request: NextRequest) {
-  const { supabase, orgId, user, error } = await requireAuth();
+  const { supabase, orgId, user, isAdmin, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get("projectId");
+
+  if (projectId) {
+    if (!isAdmin && allowedProjectIds && !allowedProjectIds.includes(projectId)) {
+      return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
+    }
+    const role = await getProjectRole(supabase, user!.id, projectId);
+    if (!canViewDeals(isAdmin, role)) {
+      return NextResponse.json({ error: "Sin acceso a Deals para tu rol" }, { status: 403 });
+    }
+  }
 
   let dealsQuery = supabase
     .from("deals")
@@ -117,7 +128,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  const { supabase, orgId, user, error } = await requireAuth();
+  const { supabase, orgId, user, isAdmin, error } = await requireAuth();
   if (error) return error;
 
   let body;
@@ -131,13 +142,18 @@ export async function PUT(request: NextRequest) {
   if (body.dealId && body.stageId) {
     const { data: existing, error: findErr } = await supabase
       .from("deals")
-      .select("id")
+      .select("id, project_id, artist_project_id")
       .eq("id", body.dealId)
       .is("deleted_at", null)
       .single();
 
     if (findErr || !existing) {
       return NextResponse.json({ error: "Deal no encontrado" }, { status: 404 });
+    }
+
+    const dealRole = await getProjectRole(supabase, user!.id, existing.artist_project_id || existing.project_id || null);
+    if (!canEditDeals(isAdmin, dealRole)) {
+      return NextResponse.json({ error: "Tu rol no puede mover este deal" }, { status: 403 });
     }
 
     const { data, error: dbError } = await supabase

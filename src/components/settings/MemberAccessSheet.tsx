@@ -49,7 +49,7 @@ interface ProjectOption {
 interface ProjectMemberRow {
   user_id: string;
   project_id: string;
-  role: "admin" | "member" | "artist";
+  role: "admin" | "member" | "artist" | "staff";
 }
 
 interface MemberAccessSheetProps {
@@ -59,7 +59,7 @@ interface MemberAccessSheetProps {
   onSaved: () => Promise<void> | void;
 }
 
-const ROLE_LABELS: Record<string, string> = { admin: "Admin", member: "Miembro", artist: "Artista" };
+const ROLE_LABELS: Record<string, string> = { admin: "Admin", member: "Miembro", artist: "Artista", staff: "Staff técnico" };
 
 function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -74,7 +74,7 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
   const [initialProjectIds, setInitialProjectIds] = useState<string[]>([]);
-  const [projectRoles, setProjectRoles] = useState<Record<string, "admin" | "member" | "artist">>({});
+  const [projectRoles, setProjectRoles] = useState<Record<string, "admin" | "member" | "artist" | "staff">>({});
   const [initialProjectRoles, setInitialProjectRoles] = useState<Record<string, string>>({});
   const [projectSearch, setProjectSearch] = useState("");
   const [loading, setLoading] = useState(false);
@@ -154,7 +154,7 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
           ? (membershipsJson as ProjectMemberRow[]).filter((row) => row.user_id === member.user_id)
           : [];
         const currentProjectIds = currentMemberships.map((row) => row.project_id);
-        const rolesMap: Record<string, "admin" | "member" | "artist"> = {};
+        const rolesMap: Record<string, "admin" | "member" | "artist" | "staff"> = {};
         currentMemberships.forEach((row) => {
           rolesMap[row.project_id] = row.role ?? "member";
         });
@@ -188,7 +188,7 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
     }
   };
 
-  const setProjectRole = (projectId: string, role: "admin" | "member" | "artist") => {
+  const setProjectRole = (projectId: string, role: "admin" | "member" | "artist" | "staff") => {
     setProjectRoles((prev) => ({ ...prev, [projectId]: role }));
   };
 
@@ -409,7 +409,7 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
                                   <Select
                                     value={role}
                                     disabled={saving}
-                                    onValueChange={(v) => v && setProjectRole(project.id, v as "admin" | "member" | "artist")}
+                                    onValueChange={(v) => v && setProjectRole(project.id, v as "admin" | "member" | "artist" | "staff")}
                                   >
                                     <SelectTrigger className="h-7 text-xs w-28 cursor-pointer">
                                       <SelectValue>{ROLE_LABELS[role]}</SelectValue>
@@ -418,6 +418,7 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
                                       <SelectItem value="admin">Admin</SelectItem>
                                       <SelectItem value="member">Miembro</SelectItem>
                                       <SelectItem value="artist">Artista</SelectItem>
+                                      <SelectItem value="staff">Staff técnico</SelectItem>
                                     </SelectContent>
                                   </Select>
                                 )}
@@ -427,9 +428,11 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Admin: gestiona permisos y tiene acceso total dentro de ese proyecto. Miembro: crea
-                        tratos, contactos y tareas. Artista: solo lectura de sus tratos (o edición si el
-                        proyecto es autogestionado) y edición de sus tareas.
+                        Admin/Miembro: acceso completo dentro de ese proyecto (Deals, Costos de eventos,
+                        todo). Artista: ve los Deals pero no puede editarlos ni moverlos de etapa -- NO ve
+                        los Costos de eventos (ni el resumen ni el detalle). Staff técnico (sonidista,
+                        asistente de producción, etc.): igual que Artista, pero el módulo de Deals/CRM
+                        queda oculto por completo.
                       </p>
                     </div>
                   )}

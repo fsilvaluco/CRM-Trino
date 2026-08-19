@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import type { ShowStatus } from "@/types/shows";
+import { getProjectRole, canViewEventCosts } from "@/lib/project-roles";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapLiveShow(row: any) {
@@ -42,7 +43,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, user, isAdmin, error } = await requireAuth();
   if (error) return error;
 
   const { data, error: dbError } = await supabase
@@ -55,6 +56,13 @@ export async function GET(
     return NextResponse.json({ error: "Evento no encontrado" }, { status: 404 });
   }
 
+  // Roles restringidos (artist/staff) no ven nada de plata de este evento
+  // -- ni el resumen (fee/ingresos/egresos) ni el detalle de la Planilla
+  // de costos. El resto del evento (Setlist, Timing, Contactos) sigue
+  // visible/editable igual que hoy -- eso queda para una fase 2.
+  const role = await getProjectRole(supabase, user!.id, data.project_id ?? null);
+  const canViewCosts = canViewEventCosts(isAdmin, role);
+
   const [{ data: setlistRows }, { data: costRows }, { data: timingRows }, { data: ticketRows }, { data: contactRows }] = await Promise.all([
     supabase.from("event_setlist_items").select("*").eq("show_id", id).order("position"),
     supabase.from("event_cost_items").select("*").eq("show_id", id).order("position"),
@@ -63,15 +71,23 @@ export async function GET(
     supabase.from("event_contacts").select("*").eq("show_id", id).order("position"),
   ]);
 
+  const mappedShow = mapLiveShow(data);
+
   return NextResponse.json({
-    ...mapLiveShow(data),
+    ...mappedShow,
+    // Sin acceso a costos: el resumen $ del evento queda null (no 0 --
+    // "no sé" es distinto de "el fee es $0") y la Planilla llega vacía.
+    fee: canViewCosts ? mappedShow.fee : null,
+    ticketIncome: canViewCosts ? mappedShow.ticketIncome : null,
+    expenses: canViewCosts ? mappedShow.expenses : null,
+    canViewCosts,
     setlist: (setlistRows ?? []).map((r) => ({
       id: r.id,
       position: r.position,
       title: r.title,
       notes: r.notes ?? null,
     })),
-    costItems: (costRows ?? []).map((r) => ({
+    costItems: !canViewCosts ? [] : (costRows ?? []).map((r) => ({
       id: r.id,
       position: r.position,
       label: r.label,
@@ -125,8 +141,12 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, user, isAdmin, error } = await requireAuth();
   if (error) return error;
+
+  const { data: showForRole } = await supabase.from("shows").select("project_id").eq("id", id).single();
+  const role = await getProjectRole(supabase, user!.id, showForRole?.project_id ?? null);
+  const canViewCosts = canViewEventCosts(isAdmin, role);
 
   const body = await request.json().catch(() => ({}));
   const {
@@ -187,9 +207,14 @@ export async function PUT(
   if (city !== undefined && venueId === undefined) updates.city = city || "";
   if (notes !== undefined) updates.notes = notes || null;
   if (status !== undefined) updates.status = status;
-  if (fee !== undefined) updates.fee = fee ?? 0;
-  if (ticketIncome !== undefined) updates.ticket_income = ticketIncome ?? 0;
-  if (expenses !== undefined) updates.expenses = expenses ?? 0;
+  // Roles restringidos (artist/staff) no pueden tocar plata del evento --
+  // se ignoran estos 3 campos en silencio si vinieran igual en el body
+  // (la UI ni se los muestra, esto es defensa en profundidad).
+  if (canViewCosts) {
+    if (fee !== undefined) updates.fee = fee ?? 0;
+    if (ticketIncome !== undefined) updates.ticket_income = ticketIncome ?? 0;
+    if (expenses !== undefined) updates.expenses = expenses ?? 0;
+  }
   if (eventLink !== undefined) updates.event_link = eventLink || null;
   if (riderLocal !== undefined) updates.rider_local = riderLocal || null;
   if (riderBanda !== undefined) updates.rider_banda = riderBanda || null;
@@ -208,7 +233,14 @@ export async function PUT(
     return NextResponse.json({ error: `Error al actualizar el evento: ${dbError.message}` }, { status: 500 });
   }
 
-  return NextResponse.json(mapLiveShow(data));
+  const mappedShow = mapLiveShow(data);
+  return NextResponse.json({
+    ...mappedShow,
+    fee: canViewCosts ? mappedShow.fee : null,
+    ticketIncome: canViewCosts ? mappedShow.ticketIncome : null,
+    expenses: canViewCosts ? mappedShow.expenses : null,
+    canViewCosts,
+  });
 }
 
 export async function DELETE(

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { markEntityViewed } from "@/lib/entity-views";
+import { getProjectRole, canEditDeals } from "@/lib/project-roles";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapDeal(row: any) {
@@ -88,7 +89,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, user, error } = await requireAuth();
+  const { supabase, user, isAdmin, error } = await requireAuth();
   if (error) return error;
 
   let body;
@@ -100,13 +101,18 @@ export async function PUT(
 
   const { data: existing, error: findErr } = await supabase
     .from("deals")
-    .select("id, contact_id, company_id")
+    .select("id, contact_id, company_id, project_id, artist_project_id")
     .eq("id", id)
     .is("deleted_at", null)
     .single();
 
   if (findErr || !existing) {
     return NextResponse.json({ error: "Deal no encontrado" }, { status: 404 });
+  }
+
+  const dealRole = await getProjectRole(supabase, user!.id, existing.artist_project_id || existing.project_id || null);
+  if (!canEditDeals(isAdmin, dealRole)) {
+    return NextResponse.json({ error: "Tu rol no puede editar este deal" }, { status: 403 });
   }
 
   const normalizedValueType = body.valueType === "percentage" ? "percentage" : "fixed";

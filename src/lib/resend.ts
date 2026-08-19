@@ -42,6 +42,7 @@ const ROLE_DESCRIPTIONS: Record<string, string> = {
   admin: "Vas a poder gestionar el equipo y tener acceso total a tratos y tareas de este proyecto.",
   member: "Vas a poder crear y gestionar tratos, contactos, empresas y tareas de este proyecto.",
   artist: "Vas a poder ver tus tratos y gestionar tus propias tareas dentro de este proyecto.",
+  staff: "Vas a poder ver tus tareas y los eventos de este proyecto.",
 };
 
 export function buildInviteEmailHtml(params: {
