@@ -462,6 +462,10 @@ _Ningún bug crítico conocido sin resolver._
 
 ## ✅ Completado recientemente
 
+**✅ Leer link con IA en Prensa** _(agregado: 19 ago 2026, mismo día)_
+
+Al registrar una mención de prensa, ahora se puede pegar el link de la nota y presionar "Leer" -- el servidor abre la página, la limpia a texto plano (`src/lib/html-to-text.ts`, extraído del helper que ya usaba `tickets-extract` para no duplicarlo) y la IA sugiere medio, tipo (radio/tv/digital/digital·rrss), descripción corta y fecha de publicación. Solo rellena los campos que pudo leer -- no pisa nada que el usuario ya haya escrito a mano -- y todo queda editable antes de guardar, mismo criterio que el resto de las lecturas con IA de la app. Nuevo endpoint `POST /api/analytics/press-extract` + `extractPressMentionFromText` en `src/lib/openai.ts`. Reset de Finanzas del proyecto LUR a pedido de Francisco (borrado permanente de las 40 transacciones de prueba, ninguna tenía comprobantes adjuntos) para volver a cargar el presupuesto de cero.
+
 **✅ Ajuste "Adjuntar comprobante con IA" -- vendor correcto en transferencias + cuotas múltiples** _(agregado: 19 ago 2026, mismo día)_
 
 Feedback real de Francisco probando la función recién construida, con un comprobante de Mercado Pago (transferencia a Kuyen Galeas, "Segunda cuota producción LUR"): la IA leyó a Francisco (quien envía la plata, el origen) como "vendor" en vez de a Kuyen (quien la recibe, el destino) -- y de paso surgió que una misma línea de presupuesto se puede pagar en 2+ cuotas (esta era justamente la segunda). Dos fixes:

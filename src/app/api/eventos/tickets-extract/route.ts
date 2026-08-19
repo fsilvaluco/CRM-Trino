@@ -1,27 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { extractTicketTiersFromScreenshot, extractTicketTiersFromText, isOpenAIEnabled } from "@/lib/openai";
+import { htmlToText } from "@/lib/html-to-text";
 
 const MAX_BASE64_LENGTH = 8_000_000;
-
-// Convierte HTML a texto legible: saca <script>/<style>, tags, y decodifica
-// las entidades mas comunes. No es un parser perfecto, pero para paginas de
-// estadisticas de ticketeras (texto simple, sin mucho JS-rendering) alcanza
-// -- ya se probó contra una pagina real de PortalTickets.
-function htmlToText(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 export async function POST(request: NextRequest) {
   const { error } = await requireAuth();

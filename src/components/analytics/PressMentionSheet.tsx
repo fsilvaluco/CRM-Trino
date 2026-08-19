@@ -19,7 +19,7 @@ import {
   SheetTitle,
   SheetFooter,
 } from "@/components/ui/sheet";
-import { Loader2 } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useProject } from "@/lib/project-context";
 import { PRESS_TYPE_LABELS, PRESS_SOURCE_LABELS, type PressMention, type PressMentionType, type PressMentionSource } from "@/types/press";
@@ -80,12 +80,51 @@ export function PressMentionSheet({ open, onOpenChange, onSaved, editingMention 
   const [fields, setFields] = useState<FormFields>(EMPTY_FIELDS);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [saving, setSaving] = useState(false);
+  const [aiUrl, setAiUrl] = useState("");
+  const [reading, setReading] = useState(false);
 
   useEffect(() => {
     if (open) {
       setFields(editingMention ? mentionToFields(editingMention) : EMPTY_FIELDS);
+      setAiUrl("");
     }
   }, [open, editingMention]);
+
+  const handleReadWithAI = async () => {
+    if (!aiUrl.trim()) {
+      toast.error("Pega el link de la nota primero");
+      return;
+    }
+    setReading(true);
+    try {
+      const res = await fetch("/api/analytics/press-extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: aiUrl.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data?.error ?? "No se pudo leer el link");
+        return;
+      }
+      // Rellena solo lo que la IA pudo leer -- lo demás queda como estaba,
+      // para no pisar algo que el usuario ya haya escrito a mano.
+      setFields((f) => ({
+        ...f,
+        outlet: data.outlet || f.outlet,
+        type: data.type || f.type,
+        title: data.title || f.title,
+        mentionDate: data.mentionDate || f.mentionDate,
+        referenceUrl: aiUrl.trim(),
+      }));
+      const gotSomething = data.outlet || data.type || data.title || data.mentionDate;
+      toast.success(gotSomething ? "Datos rellenados -- revísalos antes de guardar" : "No se pudo leer casi nada de esa página, completa a mano");
+    } catch {
+      toast.error("Error leyendo el link");
+    } finally {
+      setReading(false);
+    }
+  };
 
   useEffect(() => {
     if (!open || !activeProject?.id) return;
@@ -144,6 +183,29 @@ export function PressMentionSheet({ open, onOpenChange, onSaved, editingMention 
         </SheetHeader>
 
         <div className="space-y-4 px-4 py-2">
+          {!isEditing && (
+            <div className="space-y-1.5 rounded-lg border p-3 bg-muted/20">
+              <Label htmlFor="aiUrl" className="flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5" /> Leer link con IA
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  id="aiUrl"
+                  placeholder="https://..."
+                  value={aiUrl}
+                  onChange={(e) => setAiUrl(e.target.value)}
+                  disabled={reading}
+                />
+                <Button type="button" variant="outline" onClick={handleReadWithAI} disabled={reading}>
+                  {reading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Leer"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Pega el link de la nota y la IA intenta rellenar medio, tipo, descripción y fecha. Revisa los datos antes de guardar.
+              </p>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="mentionDate">Fecha</Label>

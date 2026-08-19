@@ -671,6 +671,92 @@ export async function extractTicketTiersFromText(rawText: string): Promise<Ticke
   }
 }
 
+export interface PressMentionExtraction {
+  outlet: string | null;
+  // String libre (no enum) -- se normaliza a PressMentionType en la capa de
+  // API, mismo criterio que el resto de las extracciones (ej. statusLabel
+  // de ticket tiers), para no arriesgar un error de schema por mezclar
+  // enum + null en la respuesta estructurada de OpenAI.
+  type: string | null;
+  title: string | null;
+  mentionDate: string | null; // YYYY-MM-DD
+}
+
+const FALLBACK_PRESS_MENTION: PressMentionExtraction = { outlet: null, type: null, title: null, mentionDate: null };
+
+const PRESS_MENTION_SCHEMA = {
+  name: "press_mention_extraction",
+  strict: true,
+  schema: {
+    type: "object",
+    properties: {
+      outlet: { type: ["string", "null"] },
+      type: { type: ["string", "null"] },
+      title: { type: ["string", "null"] },
+      mentionDate: { type: ["string", "null"] },
+    },
+    required: ["outlet", "type", "title", "mentionDate"],
+    additionalProperties: false,
+  },
+};
+
+const PRESS_MENTION_PROMPT = `Este es el texto de una nota de prensa, artículo, o página web que menciona a un artista o proyecto musical. Extrae:
+
+- "outlet": el nombre del medio que publicó la nota (ej. "La Tercera", "Rockaxis", "Radio Futuro", "Página 12"). Si no se puede identificar con certeza, null.
+- "type": el tipo de medio, EXACTAMENTE uno de estos 4 valores: "radio" (si es una radio), "tv" (televisión), "digital_rrss" (una publicación de redes sociales -- Instagram, YouTube, TikTok -- o un medio 100% de RRSS), "digital" (cualquier otro medio digital/web: portales de noticias, blogs, revistas online -- el más común). Si no se puede inferir, null.
+- "title": un resumen corto (una frase) de qué trata la mención -- de qué habla la nota en relación al artista/proyecto (ej. "Reseña del nuevo single", "Entrevista sobre la gira 2026"). Si no se puede inferir nada razonable, null.
+- "mentionDate": la fecha de publicación de la nota, en formato YYYY-MM-DD, si aparece en el texto. Si no aparece o no se puede leer con certeza, null -- nunca inventes una fecha.
+
+Reglas:
+- Nunca inventes datos que no aparezcan claramente en el texto -- usa null en cualquier campo que no puedas leer con certeza.
+- El texto puede venir con ruido de navegación/menús del sitio (es HTML convertido a texto plano) -- ignora eso y enfócate en el contenido del artículo.`;
+
+const PRESS_MENTION_TEXT_PROMPT = `${PRESS_MENTION_PROMPT}
+
+Texto de la página:
+"""
+{{TEXT}}
+"""`;
+
+/**
+ * Lee texto plano (extraído del HTML de un link de prensa) y sugiere los
+ * datos de la mención (medio, tipo, descripción, fecha) para precargar el
+ * formulario de "Registrar mención de prensa". Siempre editable antes de
+ * guardar -- igual que el resto de las extracciones con IA de la app.
+ */
+export async function extractPressMentionFromText(rawText: string): Promise<PressMentionExtraction> {
+  if (!apiKey) return FALLBACK_PRESS_MENTION;
+  if (!rawText.trim()) return FALLBACK_PRESS_MENTION;
+
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: MODEL,
+      temperature: 0,
+      messages: [{ role: "user", content: PRESS_MENTION_TEXT_PROMPT.replace("{{TEXT}}", rawText.slice(0, 12000)) }],
+      response_format: { type: "json_schema", json_schema: PRESS_MENTION_SCHEMA },
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    console.error("[openai] press mention text extraction failed", { status: res.status, body });
+    throw new Error(`OpenAI respondió con error (status ${res.status})`);
+  }
+
+  const data = await res.json();
+  const text: string | undefined = data?.choices?.[0]?.message?.content;
+  if (!text) return FALLBACK_PRESS_MENTION;
+
+  try {
+    return { ...FALLBACK_PRESS_MENTION, ...JSON.parse(text) };
+  } catch (err) {
+    console.error("[openai] failed to parse press mention text JSON", { text, err });
+    return FALLBACK_PRESS_MENTION;
+  }
+}
+
 interface MilestoneExtraction {
   title: string;
   dueDate: string | null; // YYYY-MM-DD
