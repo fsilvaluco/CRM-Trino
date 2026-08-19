@@ -431,8 +431,9 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
                         Admin/Miembro: acceso completo dentro de ese proyecto (Deals, Costos de eventos,
                         todo). Artista: ve los Deals pero no puede editarlos ni moverlos de etapa -- NO ve
                         los Costos de eventos (ni el resumen ni el detalle). Staff técnico (sonidista,
-                        asistente de producción, etc.): igual que Artista, pero el módulo de Deals/CRM
-                        queda oculto por completo.
+                        asistente de producción, músicos, etc.): igual que Artista, pero el módulo de
+                        Deals/CRM queda oculto por completo. Solo Admin y Artista son los firmantes
+                        requeridos para aprobar el cierre de caja de un evento.
                       </p>
                     </div>
                   )}

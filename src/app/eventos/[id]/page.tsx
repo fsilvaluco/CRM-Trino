@@ -22,7 +22,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Pencil, MapPin, Clock, Music4, Wallet, FileText, Link as LinkIcon,
   Plus, Trash2, Star, ExternalLink, Loader2, Lock, LockOpen, Printer, Receipt,
-  Ticket, Upload, Paperclip, Share2, Users, RefreshCw, BellRing, Banknote,
+  Ticket, Upload, Paperclip, Share2, Users, RefreshCw, BellRing, Banknote, CheckCircle2, Circle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -68,7 +68,7 @@ function newId() {
   return typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36);
 }
 
-type EventDetail = LiveShow & { setlist: SetlistItem[]; costItems: CostItem[]; timing: TimingItem[]; ticketTiers: TicketTier[]; eventContacts: EventContact[]; canViewCosts?: boolean };
+type EventDetail = LiveShow & { setlist: SetlistItem[]; costItems: CostItem[]; timing: TimingItem[]; ticketTiers: TicketTier[]; eventContacts: EventContact[]; canViewCosts?: boolean; canEditCosts?: boolean };
 
 interface CostSubmission {
   id: string;
@@ -81,6 +81,22 @@ interface CostSubmission {
   status: "pending" | "approved" | "rejected";
   createdAt: string;
   submitterName: string | null;
+}
+
+interface Signer {
+  userId: string;
+  fullName: string | null;
+  email: string | null;
+}
+
+interface Signature extends Signer {
+  signedAt: string;
+}
+
+interface SignatureData {
+  requiredSigners: Signer[];
+  signatures: Signature[];
+  allSigned: boolean;
 }
 
 export default function EventDetailPage() {
@@ -137,7 +153,7 @@ export default function EventDetailPage() {
   const [costsDirty, setCostsDirty] = useState(false);
   const [savingCosts, setSavingCosts] = useState(false);
   const [profitSplitNote, setProfitSplitNote] = useState("");
-  const [signatureStatus, setSignatureStatus] = useState<{ signedCount: number; requiredCount: number; allSigned: boolean } | null>(null);
+  const [signatureData, setSignatureData] = useState<SignatureData | null>(null);
   const [newCostLabel, setNewCostLabel] = useState("");
   const [newCostCategory, setNewCostCategory] = useState<string | null>(null);
   const [newCostAmount, setNewCostAmount] = useState("");
@@ -154,6 +170,9 @@ export default function EventDetailPage() {
   const [reviewingSubmissionId, setReviewingSubmissionId] = useState<string | null>(null);
 
   const costSheetClosed = Boolean(event?.costSheetClosedAt);
+  // "artist" ve la Planilla completa (necesita revisarla para poder
+  // firmar el cierre) pero no puede tocar nada -- ver src/lib/project-roles.ts.
+  const canEditCosts = event?.canEditCosts !== false;
 
   const [eventLink, setEventLink] = useState("");
   const [riderLocal, setRiderLocal] = useState("");
@@ -192,15 +211,15 @@ export default function EventDetailPage() {
             .then((r) => (r.ok ? r.json() : null))
             .then((sig) => {
               if (!sig) return;
-              setSignatureStatus({
-                signedCount: sig.signatures.length,
-                requiredCount: sig.requiredSigners.length,
+              setSignatureData({
+                requiredSigners: sig.requiredSigners,
+                signatures: sig.signatures,
                 allSigned: sig.allSigned,
               });
             })
-            .catch(() => setSignatureStatus(null));
+            .catch(() => setSignatureData(null));
         } else {
-          setSignatureStatus(null);
+          setSignatureData(null);
         }
       })
       .catch(() => setEvent(null))
@@ -1777,50 +1796,54 @@ export default function EventDetailPage() {
                 Cerrada
               </Badge>
             )}
-            {signatureStatus && (
+            {signatureData && (
               <Badge
                 variant="secondary"
-                className={`text-xs ml-1 ${signatureStatus.allSigned ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}
+                className={`text-xs ml-1 ${signatureData.allSigned ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}
               >
-                {signatureStatus.allSigned
+                {signatureData.allSigned
                   ? "Aprobado por todos"
-                  : `Pendiente de aprobación (${signatureStatus.signedCount}/${signatureStatus.requiredCount})`}
+                  : `Pendiente de aprobación (${signatureData.requiredSigners.filter((r) => signatureData.signatures.some((s) => s.userId === r.userId)).length}/${signatureData.requiredSigners.length})`}
               </Badge>
             )}
           </CardTitle>
           <div className="flex items-center gap-2 no-print">
-            {costsDirty && (
+            {canEditCosts && costsDirty && (
               <Button size="sm" className="h-7 text-xs cursor-pointer" disabled={savingCosts} onClick={saveCosts}>
                 {savingCosts ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Guardar costos"}
               </Button>
             )}
-            <input
-              ref={closingFileInputRef}
-              type="file"
-              accept=".pdf,.jpg,.jpeg,.png,.webp"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void handleClosingAttachmentUpload(file);
-                e.target.value = "";
-              }}
-            />
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs cursor-pointer"
-              disabled={uploadingAttachment}
-              onClick={() => closingFileInputRef.current?.click()}
-              title="Adjuntar documento"
-            >
-              {uploadingAttachment ? <Loader2 className="h-3.5 w-3.5 animate-spin sm:mr-1" /> : <Paperclip className="h-3.5 w-3.5 sm:mr-1" />}
-              <span className="hidden sm:inline">{uploadingAttachment ? "Subiendo..." : "Adjuntar documento"}</span>
-            </Button>
+            {canEditCosts && (
+              <>
+                <input
+                  ref={closingFileInputRef}
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void handleClosingAttachmentUpload(file);
+                    e.target.value = "";
+                  }}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs cursor-pointer"
+                  disabled={uploadingAttachment}
+                  onClick={() => closingFileInputRef.current?.click()}
+                  title="Adjuntar documento"
+                >
+                  {uploadingAttachment ? <Loader2 className="h-3.5 w-3.5 animate-spin sm:mr-1" /> : <Paperclip className="h-3.5 w-3.5 sm:mr-1" />}
+                  <span className="hidden sm:inline">{uploadingAttachment ? "Subiendo..." : "Adjuntar documento"}</span>
+                </Button>
+              </>
+            )}
             <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => printSection("costs")} title="Imprimir">
               <Printer className="h-3.5 w-3.5 sm:mr-1" />
               <span className="hidden sm:inline">Imprimir</span>
             </Button>
-            {!costSheetClosed && (
+            {canEditCosts && !costSheetClosed && (
               <Button
                 size="sm"
                 variant="outline"
@@ -1840,7 +1863,7 @@ export default function EventDetailPage() {
                 <span className="hidden sm:inline">Link para gastos</span>
               </Button>
             )}
-            {costSheetClosed ? (
+            {canEditCosts && (costSheetClosed ? (
               <>
                 <Button
                   size="sm"
@@ -1870,7 +1893,7 @@ export default function EventDetailPage() {
                 <Lock className="h-3.5 w-3.5 sm:mr-1" />
                 <span className="hidden sm:inline">Cerrar caja</span>
               </Button>
-            )}
+            ))}
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -2009,7 +2032,7 @@ export default function EventDetailPage() {
                       <TypeaheadInput
                         placeholder="Detalle (ej. Pago sonidista)"
                         value={item.label}
-                        disabled={costSheetClosed}
+                        disabled={costSheetClosed || !canEditCosts}
                         onChange={(v) => updateItem({ label: v })}
                         fetchSuggestions={fetchCostTypeSuggestions}
                         className="h-7 text-xs flex-1"
@@ -2017,7 +2040,7 @@ export default function EventDetailPage() {
                       <Select
                         value={item.category ?? undefined}
                         onValueChange={(v) => updateItem({ category: v ?? null })}
-                        disabled={costSheetClosed}
+                        disabled={costSheetClosed || !canEditCosts}
                       >
                         <SelectTrigger className="h-7 text-xs w-28 sm:w-36 shrink-0">
                           <SelectValue placeholder="Categoría">{item.category ?? "Categoría"}</SelectValue>
@@ -2032,7 +2055,7 @@ export default function EventDetailPage() {
                         <MoneyInput
                           placeholder={item.esBhe ? "Líquido" : "$0"}
                           value={displayAmount ? String(displayAmount / 100) : ""}
-                          disabled={costSheetClosed}
+                          disabled={costSheetClosed || !canEditCosts}
                           onChange={(digits) => {
                             const cents = digits ? parseInt(digits, 10) * 100 : 0;
                             if (item.esBhe) {
@@ -2049,7 +2072,7 @@ export default function EventDetailPage() {
                           setCostItems((prev) => prev.filter((c) => c.id !== item.id));
                           setCostsDirty(true);
                         }}
-                        disabled={costSheetClosed}
+                        disabled={costSheetClosed || !canEditCosts}
                         className="text-muted-foreground hover:text-destructive cursor-pointer p-1 shrink-0 disabled:opacity-30 no-print"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -2060,7 +2083,7 @@ export default function EventDetailPage() {
                       <TypeaheadInput
                         placeholder="Responsable (a quién se le paga)"
                         value={item.responsable ?? ""}
-                        disabled={costSheetClosed}
+                        disabled={costSheetClosed || !canEditCosts}
                         onChange={(v) => updateItem({ responsable: v, responsableContactId: null })}
                         onSelectSuggestion={(s) => updateItem({ responsable: s.label, responsableContactId: s.value ?? null })}
                         fetchSuggestions={fetchResponsableSuggestions}
@@ -2072,7 +2095,7 @@ export default function EventDetailPage() {
                           accept=".pdf,.jpg,.jpeg,.png,.webp"
                           className="hidden"
                           id={`comprobante-upload-${item.id}`}
-                          disabled={costSheetClosed}
+                          disabled={costSheetClosed || !canEditCosts}
                           onChange={async (e) => {
                             const file = e.target.files?.[0];
                             e.target.value = "";
@@ -2099,7 +2122,7 @@ export default function EventDetailPage() {
                         />
                         <label
                           htmlFor={`comprobante-upload-${item.id}`}
-                          className={`text-muted-foreground hover:text-foreground no-print ${costSheetClosed ? "opacity-40 pointer-events-none" : "cursor-pointer"}`}
+                          className={`text-muted-foreground hover:text-foreground no-print ${(costSheetClosed || !canEditCosts) ? "opacity-40 pointer-events-none" : "cursor-pointer"}`}
                           title="Subir comprobante (foto o PDF)"
                         >
                           <Paperclip className="h-3.5 w-3.5" />
@@ -2113,7 +2136,7 @@ export default function EventDetailPage() {
                       <label className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0 cursor-pointer no-print">
                         <Checkbox
                           checked={item.esBhe}
-                          disabled={costSheetClosed}
+                          disabled={costSheetClosed || !canEditCosts}
                           onCheckedChange={(checked) => {
                             if (checked) {
                               const liquido = item.amount;
@@ -2142,7 +2165,7 @@ export default function EventDetailPage() {
                       <label className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0 cursor-pointer">
                         <Checkbox
                           checked={item.pagado}
-                          disabled={costSheetClosed}
+                          disabled={costSheetClosed || !canEditCosts}
                           onCheckedChange={(checked) => updateItem({ pagado: Boolean(checked) })}
                         />
                         Pagado
@@ -2152,7 +2175,7 @@ export default function EventDetailPage() {
                         accept=".pdf,.jpg,.jpeg,.png,.webp"
                         className="hidden"
                         id={`comprobante-pago-upload-${item.id}`}
-                        disabled={costSheetClosed}
+                        disabled={costSheetClosed || !canEditCosts}
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
                           e.target.value = "";
@@ -2179,7 +2202,7 @@ export default function EventDetailPage() {
                       />
                       <label
                         htmlFor={`comprobante-pago-upload-${item.id}`}
-                        className={`flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground ${costSheetClosed ? "opacity-40 pointer-events-none" : "cursor-pointer"}`}
+                        className={`flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground ${(costSheetClosed || !canEditCosts) ? "opacity-40 pointer-events-none" : "cursor-pointer"}`}
                         title="Subir comprobante de transferencia"
                       >
                         <Paperclip className="h-3.5 w-3.5" />
@@ -2197,7 +2220,7 @@ export default function EventDetailPage() {
             />
           )}
 
-          {!costSheetClosed && (
+          {!costSheetClosed && canEditCosts && (
             <div className="space-y-1.5 pt-1 no-print">
               <div className="flex items-center gap-2">
                 <TypeaheadInput
@@ -2293,7 +2316,7 @@ export default function EventDetailPage() {
               <p className="text-sm text-muted-foreground">
                 Total planilla: <span className="font-semibold text-foreground">{formatCents(costsTotal)}</span>
               </p>
-              {!costSheetClosed && (
+              {!costSheetClosed && canEditCosts && (
                 <Button size="sm" variant="ghost" className="h-7 text-xs cursor-pointer no-print" onClick={applyCostsToExpenses}>
                   Usar como Egresos del evento
                 </Button>
@@ -2308,7 +2331,7 @@ export default function EventDetailPage() {
             <Textarea
               id="profit-split-note"
               rows={2}
-              disabled={costSheetClosed}
+              disabled={costSheetClosed || !canEditCosts}
               placeholder={defaultProfitSplitNote}
               value={profitSplitNote}
               onChange={(e) => { setProfitSplitNote(e.target.value); setCostsDirty(true); }}
@@ -2336,6 +2359,51 @@ export default function EventDetailPage() {
           </div>
         </CardContent>
       </Card>
+      )}
+
+      {/* Aprobación del cierre de caja -- fuera de la Card de Costos a
+          propósito: quien firma (Admin/Artista) tiene que poder ver quién
+          falta aunque su rol no lo deje ver los montos de la Planilla. Sin
+          plata acá, solo nombres/checks -- igual que /eventos/[id]/firmar. */}
+      {signatureData && (
+        <Card data-section="approval" className="no-print">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Lock className="h-4 w-4" />
+              Aprobación
+              <Badge
+                variant="secondary"
+                className={`text-xs ${signatureData.allSigned ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}
+              >
+                {signatureData.allSigned
+                  ? "Aprobado por todos"
+                  : `${signatureData.requiredSigners.filter((r) => signatureData.signatures.some((s) => s.userId === r.userId)).length}/${signatureData.requiredSigners.length} firmaron`}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1.5">
+            {signatureData.requiredSigners.map((r) => {
+              const signature = signatureData.signatures.find((s) => s.userId === r.userId);
+              return (
+                <div key={r.userId} className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5">
+                    {signature ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                    ) : (
+                      <Circle className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    )}
+                    <span>{r.fullName || r.email || "Usuario"}</span>
+                  </div>
+                  {signature && (
+                    <span className="text-muted-foreground">
+                      {format(new Date(signature.signedAt), "d MMM yyyy, HH:mm", { locale: es })}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
       )}
 
       {/* Riders + link */}

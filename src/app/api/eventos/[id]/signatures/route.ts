@@ -14,8 +14,10 @@ function siteUrl(path: string): string {
   return `${base}${path}`;
 }
 
-// Los firmantes requeridos son, siempre, "los project_members del proyecto
-// del evento" -- no se guardan aparte, se calculan en caliente cada vez.
+// Los firmantes requeridos son "los project_members del proyecto del
+// evento con rol Admin o Artista" (decisión explícita de Francisco, 19 ago
+// 2026 -- Miembro y Staff técnico no firman) -- no se guardan aparte, se
+// calculan en caliente cada vez.
 //
 // Dos queries en vez de un embed (`profiles ( ... )`) a propósito:
 // `project_members.user_id` NO tiene foreign key hacia `profiles` (a
@@ -33,7 +35,8 @@ async function getRequiredSigners(
   const { data: members } = await supabase
     .from("project_members")
     .select("user_id")
-    .eq("project_id", projectId);
+    .eq("project_id", projectId)
+    .in("role", ["admin", "artist"]);
 
   const userIds: string[] = (members ?? []).map((m: { user_id: string }) => m.user_id);
   if (userIds.length === 0) return [];
@@ -116,7 +119,11 @@ export async function GET(
     signatures,
     allSigned,
     alreadySigned,
-    canSign: Boolean(show.cost_sheet_closed_at) && isRequiredSigner && !alreadySigned,
+    // Un admin de la organización siempre puede firmar aunque su rol en
+    // ESTE proyecto no sea Admin/Artista (ej. Francisco, dueño de la org,
+    // asignado como "Miembro" en Gamuza) -- pero no se le exige, no cuenta
+    // como uno de los requeridos.
+    canSign: Boolean(show.cost_sheet_closed_at) && (isRequiredSigner || isAdmin) && !alreadySigned,
   });
 }
 
@@ -153,9 +160,9 @@ export async function POST(
 
   const requiredSigners = await getRequiredSigners(supabase, show.project_id);
   const isRequiredSigner = requiredSigners.some((r) => r.userId === user!.id);
-  if (!isRequiredSigner) {
+  if (!isRequiredSigner && !isAdmin) {
     return NextResponse.json(
-      { error: "Solo los integrantes del proyecto de este evento pueden firmar el cierre" },
+      { error: "Solo Admin/Artista del proyecto de este evento pueden firmar el cierre" },
       { status: 403 }
     );
   }

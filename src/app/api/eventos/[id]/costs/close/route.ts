@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
-import { getProjectRole, canViewEventCosts } from "@/lib/project-roles";
+import { getProjectRole, canEditEventCosts } from "@/lib/project-roles";
 
 // POST /api/eventos/[id]/costs/close -- marca la planilla de costos como
 // cerrada: fecha + quien la cerró. Desde ahí queda de solo lectura (el
@@ -15,8 +15,8 @@ export async function POST(
 
   const { data: show } = await supabase.from("shows").select("project_id").eq("id", id).single();
   const role = await getProjectRole(supabase, user!.id, show?.project_id ?? null);
-  if (!canViewEventCosts(isAdmin, role)) {
-    return NextResponse.json({ error: "Sin acceso a los costos de este evento" }, { status: 403 });
+  if (!canEditEventCosts(isAdmin, role)) {
+    return NextResponse.json({ error: "Tu rol no puede editar los costos de este evento" }, { status: 403 });
   }
 
   const { data, error: dbError } = await supabase

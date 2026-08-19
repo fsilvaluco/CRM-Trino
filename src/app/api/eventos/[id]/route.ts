@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import type { ShowStatus } from "@/types/shows";
-import { getProjectRole, canViewEventCosts } from "@/lib/project-roles";
+import { getProjectRole, canViewEventCosts, canEditEventCosts } from "@/lib/project-roles";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapLiveShow(row: any) {
@@ -56,12 +56,15 @@ export async function GET(
     return NextResponse.json({ error: "Evento no encontrado" }, { status: 404 });
   }
 
-  // Roles restringidos (artist/staff) no ven nada de plata de este evento
-  // -- ni el resumen (fee/ingresos/egresos) ni el detalle de la Planilla
-  // de costos. El resto del evento (Setlist, Timing, Contactos) sigue
-  // visible/editable igual que hoy -- eso queda para una fase 2.
+  // "staff" no ve nada de plata de este evento (ni el resumen ni el
+  // detalle de la Planilla). "artist" SÍ la ve (de solo lectura -- es
+  // firmante requerido del cierre de caja, tiene que poder ver los
+  // números que está aprobando) pero no puede editarla. El resto del
+  // evento (Setlist, Timing, Contactos) sigue visible/editable igual que
+  // hoy para cualquiera con acceso al proyecto -- eso queda para fase 2.
   const role = await getProjectRole(supabase, user!.id, data.project_id ?? null);
   const canViewCosts = canViewEventCosts(isAdmin, role);
+  const canEditCosts = canEditEventCosts(isAdmin, role);
 
   const [{ data: setlistRows }, { data: costRows }, { data: timingRows }, { data: ticketRows }, { data: contactRows }] = await Promise.all([
     supabase.from("event_setlist_items").select("*").eq("show_id", id).order("position"),
@@ -81,6 +84,7 @@ export async function GET(
     ticketIncome: canViewCosts ? mappedShow.ticketIncome : null,
     expenses: canViewCosts ? mappedShow.expenses : null,
     canViewCosts,
+    canEditCosts,
     setlist: (setlistRows ?? []).map((r) => ({
       id: r.id,
       position: r.position,
@@ -147,6 +151,7 @@ export async function PUT(
   const { data: showForRole } = await supabase.from("shows").select("project_id").eq("id", id).single();
   const role = await getProjectRole(supabase, user!.id, showForRole?.project_id ?? null);
   const canViewCosts = canViewEventCosts(isAdmin, role);
+  const canEditCosts = canEditEventCosts(isAdmin, role);
 
   const body = await request.json().catch(() => ({}));
   const {
@@ -207,10 +212,11 @@ export async function PUT(
   if (city !== undefined && venueId === undefined) updates.city = city || "";
   if (notes !== undefined) updates.notes = notes || null;
   if (status !== undefined) updates.status = status;
-  // Roles restringidos (artist/staff) no pueden tocar plata del evento --
-  // se ignoran estos 3 campos en silencio si vinieran igual en el body
-  // (la UI ni se los muestra, esto es defensa en profundidad).
-  if (canViewCosts) {
+  // Solo admin/member pueden tocar plata del evento -- "artist" la ve pero
+  // no la edita, "staff" ni la ve. Se ignoran estos 3 campos en silencio si
+  // vinieran igual en el body (la UI ni se los muestra, esto es defensa en
+  // profundidad).
+  if (canEditCosts) {
     if (fee !== undefined) updates.fee = fee ?? 0;
     if (ticketIncome !== undefined) updates.ticket_income = ticketIncome ?? 0;
     if (expenses !== undefined) updates.expenses = expenses ?? 0;
@@ -240,6 +246,7 @@ export async function PUT(
     ticketIncome: canViewCosts ? mappedShow.ticketIncome : null,
     expenses: canViewCosts ? mappedShow.expenses : null,
     canViewCosts,
+    canEditCosts,
   });
 }
 

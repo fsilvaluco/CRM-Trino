@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { CheckCircle2, Circle, Loader2, ArrowLeft, Lock, ShieldAlert } from "lucide-react";
+import { CheckCircle2, Circle, Loader2, ArrowLeft, Lock, ShieldAlert, Receipt, Banknote } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import type { CostItem } from "@/types/shows";
@@ -207,13 +207,58 @@ export default function FirmarCierrePage() {
                 </div>
 
                 {event.costItems.length > 0 && (
-                  <div className="border-t pt-3 space-y-1.5">
-                    {event.costItems.map((c) => (
-                      <div key={c.id} className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">{c.label}{c.responsable ? ` -- ${c.responsable}` : ""}</span>
-                        <span className="font-medium shrink-0 ml-2">{formatCents(c.amount)}</span>
-                      </div>
-                    ))}
+                  <div className="border-t pt-3 overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-xs text-muted-foreground">
+                          <th className="text-left font-normal pb-1.5">Detalle</th>
+                          <th className="text-right font-normal pb-1.5">Monto</th>
+                          <th className="text-center font-normal pb-1.5">Comprobante de cobro</th>
+                          <th className="text-center font-normal pb-1.5">Comprobante de pago</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {event.costItems.map((c) => (
+                          <tr key={c.id} className="border-t">
+                            <td className="py-1.5 pr-2">
+                              {c.label}
+                              {c.responsable ? <span className="text-muted-foreground"> -- {c.responsable}</span> : null}
+                            </td>
+                            <td className="py-1.5 text-right font-medium whitespace-nowrap">{formatCents(c.amount)}</td>
+                            <td className="py-1.5 text-center">
+                              {c.comprobanteUrl ? (
+                                <a
+                                  href={c.comprobanteUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center justify-center h-7 w-7 rounded-md border text-muted-foreground hover:text-foreground hover:bg-muted"
+                                  title="Ver comprobante de cobro (boleta/factura)"
+                                >
+                                  <Receipt className="h-3.5 w-3.5" />
+                                </a>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
+                            <td className="py-1.5 text-center">
+                              {c.comprobantePagoUrl ? (
+                                <a
+                                  href={c.comprobantePagoUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center justify-center h-7 w-7 rounded-md border text-muted-foreground hover:text-foreground hover:bg-muted"
+                                  title="Ver comprobante de pago (transferencia)"
+                                >
+                                  <Banknote className="h-3.5 w-3.5" />
+                                </a>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
 
@@ -232,7 +277,9 @@ export default function FirmarCierrePage() {
                 <Lock className="h-4 w-4" />
                 Aprobación
                 <Badge variant="secondary" className={sig.allSigned ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}>
-                  {sig.allSigned ? "Aprobado por todos" : `${sig.signatures.length}/${sig.requiredSigners.length} firmaron`}
+                  {sig.allSigned
+                    ? "Aprobado por todos"
+                    : `${sig.requiredSigners.filter((r) => sig.signatures.some((s) => s.userId === r.userId)).length}/${sig.requiredSigners.length} firmaron`}
                 </Badge>
               </CardTitle>
             </CardHeader>

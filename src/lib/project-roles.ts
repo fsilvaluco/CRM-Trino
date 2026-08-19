@@ -10,10 +10,15 @@
 //   por encima de esto): manager/productor -- acceso completo, sin cambios
 //   respecto de como funcionaba la app hasta ahora.
 // - "artist": ve Deals (solo lectura, no puede editarlos/moverlos de
-//   etapa) -- NO ve Costos de eventos (ni el detalle ni el resumen $).
-// - "staff" (sonidista, asistente de producción, etc.): el módulo de
-//   Deals/CRM queda oculto por completo -- NO ve Costos de eventos, igual
-//   que "artist".
+//   etapa). Ve los Costos de eventos (resumen + detalle) de SOLO LECTURA --
+//   necesita verlos porque es uno de los firmantes requeridos del cierre de
+//   caja (ver signatures/route.ts) y no tendría sentido pedirle que apruebe
+//   números que no puede ver. No puede editar la Planilla ni cerrar/reabrir
+//   la caja, eso sigue siendo de Admin/Member.
+// - "staff" (sonidista, asistente de producción, músicos, etc.): el módulo
+//   de Deals/CRM queda oculto por completo -- y a diferencia de "artist",
+//   NO ve nada de plata de eventos (ni el resumen ni el detalle) porque no
+//   es firmante requerido del cierre de caja.
 //
 // Deliberadamente NO cubre todavía Finanzas general ni Métricas -- eso
 // queda para una fase 2 si Francisco lo pide.
@@ -75,8 +80,15 @@ export function canEditDeals(isOrgAdmin: boolean, role: ProjectRole | null): boo
   return FULL_ACCESS_ROLES.has(role);
 }
 
-/** Costos de eventos (Planilla + resumen financiero): artist y staff no ven nada. */
+/** Costos de eventos (ver): todos menos "staff". */
 export function canViewEventCosts(isOrgAdmin: boolean, role: ProjectRole | null): boolean {
+  if (isOrgAdmin) return true;
+  if (role === null) return true;
+  return role !== "staff";
+}
+
+/** Costos de eventos (editar/cerrar/reabrir caja): solo admin/member -- "artist" los ve pero no los toca. */
+export function canEditEventCosts(isOrgAdmin: boolean, role: ProjectRole | null): boolean {
   if (isOrgAdmin) return true;
   if (role === null) return true;
   return FULL_ACCESS_ROLES.has(role);

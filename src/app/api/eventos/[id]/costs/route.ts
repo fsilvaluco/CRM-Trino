@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { isCostCategory } from "@/lib/cost-categories";
-import { getProjectRole, canViewEventCosts } from "@/lib/project-roles";
+import { getProjectRole, canViewEventCosts, canEditEventCosts } from "@/lib/project-roles";
 
 export async function GET(
   _request: NextRequest,
@@ -56,8 +56,8 @@ export async function PUT(
 
   const { data: show } = await supabase.from("shows").select("cost_sheet_closed_at, project_id").eq("id", id).single();
   const role = await getProjectRole(supabase, user!.id, show?.project_id ?? null);
-  if (!canViewEventCosts(isAdmin, role)) {
-    return NextResponse.json({ error: "Sin acceso a los costos de este evento" }, { status: 403 });
+  if (!canEditEventCosts(isAdmin, role)) {
+    return NextResponse.json({ error: "Tu rol no puede editar los costos de este evento" }, { status: 403 });
   }
   if (show?.cost_sheet_closed_at) {
     return NextResponse.json(
