@@ -49,7 +49,7 @@ export default async function ActivityLogsPage({
     .limit(1000);
 
   const userMap = new Map<string, string | null>();
-  (usersData ?? []).forEach((u: ActivityLog) => {
+  (usersData ?? []).forEach((u) => {
     if (u.user_id && !userMap.has(u.user_id)) {
       userMap.set(u.user_id, u.user_email);
     }
