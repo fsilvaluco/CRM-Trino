@@ -1,6 +1,6 @@
 # Bitácora de Trabajo — Auto-CRM
-_Checkpoint v1.3 — 16 de agosto de 2026 (cierre de sesión larga, 12-16 ago)_
-_Checkpoint anterior: v1.2 — 10 de agosto de 2026_
+_Checkpoint v1.4 — 18 de agosto de 2026 (sesión 17-18 ago)_
+_Checkpoint anterior: v1.3 — 16 de agosto de 2026_
 
 > **Formato de tracking:** Registro histórico de trabajo realizado + pendientes actuales.  
 > Cada entrada incluye fecha, estado (🔨 En Progreso / ✅ Hecho), y notas de implementación detalladas.
@@ -87,6 +87,15 @@ en otras partes del código:
   no tiene los tipos generados de la base — para joins ambiguos (una tabla con más de una FK al mismo
   destino), especificar el nombre exacto de la FK (`profiles!task_assignees_user_id_fkey`), patrón ya
   usado en varias rutas.
+- **Un mismo dato leído por dos endpoints con mapeos manuales independientes se desincroniza fácil**: al
+  agregar `category`/`pagado`/`comprobantePagoUrl` a `event_cost_items` se actualizó el mapeo en
+  `GET /api/eventos/[id]/costs`, pero se pasó por alto que `GET /api/eventos/[id]` (usado de verdad por
+  la página del evento, tanto en la carga inicial como en el `load()` automático después de cada
+  guardado) tiene su **propio** `.map()` de la misma tabla. El síntoma engañaba: parecía "no se guarda"
+  cuando en realidad SÍ se guardaba bien y el problema era de lectura. **Diagnóstico correcto: consultar
+  la tabla directo por Supabase MCP antes de asumir dónde está el bug** — confirmó en segundos que el
+  guardado funcionaba y descartó horas de debug por el lado equivocado. Lección para el futuro: si se
+  agrega una columna nueva a `event_cost_items`, actualizar los mapeos en **ambos** archivos.
 
 ---
 
@@ -118,6 +127,46 @@ Sesión larga, todo mergeado a `main` y verificado en producción. Detalle compl
 
 ---
 
+## 📦 Qué se construyó en esta sesión (17-18 ago 2026) — resumen ejecutivo
+
+Sesión corta pero con harta iteración sobre un mismo módulo (Costos de Eventos). Detalle completo de
+cada uno en **"🟠 Importante"** más abajo — esto es solo el mapa para orientarse rápido:
+
+1. **Reportar gastos por link, con lectura de comprobante por IA** — página nueva
+   `/eventos/[id]/gastos`: cualquier integrante del proyecto reporta un gasto (ítem, monto, comprobante)
+   sin acceso a editar la Planilla completa; la IA lee el comprobante y sugiere el monto. Queda
+   "pendiente" en una tabla aparte (`event_cost_submissions`) hasta que un admin lo aprueba (se agrega
+   como ítem normal a la Planilla) o lo rechaza (se borra, la persona puede reintentar).
+2. **Categorías de gasto** — lista cerrada de categorías (`src/lib/cost-categories.ts`) para poder sacar
+   informes de "en qué se gasta" más adelante. Ajustada una vez a pedido de Francisco (se sacaron
+   Honorarios y Transporte de equipos).
+3. **Comprobante de pago (transferencia) separado del comprobante de gasto (boleta)** — checkbox
+   "Pagado" + adjuntar comprobante de transferencia, independiente del comprobante de la boleta que ya
+   existía.
+4. **3 bugs de producción encontrados y corregidos**, los 3 en el mismo módulo de Costos:
+   - Panel de gastos pendientes con texto invisible (bug de contraste: colores de tema sobre un fondo
+     forzado a claro).
+   - `saveCosts()` no mandaba `category`/`pagado`/`comprobantePagoUrl` al guardar (los perdía en el PUT).
+   - **El más largo de encontrar:** el mapeo de `event_cost_items` está duplicado en dos endpoints
+     (`costs/route.ts` y `[id]/route.ts`) -- se corrigió el primero pero no el segundo, que es el que la
+     página realmente usa para cargar/recargar. Se diagnosticó **consultando la base directo por
+     Supabase MCP** antes de tocar código, lo que confirmó que el guardado sí funcionaba y descartó una
+     pista falsa (ver "🔧 Lecciones técnicas").
+5. **Fix de layout**: header de Evento (botones empujaban el título hacia abajo con nombres largos) --
+   botones en su fila propia arriba, título abajo a ancho completo.
+6. **Auditoría de tamaños de letra en toda la app** (pendiente de hace rato) -- se hizo de verdad: el
+   único patrón real de bug son las filas densas tipo planilla (`SortableList`, solo existe en Eventos);
+   se encontró y corrigió 1 gap real en Timing/Cronograma. El resto de la app (~130 inputs revisados) ya
+   estaba bien.
+7. **Vista Carta Gantt en Tareas** -- resultó estar ya construida de una sesión anterior sin documentar
+   (`TaskGanttView.tsx`, pestaña Gantt en `/tasks`); la bitácora quedó actualizada para reflejar el
+   estado real (v1, sin rango porque `Task` no tiene `start_date` todavía).
+8. **Incidente de Railway** (deploys lentos/fallando, 19 ago madrugada UTC) -- confirmado resuelto por
+   Railway durante la sesión; se trabajó localmente mientras tanto (`.claude/launch.json` agregado para
+   poder levantar `npm run dev` con el panel de preview).
+
+---
+
 ## 🔴 Crítico (arreglar primero)
 
 _Ningún bug crítico conocido sin resolver._
@@ -126,6 +175,9 @@ _Ningún bug crítico conocido sin resolver._
 ---
 
 ## ⚠️ Por verificar / sin probar a fondo
+
+**Fix del mapeo duplicado de `event_cost_items` en producción** _(agregado: 18 ago 2026)_
+- Corregido en código y pusheado (`6f4ce20`), pero el deploy a Railway estaba recién recuperándose de un incidente al momento del push -- **falta que Francisco confirme en producción** (no solo local) que el ítem "Sonidista" del evento "Gamuza: otra noche más aquí en Plaza Victoria 1" ya se ve marcado como Pagado sin tener que resubir nada, y que un ítem nuevo (categoría + comprobante de pago) queda completo después de "Guardar costos" y recargar.
 
 **Google Maps — comuna en direcciones reales**
 - Francisco lo va a verificar él mismo a medida que completa a mano las direcciones reales de los 10 venues nuevos (quedaron con dirección "Por definir")
