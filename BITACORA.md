@@ -32,6 +32,11 @@ esperar a que las repita:
    nunca pedirle a Francisco que las corra a mano — instrucción explícita de Francisco (12 ago 2026).
 6. Después de cada feature grande, actualizar esta bitácora (sección correspondiente) **antes** de dar
    el trabajo por cerrado — es lo que permite retomar sin repetir contexto.
+7. **Cada vez que se actualiza esta bitácora, subir también `APP_VERSION`** en `src/lib/constants.ts`
+   (se muestra como "Artist Pro vX.Y" al pie de la barra lateral, `Sidebar.tsx`) — instrucción explícita
+   de Francisco (18 ago 2026). Convención: subir el número **después** del punto en cada actualización
+   normal (v2.14 → v2.15); subir el número **de antes** del punto (y resetear el de después a 0) solo
+   para cambios grandes -- módulos nuevos, no ajustes/fixes puntuales (ej. v2.15 → v3.0).
 
 **Con los datos reales de Francisco (Supabase) — regla dura, aprendida por un incidente real:**
 Durante la depuración del contador de QR, Claude corrió `DELETE FROM qr_scans WHERE qr_id = ...` sin

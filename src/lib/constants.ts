@@ -1,5 +1,12 @@
 import type { Temperature, LeadSource } from "@/types";
 
+// Version mostrada en el pie de la barra lateral (Sidebar.tsx). Convención
+// (pedida por Francisco, 18 ago 2026): subir el número después del punto
+// cada vez que se actualiza BITACORA.md (cualquier sesión de trabajo);
+// subir el número antes del punto (y volver el de después a 0) solo para
+// cambios grandes -- módulos nuevos, no ajustes/fixes puntuales.
+export const APP_VERSION = "2.14";
+
 export const TEMPERATURE_CONFIG: Record<
   Temperature,
   { label: string; color: string; bgColor: string }

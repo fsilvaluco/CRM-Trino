@@ -10,6 +10,7 @@ import { useProject } from "@/lib/project-context";
 import { useNotifications } from "@/lib/notifications-context";
 import { navConfig, settingsConfig, computeActiveHref, type NavLeaf, type NavGroup } from "./nav-config";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { APP_VERSION } from "@/lib/constants";
 
 interface SidebarProps {
   collapsed: boolean;
@@ -260,7 +261,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         {!collapsed && (
           <div>
             <p className="text-xs text-[var(--sidebar-foreground)]/50">
-              Artist Pro v2.0
+              Artist Pro v{APP_VERSION}
             </p>
           </div>
         )}
