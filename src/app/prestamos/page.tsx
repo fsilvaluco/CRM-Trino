@@ -11,7 +11,7 @@ import {
 import { MoneyInput } from "@/components/shared/MoneyInput";
 import { toast } from "sonner";
 import {
-  Plus, Trash2, Loader2, Landmark, HandCoins, Paperclip, ExternalLink, ChevronDown, ChevronRight,
+  Plus, Trash2, Loader2, Landmark, HandCoins, Paperclip, ExternalLink, ChevronDown, ChevronRight, Pencil,
 } from "lucide-react";
 import { useProject } from "@/lib/project-context";
 import { supabase } from "@/lib/supabase";
@@ -35,9 +35,17 @@ interface Repayment {
 interface Loan {
   id: string;
   lenderName: string;
+  // Qué artista consiguió este préstamo (ej. "SoloNacho") -- distinto del
+  // prestamista, que puede ser un tercero (su empresa, un familiar).
+  responsibleName: string | null;
   principalAmount: number;
   received: boolean;
   receivedAt: string | null;
+  holderRut: string | null;
+  bankName: string | null;
+  accountType: string | null;
+  accountNumber: string | null;
+  contactEmail: string | null;
   repaidAmount: number;
   outstandingAmount: number;
   repayments: Repayment[];
@@ -70,31 +78,72 @@ async function uploadReceipt(file: File, prefix: string): Promise<string | null>
 }
 
 // Nuevo préstamo (prestamista)
-function NewLoanDialog({ open, onClose, projectId, onCreated }: { open: boolean; onClose: () => void; projectId: string; onCreated: () => void }) {
+// Crear o editar un préstamo -- mismo diálogo para los dos casos
+// (`editingLoan` viene seteado cuando es edición).
+function LoanFormDialog({ open, onClose, projectId, editingLoan, onSaved }: {
+  open: boolean;
+  onClose: () => void;
+  projectId: string;
+  editingLoan: Loan | null;
+  onSaved: () => void;
+}) {
   const [lenderName, setLenderName] = useState("");
+  const [responsibleName, setResponsibleName] = useState("");
   const [amount, setAmount] = useState("");
   const [received, setReceived] = useState(false);
+  const [holderRut, setHolderRut] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [accountType, setAccountType] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setLenderName(editingLoan?.lenderName ?? "");
+    setResponsibleName(editingLoan?.responsibleName ?? "");
+    setAmount(editingLoan ? String(editingLoan.principalAmount / 100) : "");
+    setReceived(editingLoan?.received ?? false);
+    setHolderRut(editingLoan?.holderRut ?? "");
+    setBankName(editingLoan?.bankName ?? "");
+    setAccountType(editingLoan?.accountType ?? "");
+    setAccountNumber(editingLoan?.accountNumber ?? "");
+    setContactEmail(editingLoan?.contactEmail ?? "");
+  }, [open, editingLoan]);
 
   async function handleSave() {
     const pesos = parseInt(amount.replace(/\D/g, ""), 10);
     if (!lenderName.trim() || !Number.isFinite(pesos) || pesos <= 0) {
-      toast.error("Completa el nombre y un monto válido");
+      toast.error("Completa el nombre del prestamista y un monto válido");
       return;
     }
     setSaving(true);
     try {
-      const res = await fetch("/api/loans", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, lenderName: lenderName.trim(), principalAmount: pesos * 100, received }),
-      });
+      const payload = {
+        lenderName: lenderName.trim(),
+        responsibleName: responsibleName.trim() || null,
+        principalAmount: pesos * 100,
+        received,
+        holderRut: holderRut.trim() || null,
+        bankName: bankName.trim() || null,
+        accountType: accountType.trim() || null,
+        accountNumber: accountNumber.trim() || null,
+        contactEmail: contactEmail.trim() || null,
+      };
+      const res = editingLoan
+        ? await fetch(`/api/loans/${editingLoan.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          })
+        : await fetch("/api/loans", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...payload, projectId }),
+          });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error);
-      toast.success("Préstamo registrado");
-      setLenderName("");
-      setAmount("");
-      setReceived(false);
-      onCreated();
+      toast.success(editingLoan ? "Préstamo actualizado" : "Préstamo registrado");
+      onSaved();
       onClose();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo guardar");
@@ -105,12 +154,16 @@ function NewLoanDialog({ open, onClose, projectId, onCreated }: { open: boolean;
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader><DialogTitle>Nuevo préstamo</DialogTitle></DialogHeader>
+      <DialogContent className="sm:max-w-sm max-h-[85vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>{editingLoan ? "Editar préstamo" : "Nuevo préstamo"}</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Prestamista</label>
-            <Input placeholder="ej. Nacho (empresa)" value={lenderName} onChange={(e) => setLenderName(e.target.value)} />
+            <label className="text-xs font-medium text-muted-foreground">Prestamista (a quién se le debe)</label>
+            <Input placeholder="ej. Miguel Galindo" value={lenderName} onChange={(e) => setLenderName(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Responsable (qué artista lo consiguió)</label>
+            <Input placeholder="ej. SoloNacho" value={responsibleName} onChange={(e) => setResponsibleName(e.target.value)} />
           </div>
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">Monto prestado</label>
@@ -120,6 +173,33 @@ function NewLoanDialog({ open, onClose, projectId, onCreated }: { open: boolean;
             <Checkbox checked={received} onCheckedChange={(v) => setReceived(Boolean(v))} />
             Ya se recibió esta plata
           </label>
+
+          <div className="border-t pt-3 space-y-3">
+            <p className="text-xs font-medium text-muted-foreground">Datos bancarios (para la transferencia de vuelta)</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">RUT</label>
+                <Input placeholder="13.275.278-8" value={holderRut} onChange={(e) => setHolderRut(e.target.value)} className="h-8 text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">Banco</label>
+                <Input placeholder="BCI Mach" value={bankName} onChange={(e) => setBankName(e.target.value)} className="h-8 text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">Tipo de cuenta</label>
+                <Input placeholder="Cuenta corriente" value={accountType} onChange={(e) => setAccountType(e.target.value)} className="h-8 text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">N° de cuenta</label>
+                <Input placeholder="15133150" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} className="h-8 text-sm" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">Email</label>
+              <Input placeholder="correo@ejemplo.com" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} className="h-8 text-sm" />
+            </div>
+          </div>
+
           <Button className="w-full cursor-pointer" disabled={saving} onClick={handleSave}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar"}
           </Button>
@@ -281,10 +361,11 @@ function NewContributionDialog({ open, onClose, projectId, onCreated }: { open: 
   );
 }
 
-function LoanCard({ loan, onChanged }: { loan: Loan; onChanged: () => void }) {
+function LoanCard({ loan, onChanged, onEdit }: { loan: Loan; onChanged: () => void; onEdit: (loan: Loan) => void }) {
   const [expanded, setExpanded] = useState(false);
   const [showRepayment, setShowRepayment] = useState(false);
   const pct = loan.principalAmount > 0 ? Math.min(100, Math.round((loan.repaidAmount / loan.principalAmount) * 100)) : 0;
+  const hasBankDetails = loan.holderRut || loan.bankName || loan.accountType || loan.accountNumber || loan.contactEmail;
 
   async function toggleReceived() {
     const res = await fetch(`/api/loans/${loan.id}`, {
@@ -318,6 +399,7 @@ function LoanCard({ loan, onChanged }: { loan: Loan; onChanged: () => void }) {
           {expanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
           <Landmark className="h-4 w-4 text-muted-foreground shrink-0" />
           <span className="font-medium text-sm truncate">{loan.lenderName}</span>
+          {loan.responsibleName && <Badge variant="secondary" className="text-xs shrink-0">Resp: {loan.responsibleName}</Badge>}
           {!loan.received && <Badge variant="outline" className="text-xs shrink-0">Pendiente de recibir</Badge>}
         </button>
         <div className="flex items-center gap-1 shrink-0">
@@ -325,6 +407,9 @@ function LoanCard({ loan, onChanged }: { loan: Loan; onChanged: () => void }) {
             <HandCoins className="h-3.5 w-3.5 sm:mr-1" />
             <span className="hidden sm:inline">Registrar abono</span>
           </Button>
+          <button onClick={() => onEdit(loan)} className="text-muted-foreground hover:text-foreground p-1 cursor-pointer" title="Editar préstamo">
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
           <button onClick={deleteLoan} className="text-muted-foreground hover:text-destructive p-1 cursor-pointer" title="Eliminar préstamo">
             <Trash2 className="h-3.5 w-3.5" />
           </button>
@@ -348,7 +433,16 @@ function LoanCard({ loan, onChanged }: { loan: Loan; onChanged: () => void }) {
       </label>
 
       {expanded && (
-        <div className="pl-5 space-y-1 border-t pt-2">
+        <div className="pl-5 space-y-2 border-t pt-2">
+          {hasBankDetails && (
+            <div className="text-xs text-muted-foreground grid grid-cols-2 gap-x-3 gap-y-0.5 bg-muted/40 rounded-md p-2">
+              {loan.holderRut && <span>RUT: {loan.holderRut}</span>}
+              {loan.bankName && <span>Banco: {loan.bankName}</span>}
+              {loan.accountType && <span>{loan.accountType}</span>}
+              {loan.accountNumber && <span>N° {loan.accountNumber}</span>}
+              {loan.contactEmail && <span className="col-span-2">{loan.contactEmail}</span>}
+            </div>
+          )}
           {loan.repayments.length === 0 ? (
             <p className="text-xs text-muted-foreground">Sin abonos registrados todavía.</p>
           ) : (
@@ -382,7 +476,8 @@ export default function LoansPage() {
   const [loans, setLoans] = useState<Loan[]>([]);
   const [contributions, setContributions] = useState<Contribution[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showNewLoan, setShowNewLoan] = useState(false);
+  const [showLoanForm, setShowLoanForm] = useState(false);
+  const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
   const [showNewContribution, setShowNewContribution] = useState(false);
 
   const load = useCallback(async () => {
@@ -465,7 +560,7 @@ export default function LoansPage() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-medium">Prestamistas</h2>
-              <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => setShowNewLoan(true)}>
+              <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => { setEditingLoan(null); setShowLoanForm(true); }}>
                 <Plus className="h-3.5 w-3.5 sm:mr-1" /><span className="hidden sm:inline">Nuevo préstamo</span>
               </Button>
             </div>
@@ -473,7 +568,14 @@ export default function LoansPage() {
               <p className="text-sm text-muted-foreground">Sin préstamos registrados todavía.</p>
             ) : (
               <div className="space-y-2">
-                {loans.map((loan) => <LoanCard key={loan.id} loan={loan} onChanged={load} />)}
+                {loans.map((loan) => (
+                  <LoanCard
+                    key={loan.id}
+                    loan={loan}
+                    onChanged={load}
+                    onEdit={(l) => { setEditingLoan(l); setShowLoanForm(true); }}
+                  />
+                ))}
               </div>
             )}
           </div>
@@ -515,7 +617,13 @@ export default function LoansPage() {
         </>
       )}
 
-      <NewLoanDialog open={showNewLoan} onClose={() => setShowNewLoan(false)} projectId={projectId} onCreated={load} />
+      <LoanFormDialog
+        open={showLoanForm}
+        onClose={() => { setShowLoanForm(false); setEditingLoan(null); }}
+        projectId={projectId}
+        editingLoan={editingLoan}
+        onSaved={load}
+      />
       <NewContributionDialog open={showNewContribution} onClose={() => setShowNewContribution(false)} projectId={projectId} onCreated={load} />
     </div>
   );

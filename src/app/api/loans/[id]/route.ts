@@ -10,8 +10,9 @@ async function loadLoanProjectId(
   return data?.project_id ?? null;
 }
 
-// PUT /api/loans/[id] -- editar un préstamo (ej. marcar "recibido" cuando
-// llega la plata, corregir el monto/nombre).
+// PUT /api/loans/[id] -- editar un préstamo: nombre del prestamista,
+// responsable (qué artista lo consiguió), monto, datos bancarios, o
+// marcar "recibido" cuando llega la plata.
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -27,18 +28,33 @@ export async function PUT(
   }
 
   const body = await request.json().catch(() => ({}));
-  const { lenderName, principalAmount, received, receivedAt, notes } = body as {
+  const {
+    lenderName, responsibleName, principalAmount, received, receivedAt, notes,
+    holderRut, bankName, accountType, accountNumber, contactEmail,
+  } = body as {
     lenderName?: string;
+    responsibleName?: string | null;
     principalAmount?: number;
     received?: boolean;
     receivedAt?: string | null;
     notes?: string | null;
+    holderRut?: string | null;
+    bankName?: string | null;
+    accountType?: string | null;
+    accountNumber?: string | null;
+    contactEmail?: string | null;
   };
 
   const updates: Record<string, unknown> = {};
   if (lenderName !== undefined) updates.lender_name = lenderName.trim();
+  if (responsibleName !== undefined) updates.responsible_name = responsibleName?.trim() || null;
   if (principalAmount !== undefined) updates.principal_amount = Math.round(principalAmount);
   if (notes !== undefined) updates.notes = notes || null;
+  if (holderRut !== undefined) updates.holder_rut = holderRut?.trim() || null;
+  if (bankName !== undefined) updates.bank_name = bankName?.trim() || null;
+  if (accountType !== undefined) updates.account_type = accountType?.trim() || null;
+  if (accountNumber !== undefined) updates.account_number = accountNumber?.trim() || null;
+  if (contactEmail !== undefined) updates.contact_email = contactEmail?.trim() || null;
   if (received !== undefined) {
     updates.received = received;
     updates.received_at = received ? (receivedAt || new Date().toISOString()) : null;
@@ -57,9 +73,15 @@ export async function PUT(
   return NextResponse.json({
     id: data.id,
     lenderName: data.lender_name,
+    responsibleName: data.responsible_name,
     principalAmount: data.principal_amount,
     received: data.received,
     receivedAt: data.received_at,
+    holderRut: data.holder_rut,
+    bankName: data.bank_name,
+    accountType: data.account_type,
+    accountNumber: data.account_number,
+    contactEmail: data.contact_email,
     repaidAmount: repaid,
     outstandingAmount: data.principal_amount - repaid,
   });

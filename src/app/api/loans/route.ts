@@ -8,10 +8,21 @@ function mapLoan(row: any) {
     id: row.id,
     projectId: row.project_id,
     lenderName: row.lender_name,
+    // "Responsable" = qué artista consiguió este préstamo (ej. "SoloNacho")
+    // -- distinto del prestamista, que puede ser un tercero (su empresa,
+    // un familiar) que no es parte del proyecto.
+    responsibleName: row.responsible_name,
     principalAmount: row.principal_amount,
     received: row.received,
     receivedAt: row.received_at,
     notes: row.notes,
+    // Datos bancarios del prestamista, para hacerle la transferencia de
+    // vuelta sin tener que buscarlos en otro lado.
+    holderRut: row.holder_rut,
+    bankName: row.bank_name,
+    accountType: row.account_type,
+    accountNumber: row.account_number,
+    contactEmail: row.contact_email,
     createdAt: row.created_at,
     // Calculado -- nunca se guarda, siempre a partir de loan_repayments.
     repaidAmount: repaid,
@@ -59,13 +70,22 @@ export async function POST(request: NextRequest) {
   if (error) return error;
 
   const body = await request.json().catch(() => ({}));
-  const { projectId, lenderName, principalAmount, received, receivedAt, notes } = body as {
+  const {
+    projectId, lenderName, responsibleName, principalAmount, received, receivedAt, notes,
+    holderRut, bankName, accountType, accountNumber, contactEmail,
+  } = body as {
     projectId?: string;
     lenderName?: string;
+    responsibleName?: string | null;
     principalAmount?: number;
     received?: boolean;
     receivedAt?: string | null;
     notes?: string | null;
+    holderRut?: string | null;
+    bankName?: string | null;
+    accountType?: string | null;
+    accountNumber?: string | null;
+    contactEmail?: string | null;
   };
 
   if (!projectId) return NextResponse.json({ error: "projectId requerido" }, { status: 400 });
@@ -83,10 +103,16 @@ export async function POST(request: NextRequest) {
       organization_id: orgId,
       project_id: projectId,
       lender_name: lenderName.trim(),
+      responsible_name: responsibleName?.trim() || null,
       principal_amount: Math.round(principalAmount),
       received: received === true,
       received_at: received === true ? (receivedAt || new Date().toISOString()) : null,
       notes: notes || null,
+      holder_rut: holderRut?.trim() || null,
+      bank_name: bankName?.trim() || null,
+      account_type: accountType?.trim() || null,
+      account_number: accountNumber?.trim() || null,
+      contact_email: contactEmail?.trim() || null,
       created_by: user!.id,
     })
     .select("*, loan_repayments ( id, amount, repayment_date, comprobante_url, notes, created_at )")
