@@ -16,22 +16,46 @@ function siteUrl(path: string): string {
 
 // Los firmantes requeridos son, siempre, "los project_members del proyecto
 // del evento" -- no se guardan aparte, se calculan en caliente cada vez.
+//
+// Dos queries en vez de un embed (`profiles ( ... )`) a propósito:
+// `project_members.user_id` NO tiene foreign key hacia `profiles` (a
+// diferencia de `organization_members`/`event_closing_signatures`, que sí
+// la tienen) -- PostgREST no puede resolver el embed sin esa FK, así que
+// fallaba en silencio (`data` quedaba `null`, `data ?? []` lo escondía) y
+// siempre devolvía 0 firmantes requeridos. Bug encontrado el 19 ago 2026:
+// Francisco cerró la caja de un evento real y le apareció "0/0" +
+// "no eres parte del equipo requerido" a pesar de estar en el proyecto.
 async function getRequiredSigners(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
   projectId: string
 ): Promise<SignerProfile[]> {
-  const { data } = await supabase
+  const { data: members } = await supabase
     .from("project_members")
-    .select("user_id, profiles ( full_name, email, avatar_url )")
+    .select("user_id")
     .eq("project_id", projectId);
 
-  return (data ?? []).map((m: { user_id: string; profiles: { full_name: string | null; email: string | null; avatar_url: string | null } | null }) => ({
-    userId: m.user_id,
-    fullName: m.profiles?.full_name ?? null,
-    email: m.profiles?.email ?? null,
-    avatarUrl: m.profiles?.avatar_url ?? null,
-  }));
+  const userIds: string[] = (members ?? []).map((m: { user_id: string }) => m.user_id);
+  if (userIds.length === 0) return [];
+
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, full_name, email, avatar_url")
+    .in("id", userIds);
+
+  const profileById = new Map(
+    (profiles ?? []).map((p: { id: string; full_name: string | null; email: string | null; avatar_url: string | null }) => [p.id, p])
+  );
+
+  return userIds.map((userId) => {
+    const p = profileById.get(userId) as { full_name: string | null; email: string | null; avatar_url: string | null } | undefined;
+    return {
+      userId,
+      fullName: p?.full_name ?? null,
+      email: p?.email ?? null,
+      avatarUrl: p?.avatar_url ?? null,
+    };
+  });
 }
 
 // GET /api/eventos/[id]/signatures -- estado de la firma virtual del cierre

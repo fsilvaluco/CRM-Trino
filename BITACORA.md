@@ -101,6 +101,15 @@ en otras partes del código:
   la tabla directo por Supabase MCP antes de asumir dónde está el bug** — confirmó en segundos que el
   guardado funcionaba y descartó horas de debug por el lado equivocado. Lección para el futuro: si se
   agrega una columna nueva a `event_cost_items`, actualizar los mapeos en **ambos** archivos.
+- **Un embed de PostgREST (`tabla ( columnas )`) necesita una foreign key real para funcionar** -- no
+  basta con que la columna "debería" relacionarse con la otra tabla. `project_members.user_id` nunca tuvo
+  FK hacia `profiles` (a diferencia de `organization_members`/`event_closing_signatures`, que sí la
+  tienen), así que `.select("user_id, profiles(...)")` fallaba en silencio (`data: null`, sin lanzar
+  excepción) y `data ?? []` lo escondía como "0 resultados" en vez de un error visible -- exactamente el
+  mismo síntoma engañoso que el caso anterior. Esto es distinto del caso ya documentado de FK *ambigua*
+  (dos FKs al mismo destino, se resuelve nombrando la FK exacta) -- acá directamente no existía ninguna.
+  Cuando un embed de Supabase devuelve sospechosamente vacío, **verificar primero si la FK existe de
+  verdad** (`information_schema.table_constraints`) antes de asumir que es un problema de datos.
 
 ---
 
@@ -176,6 +185,7 @@ cada uno en **"🟠 Importante"** más abajo — esto es solo el mapa para orien
 
 _Ningún bug crítico conocido sin resolver._
 - ✅ Confirmado por Francisco (10 ago 2026): el paquete de fixes de gráficos de Métricas + agrupación por mes en Eventos quedó bien aplicado y probado.
+- ✅ **Bug de producción encontrado y corregido (19 ago 2026):** Francisco cerró la caja de un evento real ("Gamuza: otra noche más aquí en Plaza Victoria 1") y la Planilla mostró "Pendiente de aprobación (0/0)" -- al abrir el link de firma, decía "no eres parte del equipo requerido" a pesar de estar en el proyecto (confirmado en Equipo y Acceso). **Causa raíz:** `getRequiredSigners()` en `signatures/route.ts` calculaba los firmantes con un embed de PostgREST (`project_members.select("user_id, profiles(...)")`), pero `project_members.user_id` **no tiene foreign key hacia `profiles`** (a diferencia de `organization_members`/`event_closing_signatures`, que sí la tienen) -- el embed fallaba en silencio, `data` quedaba `null`, y `data ?? []` lo escondía como si el proyecto no tuviera integrantes. Verificado directo en la base (Supabase MCP) antes de tocar código: el proyecto Gamuza sí tiene 4 `project_members` (Francisco, Joaquín, Diego, Gonzalo). Corregido reemplazando el embed por dos queries separadas (`project_members` + `profiles` por `IN (...)`). Revisados los demás usos de `project_members` en la app -- ninguno más intenta este embed roto, era el único caso.
 
 ---
 
