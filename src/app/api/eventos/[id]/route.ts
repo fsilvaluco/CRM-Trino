@@ -32,6 +32,7 @@ function mapLiveShow(row: any) {
     costSheetClosedAt: row.cost_sheet_closed_at ?? null,
     costSheetClosingFilePath: row.cost_sheet_closing_file_path ?? null,
     costSheetClosingFileName: row.cost_sheet_closing_file_name ?? null,
+    costSheetInformedAt: row.cost_sheet_informed_at ?? null,
     ticketSalesUrl: row.ticket_sales_url ?? null,
     tour: row.tour ?? null,
     profitSplitNote: row.profit_split_note ?? null,

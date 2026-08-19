@@ -76,6 +76,7 @@ export interface LiveShow {
   costSheetClosedAt: string | null;
   costSheetClosingFilePath: string | null;
   costSheetClosingFileName: string | null;
+  costSheetInformedAt: string | null;
   ticketSalesUrl: string | null;
   tour: string | null;
   profitSplitNote: string | null;

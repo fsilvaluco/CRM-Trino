@@ -22,7 +22,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Pencil, MapPin, Clock, Music4, Wallet, FileText, Link as LinkIcon,
   Plus, Trash2, Star, ExternalLink, Loader2, Lock, LockOpen, Printer, Receipt,
-  Ticket, Upload, Paperclip, Share2, Users, RefreshCw, BellRing, Banknote, CheckCircle2, Circle,
+  Ticket, Upload, Paperclip, Share2, Users, RefreshCw, BellRing, Banknote, CheckCircle2, Circle, Mail,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -162,6 +162,7 @@ export default function EventDetailPage() {
   const [newCostComprobante, setNewCostComprobante] = useState("");
   const [newCostEsBhe, setNewCostEsBhe] = useState(false);
   const [closingCosts, setClosingCosts] = useState(false);
+  const [informingClosing, setInformingClosing] = useState(false);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const closingFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -824,6 +825,27 @@ export default function EventDetailPage() {
       toast.error("No se pudo reabrir la caja");
     } finally {
       setClosingCosts(false);
+    }
+  }
+
+  // Manda el resumen del cierre por correo a todos los que firmaron --
+  // solo se puede llamar cuando allSigned es true (el botón que lo dispara
+  // ya está deshabilitado antes de eso, pero el servidor lo revalida igual).
+  // No es de un solo uso: se puede volver a apretar para reenviar.
+  async function informClosing() {
+    const already = Boolean(event?.costSheetInformedAt);
+    if (!confirm(already ? "¿Reenviar el resumen del cierre a todos los que firmaron?" : "¿Informar el cierre? Se les manda por correo el resumen completo a todos los que firmaron.")) return;
+    setInformingClosing(true);
+    try {
+      const res = await fetch(`/api/eventos/${id}/costs/inform`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "No se pudo informar el cierre");
+      toast.success(`Cierre informado a ${data.sentTo?.length ?? 0} persona(s)`);
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo informar el cierre");
+    } finally {
+      setInformingClosing(false);
     }
   }
 
@@ -1883,6 +1905,19 @@ export default function EventDetailPage() {
                   <Share2 className="h-3.5 w-3.5 sm:mr-1" />
                   <span className="hidden sm:inline">Link de firma</span>
                 </Button>
+                {signatureData?.allSigned && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs cursor-pointer"
+                    disabled={informingClosing}
+                    onClick={informClosing}
+                    title={event.costSheetInformedAt ? `Informado el ${format(new Date(event.costSheetInformedAt), "d MMM yyyy, HH:mm", { locale: es })} -- click para reenviar` : "Mandar el resumen del cierre por correo a todos los que firmaron"}
+                  >
+                    {informingClosing ? <Loader2 className="h-3.5 w-3.5 animate-spin sm:mr-1" /> : <Mail className="h-3.5 w-3.5 sm:mr-1" />}
+                    <span className="hidden sm:inline">{event.costSheetInformedAt ? "Reenviar informe" : "Informar cierre"}</span>
+                  </Button>
+                )}
                 <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" disabled={closingCosts} onClick={reopenCostSheet} title="Reabrir">
                   <LockOpen className="h-3.5 w-3.5 sm:mr-1" />
                   <span className="hidden sm:inline">Reabrir</span>
@@ -1901,6 +1936,9 @@ export default function EventDetailPage() {
             <p className="text-xs text-muted-foreground no-print">
               Caja cerrada{event.costSheetClosedAt ? ` el ${format(new Date(event.costSheetClosedAt), "d MMM yyyy, HH:mm", { locale: es })}` : ""}.
               Reábrela si necesitas corregir algo.
+              {event.costSheetInformedAt && (
+                <> Cierre informado por correo el {format(new Date(event.costSheetInformedAt), "d MMM yyyy, HH:mm", { locale: es })}.</>
+              )}
             </p>
           )}
 

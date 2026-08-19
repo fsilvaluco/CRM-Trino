@@ -7,7 +7,10 @@ import { getProjectRole, canEditEventCosts } from "@/lib/project-roles";
 // corregir algo despues. Borra tambien las firmas de aprobacion que ya se
 // hayan juntado -- si se reabre es porque algo va a cambiar, las firmas
 // viejas quedarian aprobando una planilla que ya no es la que se va a
-// volver a cerrar. Hay que volver a juntarlas.
+// volver a cerrar. Hay que volver a juntarlas. Tambien limpia
+// cost_sheet_informed_at: si ya se habia mandado el correo de "Informar
+// cierre" con numeros viejos, hay que volver a mandarlo despues del
+// proximo cierre -- el boton solo aparece cuando allSigned de nuevo.
 export async function POST(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -24,7 +27,7 @@ export async function POST(
 
   const { error: dbError } = await supabase
     .from("shows")
-    .update({ cost_sheet_closed_at: null, cost_sheet_closed_by: null })
+    .update({ cost_sheet_closed_at: null, cost_sheet_closed_by: null, cost_sheet_informed_at: null, cost_sheet_informed_by: null })
     .eq("id", id);
 
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });

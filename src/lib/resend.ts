@@ -77,3 +77,115 @@ export function buildInviteEmailHtml(params: {
     </div>
   `;
 }
+
+const CLP_FMT = new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
+
+function formatCentsForEmail(cents: number | null | undefined): string {
+  if (cents == null) return "—";
+  return CLP_FMT.format(cents / 100);
+}
+
+function formatDateForEmail(iso: string): string {
+  try {
+    return new Date(`${iso}T00:00:00`).toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  } catch {
+    return iso;
+  }
+}
+
+function formatDateTimeForEmail(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString("es-CL", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return iso;
+  }
+}
+
+/**
+ * Correo de "Informar cierre" -- se manda a todos los que firmaron (ver
+ * costs/inform/route.ts) una vez que el cierre de caja de un evento quedó
+ * aprobado por todos los firmantes requeridos. Resumen completo: venta de
+ * entradas, costos, utilidad y quién aprobó.
+ */
+export function buildCostSheetSummaryEmailHtml(params: {
+  eventName: string;
+  eventDate: string;
+  venue: string;
+  projectName: string | null;
+  fee: number | null;
+  ticketIncome: number | null;
+  expenses: number | null;
+  ticketTiers: { label: string; unitPrice: number; quantitySold: number }[];
+  costItems: { label: string; responsable: string | null; amount: number }[];
+  profitSplitNote: string | null;
+  signers: { name: string; signedAt: string }[];
+  detailUrl: string;
+}): string {
+  const { eventName, eventDate, venue, projectName, fee, ticketIncome, expenses, ticketTiers, costItems, profitSplitNote, signers, detailUrl } = params;
+  const ingresos = (fee ?? 0) + (ticketIncome ?? 0);
+  const utilidad = ingresos - (expenses ?? 0);
+  const ticketTotal = ticketTiers.reduce((sum, t) => sum + t.unitPrice * t.quantitySold, 0);
+
+  const row = (label: string, right: string) =>
+    `<tr><td style="padding:4px 0;color:#14162B;">${label}</td><td style="padding:4px 0;text-align:right;font-weight:600;color:#14162B;white-space:nowrap;">${right}</td></tr>`;
+
+  const ticketRows = ticketTiers
+    .map((t) => row(`${t.label} (${t.quantitySold})`, formatCentsForEmail(t.unitPrice * t.quantitySold)))
+    .join("");
+
+  const costRows = costItems
+    .map((c) => row(c.responsable ? `${c.label} -- ${c.responsable}` : c.label, formatCentsForEmail(c.amount)))
+    .join("");
+
+  const signerRows = signers
+    .map((s) => `<li style="margin-bottom:4px;">${s.name} -- <span style="color:#14162B99;">${formatDateTimeForEmail(s.signedAt)}</span></li>`)
+    .join("");
+
+  return `
+    <div style="font-family: -apple-system, Inter, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px;">
+      <img src="https://artistpro.app/logo-black.png" alt="Artist Pro" style="width: 120px; height: auto; margin-bottom: 20px;" />
+      <p style="font-size: 18px; font-weight: 700; color: #14162B; margin-bottom: 4px;">Cierre de caja aprobado</p>
+      <p style="font-size: 15px; color: #14162B; margin-bottom: 2px;"><strong>${eventName}</strong>${projectName ? ` -- ${projectName}` : ""}</p>
+      <p style="font-size: 13px; color: #14162B99; margin-bottom: 20px; text-transform: capitalize;">${formatDateForEmail(eventDate)} · ${venue}</p>
+
+      <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:8px;">
+        ${row("Ingresos", formatCentsForEmail(ingresos))}
+        ${row("Egresos", formatCentsForEmail(expenses))}
+      </table>
+      <p style="font-size:16px;font-weight:700;color:${utilidad >= 0 ? "#15803d" : "#b91c1c"};margin:8px 0 20px;">
+        Utilidad: ${formatCentsForEmail(utilidad)}
+      </p>
+
+      ${ticketTiers.length > 0 ? `
+      <p style="font-size:13px;font-weight:600;color:#14162B;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;border-top:1px solid #E5E7EB;padding-top:16px;">Venta de entradas</p>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px;">
+        ${ticketRows}
+      </table>
+      <p style="font-size:14px;font-weight:700;color:#14162B;margin-bottom:20px;">Total ingresos entradas: ${formatCentsForEmail(ticketTotal)}</p>
+      ` : ""}
+
+      ${costItems.length > 0 ? `
+      <p style="font-size:13px;font-weight:600;color:#14162B;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;border-top:1px solid #E5E7EB;padding-top:16px;">Costos</p>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px;">
+        ${costRows}
+      </table>
+      ` : ""}
+
+      ${profitSplitNote ? `
+      <p style="font-size:13px;color:#14162B;line-height:1.5;border-top:1px solid #E5E7EB;padding-top:16px;margin-bottom:20px;">
+        <strong>Reparto de utilidad:</strong><br/>${profitSplitNote.replace(/\n/g, "<br/>")}
+      </p>
+      ` : ""}
+
+      <p style="font-size:13px;font-weight:600;color:#14162B;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;border-top:1px solid #E5E7EB;padding-top:16px;">Aprobado por</p>
+      <ul style="font-size:13px;color:#14162B;padding-left:18px;margin-bottom:24px;">
+        ${signerRows}
+      </ul>
+
+      <a href="${detailUrl}" target="_blank" rel="noopener noreferrer"
+        style="display: inline-block; padding: 12px 24px; background: #4338CA; color: white; text-decoration: none; border-radius: 100px; font-size: 14px; font-weight: 600;">
+        Ver detalle completo
+      </a>
+    </div>
+  `;
+}

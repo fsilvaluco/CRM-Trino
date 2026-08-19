@@ -1,71 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { sendPushToUsers } from "@/lib/push";
-
-interface SignerProfile {
-  userId: string;
-  fullName: string | null;
-  email: string | null;
-  avatarUrl: string | null;
-}
+import { getRequiredSigners, getSignaturesState } from "@/lib/event-signatures";
 
 function siteUrl(path: string): string {
   const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
   return `${base}${path}`;
 }
 
-// Los firmantes requeridos son "los project_members del proyecto del
-// evento con rol Admin o Artista" (decisión explícita de Francisco, 19 ago
-// 2026 -- Miembro y Staff técnico no firman) -- no se guardan aparte, se
-// calculan en caliente cada vez.
-//
-// Dos queries en vez de un embed (`profiles ( ... )`) a propósito:
-// `project_members.user_id` NO tiene foreign key hacia `profiles` (a
-// diferencia de `organization_members`/`event_closing_signatures`, que sí
-// la tienen) -- PostgREST no puede resolver el embed sin esa FK, así que
-// fallaba en silencio (`data` quedaba `null`, `data ?? []` lo escondía) y
-// siempre devolvía 0 firmantes requeridos. Bug encontrado el 19 ago 2026:
-// Francisco cerró la caja de un evento real y le apareció "0/0" +
-// "no eres parte del equipo requerido" a pesar de estar en el proyecto.
-async function getRequiredSigners(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any,
-  projectId: string
-): Promise<SignerProfile[]> {
-  const { data: members } = await supabase
-    .from("project_members")
-    .select("user_id")
-    .eq("project_id", projectId)
-    .in("role", ["admin", "artist"]);
-
-  const userIds: string[] = (members ?? []).map((m: { user_id: string }) => m.user_id);
-  if (userIds.length === 0) return [];
-
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("id, full_name, email, avatar_url")
-    .in("id", userIds);
-
-  const profileById = new Map(
-    (profiles ?? []).map((p: { id: string; full_name: string | null; email: string | null; avatar_url: string | null }) => [p.id, p])
-  );
-
-  return userIds.map((userId) => {
-    const p = profileById.get(userId) as { full_name: string | null; email: string | null; avatar_url: string | null } | undefined;
-    return {
-      userId,
-      fullName: p?.full_name ?? null,
-      email: p?.email ?? null,
-      avatarUrl: p?.avatar_url ?? null,
-    };
-  });
-}
-
 // GET /api/eventos/[id]/signatures -- estado de la firma virtual del cierre
-// de caja: quiénes deben firmar (project_members del proyecto del evento),
-// quiénes ya firmaron y cuándo, y si el usuario actual puede firmar.
-// Acceso restringido a project_members de ESE proyecto (o admin) -- a
-// diferencia de GET /api/eventos/[id], que hoy no filtra por proyecto.
+// de caja: quiénes deben firmar (project_members del proyecto del evento
+// con rol Admin/Artista), quiénes ya firmaron y cuándo, y si el usuario
+// actual puede firmar. Acceso restringido a project_members de ESE
+// proyecto (o admin) -- a diferencia de GET /api/eventos/[id], que hoy no
+// filtra por proyecto.
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -90,25 +38,9 @@ export async function GET(
     return NextResponse.json({ error: "Sin acceso a este evento" }, { status: 403 });
   }
 
-  const requiredSigners = await getRequiredSigners(supabase, show.project_id);
+  const { requiredSigners, signatures, allSigned } = await getSignaturesState(supabase, id, show.project_id);
 
-  const { data: sigRows } = await supabase
-    .from("event_closing_signatures")
-    .select("user_id, signed_at, profiles ( full_name, email, avatar_url )")
-    .eq("show_id", id)
-    .order("signed_at", { ascending: true });
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const signatures = (sigRows ?? []).map((s: any) => ({
-    userId: s.user_id,
-    signedAt: s.signed_at,
-    fullName: s.profiles?.full_name ?? null,
-    email: s.profiles?.email ?? null,
-    avatarUrl: s.profiles?.avatar_url ?? null,
-  }));
-
-  const signedIds = new Set(signatures.map((s: { userId: string }) => s.userId));
-  const allSigned = requiredSigners.length > 0 && requiredSigners.every((r) => signedIds.has(r.userId));
+  const signedIds = new Set(signatures.map((s) => s.userId));
   const isRequiredSigner = requiredSigners.some((r) => r.userId === user!.id);
   const alreadySigned = signedIds.has(user!.id);
 
