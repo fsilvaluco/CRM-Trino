@@ -1401,13 +1401,13 @@ export default function EventDetailPage() {
                         placeholder="Hora (ej. 14:30 o 15:00-16:30)"
                         value={item.timeLabel ?? ""}
                         onChange={(e) => updateTimingItem({ timeLabel: e.target.value })}
-                        className="h-8 w-20 sm:w-40 shrink-0"
+                        className="h-7 text-xs w-20 sm:w-40 shrink-0"
                       />
                       <Input
                         placeholder="Detalle / actividad"
                         value={item.activity}
                         onChange={(e) => updateTimingItem({ activity: e.target.value })}
-                        className="h-8 flex-1"
+                        className="h-7 text-xs flex-1"
                       />
                       <button
                         onClick={() => {
@@ -1447,13 +1447,13 @@ export default function EventDetailPage() {
                 placeholder="Hora"
                 value={newTimeLabel}
                 onChange={(e) => setNewTimeLabel(e.target.value)}
-                className="h-8 w-20 sm:w-40 shrink-0"
+                className="h-7 text-xs w-20 sm:w-40 shrink-0"
               />
               <Input
                 placeholder="Detalle / actividad"
                 value={newActivity}
                 onChange={(e) => setNewActivity(e.target.value)}
-                className="h-8 flex-1"
+                className="h-7 text-xs flex-1"
               />
             </div>
             <div className="flex items-center gap-2">

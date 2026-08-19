@@ -291,19 +291,21 @@ _Ningún bug crítico conocido sin resolver._
 
 ## 🟡 Mejoras UX (próximas semanas)
 
-**Auditoría de tamaños de letra en toda la app** _(agregado: 10 ago 2026, reemplaza "revisión estética general")_
-- Francisco quiere el mismo fix que se hizo en Setlist/Contactos (heredaban `text-base` 16px en celular en vez de `text-sm`/`text-xs`) pero aplicado y verificado en **toda la app**, no solo en las secciones puntuales ya corregidas
-- Primer paso: hacer una auditoría (recorrer todas las páginas/componentes y listar dónde falta el tamaño correcto) antes de meterle mano al fix — así se corrige todo de una vez y no de nuevo a parches
-- La revisión estética *completa* con la app de referencia (Notifica Legal) sigue siendo un tema aparte, sin agendar todavía
+**✅ Auditoría de tamaños de letra en toda la app** _(agregado: 10 ago 2026, auditado: 18 ago 2026)_
+- **Método:** se identificó que el patrón de bug real es específico -- **filas densas tipo planilla** (varios campos lado a lado, imitando spreadsheet) donde algunos inputs usan `text-xs`/`h-7` y otros quedan en el tamaño por defecto del componente `Input` (`text-base` en celular, intencional para que iOS no haga zoom al enfocar -- ver `md:text-sm` en `input.tsx`). En formularios normales de una columna (Sheets, Dialogs, páginas de Configuración) ese tamaño por defecto está bien y NO es el bug -- ahí no hay nada que corregir.
+- Las únicas filas densas tipo planilla de toda la app viven en **Eventos** (`SortableList`, usado solo ahí: Contactos, Setlist, Timing, Costos, Tramos de entradas) -- se revisaron las 5 y se encontró **1 gap real sin corregir**: en **Timing/Cronograma**, la fila "Hora" + "Detalle/actividad" seguía en tamaño por defecto mientras la fila de abajo (Responsable + Notas, del mismo ítem) ya estaba en `text-xs` -- quedaba un salto de tamaño visible dentro del mismo ítem. Corregido (tanto en las filas existentes como en el formulario "agregar nuevo").
+- Se revisaron además ~130 usos de `Input`/`TypeaheadInput`/`MoneyInput` en el resto de la app (Contactos, Deals, Finanzas, Proyectos, Configuración, Analytics, etc.) -- todos son formularios espaciados de una columna, tamaño correcto, nada que corregir.
+- La revisión estética *completa* con la app de referencia (Notifica Legal) sigue siendo un tema aparte, sin agendar todavía.
 
 **4. Importar / Exportar tablas**
 - ✅ Importar: confirmado ok (CSV de tareas, contactos)
 - Exportar: Tareas a CSV, Contactos con sus empresas a CSV — **estado sin confirmar**, hay que revisar si quedó funcionando (el endpoint `/api/export` ya existe para contactos/deals, faltaría confirmar que cubre tareas)
 
-**5. Vista Carta Gantt en Tareas**
-- Vista visual de tareas con fechas de inicio / deadline en línea de tiempo
-- Requiere que las tareas tengan `start_date` y `due_date` bien definidos
-- Librería candidata: `gantt-task-react` o implementación custom con CSS grid
+**✅ Vista Carta Gantt en Tareas** _(descubierto ya construido: 18 ago 2026 -- este ítem estaba desactualizado en la bitácora, alguna sesión anterior ya lo hizo y no quedó documentado)_
+- Ya existe y está en producción: pestaña **Gantt** en `/tasks` (junto a Kanban y Lista), componente `TaskGanttView.tsx`, sin librería externa (SVG/CSS a mano).
+- **v1 -- punto en el tiempo, no rango:** como el modelo de `Task` hoy solo tiene `dueDate` (no existe `start_date`), cada tarea se dibuja como una barra corta centrada en su fecha de vencimiento, no como un rango largo desde un inicio. El comentario en el código ya lo documenta a propósito.
+- Agrupa por Campaña (subproyecto); "Sin campaña" al final. Marca overdue (ícono rojo) y línea de "hoy". Las tareas sin fecha de vencimiento se cuentan aparte, no se pueden ubicar en la línea de tiempo.
+- **Si se quiere el rango real** (barra desde inicio hasta deadline, lo que originalmente pedía este pendiente) hay que agregar `start_date` al modelo de `Task` (migración + `TaskForm` + tipo `Task`) y extender `TaskGanttView` para dibujar el rango -- no se hizo todavía, quedaría como v2 si Francisco lo pide explícitamente.
 
 ---
 
