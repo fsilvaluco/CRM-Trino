@@ -6,6 +6,7 @@ import {
   Building2,
   Megaphone,
   Wallet,
+  Landmark,
   Kanban,
   ShieldCheck,
   BarChart2,
@@ -121,6 +122,12 @@ export const navConfig: NavItem[] = [
     href: "/finances",
     label: "Finanzas",
     icon: Wallet,
+  },
+  {
+    type: "leaf",
+    href: "/prestamos",
+    label: "Préstamos",
+    icon: Landmark,
   },
 ];
 
