@@ -347,6 +347,20 @@ export default function FirmarCierrePage() {
                     </div>
                   );
                 })}
+                {/* Firmantes "voluntarios" -- ej. un admin de la org que
+                    firmó sin ser de los requeridos para este proyecto
+                    puntual. Igual queda su aprobación registrada. */}
+                {sig.signatures
+                  .filter((s) => !sig.requiredSigners.some((r) => r.userId === s.userId))
+                  .map((s) => (
+                    <div key={s.userId} className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                        <span>{s.fullName || s.email || "Usuario"}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">{formatSignedAt(s.signedAt)}</span>
+                    </div>
+                  ))}
               </div>
 
               {sig.alreadySigned ? (

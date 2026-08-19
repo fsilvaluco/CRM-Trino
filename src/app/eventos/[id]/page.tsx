@@ -2402,6 +2402,23 @@ export default function EventDetailPage() {
                 </div>
               );
             })}
+            {/* Firmantes "voluntarios" -- alguien (típicamente un admin de la
+                organización) que firmó sin ser de los requeridos para ESTE
+                proyecto. Igual quedó su aprobación registrada, así que se
+                muestra igual, solo que no cuenta para el "X/Y firmaron". */}
+            {signatureData.signatures
+              .filter((s) => !signatureData.requiredSigners.some((r) => r.userId === s.userId))
+              .map((s) => (
+                <div key={s.userId} className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                    <span>{s.fullName || s.email || "Usuario"}</span>
+                  </div>
+                  <span className="text-muted-foreground">
+                    {format(new Date(s.signedAt), "d MMM yyyy, HH:mm", { locale: es })}
+                  </span>
+                </div>
+              ))}
           </CardContent>
         </Card>
       )}
