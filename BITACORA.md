@@ -200,8 +200,8 @@ _Ningún bug crítico conocido sin resolver._
 **Fix del mapeo duplicado de `event_cost_items` en producción** _(agregado: 18 ago 2026)_
 - Corregido en código y pusheado (`6f4ce20`), pero el deploy a Railway estaba recién recuperándose de un incidente al momento del push -- **falta que Francisco confirme en producción** (no solo local) que el ítem "Sonidista" del evento "Gamuza: otra noche más aquí en Plaza Victoria 1" ya se ve marcado como Pagado sin tener que resubir nada, y que un ítem nuevo (categoría + comprobante de pago) queda completo después de "Guardar costos" y recargar.
 
-**Google Maps — comuna en direcciones reales**
-- Francisco lo va a verificar él mismo a medida que completa a mano las direcciones reales de los 10 venues nuevos (quedaron con dirección "Por definir")
+**✅ Google Maps — comuna en direcciones reales**
+- Francisco confirmó que Google Maps muestra correctamente las direcciones con sus comunas. Sin más acción.
 
 ✅ **pdf-parse en producción** — confirmado ok (10 ago 2026), sin más acción.
 
