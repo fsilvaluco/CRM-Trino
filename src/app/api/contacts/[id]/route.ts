@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { logActivity } from "@/lib/activity-logs";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapContact(row: any) {
@@ -96,7 +97,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, user, error } = await requireAuth();
   if (error) return error;
 
   let body;
@@ -145,6 +146,16 @@ export async function PUT(
     );
   }
 
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "update",
+    entityType: "contact",
+    entityId: data.id,
+    entityName: data.name,
+  });
+
   return NextResponse.json(mapContact(data));
 }
 
@@ -153,12 +164,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, user, error } = await requireAuth();
   if (error) return error;
 
   const { data: existing, error: findErr } = await supabase
     .from("contacts")
-    .select("id")
+    .select("id, name")
     .eq("id", id)
     .is("deleted_at", null)
     .single();
@@ -182,6 +193,16 @@ export async function DELETE(
       { status: 500 }
     );
   }
+
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "delete",
+    entityType: "contact",
+    entityId: existing.id,
+    entityName: existing.name,
+  });
 
   return NextResponse.json({ success: true });
 }

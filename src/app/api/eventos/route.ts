@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { logActivity } from "@/lib/activity-logs";
 import type { ShowStatus } from "@/types/shows";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -73,7 +74,7 @@ export async function GET(request: NextRequest) {
 // eligiendo proyecto a mano) o disparado por el popup "¿Armamos el
 // evento?" al ganar un deal marcado como evento.
 export async function POST(request: NextRequest) {
-  const { supabase, orgId, error } = await requireAuth();
+  const { supabase, user, orgId, error } = await requireAuth();
   if (error) return error;
 
   const body = await request.json().catch(() => ({}));
@@ -163,6 +164,17 @@ export async function POST(request: NextRequest) {
   if (dbError) {
     return NextResponse.json({ error: `Error al crear el evento: ${dbError.message}` }, { status: 500 });
   }
+
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "create",
+    entityType: "event",
+    entityId: data.id,
+    entityName: data.name ?? data.venue,
+    projectId: data.project_id,
+  });
 
   return NextResponse.json(mapLiveShow(data), { status: 201 });
 }

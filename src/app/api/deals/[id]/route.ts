@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { markEntityViewed } from "@/lib/entity-views";
+import { logActivity } from "@/lib/activity-logs";
 import { getProjectRole, canEditDeals } from "@/lib/project-roles";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -242,6 +243,17 @@ export async function PUT(
 
   if (user) void markEntityViewed(supabase, user.id, "deal", id);
 
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "update",
+    entityType: "deal",
+    entityId: data.id,
+    entityName: data.title,
+    projectId: data.project_id ?? data.artist_project_id ?? null,
+  });
+
   return NextResponse.json(mapDeal(data));
 }
 
@@ -250,7 +262,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, isAdmin, error } = await requireAuth();
+  const { supabase, user, isAdmin, error } = await requireAuth();
   if (error) return error;
   if (!isAdmin) {
     return NextResponse.json({ error: "Solo Admin o Propietario pueden eliminar tratos" }, { status: 403 });
@@ -258,7 +270,7 @@ export async function DELETE(
 
   const { data: existing, error: findErr } = await supabase
     .from("deals")
-    .select("id")
+    .select("id, title, project_id, artist_project_id")
     .eq("id", id)
     .is("deleted_at", null)
     .single();
@@ -278,6 +290,17 @@ export async function DELETE(
       { status: 500 }
     );
   }
+
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "delete",
+    entityType: "deal",
+    entityId: existing.id,
+    entityName: existing.title,
+    projectId: existing.project_id ?? existing.artist_project_id ?? null,
+  });
 
   return NextResponse.json({ success: true });
 }

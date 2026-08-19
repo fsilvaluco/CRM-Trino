@@ -462,6 +462,10 @@ _Ningún bug crítico conocido sin resolver._
 
 ## ✅ Completado recientemente
 
+**✅ Fix: el Registro de actividad (`/settings/activity`) no registraba nada** _(agregado: 19 ago 2026, mismo día)_
+
+Francisco entró a "Registro de actividad" (Configuración > Actividad, admin) y no había ningún registro. Causa: la función `logActivity()` (`src/lib/activity-logs.ts`) se había construido junto con la tabla `activity_logs` y la página de admin, pero nunca se llamaba desde ningún endpoint que crea/edita/borra datos -- el sistema estaba completo pero desconectado. Se conectó en los módulos principales: **Contactos**, **Deals**, **Finanzas** (transacciones), **Préstamos** y **Eventos** -- cada `POST`/`PUT`/`DELETE` de esos endpoints ahora registra quién hizo qué, sobre qué entidad, y en qué proyecto. Queda pendiente sumar el resto de módulos (Tareas, Campañas, etc.) si Francisco los necesita también.
+
 **✅ "Leer link con IA" en Prensa -- soporte para Instagram/TikTok/YouTube** _(agregado: 19 ago 2026, mismo día)_
 
 Francisco probó la función recién construida con un Reel de Instagram y no leyó nada -- el scraper genérico (HTML a texto + IA) solo sirve para sitios de noticias normales, no para RRSS que renderizan todo por JS. `/api/analytics/press-extract` ahora detecta el dominio y usa 3 caminos distintos:

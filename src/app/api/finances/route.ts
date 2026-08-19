@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { logActivity } from "@/lib/activity-logs";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapTransaction(row: any) {
@@ -131,6 +132,17 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
+
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "create",
+    entityType: "transaction",
+    entityId: data.id,
+    entityName: data.description ?? `${data.type === "income" ? "Ingreso" : "Gasto"} $${data.amount}`,
+    projectId: data.project_id,
+  });
 
   return NextResponse.json(mapTransaction(data), { status: 201 });
 }

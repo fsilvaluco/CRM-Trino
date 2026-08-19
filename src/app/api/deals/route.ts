@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { logActivity } from "@/lib/activity-logs";
 import { getProjectRole, canViewDeals, canEditDeals } from "@/lib/project-roles";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -230,6 +231,17 @@ export async function POST(request: NextRequest) {
       console.error("Failed to assign users to deal:", assignError);
     }
   }
+
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "create",
+    entityType: "deal",
+    entityId: data.id,
+    entityName: data.title,
+    projectId: data.project_id ?? data.artist_project_id ?? null,
+  });
 
   return NextResponse.json(mapDeal(data), { status: 201 });
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { logActivity } from "@/lib/activity-logs";
 import type { ShowStatus } from "@/types/shows";
 import { getProjectRole, canViewEventCosts, canEditEventCosts } from "@/lib/project-roles";
 
@@ -240,6 +241,17 @@ export async function PUT(
     return NextResponse.json({ error: `Error al actualizar el evento: ${dbError.message}` }, { status: 500 });
   }
 
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "update",
+    entityType: "event",
+    entityId: data.id,
+    entityName: data.name ?? data.venue,
+    projectId: data.project_id,
+  });
+
   const mappedShow = mapLiveShow(data);
   return NextResponse.json({
     ...mappedShow,
@@ -256,13 +268,26 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, user, error } = await requireAuth();
   if (error) return error;
+
+  const { data: existing } = await supabase.from("shows").select("name, venue, project_id").eq("id", id).single();
 
   const { error: dbError } = await supabase.from("shows").delete().eq("id", id);
   if (dbError) {
     return NextResponse.json({ error: `Error al eliminar el evento: ${dbError.message}` }, { status: 500 });
   }
+
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "delete",
+    entityType: "event",
+    entityId: id,
+    entityName: existing?.name ?? existing?.venue ?? null,
+    projectId: existing?.project_id ?? null,
+  });
 
   return NextResponse.json({ ok: true });
 }

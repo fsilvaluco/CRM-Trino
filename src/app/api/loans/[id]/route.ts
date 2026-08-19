@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { logActivity } from "@/lib/activity-logs";
 
 async function loadLoanProjectId(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -18,7 +19,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, user, isAdmin, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const projectId = await loadLoanProjectId(supabase, id);
@@ -69,6 +70,17 @@ export async function PUT(
 
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
 
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "update",
+    entityType: "loan",
+    entityId: data.id,
+    entityName: data.lender_name,
+    projectId,
+  });
+
   const repaid = (data.loan_repayments ?? []).reduce((sum: number, r: { amount: number }) => sum + r.amount, 0);
   return NextResponse.json({
     id: data.id,
@@ -94,7 +106,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, user, isAdmin, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const projectId = await loadLoanProjectId(supabase, id);
@@ -103,8 +115,21 @@ export async function DELETE(
     return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
   }
 
+  const { data: existing } = await supabase.from("loans").select("lender_name").eq("id", id).single();
+
   const { error: dbError } = await supabase.from("loans").delete().eq("id", id);
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
+
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "delete",
+    entityType: "loan",
+    entityId: id,
+    entityName: existing?.lender_name ?? null,
+    projectId,
+  });
 
   return NextResponse.json({ ok: true });
 }

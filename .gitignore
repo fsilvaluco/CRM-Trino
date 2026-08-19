@@ -52,3 +52,6 @@ data/crm.db-wal
 
 # drizzle
 /drizzle/
+.aider*
+.aider.conf.yml
+.aider*

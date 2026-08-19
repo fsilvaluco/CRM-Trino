@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { logActivity } from "@/lib/activity-logs";
 
 // PUT /api/finances/[id] → editar transacción completa
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { supabase, orgId, error } = await requireAuth();
+  const { supabase, user, orgId, error } = await requireAuth();
   if (error) return error;
 
   const { id } = await params;
@@ -61,13 +62,27 @@ export async function PUT(
     updates.file_name = body.fileName ?? null;
   }
 
-  const { error: dbError } = await supabase
+  const { data, error: dbError } = await supabase
     .from("transactions")
     .update(updates)
     .eq("id", id)
-    .eq("organization_id", orgId!);
+    .eq("organization_id", orgId!)
+    .select("id, description, amount, type, project_id")
+    .single();
 
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
+
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "update",
+    entityType: "transaction",
+    entityId: data.id,
+    entityName: data.description ?? `${data.type === "income" ? "Ingreso" : "Gasto"} $${data.amount}`,
+    projectId: data.project_id,
+  });
+
   return NextResponse.json({ ok: true });
 }
 
@@ -106,17 +121,33 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { supabase, orgId, error } = await requireAuth();
+  const { supabase, user, orgId, error } = await requireAuth();
   if (error) return error;
 
   const { id } = await params;
 
-  const { error: dbError } = await supabase
+  const { data, error: dbError } = await supabase
     .from("transactions")
     .update({ deleted_at: new Date().toISOString() })
     .eq("id", id)
-    .eq("organization_id", orgId!);
+    .eq("organization_id", orgId!)
+    .select("id, description, amount, type, project_id")
+    .single();
 
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
+
+  if (data) {
+    await logActivity({
+      supabase,
+      userId: user!.id,
+      userEmail: user!.email,
+      action: "delete",
+      entityType: "transaction",
+      entityId: data.id,
+      entityName: data.description ?? `${data.type === "income" ? "Ingreso" : "Gasto"} $${data.amount}`,
+      projectId: data.project_id,
+    });
+  }
+
   return NextResponse.json({ ok: true });
 }

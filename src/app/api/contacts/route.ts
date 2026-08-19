@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { logActivity } from "@/lib/activity-logs";
 import { z } from "zod";
 
 const createContactSchema = z.object({
@@ -212,6 +213,17 @@ export async function POST(request: NextRequest) {
   if (dbError) {
     return errorResponse("No se pudo crear el contacto", 500, dbError.message);
   }
+
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "create",
+    entityType: "contact",
+    entityId: data.id,
+    entityName: data.name,
+    projectId: data.project_id,
+  });
 
   return NextResponse.json(mapContact(data), { status: 201 });
 }

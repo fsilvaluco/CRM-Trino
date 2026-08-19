@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { logActivity } from "@/lib/activity-logs";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapLoan(row: any) {
@@ -119,6 +120,17 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
+
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "create",
+    entityType: "loan",
+    entityId: data.id,
+    entityName: data.lender_name,
+    projectId: data.project_id,
+  });
 
   return NextResponse.json(mapLoan(data), { status: 201 });
 }
