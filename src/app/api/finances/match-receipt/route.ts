@@ -12,6 +12,7 @@ interface Candidate {
   amount: number;
   transactionDate: string | null;
   score: number;
+  attachmentCount: number;
 }
 
 // Similaridad de texto muy simple (no hace falta una librería para esto):
@@ -48,7 +49,8 @@ function amountScore(extracted: number | null, candidate: number): number {
 function rankCandidates(
   extraction: ReceiptExtraction,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  rows: any[]
+  rows: any[],
+  attachmentCounts: Map<string, number>
 ): Candidate[] {
   return rows
     .map((row) => {
@@ -64,6 +66,7 @@ function rankCandidates(
         amount: row.amount,
         transactionDate: row.transaction_date,
         score,
+        attachmentCount: attachmentCounts.get(row.id) ?? 0,
       };
     })
     .filter((c) => c.score > 0.15)
@@ -132,9 +135,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "No se pudo leer el comprobante -- ingresa el gasto a mano." }, { status: 502 });
   }
 
-  // Candidatos: gastos del proyecto que todavía no tienen comprobante
-  // adjunto. No filtramos por "reimbursed" -- ese campo es para
-  // devoluciones internas, no para si el proveedor ya tiene comprobante.
+  // Candidatos: gastos del proyecto. Se incluyen también los que YA tienen
+  // comprobante(s) adjuntos -- una misma línea de presupuesto se puede
+  // pagar en 2+ cuotas (ej. "Fotografía" pagada en dos transferencias
+  // separadas), así que no hay que descartarlos. No filtramos por
+  // "reimbursed" -- ese campo es para devoluciones internas, no para si
+  // el proveedor ya tiene comprobante.
   let candidates: Candidate[] = [];
   if (projectId) {
     const { data, error: dbError } = await supabase
@@ -143,10 +149,20 @@ export async function POST(request: NextRequest) {
       .eq("organization_id", orgId!)
       .eq("project_id", projectId)
       .eq("type", "expense")
-      .is("deleted_at", null)
-      .is("file_path", null);
+      .is("deleted_at", null);
     if (!dbError && data) {
-      candidates = rankCandidates(extraction, data);
+      const ids = data.map((row) => row.id);
+      const attachmentCounts = new Map<string, number>();
+      if (ids.length > 0) {
+        const { data: attachmentRows } = await supabase
+          .from("transaction_attachments")
+          .select("transaction_id")
+          .in("transaction_id", ids);
+        for (const a of attachmentRows ?? []) {
+          attachmentCounts.set(a.transaction_id, (attachmentCounts.get(a.transaction_id) ?? 0) + 1);
+        }
+      }
+      candidates = rankCandidates(extraction, data, attachmentCounts);
     }
   }
 

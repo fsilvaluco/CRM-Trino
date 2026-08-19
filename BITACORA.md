@@ -462,6 +462,13 @@ _Ningún bug crítico conocido sin resolver._
 
 ## ✅ Completado recientemente
 
+**✅ Ajuste "Adjuntar comprobante con IA" -- vendor correcto en transferencias + cuotas múltiples** _(agregado: 19 ago 2026, mismo día)_
+
+Feedback real de Francisco probando la función recién construida, con un comprobante de Mercado Pago (transferencia a Kuyen Galeas, "Segunda cuota producción LUR"): la IA leyó a Francisco (quien envía la plata, el origen) como "vendor" en vez de a Kuyen (quien la recibe, el destino) -- y de paso surgió que una misma línea de presupuesto se puede pagar en 2+ cuotas (esta era justamente la segunda). Dos fixes:
+
+1. **Prompt de extracción corregido** (`src/lib/openai.ts`, `RECEIPT_PROMPT`): regla explícita para comprobantes de transferencia -- "vendor" es SIEMPRE la cuenta de DESTINO (quien recibe la plata), nunca el origen, aunque el origen aparezca primero o más destacado en el comprobante (como en Mercado Pago, donde la cuenta propia sale arriba).
+2. **Comprobantes múltiples por transacción** -- antes cada gasto solo podía tener un archivo adjunto (`transactions.file_path`), lo que impedía registrar una 2da/3ra cuota sin perder la anterior. Nueva tabla `transaction_attachments` (migración 079) para ir sumando comprobantes sin reemplazar los previos. El buscador de coincidencias (`match-receipt`) ya no descarta gastos que ya tienen comprobante -- los sigue mostrando como candidatos (marcados con "ya tiene N adjuntos") porque puede ser la cuota siguiente. Nuevos endpoints `POST/DELETE /api/finances/[id]/attachments`; `GET /api/finances` ahora devuelve `attachments: [...]` con URLs firmadas de todos los comprobantes de cada transacción, y la lista de Finanzas muestra un ícono por cada uno.
+
 **✅ Fix "Devoluciones pendientes" falsas + Adjuntar comprobante con IA (Finanzas)** _(agregado: 19 ago 2026)_
 
 Dos cosas en la misma sesión, sobre el presupuesto del LP "Los Últimos Románticos" ya cargado en Finanzas:

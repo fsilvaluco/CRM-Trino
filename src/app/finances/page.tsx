@@ -26,6 +26,7 @@ interface Transaction {
   filePath: string | null;
   fileUrl: string | null;
   fileName: string | null;
+  attachments?: { id: string; fileName: string | null; fileUrl: string | null; createdAt: string }[];
   responsibleUserId?: string | null;
   responsibleName: string | null;
   reimbursed: boolean;
@@ -130,6 +131,25 @@ function TransactionList({
                     <ExternalLink className="h-3.5 w-3.5" />
                   </Button>
                 </a>
+              )}
+              {t.attachments && t.attachments.length > 0 && (
+                <div className="flex items-center gap-0.5">
+                  {t.attachments.map((a, i) => (
+                    a.fileUrl && (
+                      <a
+                        key={a.id}
+                        href={a.fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={a.fileName ? `Comprobante ${i + 1}: ${a.fileName}` : `Comprobante ${i + 1}`}
+                      >
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600 hover:text-blue-700">
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </Button>
+                      </a>
+                    )
+                  ))}
+                </div>
               )}
               <Button
                 variant="ghost"

@@ -21,6 +21,7 @@ interface Candidate {
   amount: number;
   transactionDate: string | null;
   score: number;
+  attachmentCount: number;
 }
 
 interface Extraction {
@@ -132,15 +133,16 @@ export function AttachReceiptDialog({ open, onClose, onDone, projectId }: Attach
   };
 
   // Confirma que el comprobante corresponde a un gasto existente del
-  // presupuesto -- se lo adjunta directamente.
+  // presupuesto -- se lo agrega como comprobante nuevo, sin pisar los
+  // que ya tenía (puede ser la 2da o 3ra cuota de esa misma línea).
   const handleConfirmMatch = async (candidate: Candidate) => {
     setSaving(true);
     try {
       const uploaded = await uploadFile();
       if (!uploaded) return;
 
-      const res = await fetch(`/api/finances/${candidate.id}`, {
-        method: "PUT",
+      const res = await fetch(`/api/finances/${candidate.id}/attachments`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ filePath: uploaded.path, fileName: uploaded.name }),
       });
@@ -257,6 +259,11 @@ export function AttachReceiptDialog({ open, onClose, onDone, projectId }: Attach
                     <p className="text-sm">
                       ¿Este pago se hizo para pagar <strong>&quot;{bestCandidate.description}&quot;</strong>
                       {bestCandidate.category ? ` (${bestCandidate.category})` : ""} — {formatCLP(bestCandidate.amount)}?
+                      {bestCandidate.attachmentCount > 0 && (
+                        <span className="block text-xs text-muted-foreground mt-1">
+                          Ya tiene {bestCandidate.attachmentCount} comprobante{bestCandidate.attachmentCount > 1 ? "s" : ""} adjunto{bestCandidate.attachmentCount > 1 ? "s" : ""} — este se sumaría como otra cuota, no lo reemplaza.
+                        </span>
+                      )}
                     </p>
                   </div>
                   <div className="flex justify-end gap-2">
@@ -280,7 +287,10 @@ export function AttachReceiptDialog({ open, onClose, onDone, projectId }: Attach
                           onClick={() => handleConfirmMatch(c)}
                           className="w-full text-left text-xs p-2 rounded border hover:bg-muted/50 cursor-pointer flex justify-between gap-2"
                         >
-                          <span className="truncate">{c.description} {c.category ? `(${c.category})` : ""}</span>
+                          <span className="truncate">
+                            {c.description} {c.category ? `(${c.category})` : ""}
+                            {c.attachmentCount > 0 && <span className="text-muted-foreground"> · {c.attachmentCount} adjunto{c.attachmentCount > 1 ? "s" : ""}</span>}
+                          </span>
                           <span className="shrink-0 text-muted-foreground">{formatCLP(c.amount)}</span>
                         </button>
                       ))}

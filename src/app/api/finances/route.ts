@@ -10,9 +10,12 @@ function mapTransaction(row: any) {
     currency: row.currency ?? "CLP",
     description: row.description ?? null,
     category: row.category ?? null,
-    filePath: row.file_path ?? null,  // storage path, not public URL
-    fileUrl: row.file_url ?? null,    // signed URL (populated at read time)
+    filePath: row.file_path ?? null,  // storage path, not public URL (legacy -- ver attachments)
+    fileUrl: row.file_url ?? null,    // signed URL (populada al leer)
     fileName: row.file_name ?? null,
+    // Comprobantes múltiples (una línea de presupuesto puede pagarse en
+    // varias cuotas) -- populados abajo con URLs firmadas.
+    attachments: [] as { id: string; fileName: string | null; fileUrl: string | null; createdAt: string }[],
     responsibleUserId: row.responsible_user_id ?? null,
     responsibleName: row.responsible_name ?? null,
     reimbursed: row.reimbursed ?? false,
@@ -45,8 +48,26 @@ export async function GET(request: NextRequest) {
   const { data, error: dbError } = await query;
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
 
-  // Generar signed URLs para los archivos (válidas 1 hora)
   const rows = data ?? [];
+
+  // Comprobantes múltiples de todas las transacciones de una vez (evita
+  // N+1 queries).
+  const ids = rows.map((row) => row.id);
+  const attachmentsByTransaction = new Map<string, { id: string; file_path: string; file_name: string | null; created_at: string }[]>();
+  if (ids.length > 0) {
+    const { data: attachmentRows } = await supabase
+      .from("transaction_attachments")
+      .select("id, transaction_id, file_path, file_name, created_at")
+      .in("transaction_id", ids)
+      .order("created_at", { ascending: true });
+    for (const a of attachmentRows ?? []) {
+      const list = attachmentsByTransaction.get(a.transaction_id) ?? [];
+      list.push(a);
+      attachmentsByTransaction.set(a.transaction_id, list);
+    }
+  }
+
+  // Generar signed URLs para los archivos (válidas 1 hora)
   const withSignedUrls = await Promise.all(
     rows.map(async (row) => {
       const mapped = mapTransaction(row);
@@ -56,6 +77,15 @@ export async function GET(request: NextRequest) {
           .createSignedUrl(row.file_path, 3600);
         mapped.fileUrl = signed?.signedUrl ?? null;
       }
+      const attachments = attachmentsByTransaction.get(row.id) ?? [];
+      mapped.attachments = await Promise.all(
+        attachments.map(async (a) => {
+          const { data: signed } = await supabase.storage
+            .from("finances")
+            .createSignedUrl(a.file_path, 3600);
+          return { id: a.id, fileName: a.file_name, fileUrl: signed?.signedUrl ?? null, createdAt: a.created_at };
+        })
+      );
       return mapped;
     })
   );
