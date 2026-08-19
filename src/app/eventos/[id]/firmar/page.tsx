@@ -10,7 +10,8 @@ import { toast } from "sonner";
 import { CheckCircle2, Circle, Loader2, ArrowLeft, Lock, ShieldAlert, Receipt, Banknote } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import type { CostItem } from "@/types/shows";
+import type { CostItem, TicketTier } from "@/types/shows";
+import { useAuth } from "@/lib/auth-context";
 
 const CLP = new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
 
@@ -66,6 +67,7 @@ interface EventSummary {
   projectName: string | null;
   profitSplitNote: string | null;
   costItems: CostItem[];
+  ticketTiers: TicketTier[];
 }
 
 // Pagina liviana, de solo-lectura + firmar -- pensada para compartir el
@@ -77,6 +79,7 @@ interface EventSummary {
 // project_members de este evento) lo hace la API, no esta pagina.
 export default function FirmarCierrePage() {
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
   const [sig, setSig] = useState<SignaturesData | null>(null);
   const [event, setEvent] = useState<EventSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -160,6 +163,18 @@ export default function FirmarCierrePage() {
   const utilidadCents = event ? (event.fee ?? 0) + (event.ticketIncome ?? 0) - (event.expenses ?? 0) : 0;
   const defaultNote = event ? `Utilidad se reparte en 70% ${event.projectName || "Proyecto"} y 30% Productor` : "";
   const resolvedNote = event?.profitSplitNote?.trim() || defaultNote;
+  const ticketTotalCents = (event?.ticketTiers ?? []).reduce((sum, t) => sum + t.unitPrice * t.quantitySold, 0);
+
+  // Nombre para "Yo, [nombre], estoy de acuerdo" -- se busca primero entre
+  // los firmantes/firmas (traen el full_name real de profiles), y si el
+  // usuario actual no aparece ahí (ej. un admin de la org que firma sin
+  // ser firmante requerido) se cae al nombre/email de la sesión.
+  const currentSignerName =
+    sig?.requiredSigners.find((r) => r.userId === user?.id)?.fullName ||
+    sig?.signatures.find((s) => s.userId === user?.id)?.fullName ||
+    (user?.user_metadata?.full_name as string | undefined) ||
+    user?.email ||
+    "Usuario";
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-16">
@@ -205,6 +220,35 @@ export default function FirmarCierrePage() {
                     <p className="font-semibold">{formatCents(utilidadCents)}</p>
                   </div>
                 </div>
+
+                {event.ticketTiers.length > 0 && (
+                  <div className="border-t pt-3 overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-xs text-muted-foreground">
+                          <th className="text-left font-normal pb-1.5">Tipo de entrada</th>
+                          <th className="text-right font-normal pb-1.5">Cantidad vendida</th>
+                          <th className="text-right font-normal pb-1.5">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {event.ticketTiers.map((t) => (
+                          <tr key={t.id} className="border-t">
+                            <td className="py-1.5 pr-2">{t.label}</td>
+                            <td className="py-1.5 text-right">{t.quantitySold}</td>
+                            <td className="py-1.5 text-right font-medium whitespace-nowrap">{formatCents(t.unitPrice * t.quantitySold)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t font-semibold">
+                          <td className="py-1.5" colSpan={2}>Total ingresos</td>
+                          <td className="py-1.5 text-right whitespace-nowrap">{formatCents(ticketTotalCents)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
 
                 {event.costItems.length > 0 && (
                   <div className="border-t pt-3 overflow-x-auto">
@@ -312,7 +356,7 @@ export default function FirmarCierrePage() {
               ) : sig.canSign ? (
                 <Button onClick={handleSign} disabled={signing} className="w-full cursor-pointer">
                   {signing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                  Estoy de acuerdo
+                  Yo, {currentSignerName}, estoy de acuerdo. Firmo.
                 </Button>
               ) : (
                 <p className="text-sm text-muted-foreground">

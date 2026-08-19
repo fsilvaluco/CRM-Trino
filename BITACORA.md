@@ -237,6 +237,10 @@ _Ningún bug crítico conocido sin resolver._
   - **Página del evento:** se agregó una Card nueva "Aprobación" (fuera de la Card de Costos a propósito, para que un Artista la vea aunque su rol no le muestre los montos) con el mismo detalle que la hoja de firma -- badge "X/Y firmaron" + lista de cada firmante requerido con check verde/círculo gris y fecha si ya firmó.
 - **Falta probar con un usuario real**: confirmar con Gonzalo (ya está como `artist` en Gamuza) que ve la Planilla de costos de solo lectura, ve/lee sus Deals sin poder moverlos, y aparece como firmante requerido; cuando Francisco agregue a Rodrick/Daniela como `staff`, confirmar que ni ven "Tratos" en el menú ni la Planilla de costos.
 
+**Hoja de firma -- 2 mejoras más** _(agregado: 19 ago 2026)_
+- **Botón de firma personalizado**: en vez de "Estoy de acuerdo" genérico, ahora dice **"Yo, [nombre], estoy de acuerdo. Firmo."** -- el nombre sale de `requiredSigners`/`signatures` (ya traen el `full_name` real de `profiles`), con fallback al nombre/email de la sesión si quien firma no es de los firmantes requeridos (ej. un admin de la org firmando por su cuenta).
+- **Resumen de venta de entradas**, agregado **antes** de la tabla de costos (mismo Card "Resumen"): tabla con columnas Tipo de entrada / Cantidad vendida / Total, más una fila de **Total ingresos** al final -- mismos datos que ya existían en `ticketTiers`, ahora también visibles en la hoja de firma para que quien aprueba vea de dónde salió la plata, no solo en qué se gastó.
+
 **Login con Google** _(agregado: 12 ago 2026, "para más adelante")_
 - Hoy el login es solo email/password vía Supabase Auth
 - Agregar Google como proveedor OAuth adicional (Supabase Auth lo soporta nativo) — requiere crear credenciales OAuth en Google Cloud Console y activar el provider en Supabase, más el botón "Continuar con Google" en `/login`
