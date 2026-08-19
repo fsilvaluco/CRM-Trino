@@ -117,8 +117,12 @@ export function PressMentionSheet({ open, onOpenChange, onSaved, editingMention 
         mentionDate: data.mentionDate || f.mentionDate,
         referenceUrl: aiUrl.trim(),
       }));
-      const gotSomething = data.outlet || data.type || data.title || data.mentionDate;
-      toast.success(gotSomething ? "Datos rellenados -- revísalos antes de guardar" : "No se pudo leer casi nada de esa página, completa a mano");
+      if (data.warning) {
+        toast.info(data.warning);
+      } else {
+        const gotSomething = data.outlet || data.type || data.title || data.mentionDate;
+        toast.success(gotSomething ? "Datos rellenados -- revísalos antes de guardar" : "No se pudo leer casi nada de esa página, completa a mano");
+      }
     } catch {
       toast.error("Error leyendo el link");
     } finally {

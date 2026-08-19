@@ -462,6 +462,13 @@ _Ningún bug crítico conocido sin resolver._
 
 ## ✅ Completado recientemente
 
+**✅ "Leer link con IA" en Prensa -- soporte para Instagram/TikTok/YouTube** _(agregado: 19 ago 2026, mismo día)_
+
+Francisco probó la función recién construida con un Reel de Instagram y no leyó nada -- el scraper genérico (HTML a texto + IA) solo sirve para sitios de noticias normales, no para RRSS que renderizan todo por JS. `/api/analytics/press-extract` ahora detecta el dominio y usa 3 caminos distintos:
+- **TikTok / YouTube**: tienen oEmbed público (sin token) que devuelve título/autor de forma confiable -- se usa directo, sin pasar por IA.
+- **Instagram**: no tiene oEmbed público desde 2020 (Meta lo cerró, requiere token de la Graph API con app revisada) y no expone la descripción/caption en el HTML plano sin sesión iniciada -- solo se puede leer de forma confiable la cuenta que publicó (viene en el meta `og:url`). Se rellena esa cuenta como medio y se le avisa al usuario con un toast que tiene que completar descripción/fecha a mano.
+- **Cualquier otro sitio** (noticias, blogs): sigue el flujo original de scrapear + IA, que sí funciona bien.
+
 **✅ Leer link con IA en Prensa** _(agregado: 19 ago 2026, mismo día)_
 
 Al registrar una mención de prensa, ahora se puede pegar el link de la nota y presionar "Leer" -- el servidor abre la página, la limpia a texto plano (`src/lib/html-to-text.ts`, extraído del helper que ya usaba `tickets-extract` para no duplicarlo) y la IA sugiere medio, tipo (radio/tv/digital/digital·rrss), descripción corta y fecha de publicación. Solo rellena los campos que pudo leer -- no pisa nada que el usuario ya haya escrito a mano -- y todo queda editable antes de guardar, mismo criterio que el resto de las lecturas con IA de la app. Nuevo endpoint `POST /api/analytics/press-extract` + `extractPressMentionFromText` en `src/lib/openai.ts`. Reset de Finanzas del proyecto LUR a pedido de Francisco (borrado permanente de las 40 transacciones de prueba, ninguna tenía comprobantes adjuntos) para volver a cargar el presupuesto de cero.
