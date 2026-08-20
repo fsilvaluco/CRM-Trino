@@ -462,6 +462,12 @@ _Ningún bug crítico conocido sin resolver._
 
 ## ✅ Completado recientemente
 
+**✅ Fix adicional: sw.js con cache-control no-cache (para que el fix anterior tome efecto rápido)** _(agregado: 19 ago 2026, mismo día)_
+
+Francisco reportó que el fix del punto anterior no se notaba -- ni siquiera subir UNA foto funcionaba ("no hace nada"). Causa probable: `/sw.js` se serví­a sin headers explícitos de cache, así que algunos navegadores pudieron haber seguido usando la copia VIEJA del Service Worker (la que interceptaba todo, incluidos los POST) por un rato después del deploy, en vez de detectar la versión nueva altiro. Se agregó `Cache-Control: no-cache, no-store, must-revalidate` explícito para `/sw.js` en `next.config.ts` -- así el navegador siempre revalida contra el servidor antes de decidir si hay una versión nueva del Service Worker, en vez de confiar en una copia cacheada.
+
+**Nota para Francisco:** si después de este deploy sigue sin andar, hay que forzar el reemplazo del Service Worker viejo a mano una vez: DevTools > Application > Service Workers > "Unregister", después recargar. Después de eso no debería volver a pasar.
+
 **✅ Fix: "Failed to fetch" al subir varias fotos de comprobante** _(agregado: 19 ago 2026, mismo día)_
 
 Al probar la función de subir 2-5 fotos recién construida, Francisco no podía subir las fotos -- la consola mostraba `Uncaught TypeError: Failed to fetch` disparado desde `sw.js` (el Service Worker de la PWA). Causa: `public/sw.js` tenía un `fetch` handler que re-lanza TODOS los requests (`event.respondWith(fetch(event.request))`), incluyendo POSTs con body -- ese patrón "passthrough" es un bug conocido de Chrome: re-fetchear un `event.request` con un body de varios MB (varias fotos en base64 en un solo POST) puede fallar silenciosamente adentro del Service Worker. Esto ya era un riesgo latente desde que se creó el Service Worker (18 ago, solo para habilitar "Instalar app"), pero recién se manifestó con esta función porque es el primer POST del CRM con un body realmente grande.

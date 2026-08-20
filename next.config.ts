@@ -34,6 +34,19 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      {
+        // El navegador respeta el Cache-Control del propio sw.js al
+        // chequear si hay una versión nueva -- sin esto puede quedar
+        // sirviendo una copia vieja del Service Worker por horas después
+        // de un deploy (justo lo que pasó con el fix del "Failed to
+        // fetch": el fix ya estaba en producción pero algunos navegadores
+        // seguían corriendo el Service Worker viejo). "No cache" fuerza a
+        // que siempre chequee la versión más reciente en cada carga.
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+        ],
+      },
     ];
   },
 };
