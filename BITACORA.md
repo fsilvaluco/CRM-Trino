@@ -462,6 +462,13 @@ _Ningún bug crítico conocido sin resolver._
 
 ## ✅ Completado recientemente
 
+**✅ Registro de actividad: sumado Tareas + rediseño visual (dark mode + estilos del resto de la app)** _(agregado: 19 ago 2026, mismo día)_
+
+Dos ajustes pedidos por Francisco sobre el fix del Registro de actividad recién hecho:
+
+1. **Tareas conectado**: `POST/PUT/DELETE` de `/api/tasks` y `/api/tasks/[id]` ahora también llaman a `logActivity()` -- se suma a Contactos, Deals, Finanzas, Préstamos y Eventos ya conectados antes.
+2. **Rediseño visual**: la página original (`/settings/activity`) se armó con HTML crudo y clases Tailwind fijas (`bg-white`, `text-gray-700`, `border-gray-300`) que no reaccionan al tema oscuro -- por eso se veía en blanco duro sobre fondo oscuro y con una tipografía que no calzaba con el resto de la app (los inputs/tabla nativos no heredan el mismo reset que los componentes de shadcn). Se reconstruyó como `ActivityLogPanel` (`src/components/settings/ActivityLogPanel.tsx`), un componente cliente que usa los mismos componentes de UI que el resto del CRM (`Table`, `Badge`, `Select`, `Input`, tokens de tema `bg-card`/`text-muted-foreground`) -- se ve y comporta igual que, por ejemplo, la tabla de Prensa. La página en sí (`src/app/settings/activity/page.tsx`) quedó como server component solo para el chequeo de admin + redirect, delegando toda la UI al panel. Filtro de usuario ahora usa nombre/email real (vía `/api/org-members`) en vez de una lista cruda de emails. Se agregó al menú (Configuración > Actividad, admin-only) -- antes solo era accesible escribiendo la URL a mano, no tenía link en ningún lado.
+
 **✅ Fix: el Registro de actividad (`/settings/activity`) no registraba nada** _(agregado: 19 ago 2026, mismo día)_
 
 Francisco entró a "Registro de actividad" (Configuración > Actividad, admin) y no había ningún registro. Causa: la función `logActivity()` (`src/lib/activity-logs.ts`) se había construido junto con la tabla `activity_logs` y la página de admin, pero nunca se llamaba desde ningún endpoint que crea/edita/borra datos -- el sistema estaba completo pero desconectado. Se conectó en los módulos principales: **Contactos**, **Deals**, **Finanzas** (transacciones), **Préstamos** y **Eventos** -- cada `POST`/`PUT`/`DELETE` de esos endpoints ahora registra quién hizo qué, sobre qué entidad, y en qué proyecto. Queda pendiente sumar el resto de módulos (Tareas, Campañas, etc.) si Francisco los necesita también.

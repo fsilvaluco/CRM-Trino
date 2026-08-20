@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { getViewedAtMap, getLatestCommentAtMap, isUnseen, latestActivityAt } from "@/lib/entity-views";
 import { sendPushToUsers } from "@/lib/push";
+import { logActivity } from "@/lib/activity-logs";
 
 function taskUrl(taskId: string): string {
   const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -177,6 +178,17 @@ export async function POST(request: NextRequest) {
   if (dbError) {
     return NextResponse.json({ error: `Error al crear tarea: ${dbError.message}` }, { status: 500 });
   }
+
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "create",
+    entityType: "task",
+    entityId: data.id,
+    entityName: data.title,
+    projectId: data.project_id ?? data.artist_project_id ?? null,
+  });
 
   // Insert assignees if provided
   if (assigneeIds && Array.isArray(assigneeIds) && assigneeIds.length > 0 && data) {

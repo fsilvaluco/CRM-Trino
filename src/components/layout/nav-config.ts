@@ -28,6 +28,7 @@ import {
   QrCode,
   Wrench,
   Link2,
+  History,
 } from "lucide-react";
 import { type LucideIcon } from "lucide-react";
 
@@ -165,6 +166,13 @@ export const settingsConfig: NavLeaf[] = [
     href: "/settings/notifications",
     label: "Notificaciones",
     icon: BellRing,
+    adminOnly: true,
+  },
+  {
+    type: "leaf",
+    href: "/settings/activity",
+    label: "Actividad",
+    icon: History,
     adminOnly: true,
   },
 ];

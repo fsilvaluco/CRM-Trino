@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { markEntityViewed } from "@/lib/entity-views";
 import { sendPushToUsers } from "@/lib/push";
+import { logActivity } from "@/lib/activity-logs";
 
 function taskUrl(taskId: string): string {
   const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -237,6 +238,17 @@ export async function PUT(
 
   if (user) void markEntityViewed(supabase, user.id, "task", id);
 
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "update",
+    entityType: "task",
+    entityId: data.id,
+    entityName: data.title,
+    projectId: data.project_id ?? data.artist_project_id ?? null,
+  });
+
   return NextResponse.json(mapTask(data));
 }
 
@@ -245,14 +257,14 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, isAdmin, error } = await requireAuth();
+  const { supabase, user, isAdmin, error } = await requireAuth();
   if (error) return error;
   if (!isAdmin) {
     return NextResponse.json({ error: "Solo Admin o Propietario pueden eliminar tareas" }, { status: 403 });
   }
 
   const { data: existing, error: findErr } = await supabase
-    .from("tasks").select("id").eq("id", id).single();
+    .from("tasks").select("id, title, project_id, artist_project_id").eq("id", id).single();
 
   if (findErr || !existing) {
     return NextResponse.json({ error: "Tarea no encontrada" }, { status: 404 });
@@ -263,6 +275,17 @@ export async function DELETE(
     .update({ deleted_at: new Date().toISOString() })
     .eq("id", id);
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
+
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "delete",
+    entityType: "task",
+    entityId: existing.id,
+    entityName: existing.title,
+    projectId: existing.project_id ?? existing.artist_project_id ?? null,
+  });
 
   return NextResponse.json({ success: true });
 }
