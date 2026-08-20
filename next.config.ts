@@ -7,7 +7,9 @@ const nextConfig: NextConfig = {
   // dejarlos como dependencia externa de node_modules, esos archivos no
   // se resuelven bien y pdf-parse falla en producción aunque funcione
   // perfecto corriendo el mismo código directo con Node.
-  serverExternalPackages: ["better-sqlite3", "pdf-parse", "pdfjs-dist"],
+  // sharp: igual motivo que better-sqlite3 -- binario nativo (usado para
+  // re-codificar WebP a PNG al combinar comprobantes en un PDF).
+  serverExternalPackages: ["better-sqlite3", "pdf-parse", "pdfjs-dist", "sharp"],
   // "Shows en vivo" y "Métricas > Shows" se renombraron a "Eventos" -- estos
   // redirects son solo para que un link o marcador viejo a /shows no quede
   // en un 404.

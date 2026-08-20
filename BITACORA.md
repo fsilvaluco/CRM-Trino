@@ -462,6 +462,12 @@ _Ningún bug crítico conocido sin resolver._
 
 ## ✅ Completado recientemente
 
+**✅ Fix: "Failed to fetch" al subir varias fotos de comprobante** _(agregado: 19 ago 2026, mismo día)_
+
+Al probar la función de subir 2-5 fotos recién construida, Francisco no podía subir las fotos -- la consola mostraba `Uncaught TypeError: Failed to fetch` disparado desde `sw.js` (el Service Worker de la PWA). Causa: `public/sw.js` tenía un `fetch` handler que re-lanza TODOS los requests (`event.respondWith(fetch(event.request))`), incluyendo POSTs con body -- ese patrón "passthrough" es un bug conocido de Chrome: re-fetchear un `event.request` con un body de varios MB (varias fotos en base64 en un solo POST) puede fallar silenciosamente adentro del Service Worker. Esto ya era un riesgo latente desde que se creó el Service Worker (18 ago, solo para habilitar "Instalar app"), pero recién se manifestó con esta función porque es el primer POST del CRM con un body realmente grande.
+
+**Fix**: el fetch handler ahora solo intercepta GETs (`if (event.request.method !== "GET") return;`) -- todo lo que no sea GET (POST/PUT/DELETE, o sea prácticamente todas las llamadas a la API) pasa derecho al navegador sin pasar por el Service Worker. De paso se agregó `sharp` a `serverExternalPackages` en `next.config.ts` (mismo motivo que `better-sqlite3`: binario nativo, no se debe empaquetar con webpack) para evitar un problema similar en producción con la conversión WebP→PNG.
+
 **✅ Link para reportar gastos: hasta 5 fotos por comprobante, se combinan en un PDF y se suma el monto** _(agregado: 19 ago 2026, mismo día)_
 
 En `/eventos/[id]/gastos` (el link que se comparte para que cualquiera del proyecto reporte un gasto), antes solo se podía subir UN archivo por gasto. Pedido de Francisco: poder subir de 1 a 5 fotos, y que si son varias, se calcule el monto de cada una y se combinen en un solo PDF.

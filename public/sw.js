@@ -14,6 +14,13 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
+  // Solo pasar por el service worker los GET (navegación/assets). Los
+  // métodos con body (POST/PUT/DELETE) -- como subir varios comprobantes
+  // en base64 al endpoint de combinar en PDF -- se dejan pasar directo al
+  // navegador sin respondWith(): re-lanzar un POST grande desde acá adentro
+  // (event.request) puede fallar con "Failed to fetch" en Chrome cuando el
+  // body pesa varios MB (bug conocido de este patrón de passthrough).
+  if (event.request.method !== "GET") return;
   event.respondWith(fetch(event.request));
 });
 
