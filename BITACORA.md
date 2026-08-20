@@ -487,6 +487,13 @@ Francisco reportó que el gráfico de la pestaña Resumen mostraba TODO el histo
 - **Tarjeta renombrada:** "Utilidad acumulada" -> **"Ingresos totales"**, y el cálculo cambió de `fee + ticketIncome - expenses` (utilidad neta) a solo `fee + ticketIncome` (ingresos brutos, sin restar egresos) -- pedido explícito de Francisco.
 - **Gráfico nuevo "Eventos por mes"** (`EventsPerMonthChart.tsx`): barra por mes con la cantidad de eventos (no plata), agrupado igual que el gráfico de utilidad por mes que ya existía en `/analytics/eventos` pero contando eventos en vez de sumar utilidad. Se muestra siempre entre las tarjetas y el gráfico de seguidores.
 
+**✅ 3 gráficos nuevos más en Resumen (recomendados y confirmados por Francisco)** _(agregado: 20 ago 2026, mismo día)_
+- Criterio usado para elegir qué agregar: Eventos/Instagram/TikTok/YouTube/Spotify/Shopify ya tienen su propia pestaña con gráficos detallados -- lo que más aporta en Resumen es algo que cruce fuentes o muestre una tendencia que hoy no se ve en ningún lado. Los 3 elegidos, todos respetando el mismo selector de período de la página:
+  - **Ingresos vs. egresos por mes** (`IncomeExpensesChart.tsx`, barras agrupadas verde/rojo) -- complementa la tarjeta "Ingresos totales" (que ya no resta egresos) con la foto financiera completa.
+  - **Vibe promedio por mes** (`VibeTrendChart.tsx`, línea, eje Y fijo 0-10) -- tendencia de calidad de los shows en el tiempo, la tarjeta de arriba solo muestra el promedio del período completo, no la evolución mes a mes.
+  - **Ventas de merch por mes** (`MerchSalesChart.tsx`, barras) -- usa `shopifySales` (ya agregado por mes server-side), filtrado por el mismo período que el resto de la página.
+- Los 3 se ubican entre "Eventos por mes" y el gráfico de "Seguidores por plataforma".
+
 ---
 
 **✅ Fix: "Failed to fetch" al subir varias fotos de comprobante** _(agregado: 19 ago 2026, mismo día)_

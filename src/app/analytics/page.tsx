@@ -5,6 +5,9 @@ import { ClipboardList, Music, Users } from "lucide-react";
 import { AnalyticsPageHeader } from "@/components/analytics/AnalyticsPageHeader";
 import { ResumenTab } from "@/components/analytics/ResumenTab";
 import { EventsPerMonthChart } from "@/components/analytics/EventsPerMonthChart";
+import { IncomeExpensesChart } from "@/components/analytics/IncomeExpensesChart";
+import { VibeTrendChart } from "@/components/analytics/VibeTrendChart";
+import { MerchSalesChart } from "@/components/analytics/MerchSalesChart";
 import { useAnalyticsData } from "@/lib/use-analytics-data";
 import { buildAnalyticsPeriods, distinctYears, isWithinPeriod } from "@/lib/analytics-period";
 import { cn } from "@/lib/utils";
@@ -16,7 +19,7 @@ const CLP = new Intl.NumberFormat("es-CL", {
 });
 
 export default function AnalyticsResumenPage() {
-  const { shows, social, loading, refresh } = useAnalyticsData();
+  const { shows, social, shopifySales, loading, refresh } = useAnalyticsData();
 
   // Los botones de período son dinámicos: 1/3/6/12 meses fijos + un botón
   // por cada año que efectivamente tiene eventos o métricas registradas
@@ -35,6 +38,10 @@ export default function AnalyticsResumenPage() {
   const socialInPeriod = useMemo(
     () => (period ? social.filter((m) => isWithinPeriod(m.recordedAt, period)) : social),
     [social, period]
+  );
+  const shopifySalesInPeriod = useMemo(
+    () => (period ? shopifySales.filter((s) => isWithinPeriod(s.month, period)) : shopifySales),
+    [shopifySales, period]
   );
 
   const totalShows = showsInPeriod.length;
@@ -121,6 +128,9 @@ export default function AnalyticsResumenPage() {
       ) : (
         <>
           <EventsPerMonthChart shows={showsInPeriod} />
+          <IncomeExpensesChart shows={showsInPeriod} />
+          <VibeTrendChart shows={showsInPeriod} />
+          <MerchSalesChart sales={shopifySalesInPeriod} />
           <ResumenTab metrics={social} onRefresh={refresh} />
         </>
       )}
