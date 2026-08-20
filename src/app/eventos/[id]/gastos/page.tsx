@@ -243,8 +243,16 @@ export default function ReportarGastoPage() {
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const fileList = e.target.files;
+    // Diagnóstico temporal (19-20 ago 2026): Francisco reporta que al elegir
+    // un archivo "no pasa nada" -- ni un toast, ni un log, ni un request de
+    // red. Este console.log corre ANTES de cualquier otra cosa para
+    // confirmar si el evento onChange llega a dispararse o no.
+    console.log("[gastos] onChange disparado", { count: fileList?.length ?? 0, names: fileList ? Array.from(fileList).map((f) => f.name) : [] });
     e.target.value = "";
-    if (!fileList || fileList.length === 0) return;
+    if (!fileList || fileList.length === 0) {
+      toast.error("No se detectó ningún archivo seleccionado");
+      return;
+    }
     const files = Array.from(fileList);
 
     if (files.length > MAX_FILES) {
