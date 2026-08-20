@@ -460,11 +460,9 @@ _Ningún bug crítico conocido sin resolver._
 
 ---
 
-## 🔴 Crítico (arreglar primero) -- en curso
+**✅ Fix real: subir comprobante en `/eventos/[id]/gastos` no hacía nada al elegir un archivo** _(resuelto: 20 ago 2026)_
 
-**🔴 Subir comprobante en `/eventos/[id]/gastos` no hace nada al elegir un archivo** _(reportado: 20 ago 2026)_
-
-Francisco confirma: el selector de archivos SÍ abre al tocar el botón, pero después de elegir una foto no pasa absolutamente nada -- ni toast, ni error en consola, ni request de red. Ya se descartó: deploy desactualizado (confirmado en vivo con `curl` que el código nuevo y el `sw.js` con el fix están corriendo en producción), y el Service Worker viejo (probado con "Unregister" manual + reload, sigue igual). Se agregó un `console.log` temporal al inicio de `handleFileChange` (`src/app/eventos/[id]/gastos/page.tsx`) para confirmar si el evento `onChange` del input llega a dispararse -- si ni ese log aparece, el problema es que el evento nativo `change` del `<input type="file" multiple>` no está llegando a React en el entorno de Francisco (sospecha: algo específico de agregar `multiple` al input). Sacar este log una vez resuelto.
+Bug encontrado con el log de diagnóstico del punto anterior: en el Chrome de Francisco, `e.target.files` (el `FileList` del input) es una referencia VIVA -- el código nuevo (agregado al sumar soporte multi-archivo) leía `Array.from(fileList)` DESPUÉS de resetear `e.target.value = ""` (el reset es necesario para poder re-subir el mismo archivo dos veces seguidas). En ese navegador, resetear el value vacía esa misma lista en el momento, así que `Array.from()` después del reset devolvía 0 archivos -- por eso el toast decía "No se detectó ningún archivo". El código viejo (antes de esta sesión) no tenía este problema porque sacaba el `File` individual con `[0]` ANTES de resetear el value. Fix: `Array.from(fileList)` se ejecuta ahora ANTES de tocar `e.target.value`, materializando los archivos primero. Log de diagnóstico ya sacado.
 
 **✅ Fix adicional: sw.js con cache-control no-cache (para que el fix anterior tome efecto rápido)** _(agregado: 19 ago 2026, mismo día)_
 

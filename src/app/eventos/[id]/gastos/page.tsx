@@ -243,17 +243,17 @@ export default function ReportarGastoPage() {
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const fileList = e.target.files;
-    // Diagnóstico temporal (19-20 ago 2026): Francisco reporta que al elegir
-    // un archivo "no pasa nada" -- ni un toast, ni un log, ni un request de
-    // red. Este console.log corre ANTES de cualquier otra cosa para
-    // confirmar si el evento onChange llega a dispararse o no.
-    console.log("[gastos] onChange disparado", { count: fileList?.length ?? 0, names: fileList ? Array.from(fileList).map((f) => f.name) : [] });
+    // Bug real encontrado (20 ago 2026): en el Chrome de Francisco,
+    // e.target.files es una referencia VIVA -- resetear e.target.value ANTES
+    // de leer los archivos vacía esa misma lista, así que Array.from()
+    // después del reset devolvía 0 archivos. Por eso hay que materializar
+    // los File antes de tocar el value.
+    const files = fileList ? Array.from(fileList) : [];
     e.target.value = "";
-    if (!fileList || fileList.length === 0) {
+    if (files.length === 0) {
       toast.error("No se detectó ningún archivo seleccionado");
       return;
     }
-    const files = Array.from(fileList);
 
     if (files.length > MAX_FILES) {
       toast.error(`Máximo ${MAX_FILES} archivos a la vez`);
