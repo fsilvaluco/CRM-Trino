@@ -97,7 +97,7 @@ export function MobileNav() {
         <span className="text-lg font-bold tracking-tight">Artist Pro</span>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-1">
         {navConfig.map((item) =>
           item.type === "group" ? (
             <GroupNav key={item.label} item={item} activeHref={activeHref} />

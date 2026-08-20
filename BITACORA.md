@@ -460,6 +460,10 @@ _Ningún bug crítico conocido sin resolver._
 
 ---
 
+**✅ Fix: no se podía hacer scroll del menú móvil (hamburguesa)** _(resuelto: 20 ago 2026)_
+
+Francisco reportó que en el celular no podía hacer scroll dentro del menú desplegable lateral. Causa: el `<nav>` de `MobileNav.tsx` (la lista de links dentro del `Sheet` que se abre con el ícono de hamburguesa) tenía `flex-1` pero le faltaba `overflow-y-auto` y `min-h-0` -- en flexbox, un hijo `flex-1` dentro de un contenedor `flex-col` necesita `min-h-0` para poder encogerse y habilitar su propio scroll interno; sin eso, el contenido simplemente se corta cuando no entra completo (y el scroll del fondo está bloqueado mientras el Sheet está abierto, así que no había forma de ver el resto de las opciones). Fix de una línea: `className="flex-1 px-3 py-4 space-y-1"` → `className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-1"`.
+
 **✅ Fix real: subir comprobante en `/eventos/[id]/gastos` no hacía nada al elegir un archivo** _(resuelto: 20 ago 2026)_
 
 Bug encontrado con el log de diagnóstico del punto anterior: en el Chrome de Francisco, `e.target.files` (el `FileList` del input) es una referencia VIVA -- el código nuevo (agregado al sumar soporte multi-archivo) leía `Array.from(fileList)` DESPUÉS de resetear `e.target.value = ""` (el reset es necesario para poder re-subir el mismo archivo dos veces seguidas). En ese navegador, resetear el value vacía esa misma lista en el momento, así que `Array.from()` después del reset devolvía 0 archivos -- por eso el toast decía "No se detectó ningún archivo". El código viejo (antes de esta sesión) no tenía este problema porque sacaba el `File` individual con `[0]` ANTES de resetear el value. Fix: `Array.from(fileList)` se ejecuta ahora ANTES de tocar `e.target.value`, materializando los archivos primero. Log de diagnóstico ya sacado.
