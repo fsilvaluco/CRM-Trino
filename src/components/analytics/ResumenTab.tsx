@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   LineChart,
   Line,
@@ -12,9 +12,10 @@ import {
   Legend,
 } from "recharts";
 import { Plus, BarChart2 } from "lucide-react";
-import { format } from "date-fns";
+import { format, subDays, startOfDay } from "date-fns";
 import { es } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import type { SocialMetric } from "@/types/analytics";
 import { RegisterSnapshotSheet } from "@/components/analytics/RegisterSnapshotSheet";
 
@@ -22,6 +23,24 @@ interface ResumenTabProps {
   metrics: SocialMetric[];
   onRefresh: () => void;
 }
+
+interface Period {
+  key: string;
+  label: string;
+  days: number | null; // null = todo el historial
+}
+
+// Mismo patrón de selector de período que PlatformTab -- pero acá el
+// default es 3 meses (no 30 días): este gráfico junta TODAS las
+// plataformas desde siempre y con historiales de más de un año (desde
+// 2024) se veía amontonado y poco útil por defecto.
+const PERIODS: Period[] = [
+  { key: "1m", label: "1 mes", days: 30 },
+  { key: "3m", label: "3 meses", days: 90 },
+  { key: "6m", label: "6 meses", days: 180 },
+  { key: "12m", label: "12 meses", days: 365 },
+  { key: "all", label: "Todo", days: null },
+];
 
 function buildChartData(metrics: SocialMetric[]) {
   const byDate: Record<string, Record<string, number>> = {};
@@ -43,22 +62,47 @@ function buildChartData(metrics: SocialMetric[]) {
 
 export function ResumenTab({ metrics, onRefresh }: ResumenTabProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [period, setPeriod] = useState<Period>(PERIODS[1]); // default: 3 meses
 
-  const chartData = buildChartData(metrics);
-  const hasInstagram = metrics.some((m) => m.platform === "instagram");
-  const hasTiktok = metrics.some((m) => m.platform === "tiktok");
-  const hasYoutube = metrics.some((m) => m.platform === "youtube");
+  const metricsInPeriod = useMemo(() => {
+    if (period.days == null) return metrics;
+    const cutoff = startOfDay(subDays(new Date(), period.days - 1));
+    return metrics.filter((m) => new Date(m.recordedAt) >= cutoff);
+  }, [metrics, period]);
+
+  const chartData = useMemo(() => buildChartData(metricsInPeriod), [metricsInPeriod]);
+  const hasInstagram = metricsInPeriod.some((m) => m.platform === "instagram");
+  const hasTiktok = metricsInPeriod.some((m) => m.platform === "tiktok");
+  const hasYoutube = metricsInPeriod.some((m) => m.platform === "youtube");
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {metrics.length} registro{metrics.length !== 1 ? "s" : ""} de redes sociales — todas las plataformas
-        </p>
-        <Button size="sm" onClick={() => setSheetOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Registrar snapshot
-        </Button>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-1 rounded-lg border p-1">
+          {PERIODS.map((p) => (
+            <button
+              key={p.key}
+              onClick={() => setPeriod(p)}
+              className={cn(
+                "px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
+                period.key === p.key
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted"
+              )}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-muted-foreground">
+            {metricsInPeriod.length} registro{metricsInPeriod.length !== 1 ? "s" : ""} · {period.label}
+          </p>
+          <Button size="sm" onClick={() => setSheetOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Registrar snapshot
+          </Button>
+        </div>
       </div>
 
       {chartData.length > 0 ? (

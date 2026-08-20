@@ -1,9 +1,13 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { ClipboardList, Music, Users } from "lucide-react";
 import { AnalyticsPageHeader } from "@/components/analytics/AnalyticsPageHeader";
 import { ResumenTab } from "@/components/analytics/ResumenTab";
+import { EventsPerMonthChart } from "@/components/analytics/EventsPerMonthChart";
 import { useAnalyticsData } from "@/lib/use-analytics-data";
+import { buildAnalyticsPeriods, distinctYears, isWithinPeriod } from "@/lib/analytics-period";
+import { cn } from "@/lib/utils";
 
 const CLP = new Intl.NumberFormat("es-CL", {
   style: "currency",
@@ -14,19 +18,36 @@ const CLP = new Intl.NumberFormat("es-CL", {
 export default function AnalyticsResumenPage() {
   const { shows, social, loading, refresh } = useAnalyticsData();
 
-  const totalShows = shows.length;
+  // Los botones de período son dinámicos: 1/3/6/12 meses fijos + un botón
+  // por cada año que efectivamente tiene eventos o métricas registradas
+  // (no se hardcodean años -- si el historial parte en 2024, aparece 2024).
+  const periods = useMemo(
+    () => buildAnalyticsPeriods(distinctYears([...shows.map((s) => s.date), ...social.map((m) => m.recordedAt)])),
+    [shows, social]
+  );
+  const [periodKey, setPeriodKey] = useState("3m"); // default: 3 meses
+  const period = periods.find((p) => p.key === periodKey) ?? periods[1] ?? periods[0];
 
-  const utilidadAcumulada = shows.reduce((sum, s) => {
-    return sum + (s.fee ?? 0) + (s.ticketIncome ?? 0) - (s.expenses ?? 0);
-  }, 0);
+  const showsInPeriod = useMemo(
+    () => (period ? shows.filter((s) => isWithinPeriod(s.date, period)) : shows),
+    [shows, period]
+  );
+  const socialInPeriod = useMemo(
+    () => (period ? social.filter((m) => isWithinPeriod(m.recordedAt, period)) : social),
+    [social, period]
+  );
 
-  const vibesWithValue = shows.filter((s) => s.avgVibe != null);
+  const totalShows = showsInPeriod.length;
+
+  const ingresosTotales = showsInPeriod.reduce((sum, s) => sum + (s.fee ?? 0) + (s.ticketIncome ?? 0), 0);
+
+  const vibesWithValue = showsInPeriod.filter((s) => s.avgVibe != null);
   const vibePromedio =
     vibesWithValue.length > 0
       ? vibesWithValue.reduce((sum, s) => sum + (s.avgVibe ?? 0), 0) / vibesWithValue.length
       : null;
 
-  const instagramMetrics = social
+  const instagramMetrics = socialInPeriod
     .filter((m) => m.platform === "instagram")
     .sort((a, b) => b.recordedAt.localeCompare(a.recordedAt));
   const latestInstagram = instagramMetrics[0]?.followers ?? null;
@@ -38,6 +59,23 @@ export default function AnalyticsResumenPage() {
         title="Resumen"
         description="Vistazo general de shows, redes sociales y merch"
       />
+
+      <div className="flex items-center gap-1 rounded-lg border p-1 w-fit flex-wrap">
+        {periods.map((p) => (
+          <button
+            key={p.key}
+            onClick={() => setPeriodKey(p.key)}
+            className={cn(
+              "px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer",
+              period?.key === p.key
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-muted"
+            )}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
 
       {loading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -54,15 +92,9 @@ export default function AnalyticsResumenPage() {
             <p className="text-lg font-bold">{totalShows}</p>
           </div>
           <div className="rounded-xl border bg-card p-4">
-            <p className="text-xs text-muted-foreground mb-1">Utilidad acumulada</p>
-            <p
-              className={`text-lg font-bold ${
-                utilidadAcumulada >= 0
-                  ? "text-green-700 dark:text-green-400"
-                  : "text-red-700 dark:text-red-400"
-              }`}
-            >
-              {CLP.format(utilidadAcumulada / 100)}
+            <p className="text-xs text-muted-foreground mb-1">Ingresos totales</p>
+            <p className="text-lg font-bold text-green-700 dark:text-green-400">
+              {CLP.format(ingresosTotales / 100)}
             </p>
           </div>
           <div className="rounded-xl border bg-card p-4">
@@ -87,7 +119,10 @@ export default function AnalyticsResumenPage() {
       {loading ? (
         <div className="h-64 rounded-lg bg-muted animate-pulse" />
       ) : (
-        <ResumenTab metrics={social} onRefresh={refresh} />
+        <>
+          <EventsPerMonthChart shows={showsInPeriod} />
+          <ResumenTab metrics={social} onRefresh={refresh} />
+        </>
       )}
     </div>
   );
