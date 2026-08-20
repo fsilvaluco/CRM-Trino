@@ -462,6 +462,15 @@ _Ningún bug crítico conocido sin resolver._
 
 ## ✅ Completado recientemente
 
+**✅ Link para reportar gastos: hasta 5 fotos por comprobante, se combinan en un PDF y se suma el monto** _(agregado: 19 ago 2026, mismo día)_
+
+En `/eventos/[id]/gastos` (el link que se comparte para que cualquiera del proyecto reporte un gasto), antes solo se podía subir UN archivo por gasto. Pedido de Francisco: poder subir de 1 a 5 fotos, y que si son varias, se calcule el monto de cada una y se combinen en un solo PDF.
+
+- El input de comprobante ahora acepta selección múltiple (hasta 5 archivos).
+- **1 archivo** (foto o PDF): mismo comportamiento de siempre -- se sube tal cual, la IA lee el monto como sugerencia.
+- **2 a 5 archivos** (tienen que ser todas fotos, no PDF): se manda cada una a un endpoint nuevo (`POST /api/eventos/cost-submissions-merge`) que (1) le lee el monto a CADA foto con IA en paralelo y suma el total, y (2) las combina en un solo PDF (una foto por página, vía `pdf-lib` -- nueva dependencia; WebP se re-codifica a PNG con `sharp` porque pdf-lib no lo soporta nativo). El PDF combinado queda como el único comprobante adjunto, y el monto total leído se precarga en el campo (igual que siempre, editable antes de enviar).
+- Nuevo: `src/lib/pdf-merge.ts` (arma el PDF), `src/app/api/eventos/cost-submissions-merge/route.ts` (orquesta lectura + combinación).
+
 **✅ Registro de actividad: sumado Tareas + rediseño visual (dark mode + estilos del resto de la app)** _(agregado: 19 ago 2026, mismo día)_
 
 Dos ajustes pedidos por Francisco sobre el fix del Registro de actividad recién hecho:

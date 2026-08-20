@@ -92,10 +92,14 @@ export default function ReportarGastoPage() {
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
   const [comprobanteUrl, setComprobanteUrl] = useState<string | null>(null);
+  const [comprobanteCount, setComprobanteCount] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const MAX_FILES = 5;
+  const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -137,60 +141,135 @@ export default function ReportarGastoPage() {
     return data.map((t) => ({ label: t.name, value: t.id }));
   }
 
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    if (file.size > 25 * 1024 * 1024) {
-      toast.error("El archivo no puede superar 25 MB");
+  const fileToBase64 = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  async function uploadSingleFile(file: File) {
+    const ext = file.name.split(".").pop();
+    const storagePath = `cost-submissions/${id}/${Date.now()}.${ext}`;
+    const uploadResult = await supabase.storage.from("finances").upload(storagePath, file, { upsert: false });
+    if (uploadResult.error) {
+      toast.error("Error subiendo el archivo: " + uploadResult.error.message);
       return;
+    }
+    const { data } = supabase.storage.from("finances").getPublicUrl(storagePath);
+    setComprobanteUrl(data.publicUrl);
+    setComprobanteCount(1);
+    toast.success("Comprobante adjuntado");
+
+    // Lectura con IA -- solo sugiere el monto, nunca bloquea el envío si falla.
+    const isPdf = file.type === "application/pdf" || ext?.toLowerCase() === "pdf";
+    setExtracting(true);
+    try {
+      const base64 = await fileToBase64(file);
+      const body = isPdf
+        ? { mode: "pdf", pdfBase64: base64 }
+        : { mode: "image", imageBase64: base64, mediaType: file.type || "image/jpeg" };
+      const extractRes = await fetch("/api/eventos/cost-submissions-extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (extractRes.ok) {
+        const receipt = await extractRes.json();
+        if (typeof receipt.amount === "number" && receipt.amount > 0) {
+          setAmount(String(receipt.amount));
+          toast.success("Monto leído del comprobante -- revísalo antes de enviar");
+        }
+        if (receipt.description && !label.trim()) setLabel(receipt.description);
+      }
+    } catch {
+      // La lectura con IA es best-effort -- si falla, la persona ingresa el monto a mano.
+    } finally {
+      setExtracting(false);
+    }
+  }
+
+  // Cuando se suben 2-5 fotos juntas (ej. varias boletas del mismo pago),
+  // se lee el monto de cada una con IA, se suman, y se combinan en un solo
+  // PDF -- deja un único archivo adjunto en vez de varios sueltos.
+  async function uploadMultipleImages(files: File[]) {
+    setExtracting(true);
+    try {
+      const images = await Promise.all(
+        files.map(async (file) => ({
+          base64: await fileToBase64(file),
+          mediaType: (file.type || "image/jpeg") as string,
+        }))
+      );
+
+      const res = await fetch("/api/eventos/cost-submissions-merge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ images }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "No se pudieron combinar los comprobantes");
+        return;
+      }
+      setExtracting(false);
+
+      // El PDF combinado se sube igual que cualquier otro comprobante.
+      const pdfBytes = Uint8Array.from(atob(data.pdfBase64), (c) => c.charCodeAt(0));
+      const pdfFile = new File([pdfBytes], `comprobantes-${Date.now()}.pdf`, { type: "application/pdf" });
+      const storagePath = `cost-submissions/${id}/${Date.now()}.pdf`;
+      const uploadResult = await supabase.storage.from("finances").upload(storagePath, pdfFile, { upsert: false });
+      if (uploadResult.error) {
+        toast.error("Error subiendo el PDF combinado: " + uploadResult.error.message);
+        return;
+      }
+      const { data: urlData } = supabase.storage.from("finances").getPublicUrl(storagePath);
+      setComprobanteUrl(urlData.publicUrl);
+      setComprobanteCount(files.length);
+
+      if (typeof data.totalAmount === "number" && data.totalAmount > 0) {
+        setAmount(String(data.totalAmount));
+        toast.success(`${files.length} comprobantes combinados en un PDF -- monto total leído, revísalo antes de enviar`);
+      } else {
+        toast.success(`${files.length} comprobantes combinados en un PDF`);
+      }
+    } catch {
+      toast.error("No se pudieron combinar los comprobantes");
+    } finally {
+      setExtracting(false);
+    }
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const fileList = e.target.files;
+    e.target.value = "";
+    if (!fileList || fileList.length === 0) return;
+    const files = Array.from(fileList);
+
+    if (files.length > MAX_FILES) {
+      toast.error(`Máximo ${MAX_FILES} archivos a la vez`);
+      return;
+    }
+    const tooBig = files.find((f) => f.size > MAX_FILE_SIZE);
+    if (tooBig) {
+      toast.error("Cada archivo no puede superar 25 MB");
+      return;
+    }
+    if (files.length > 1) {
+      const nonImage = files.find((f) => !f.type.startsWith("image/"));
+      if (nonImage) {
+        toast.error("Si subes más de un archivo, todos tienen que ser fotos (no PDF)");
+        return;
+      }
     }
 
     setUploading(true);
     try {
-      const ext = file.name.split(".").pop();
-      const storagePath = `cost-submissions/${id}/${Date.now()}.${ext}`;
-      const uploadResult = await supabase.storage.from("finances").upload(storagePath, file, { upsert: false });
-      if (uploadResult.error) {
-        toast.error("Error subiendo el archivo: " + uploadResult.error.message);
-        return;
-      }
-      const { data } = supabase.storage.from("finances").getPublicUrl(storagePath);
-      setComprobanteUrl(data.publicUrl);
-      toast.success("Comprobante adjuntado");
-
-      // Lectura con IA -- solo sugiere el monto, nunca bloquea el envío si falla.
-      const isPdf = file.type === "application/pdf" || ext?.toLowerCase() === "pdf";
-      setExtracting(true);
-      try {
-        const toBase64 = () =>
-          new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-          });
-        const base64 = await toBase64();
-        const body = isPdf
-          ? { mode: "pdf", pdfBase64: base64 }
-          : { mode: "image", imageBase64: base64, mediaType: file.type || "image/jpeg" };
-        const extractRes = await fetch("/api/eventos/cost-submissions-extract", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        if (extractRes.ok) {
-          const receipt = await extractRes.json();
-          if (typeof receipt.amount === "number" && receipt.amount > 0) {
-            setAmount(String(receipt.amount));
-            toast.success("Monto leído del comprobante -- revísalo antes de enviar");
-          }
-          if (receipt.description && !label.trim()) setLabel(receipt.description);
-        }
-      } catch {
-        // La lectura con IA es best-effort -- si falla, la persona ingresa el monto a mano.
-      } finally {
-        setExtracting(false);
+      if (files.length === 1) {
+        await uploadSingleFile(files[0]);
+      } else {
+        await uploadMultipleImages(files);
       }
     } catch {
       toast.error("No se pudo subir el archivo");
@@ -239,6 +318,7 @@ export default function ReportarGastoPage() {
       setAmount("");
       setNotes("");
       setComprobanteUrl(null);
+      setComprobanteCount(0);
       void load();
     } catch {
       toast.error("No se pudo enviar el gasto");
@@ -323,7 +403,14 @@ export default function ReportarGastoPage() {
 
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Comprobante</label>
-                <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" className="hidden" onChange={handleFileChange} />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept=".pdf,.jpg,.jpeg,.png,.webp"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
                 <Button
                   type="button"
                   variant="outline"
@@ -332,16 +419,20 @@ export default function ReportarGastoPage() {
                   onClick={() => fileInputRef.current?.click()}
                 >
                   {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
-                  {comprobanteUrl ? "Cambiar comprobante" : "Subir foto o PDF del comprobante"}
+                  {comprobanteUrl ? "Cambiar comprobante(s)" : "Subir foto(s) o PDF del comprobante"}
                 </Button>
+                <p className="text-xs text-muted-foreground">
+                  Podés subir hasta {MAX_FILES} fotos juntas (ej. varias boletas del mismo pago) -- se combinan en un solo PDF y se suma el monto de cada una.
+                </p>
                 {comprobanteUrl && (
                   <a href={comprobanteUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline inline-flex items-center gap-1">
-                    <Receipt className="h-3 w-3" /> Ver comprobante subido
+                    <Receipt className="h-3 w-3" />
+                    {comprobanteCount > 1 ? `Ver PDF combinado (${comprobanteCount} comprobantes)` : "Ver comprobante subido"}
                   </a>
                 )}
                 {extracting && (
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Loader2 className="h-3 w-3 animate-spin" /> Leyendo el monto del comprobante...
+                    <Loader2 className="h-3 w-3 animate-spin" /> Leyendo el/los comprobante(s)...
                   </p>
                 )}
               </div>
