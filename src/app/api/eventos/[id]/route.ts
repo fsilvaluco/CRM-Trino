@@ -37,6 +37,10 @@ function mapLiveShow(row: any) {
     ticketSalesUrl: row.ticket_sales_url ?? null,
     tour: row.tour ?? null,
     profitSplitNote: row.profit_split_note ?? null,
+    profitSplitProjectPct: row.profit_split_project_pct ?? null,
+    profitSplitTrinoPct: row.profit_split_trino_pct ?? null,
+    profitSplitTransferProofUrl: row.profit_split_transfer_proof_url ?? null,
+    profitSplitTransferredAt: row.profit_split_transferred_at ?? null,
   };
 }
 
@@ -160,6 +164,7 @@ export async function PUT(
     date, eventTime, venue, address, city, notes, status,
     fee, ticketIncome, expenses, venueId, name,
     eventLink, riderLocal, riderBanda, ticketSalesUrl, tour, profitSplitNote,
+    profitSplitProjectPct, profitSplitTrinoPct, profitSplitTransferProofUrl, profitSplitTransferredAt,
   } = body as {
     date?: string;
     eventTime?: string | null;
@@ -179,6 +184,10 @@ export async function PUT(
     ticketSalesUrl?: string | null;
     tour?: string | null;
     profitSplitNote?: string | null;
+    profitSplitProjectPct?: number | null;
+    profitSplitTrinoPct?: number | null;
+    profitSplitTransferProofUrl?: string | null;
+    profitSplitTransferredAt?: string | null;
   };
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -229,6 +238,10 @@ export async function PUT(
   if (ticketSalesUrl !== undefined) updates.ticket_sales_url = ticketSalesUrl || null;
   if (tour !== undefined) updates.tour = tour || null;
   if (profitSplitNote !== undefined) updates.profit_split_note = profitSplitNote || null;
+  if (profitSplitProjectPct !== undefined) updates.profit_split_project_pct = profitSplitProjectPct;
+  if (profitSplitTrinoPct !== undefined) updates.profit_split_trino_pct = profitSplitTrinoPct;
+  if (profitSplitTransferProofUrl !== undefined) updates.profit_split_transfer_proof_url = profitSplitTransferProofUrl || null;
+  if (profitSplitTransferredAt !== undefined) updates.profit_split_transferred_at = profitSplitTransferredAt || null;
 
   const { data, error: dbError } = await supabase
     .from("shows")

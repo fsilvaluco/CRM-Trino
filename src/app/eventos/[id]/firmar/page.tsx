@@ -66,6 +66,10 @@ interface EventSummary {
   expenses: number | null;
   projectName: string | null;
   profitSplitNote: string | null;
+  profitSplitProjectPct: number | null;
+  profitSplitTrinoPct: number | null;
+  profitSplitTransferProofUrl: string | null;
+  profitSplitTransferredAt: string | null;
   costItems: CostItem[];
   ticketTiers: TicketTier[];
 }
@@ -161,8 +165,11 @@ export default function FirmarCierrePage() {
   }
 
   const utilidadCents = event ? (event.fee ?? 0) + (event.ticketIncome ?? 0) - (event.expenses ?? 0) : 0;
-  const defaultNote = event ? `Utilidad se reparte en 70% ${event.projectName || "Proyecto"} y 30% Productor` : "";
-  const resolvedNote = event?.profitSplitNote?.trim() || defaultNote;
+  const resolvedProjectPct = event?.profitSplitProjectPct ?? 70;
+  const resolvedTrinoPct = event?.profitSplitTrinoPct ?? 30;
+  const projectSplitCents = Math.round((utilidadCents * resolvedProjectPct) / 100);
+  const trinoSplitCents = Math.round((utilidadCents * resolvedTrinoPct) / 100);
+  const resolvedNote = event?.profitSplitNote?.trim() || "";
   const ticketTotalCents = (event?.ticketTiers ?? []).reduce((sum, t) => sum + t.unitPrice * t.quantitySold, 0);
 
   // Nombre para "Yo, [nombre], estoy de acuerdo" -- se busca primero entre
@@ -306,11 +313,38 @@ export default function FirmarCierrePage() {
                   </div>
                 )}
 
-                {resolvedNote && (
-                  <p className="text-sm text-muted-foreground border-t pt-3 text-justify">
-                    <span className="font-medium text-foreground">Nota:</span> {resolvedNote}
-                  </p>
-                )}
+                <div className="border-t pt-3 space-y-1.5">
+                  <p className="text-xs text-muted-foreground">Reparto de utilidad -- para transferir después de aprobar</p>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-xs text-muted-foreground">{resolvedProjectPct}% {event?.projectName || "Proyecto"}</p>
+                      <p className="font-semibold">{formatCents(projectSplitCents)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">{resolvedTrinoPct}% Trino</p>
+                      <p className="font-semibold">{formatCents(trinoSplitCents)}</p>
+                    </div>
+                  </div>
+                  {resolvedNote && (
+                    <p className="text-sm text-muted-foreground text-justify">
+                      <span className="font-medium text-foreground">Nota:</span> {resolvedNote}
+                    </p>
+                  )}
+                  {event?.profitSplitTransferProofUrl ? (
+                    <a
+                      href={event.profitSplitTransferProofUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline inline-flex items-center gap-1"
+                    >
+                      <CheckCircle2 className="h-3 w-3" /> Ya se transfirió -- ver comprobante
+                    </a>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Todavía no se ha subido el comprobante de la transferencia.
+                    </p>
+                  )}
+                </div>
               </CardContent>
             </Card>
           )}

@@ -26,7 +26,7 @@ export async function POST(
   const { data: show, error: showErr } = await supabase
     .from("shows")
     .select(
-      "id, name, date, venue, project_id, cost_sheet_closed_at, fee, ticket_income, expenses, profit_split_note, projects ( name )"
+      "id, name, date, venue, project_id, cost_sheet_closed_at, fee, ticket_income, expenses, profit_split_note, profit_split_project_pct, profit_split_trino_pct, projects ( name )"
     )
     .eq("id", id)
     .single();
@@ -95,6 +95,8 @@ export async function POST(
       amount: c.amount,
     })),
     profitSplitNote: show.profit_split_note,
+    profitSplitProjectPct: show.profit_split_project_pct,
+    profitSplitTrinoPct: show.profit_split_trino_pct,
     signers: signersForEmail,
     detailUrl: siteUrl(`/eventos/${id}/firmar`),
   });

@@ -154,6 +154,12 @@ export default function EventDetailPage() {
   const [costsDirty, setCostsDirty] = useState(false);
   const [savingCosts, setSavingCosts] = useState(false);
   const [profitSplitNote, setProfitSplitNote] = useState("");
+  const [profitSplitProjectPct, setProfitSplitProjectPct] = useState<number | null>(null);
+  const [profitSplitTrinoPct, setProfitSplitTrinoPct] = useState<number | null>(null);
+  const [profitSplitTransferProofUrl, setProfitSplitTransferProofUrl] = useState<string | null>(null);
+  const [profitSplitTransferredAt, setProfitSplitTransferredAt] = useState<string | null>(null);
+  const [uploadingTransferProof, setUploadingTransferProof] = useState(false);
+  const transferProofInputRef = useRef<HTMLInputElement>(null);
   const [signatureData, setSignatureData] = useState<SignatureData | null>(null);
   const [newCostLabel, setNewCostLabel] = useState("");
   const [newCostCategory, setNewCostCategory] = useState<string | null>(null);
@@ -199,6 +205,10 @@ export default function EventDetailPage() {
         setEventContacts(data.eventContacts ?? []);
         setCostItems(data.costItems ?? []);
         setProfitSplitNote(data.profitSplitNote ?? "");
+        setProfitSplitProjectPct(data.profitSplitProjectPct ?? null);
+        setProfitSplitTrinoPct(data.profitSplitTrinoPct ?? null);
+        setProfitSplitTransferProofUrl(data.profitSplitTransferProofUrl ?? null);
+        setProfitSplitTransferredAt(data.profitSplitTransferredAt ?? null);
         setEventLink(data.eventLink ?? "");
         setRiderLocal(data.riderLocal ?? "");
         setRiderBanda(data.riderBanda ?? "");
@@ -690,7 +700,11 @@ export default function EventDetailPage() {
         fetch(`/api/eventos/${id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ profitSplitNote: profitSplitNote.trim() || null }),
+          body: JSON.stringify({
+            profitSplitNote: profitSplitNote.trim() || null,
+            profitSplitProjectPct,
+            profitSplitTrinoPct,
+          }),
         }),
       ]);
       if (!itemsRes.ok || !noteRes.ok) throw new Error();
@@ -734,6 +748,48 @@ export default function EventDetailPage() {
       load();
     } catch {
       toast.error("No se pudo actualizar el gasto del evento");
+    }
+  }
+
+  // Comprobante de la transferencia del reparto de utilidad -- pensado
+  // como el paso final del evento, después de que todos firmaron: se
+  // sube la captura/PDF de la transferencia y queda marcado como
+  // transferido, con fecha.
+  async function handleTransferProofChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 25 * 1024 * 1024) {
+      toast.error("El archivo no puede superar 25 MB");
+      return;
+    }
+    setUploadingTransferProof(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const storagePath = `profit-split/${id}/${Date.now()}.${ext}`;
+      const uploadResult = await supabase.storage.from("finances").upload(storagePath, file, { upsert: false });
+      if (uploadResult.error) {
+        toast.error("Error subiendo el archivo: " + uploadResult.error.message);
+        return;
+      }
+      const { data } = supabase.storage.from("finances").getPublicUrl(storagePath);
+      const transferredAt = new Date().toISOString();
+      const res = await fetch(`/api/eventos/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          profitSplitTransferProofUrl: data.publicUrl,
+          profitSplitTransferredAt: transferredAt,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      setProfitSplitTransferProofUrl(data.publicUrl);
+      setProfitSplitTransferredAt(transferredAt);
+      toast.success("Comprobante de transferencia guardado -- evento cerrado");
+    } catch {
+      toast.error("No se pudo subir el comprobante");
+    } finally {
+      setUploadingTransferProof(false);
     }
   }
 
@@ -920,11 +976,11 @@ export default function EventDetailPage() {
 
   const utilidadCents = (event.fee ?? 0) + (event.ticketIncome ?? 0) - (event.expenses ?? 0);
   const costsTotal = costItems.reduce((sum, c) => sum + (c.amount || 0), 0);
-  // Default asumido si no se escribe una nota puntual -- casos como "toda
-  // la utilidad se va a cubrir un costo de un viaje" necesitan decirlo
-  // explícito en vez de mostrar este reparto que en ese evento no aplica.
-  const defaultProfitSplitNote = `Utilidad se reparte en 70% ${event.projectName || "Proyecto"} y 30% Productor`;
-  const resolvedProfitSplitNote = profitSplitNote.trim() || defaultProfitSplitNote;
+  // Default 70/30 si no se ha tocado el reparto de este evento puntual.
+  const resolvedProjectPct = profitSplitProjectPct ?? 70;
+  const resolvedTrinoPct = profitSplitTrinoPct ?? 30;
+  const projectSplitCents = Math.round((utilidadCents * resolvedProjectPct) / 100);
+  const trinoSplitCents = Math.round((utilidadCents * resolvedTrinoPct) / 100);
   const currentEvent = event;
   const eventProject = projects.find((p) => p.id === event.projectId);
 
@@ -2401,32 +2457,108 @@ export default function EventDetailPage() {
             </div>
           )}
 
-          <div className="no-print space-y-1.5 pt-1">
-            <Label htmlFor="profit-split-note" className="text-xs text-muted-foreground">
-              Reparto de utilidad (aparece en la impresión)
+          <div className="no-print space-y-2 pt-1">
+            <Label className="text-xs text-muted-foreground">
+              Reparto de utilidad ({formatCents(utilidadCents)})
             </Label>
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-1.5">
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  disabled={costSheetClosed || !canEditCosts}
+                  value={resolvedProjectPct}
+                  onChange={(e) => {
+                    setProfitSplitProjectPct(e.target.value === "" ? null : Number(e.target.value));
+                    setCostsDirty(true);
+                  }}
+                  className="h-8 w-16 text-sm"
+                />
+                <span className="text-sm text-muted-foreground">% {event.projectName || "Proyecto"} = </span>
+                <span className="text-sm font-semibold">{formatCents(projectSplitCents)}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  disabled={costSheetClosed || !canEditCosts}
+                  value={resolvedTrinoPct}
+                  onChange={(e) => {
+                    setProfitSplitTrinoPct(e.target.value === "" ? null : Number(e.target.value));
+                    setCostsDirty(true);
+                  }}
+                  className="h-8 w-16 text-sm"
+                />
+                <span className="text-sm text-muted-foreground">% Trino = </span>
+                <span className="text-sm font-semibold">{formatCents(trinoSplitCents)}</span>
+              </div>
+            </div>
+
             <Textarea
               id="profit-split-note"
               rows={2}
               disabled={costSheetClosed || !canEditCosts}
-              placeholder={defaultProfitSplitNote}
+              placeholder="Nota opcional -- ej. toda la utilidad se va a cubrir un costo puntual"
               value={profitSplitNote}
               onChange={(e) => { setProfitSplitNote(e.target.value); setCostsDirty(true); }}
               className="text-sm"
             />
             <p className="text-xs text-muted-foreground">
-              Vacío = se usa el reparto por defecto de arriba. Solo escribe algo acá cuando el reparto real de
-              este evento es distinto (ej. toda la utilidad se va a cubrir un costo puntual).
+              Estos porcentajes y montos los ven los firmantes al aprobar el cierre, para saber cuánto transferir.
             </p>
           </div>
 
-          <p className="hidden print:block text-sm pt-2 text-justify">
-            <span className="font-medium">Nota:</span> {resolvedProfitSplitNote}
+          {/* Comprobante de la transferencia del reparto -- el paso final
+              del evento, después de que todos firmaron. */}
+          <div className="no-print space-y-1.5 pt-1 border-t pt-3">
+            <Label className="text-xs text-muted-foreground">Comprobante de transferencia del reparto</Label>
+            <input
+              ref={transferProofInputRef}
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png,.webp"
+              className="hidden"
+              disabled={uploadingTransferProof}
+              onChange={handleTransferProofChange}
+            />
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs cursor-pointer"
+                disabled={uploadingTransferProof}
+                onClick={() => transferProofInputRef.current?.click()}
+              >
+                {uploadingTransferProof ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+                {profitSplitTransferProofUrl ? "Cambiar comprobante" : "Subir comprobante de transferencia"}
+              </Button>
+              {profitSplitTransferProofUrl && (
+                <a href={profitSplitTransferProofUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline inline-flex items-center gap-1">
+                  <Receipt className="h-3.5 w-3.5" /> Ver comprobante
+                </a>
+              )}
+            </div>
+            {profitSplitTransferredAt && (
+              <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                Transferido el {format(new Date(profitSplitTransferredAt), "d MMM yyyy, HH:mm", { locale: es })} -- evento cerrado.
+              </p>
+            )}
+          </div>
+
+          <p className="hidden print:block text-sm pt-2">
+            <span className="font-medium">Reparto de utilidad ({formatCents(utilidadCents)}):</span>{" "}
+            {resolvedProjectPct}% {event.projectName || "Proyecto"} = {formatCents(projectSplitCents)} ·{" "}
+            {resolvedTrinoPct}% Trino = {formatCents(trinoSplitCents)}
+            {profitSplitNote.trim() && (
+              <>
+                <br /><span className="font-medium">Nota:</span> {profitSplitNote.trim()}
+              </>
+            )}
           </p>
 
           <div className="hidden print:grid grid-cols-2 gap-8 pt-12">
             <div className="text-center text-sm">
-              <div className="border-t border-foreground pt-1">Firma Productor</div>
+              <div className="border-t border-foreground pt-1">Firma Trino</div>
             </div>
             <div className="text-center text-sm">
               <div className="border-t border-foreground pt-1">

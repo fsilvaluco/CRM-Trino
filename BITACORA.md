@@ -460,6 +460,17 @@ _Ningún bug crítico conocido sin resolver._
 
 ---
 
+**✅ Reparto de utilidad estructurado (% editables + comprobante de transferencia)** _(agregado: 20 ago 2026)_
+
+Antes "Reparto de utilidad" era solo una nota de texto libre con un placeholder tipo "70% Proyecto y 30% Productor" que ni siquiera se guardaba si no se tocaba. Pedido de Francisco: que los porcentajes sean campos editables de verdad, que se calcule el monto automáticamente a partir de la utilidad del evento, que los firmantes vean ese cálculo al aprobar el cierre (para saber cuánto transferir), y que se pueda dejar el comprobante de esa transferencia como cierre final del evento.
+
+- Migración 081: nuevas columnas en `shows` -- `profit_split_project_pct`, `profit_split_trino_pct` (ambas nullable, default 70/30 se resuelve en el código, no en la BD), `profit_split_transfer_proof_url`, `profit_split_transferred_at`. `profit_split_note` se mantiene como nota EXTRA opcional (para casos especiales), ya no reemplaza el cálculo.
+- **Planilla de costos** (`/eventos/[id]`): dos campos numéricos editables (% Proyecto / % Trino, se renombró "Productor" → "Trino") junto al monto calculado de cada uno en vivo a partir de la utilidad; nota de texto opcional debajo; y una sección nueva para subir el comprobante de la transferencia -- una vez subido queda la fecha/hora marcada como "Transferido -- evento cerrado".
+- **Link de firma** (`/eventos/[id]/firmar`): los firmantes ahora ven los dos porcentajes con su monto calculado (no solo un texto), la nota si existe, y si ya se subió el comprobante de transferencia o todavía falta -- así saben exactamente cuánto y a quién transferir antes de aprobar.
+- **Email de "Informar cierre"**: se agregó la tabla de reparto (% + monto de cada lado) antes de la nota, mismo cálculo que en la app.
+
+---
+
 **✅ Categoría "Bencina" con calculadora km × factor $/km** _(agregado: 20 ago 2026)_
 
 Pedido de Francisco: al reportar un gasto de categoría "Bencina" (tanto en la Planilla de costos del evento como en el link para reportar gastos), poder subir una captura de una app de mapas con los km del trayecto y que se calcule el monto solo, con un factor $/km editable (ej. $200 o $250).

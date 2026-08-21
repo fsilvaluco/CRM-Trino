@@ -85,6 +85,13 @@ export interface LiveShow {
   ticketSalesUrl: string | null;
   tour: string | null;
   profitSplitNote: string | null;
+  // Reparto de utilidad estructurado -- % de cada lado (null = usar el
+  // default 70/30 en el front) y el comprobante de la transferencia
+  // (se sube después de que todos firman -- es el cierre final del evento).
+  profitSplitProjectPct: number | null;
+  profitSplitTrinoPct: number | null;
+  profitSplitTransferProofUrl: string | null;
+  profitSplitTransferredAt: string | null;
   createdAt: string;
   updatedAt: string;
   projectName: string | null;

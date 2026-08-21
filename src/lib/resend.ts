@@ -118,12 +118,21 @@ export function buildCostSheetSummaryEmailHtml(params: {
   ticketTiers: { label: string; unitPrice: number; quantitySold: number }[];
   costItems: { label: string; responsable: string | null; amount: number }[];
   profitSplitNote: string | null;
+  profitSplitProjectPct: number | null;
+  profitSplitTrinoPct: number | null;
   signers: { name: string; signedAt: string }[];
   detailUrl: string;
 }): string {
-  const { eventName, eventDate, venue, projectName, fee, ticketIncome, expenses, ticketTiers, costItems, profitSplitNote, signers, detailUrl } = params;
+  const {
+    eventName, eventDate, venue, projectName, fee, ticketIncome, expenses, ticketTiers, costItems,
+    profitSplitNote, profitSplitProjectPct, profitSplitTrinoPct, signers, detailUrl,
+  } = params;
   const ingresos = (fee ?? 0) + (ticketIncome ?? 0);
   const utilidad = ingresos - (expenses ?? 0);
+  const projectPct = profitSplitProjectPct ?? 70;
+  const trinoPct = profitSplitTrinoPct ?? 30;
+  const projectSplit = Math.round((utilidad * projectPct) / 100);
+  const trinoSplit = Math.round((utilidad * trinoPct) / 100);
   const ticketTotal = ticketTiers.reduce((sum, t) => sum + t.unitPrice * t.quantitySold, 0);
 
   const row = (label: string, right: string) =>
@@ -171,9 +180,14 @@ export function buildCostSheetSummaryEmailHtml(params: {
       </table>
       ` : ""}
 
+      <p style="font-size:13px;font-weight:600;color:#14162B;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;border-top:1px solid #E5E7EB;padding-top:16px;">Reparto de utilidad</p>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:${profitSplitNote ? "8px" : "20px"};">
+        ${row(`${projectPct}% ${projectName || "Proyecto"}`, formatCentsForEmail(projectSplit))}
+        ${row(`${trinoPct}% Trino`, formatCentsForEmail(trinoSplit))}
+      </table>
       ${profitSplitNote ? `
-      <p style="font-size:13px;color:#14162B;line-height:1.5;border-top:1px solid #E5E7EB;padding-top:16px;margin-bottom:20px;">
-        <strong>Reparto de utilidad:</strong><br/>${profitSplitNote.replace(/\n/g, "<br/>")}
+      <p style="font-size:13px;color:#14162B;line-height:1.5;margin-bottom:20px;">
+        <strong>Nota:</strong> ${profitSplitNote.replace(/\n/g, "<br/>")}
       </p>
       ` : ""}
 
