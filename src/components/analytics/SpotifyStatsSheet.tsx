@@ -234,7 +234,7 @@ export function SpotifyStatsSheet({ open, onOpenChange, onRegistered, editingSna
           <div className="space-y-2">
             <Label>Pantallazos de Spotify for Artists (opcional)</Label>
             <p className="text-xs text-muted-foreground">
-              Spotify reparte las métricas en varias tarjetas — subí hasta {MAX_SCREENSHOTS} pantallazos juntos (ej. Audiencia, Reproducciones, etc.) y la IA combina los números de todos. Revisa antes de guardar.
+              Spotify reparte las métricas en varias tarjetas — sube hasta {MAX_SCREENSHOTS} pantallazos juntos (ej. Audiencia, Reproducciones, etc.) y la IA combina los números de todos. Revisa antes de guardar.
             </p>
             <input
               ref={fileInputRef}
