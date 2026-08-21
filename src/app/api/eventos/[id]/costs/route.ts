@@ -40,6 +40,8 @@ export async function GET(
       liquidoAmount: r.liquido_amount ?? null,
       amount: r.amount,
       notes: r.notes ?? null,
+      km: r.km ?? null,
+      kmRate: r.km_rate ?? null,
     }))
   );
 }
@@ -99,6 +101,8 @@ export async function PUT(
         comprobantePagoUrl?: string | null;
         esBhe?: boolean;
         liquidoAmount?: number | null;
+        km?: number | null;
+        kmRate?: number | null;
       },
       index: number
     ) => ({
@@ -116,6 +120,8 @@ export async function PUT(
       comprobante_pago_url: it.comprobantePagoUrl || null,
       es_bhe: it.esBhe ?? false,
       liquido_amount: typeof it.liquidoAmount === "number" ? it.liquidoAmount : null,
+      km: typeof it.km === "number" ? it.km : null,
+      km_rate: typeof it.kmRate === "number" ? it.kmRate : null,
     })
   );
 

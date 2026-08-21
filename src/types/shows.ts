@@ -51,6 +51,11 @@ export interface CostItem {
   liquidoAmount: number | null;
   amount: number;
   notes: string | null;
+  // Solo para categoría "Bencina" -- detalle de cómo se llegó al monto
+  // (km del trayecto × factor $/km), para poder editarlo sin perder el
+  // cálculo. `amount` sigue siendo la fuente de verdad del gasto.
+  km: number | null;
+  kmRate: number | null;
 }
 
 export interface LiveShow {

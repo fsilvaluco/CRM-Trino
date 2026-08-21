@@ -30,6 +30,8 @@ interface SubmissionRow {
   submitted_by: string;
   submitter: SubmissionProfile | null;
   reviewer: SubmissionProfile | null;
+  km: number | null;
+  km_rate: number | null;
 }
 
 function mapSubmission(r: SubmissionRow) {
@@ -49,6 +51,8 @@ function mapSubmission(r: SubmissionRow) {
     submittedBy: r.submitted_by,
     submitterName: r.submitter?.full_name ?? r.submitter?.email ?? null,
     reviewerName: r.reviewer?.full_name ?? r.reviewer?.email ?? null,
+    km: r.km ?? null,
+    kmRate: r.km_rate ?? null,
   };
 }
 
@@ -81,7 +85,7 @@ export async function GET(
   let query = supabase
     .from("event_cost_submissions")
     .select(
-      "id, label, category, responsable, responsable_contact_id, amount, comprobante_url, notes, status, review_note, reviewed_at, created_at, submitted_by, submitter:profiles!event_cost_submissions_submitted_by_fkey ( full_name, email, avatar_url ), reviewer:profiles!event_cost_submissions_reviewed_by_fkey ( full_name, email, avatar_url )"
+      "id, label, category, responsable, responsable_contact_id, amount, comprobante_url, notes, status, review_note, reviewed_at, created_at, submitted_by, km, km_rate, submitter:profiles!event_cost_submissions_submitted_by_fkey ( full_name, email, avatar_url ), reviewer:profiles!event_cost_submissions_reviewed_by_fkey ( full_name, email, avatar_url )"
     )
     .eq("show_id", id)
     .order("created_at", { ascending: false });
@@ -146,6 +150,8 @@ export async function POST(
     amount,
     comprobanteUrl,
     notes,
+    km,
+    kmRate,
   } = body as {
     label?: string;
     category?: string | null;
@@ -154,6 +160,8 @@ export async function POST(
     amount?: number;
     comprobanteUrl?: string | null;
     notes?: string | null;
+    km?: number | null;
+    kmRate?: number | null;
   };
 
   const trimmedLabel = (label ?? "").trim();
@@ -180,6 +188,8 @@ export async function POST(
       amount: cents,
       comprobante_url: comprobanteUrl || null,
       notes: notes || null,
+      km: typeof km === "number" ? km : null,
+      km_rate: typeof kmRate === "number" ? kmRate : null,
     })
     .select("id")
     .single();

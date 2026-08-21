@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { EventFormDialog } from "@/components/events/EventFormDialog";
+import { BencinaCalculator } from "@/components/events/BencinaCalculator";
 import { SortableList } from "@/components/events/SortableList";
 import { TypeaheadInput } from "@/components/events/TypeaheadInput";
 import { MoneyInput } from "@/components/shared/MoneyInput";
@@ -161,6 +162,8 @@ export default function EventDetailPage() {
   const [newCostResponsableContactId, setNewCostResponsableContactId] = useState<string | null>(null);
   const [newCostComprobante, setNewCostComprobante] = useState("");
   const [newCostEsBhe, setNewCostEsBhe] = useState(false);
+  const [newCostKm, setNewCostKm] = useState<number | null>(null);
+  const [newCostKmRate, setNewCostKmRate] = useState<number | null>(null);
   const [closingCosts, setClosingCosts] = useState(false);
   const [informingClosing, setInformingClosing] = useState(false);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
@@ -679,6 +682,8 @@ export default function EventDetailPage() {
               comprobantePagoUrl: c.comprobantePagoUrl,
               esBhe: c.esBhe,
               liquidoAmount: c.liquidoAmount,
+              km: c.km,
+              kmRate: c.kmRate,
             })),
           }),
         }),
@@ -2117,6 +2122,23 @@ export default function EventDetailPage() {
                       </button>
                     </div>
 
+                    {item.category === "Bencina" && (
+                      <div className="no-print">
+                        <BencinaCalculator
+                          km={item.km}
+                          kmRate={item.kmRate}
+                          disabled={costSheetClosed || !canEditCosts}
+                          onChange={({ km, kmRate, amountCents }) =>
+                            updateItem({
+                              km,
+                              kmRate,
+                              ...(amountCents != null ? { amount: amountCents } : {}),
+                            })
+                          }
+                        />
+                      </div>
+                    )}
+
                     <div className="flex items-center gap-2 pl-0.5 flex-wrap">
                       <TypeaheadInput
                         placeholder="Responsable (a quién se le paga)"
@@ -2287,6 +2309,19 @@ export default function EventDetailPage() {
                   />
                 </div>
               </div>
+
+              {newCostCategory === "Bencina" && (
+                <BencinaCalculator
+                  km={newCostKm}
+                  kmRate={newCostKmRate}
+                  onChange={({ km, kmRate, amountCents }) => {
+                    setNewCostKm(km);
+                    setNewCostKmRate(kmRate);
+                    if (amountCents != null) setNewCostAmount(String(Math.round(amountCents / 100)));
+                  }}
+                />
+              )}
+
               <div className="flex items-center gap-2">
                 <TypeaheadInput
                   placeholder="Responsable"
@@ -2330,6 +2365,8 @@ export default function EventDetailPage() {
                         pagado: false,
                         comprobantePagoUrl: null,
                         notes: null,
+                        km: newCostKm,
+                        kmRate: newCostKmRate,
                       },
                     ]);
                     setNewCostLabel("");
@@ -2339,6 +2376,8 @@ export default function EventDetailPage() {
                     setNewCostResponsableContactId(null);
                     setNewCostComprobante("");
                     setNewCostEsBhe(false);
+                    setNewCostKm(null);
+                    setNewCostKmRate(null);
                     setCostsDirty(true);
                   }}
                 >

@@ -7,6 +7,7 @@
 // (migración 071_cost_categories.sql) para que sigan calzando.
 export const COST_CATEGORIES = [
   "Movilización",
+  "Bencina",
   "Alimentación",
   "Alojamiento",
   "Arriendo de audio",

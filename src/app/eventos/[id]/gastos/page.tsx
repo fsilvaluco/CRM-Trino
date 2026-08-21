@@ -17,6 +17,7 @@ import { TypeaheadInput } from "@/components/events/TypeaheadInput";
 import { MoneyInput } from "@/components/shared/MoneyInput";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { COST_CATEGORIES } from "@/lib/cost-categories";
+import { BencinaCalculator } from "@/components/events/BencinaCalculator";
 
 const CLP = new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
 
@@ -93,6 +94,8 @@ export default function ReportarGastoPage() {
   const [notes, setNotes] = useState("");
   const [comprobanteUrl, setComprobanteUrl] = useState<string | null>(null);
   const [comprobanteCount, setComprobanteCount] = useState(0);
+  const [km, setKm] = useState<number | null>(null);
+  const [kmRate, setKmRate] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -313,6 +316,8 @@ export default function ReportarGastoPage() {
           amount: pesos * 100,
           comprobanteUrl,
           notes: notes.trim() || null,
+          km,
+          kmRate,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -327,6 +332,8 @@ export default function ReportarGastoPage() {
       setNotes("");
       setComprobanteUrl(null);
       setComprobanteCount(0);
+      setKm(null);
+      setKmRate(null);
       void load();
     } catch {
       toast.error("No se pudo enviar el gasto");
@@ -403,6 +410,21 @@ export default function ReportarGastoPage() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {category === "Bencina" && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Cálculo de bencina</label>
+                  <BencinaCalculator
+                    km={km}
+                    kmRate={kmRate}
+                    onChange={(patch) => {
+                      setKm(patch.km);
+                      setKmRate(patch.kmRate);
+                      if (patch.amountCents != null) setAmount(String(Math.round(patch.amountCents / 100)));
+                    }}
+                  />
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Responsable</label>

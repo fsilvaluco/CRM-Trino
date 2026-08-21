@@ -86,6 +86,8 @@ export async function PUT(
       responsable: submission.responsable,
       responsable_contact_id: submission.responsable_contact_id,
       comprobante_url: submission.comprobante_url,
+      km: submission.km ?? null,
+      km_rate: submission.km_rate ?? null,
     })
     .select("id")
     .single();

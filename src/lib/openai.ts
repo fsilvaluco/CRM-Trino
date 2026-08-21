@@ -757,6 +757,84 @@ export async function extractPressMentionFromText(rawText: string): Promise<Pres
   }
 }
 
+export interface KmExtraction {
+  km: number | null;
+}
+
+const FALLBACK_KM: KmExtraction = { km: null };
+
+const KM_SCHEMA = {
+  name: "km_extraction",
+  strict: true,
+  schema: {
+    type: "object",
+    properties: {
+      km: { type: ["number", "null"] },
+    },
+    required: ["km"],
+    additionalProperties: false,
+  },
+};
+
+const KM_PROMPT = `Esta es una captura de pantalla de una app de mapas/navegación (Google Maps, Waze, Apple Maps o similar) mostrando una ruta calculada, con la distancia total del trayecto en automóvil.
+
+Extrae:
+- "km": la distancia TOTAL del trayecto en kilómetros, como número (ej. "37 km" -> 37, "5.2 km" -> 5.2, "850 m" -> 0.85). Si el trayecto muestra varios modos de transporte (auto, moto, caminando, bici), usa la distancia del trayecto EN AUTOMÓVIL -- es la misma distancia sin importar el modo, así que cualquiera sirve, pero prioriza la que aparezca marcada/seleccionada si hay varias visibles.
+
+Reglas:
+- Si no se puede leer la distancia con certeza, usa null -- nunca inventes un número.
+- Si la distancia viene en metros, conviértela a kilómetros (dividir por 1000).`;
+
+/**
+ * Lee una captura de pantalla de una app de mapas y extrae los km del
+ * trayecto -- pensado para la categoría "Bencina" de la Planilla de
+ * costos: en vez de calcular el gasto a mano, se sube la captura, se lee
+ * la distancia, y se multiplica por un factor $/km editable. SIEMPRE es
+ * una sugerencia editable antes de guardar.
+ */
+export async function extractKmFromMapsScreenshot(
+  imageBase64: string,
+  mediaType: "image/jpeg" | "image/png" | "image/webp"
+): Promise<KmExtraction> {
+  if (!apiKey) return FALLBACK_KM;
+
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: MODEL,
+      temperature: 0,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: KM_PROMPT },
+            { type: "image_url", image_url: { url: `data:${mediaType};base64,${imageBase64}` } },
+          ],
+        },
+      ],
+      response_format: { type: "json_schema", json_schema: KM_SCHEMA },
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    console.error("[openai] km extraction failed", { status: res.status, body });
+    throw new Error(`OpenAI respondió con error (status ${res.status})`);
+  }
+
+  const data = await res.json();
+  const text: string | undefined = data?.choices?.[0]?.message?.content;
+  if (!text) return FALLBACK_KM;
+
+  try {
+    return { ...FALLBACK_KM, ...JSON.parse(text) };
+  } catch (err) {
+    console.error("[openai] failed to parse km extraction JSON", { text, err });
+    return FALLBACK_KM;
+  }
+}
+
 interface MilestoneExtraction {
   title: string;
   dueDate: string | null; // YYYY-MM-DD

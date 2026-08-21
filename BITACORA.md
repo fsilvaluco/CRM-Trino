@@ -460,6 +460,16 @@ _Ningún bug crítico conocido sin resolver._
 
 ---
 
+**✅ Categoría "Bencina" con calculadora km × factor $/km** _(agregado: 20 ago 2026)_
+
+Pedido de Francisco: al reportar un gasto de categoría "Bencina" (tanto en la Planilla de costos del evento como en el link para reportar gastos), poder subir una captura de una app de mapas con los km del trayecto y que se calcule el monto solo, con un factor $/km editable (ej. $200 o $250).
+
+- Nueva categoría **"Bencina"** en `COST_CATEGORIES` (`src/lib/cost-categories.ts`) + migración 080 (constraint de categoría en `event_cost_items` y `event_cost_submissions`, más columnas nuevas `km`/`km_rate` en ambas tablas -- son solo el detalle de cómo se llegó al monto, `amount` sigue siendo la fuente de verdad).
+- Nuevo componente compartido `BencinaCalculator` (`src/components/events/BencinaCalculator.tsx`): botón para subir una captura de Maps/Waze, la IA lee los km del trayecto (`extractKmFromMapsScreenshot` en `src/lib/openai.ts`, endpoint `POST /api/eventos/km-extract`), un campo de km editable, un factor $/km con accesos rápidos a $200/$250 (o cualquier otro valor a mano), y muestra el cálculo -- el monto resultante se precarga en el campo de monto normal, siempre editable antes de guardar.
+- Aparece automáticamente cuando la categoría elegida es "Bencina", en los **3 lugares** donde se puede cargar un gasto: la fila de un ítem ya existente y el formulario de ítem nuevo en la Planilla de costos (`/eventos/[id]`), y el formulario del link público para reportar gastos (`/eventos/[id]/gastos`). Al aprobar un gasto reportado por el link, los km/factor quedan guardados también en el ítem de la Planilla (no se pierden).
+
+---
+
 **✅ Fix: no se podía hacer scroll del menú móvil (hamburguesa)** _(resuelto: 20 ago 2026)_
 
 Francisco reportó que en el celular no podía hacer scroll dentro del menú desplegable lateral. Causa: el `<nav>` de `MobileNav.tsx` (la lista de links dentro del `Sheet` que se abre con el ícono de hamburguesa) tenía `flex-1` pero le faltaba `overflow-y-auto` y `min-h-0` -- en flexbox, un hijo `flex-1` dentro de un contenedor `flex-col` necesita `min-h-0` para poder encogerse y habilitar su propio scroll interno; sin eso, el contenido simplemente se corta cuando no entra completo (y el scroll del fondo está bloqueado mientras el Sheet está abierto, así que no había forma de ver el resto de las opciones). Fix de una línea: `className="flex-1 px-3 py-4 space-y-1"` → `className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-1"`.
