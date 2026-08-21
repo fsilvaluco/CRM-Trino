@@ -74,10 +74,12 @@ const FIELD_LABELS: Record<keyof Omit<FormFields, "periodStart" | "periodEnd">, 
   followers: "Seguidores",
 };
 
+const MAX_SCREENSHOTS = 5;
+
 export function SpotifyStatsSheet({ open, onOpenChange, onRegistered, editingSnapshot }: SpotifyStatsSheetProps) {
   const isEditing = !!editingSnapshot;
   const [fields, setFields] = useState<FormFields>(EMPTY_FIELDS);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [extracting, setExtracting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [source, setSource] = useState<"manual" | "screenshot">("manual");
@@ -90,7 +92,7 @@ export function SpotifyStatsSheet({ open, onOpenChange, onRegistered, editingSna
     if (open) {
       setFields(editingSnapshot ? snapshotToFields(editingSnapshot) : EMPTY_FIELDS);
       setSource(editingSnapshot?.source ?? "manual");
-      setPreviewUrl(null);
+      setPreviewUrls([]);
       setNotFound([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -98,42 +100,70 @@ export function SpotifyStatsSheet({ open, onOpenChange, onRegistered, editingSna
 
   const reset = () => {
     setFields(EMPTY_FIELDS);
-    setPreviewUrl(null);
+    setPreviewUrls([]);
     setSource("manual");
     setNotFound([]);
   };
 
-  const handleFileSelect = async (file: File) => {
-    setPreviewUrl(URL.createObjectURL(file));
+  // Spotify for Artists reparte las métricas en varias pestañas/tarjetas
+  // (Audiencia, Reproducciones, etc.) -- en el celular hace falta sacar
+  // 4-5 pantallazos para juntar todos los números. Se leen todos en
+  // paralelo con IA y se combinan: para cada campo, se usa el primer
+  // pantallazo que sí lo trajo (no se pisa uno ya encontrado con un
+  // null de otra captura que no mostraba ese dato).
+  const handleFilesSelect = async (files: File[]) => {
+    if (files.length > MAX_SCREENSHOTS) {
+      toast.error(`Máximo ${MAX_SCREENSHOTS} pantallazos a la vez`);
+      return;
+    }
+    setPreviewUrls(files.map((f) => URL.createObjectURL(f)));
     setExtracting(true);
     try {
-      const { base64, mediaType } = await compressImage(file);
-      const res = await fetch("/api/analytics/spotify/extract", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: base64, mediaType }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data?.error ?? "No se pudo leer el pantallazo");
-        return;
+      const results = await Promise.all(
+        files.map(async (file) => {
+          const { base64, mediaType } = await compressImage(file);
+          const res = await fetch("/api/analytics/spotify/extract", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ imageBase64: base64, mediaType }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.error ?? "No se pudo leer un pantallazo");
+          return data;
+        })
+      );
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const merged: Record<string, any> = {};
+      const numericKeys = Object.keys(FIELD_LABELS) as (keyof typeof FIELD_LABELS)[];
+      const dateKeys = ["periodStart", "periodEnd"] as const;
+      for (const data of results) {
+        for (const key of [...dateKeys, ...numericKeys]) {
+          if (merged[key] == null && data[key] != null) merged[key] = data[key];
+        }
       }
+
       setFields({
-        periodStart: data.periodStart ?? "",
-        periodEnd: data.periodEnd ?? "",
-        listeners: data.listeners != null ? String(data.listeners) : "",
-        monthlyActiveListeners: data.monthlyActiveListeners != null ? String(data.monthlyActiveListeners) : "",
-        streams: data.streams != null ? String(data.streams) : "",
-        streamsPerListener: data.streamsPerListener != null ? String(data.streamsPerListener) : "",
-        saves: data.saves != null ? String(data.saves) : "",
-        playlistAdds: data.playlistAdds != null ? String(data.playlistAdds) : "",
-        followers: data.followers != null ? String(data.followers) : "",
+        periodStart: merged.periodStart ?? "",
+        periodEnd: merged.periodEnd ?? "",
+        listeners: merged.listeners != null ? String(merged.listeners) : "",
+        monthlyActiveListeners: merged.monthlyActiveListeners != null ? String(merged.monthlyActiveListeners) : "",
+        streams: merged.streams != null ? String(merged.streams) : "",
+        streamsPerListener: merged.streamsPerListener != null ? String(merged.streamsPerListener) : "",
+        saves: merged.saves != null ? String(merged.saves) : "",
+        playlistAdds: merged.playlistAdds != null ? String(merged.playlistAdds) : "",
+        followers: merged.followers != null ? String(merged.followers) : "",
       });
       setSource("screenshot");
-      setNotFound(data.fieldsNotFound ?? []);
-      toast.success("Pantallazo leído — revisa los números antes de guardar");
-    } catch {
-      toast.error("Error al procesar la imagen");
+      // Realmente "no encontrado" = ningún pantallazo lo trajo.
+      setNotFound(numericKeys.filter((k) => merged[k] == null));
+      toast.success(
+        files.length > 1
+          ? `${files.length} pantallazos combinados — revisa los números antes de guardar`
+          : "Pantallazo leído — revisa los números antes de guardar"
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al procesar las imágenes");
     } finally {
       setExtracting(false);
     }
@@ -202,27 +232,32 @@ export function SpotifyStatsSheet({ open, onOpenChange, onRegistered, editingSna
           {/* Subida de pantallazo — también disponible al editar, por si
               quieres reemplazar los números leyendo una captura nueva. */}
           <div className="space-y-2">
-            <Label>Pantallazo de Spotify for Artists (opcional)</Label>
+            <Label>Pantallazos de Spotify for Artists (opcional)</Label>
             <p className="text-xs text-muted-foreground">
-              Ideal: pestaña Audiencia → Descripción general. La IA lee los números — tú los revisas antes de guardar.
+              Spotify reparte las métricas en varias tarjetas — subí hasta {MAX_SCREENSHOTS} pantallazos juntos (ej. Audiencia, Reproducciones, etc.) y la IA combina los números de todos. Revisa antes de guardar.
             </p>
             <input
               ref={fileInputRef}
               type="file"
               accept="image/png,image/jpeg,image/webp"
+              multiple
               className="hidden"
               onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void handleFileSelect(file);
+                const files = e.target.files ? Array.from(e.target.files) : [];
+                if (files.length > 0) void handleFilesSelect(files);
               }}
             />
-            {previewUrl ? (
+            {previewUrls.length > 0 ? (
               <div className="relative rounded-lg border overflow-hidden">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={previewUrl} alt="Pantallazo subido" className="w-full max-h-48 object-cover object-top" />
+                <div className="grid grid-cols-3 gap-1 p-1">
+                  {previewUrls.map((url, i) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img key={i} src={url} alt={`Pantallazo ${i + 1}`} className="w-full h-20 object-cover object-top rounded" />
+                  ))}
+                </div>
                 <button
                   onClick={() => {
-                    setPreviewUrl(null);
+                    setPreviewUrls([]);
                     if (fileInputRef.current) fileInputRef.current.value = "";
                   }}
                   className="absolute top-2 right-2 rounded-full bg-background/90 p-1 shadow"
@@ -231,7 +266,7 @@ export function SpotifyStatsSheet({ open, onOpenChange, onRegistered, editingSna
                 </button>
                 {extracting && (
                   <div className="absolute inset-0 bg-background/70 flex items-center justify-center gap-2 text-sm font-medium">
-                    <Loader2 className="h-4 w-4 animate-spin" /> Leyendo pantallazo...
+                    <Loader2 className="h-4 w-4 animate-spin" /> Leyendo {previewUrls.length > 1 ? "pantallazos..." : "pantallazo..."}
                   </div>
                 )}
               </div>
@@ -241,7 +276,7 @@ export function SpotifyStatsSheet({ open, onOpenChange, onRegistered, editingSna
                 className="w-full rounded-lg border border-dashed p-6 flex flex-col items-center gap-2 text-sm text-muted-foreground hover:bg-muted/40 transition-colors"
               >
                 <ImageIcon className="h-6 w-6" />
-                <span>Haz clic para subir un pantallazo</span>
+                <span>Haz clic para subir uno o varios pantallazos</span>
               </button>
             )}
             {source === "screenshot" && !extracting && (

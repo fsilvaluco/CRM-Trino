@@ -460,6 +460,12 @@ _Ningún bug crítico conocido sin resolver._
 
 ---
 
+**✅ Métricas > Spotify: registrar hasta 5 pantallazos juntos** _(agregado: 21 ago 2026)_
+
+Spotify for Artists reparte las métricas entre varias tarjetas/pestañas (Audiencia, Reproducciones, etc.) -- Francisco tenía que sacar 4-5 pantallazos del celular para juntar todos los números, y el sheet de "Registrar estadísticas de Spotify" solo aceptaba uno a la vez. Ahora el input acepta selección múltiple (hasta 5): cada pantallazo se lee con IA en paralelo y los resultados se combinan campo por campo -- para cada dato (oyentes, streams, seguidores, etc.) se usa el primer pantallazo que sí lo trajo, sin pisarlo con un `null` de otra captura que no mostraba ese número. Los previews ahora se ven en una grilla de miniaturas en vez de una sola imagen grande. Sigue siendo 100% editable antes de guardar, mismo criterio que el resto de las lecturas con IA.
+
+---
+
 **✅ Reparto de utilidad estructurado (% editables + comprobante de transferencia)** _(agregado: 20 ago 2026)_
 
 Antes "Reparto de utilidad" era solo una nota de texto libre con un placeholder tipo "70% Proyecto y 30% Productor" que ni siquiera se guardaba si no se tocaba. Pedido de Francisco: que los porcentajes sean campos editables de verdad, que se calcule el monto automáticamente a partir de la utilidad del evento, que los firmantes vean ese cálculo al aprobar el cierre (para saber cuánto transferir), y que se pueda dejar el comprobante de esa transferencia como cierre final del evento.
