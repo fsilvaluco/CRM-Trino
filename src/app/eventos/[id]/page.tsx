@@ -1869,9 +1869,9 @@ export default function EventDetailPage() {
           ver canViewCosts en GET /api/eventos/[id]. */}
       {event.canViewCosts !== false && (
       <Card data-section="costs">
-        <CardHeader className="flex flex-row items-center justify-between pb-3">
-          <CardTitle className="text-sm font-medium flex items-center gap-1.5">
-            <Wallet className="h-4 w-4" />
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3">
+          <CardTitle className="text-sm font-medium flex items-center gap-1.5 flex-wrap">
+            <Wallet className="h-4 w-4 shrink-0" />
             Planilla de costos
             {costSheetClosed && (
               <Badge variant="secondary" className="text-xs bg-slate-100 text-slate-700 ml-1">
@@ -1890,7 +1890,7 @@ export default function EventDetailPage() {
               </Badge>
             )}
           </CardTitle>
-          <div className="flex items-center gap-2 no-print">
+          <div className="flex items-center gap-2 no-print flex-wrap">
             {canEditCosts && costsDirty && (
               <Button size="sm" className="h-7 text-xs cursor-pointer" disabled={savingCosts} onClick={saveCosts}>
                 {savingCosts ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Guardar costos"}
