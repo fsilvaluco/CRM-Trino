@@ -2127,21 +2127,21 @@ export default function EventDetailPage() {
 
                 return (
                   <div className="space-y-1.5 pb-2 border-b last:border-0">
+                    <TypeaheadInput
+                      placeholder="Detalle (ej. Pago sonidista)"
+                      value={item.label}
+                      disabled={costSheetClosed || !canEditCosts}
+                      onChange={(v) => updateItem({ label: v })}
+                      fetchSuggestions={fetchCostTypeSuggestions}
+                      className="h-7 text-xs w-full"
+                    />
                     <div className="flex items-center gap-2">
-                      <TypeaheadInput
-                        placeholder="Detalle (ej. Pago sonidista)"
-                        value={item.label}
-                        disabled={costSheetClosed || !canEditCosts}
-                        onChange={(v) => updateItem({ label: v })}
-                        fetchSuggestions={fetchCostTypeSuggestions}
-                        className="h-7 text-xs flex-1"
-                      />
                       <Select
                         value={item.category ?? undefined}
                         onValueChange={(v) => updateItem({ category: v ?? null })}
                         disabled={costSheetClosed || !canEditCosts}
                       >
-                        <SelectTrigger className="h-7 text-xs w-28 sm:w-36 shrink-0">
+                        <SelectTrigger className="h-7 text-xs flex-1 min-w-0">
                           <SelectValue placeholder="Categoría">{item.category ?? "Categoría"}</SelectValue>
                         </SelectTrigger>
                         <SelectContent>
@@ -2150,7 +2150,7 @@ export default function EventDetailPage() {
                           ))}
                         </SelectContent>
                       </Select>
-                      <div className="w-24 sm:w-32 shrink-0">
+                      <div className="w-20 sm:w-28 shrink-0">
                         <MoneyInput
                           placeholder={item.esBhe ? "Líquido" : "$0"}
                           value={displayAmount ? String(displayAmount / 100) : ""}
@@ -2338,16 +2338,16 @@ export default function EventDetailPage() {
 
           {!costSheetClosed && canEditCosts && (
             <div className="space-y-1.5 pt-1 no-print">
+              <TypeaheadInput
+                placeholder="Ítem (ej. Transporte, Catering...)"
+                value={newCostLabel}
+                onChange={setNewCostLabel}
+                fetchSuggestions={fetchCostTypeSuggestions}
+                className="h-7 text-xs w-full"
+              />
               <div className="flex items-center gap-2">
-                <TypeaheadInput
-                  placeholder="Ítem (ej. Transporte, Catering...)"
-                  value={newCostLabel}
-                  onChange={setNewCostLabel}
-                  fetchSuggestions={fetchCostTypeSuggestions}
-                  className="h-7 text-xs flex-1"
-                />
                 <Select value={newCostCategory ?? undefined} onValueChange={(v) => setNewCostCategory(v ?? null)}>
-                  <SelectTrigger className="h-7 text-xs w-28 sm:w-36 shrink-0">
+                  <SelectTrigger className="h-7 text-xs flex-1 min-w-0">
                     <SelectValue placeholder="Categoría">{newCostCategory ?? "Categoría"}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
@@ -2356,7 +2356,7 @@ export default function EventDetailPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <div className="w-24 sm:w-32 shrink-0">
+                <div className="w-20 sm:w-28 shrink-0">
                   <MoneyInput
                     placeholder={newCostEsBhe ? "Líquido" : "$0"}
                     value={newCostAmount}
