@@ -717,6 +717,25 @@ export default function EventDetailPage() {
     }
   }
 
+  // Guarda "pagado" / comprobante de pago al toque, en su propio endpoint
+  // que no respeta el bloqueo de caja cerrada -- ver el porqué en
+  // api/eventos/[id]/costs/[itemId]/payment/route.ts. Así el flujo real
+  // (cerrar caja -> firman -> transferir -> subir comprobante) no queda
+  // cortado por el cierre.
+  async function updateItemPayment(itemId: string, patch: { pagado?: boolean; comprobantePagoUrl?: string | null }) {
+    setCostItems((prev) => prev.map((c) => (c.id === itemId ? { ...c, ...patch } : c)));
+    try {
+      const res = await fetch(`/api/eventos/${id}/costs/${itemId}/payment`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      toast.error("No se pudo guardar el estado de pago");
+    }
+  }
+
   async function saveDetails() {
     setSavingDetails(true);
     try {
@@ -2281,8 +2300,8 @@ export default function EventDetailPage() {
                       <label className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0 cursor-pointer">
                         <Checkbox
                           checked={item.pagado}
-                          disabled={costSheetClosed || !canEditCosts}
-                          onCheckedChange={(checked) => updateItem({ pagado: Boolean(checked) })}
+                          disabled={!canEditCosts}
+                          onCheckedChange={(checked) => updateItemPayment(item.id, { pagado: Boolean(checked) })}
                         />
                         Pagado
                       </label>
@@ -2291,7 +2310,7 @@ export default function EventDetailPage() {
                         accept=".pdf,.jpg,.jpeg,.png,.webp"
                         className="hidden"
                         id={`comprobante-pago-upload-${item.id}`}
-                        disabled={costSheetClosed || !canEditCosts}
+                        disabled={!canEditCosts}
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
                           e.target.value = "";
@@ -2309,7 +2328,7 @@ export default function EventDetailPage() {
                               return;
                             }
                             const { data } = supabase.storage.from("finances").getPublicUrl(storagePath);
-                            updateItem({ comprobantePagoUrl: data.publicUrl, pagado: true });
+                            await updateItemPayment(item.id, { comprobantePagoUrl: data.publicUrl, pagado: true });
                             toast.success("Comprobante de pago adjuntado");
                           } catch {
                             toast.error("No se pudo subir el archivo");
@@ -2318,7 +2337,7 @@ export default function EventDetailPage() {
                       />
                       <label
                         htmlFor={`comprobante-pago-upload-${item.id}`}
-                        className={`flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground ${(costSheetClosed || !canEditCosts) ? "opacity-40 pointer-events-none" : "cursor-pointer"}`}
+                        className={`flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground ${!canEditCosts ? "opacity-40 pointer-events-none" : "cursor-pointer"}`}
                         title="Subir comprobante de transferencia"
                       >
                         <Paperclip className="h-3.5 w-3.5" />
