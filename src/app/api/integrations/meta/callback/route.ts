@@ -31,6 +31,13 @@ interface InstagramUserResponse {
 const ANALYTICS_BASE = "/analytics/instagram";
 const GRAPH_BASE = "https://graph.facebook.com/v21.0";
 
+// Los cuerpos de respuesta de Meta (access_token) nunca deben quedar en los
+// logs del servidor en texto plano — cualquiera con acceso a los logs podría
+// tomar el token y actuar en nombre de la página/cuenta conectada.
+function redactTokens(raw: string): string {
+  return raw.replace(/"access_token"\s*:\s*"[^"]*"/g, '"access_token":"[REDACTED]"');
+}
+
 export async function GET(request: NextRequest) {
   const { supabase, orgId, error } = await requireAuth();
   if (error) return error;
@@ -78,10 +85,10 @@ export async function GET(request: NextRequest) {
     });
 
     const tokenRaw = await tokenRes.text();
-    console.log("[meta/callback] step1 code->token", { status: tokenRes.status, body: tokenRaw });
+    console.log("[meta/callback] step1 code->token", { status: tokenRes.status, body: redactTokens(tokenRaw) });
 
     if (!tokenRes.ok) {
-      console.error("[meta/callback] step1 failed", { status: tokenRes.status, body: tokenRaw });
+      console.error("[meta/callback] step1 failed", { status: tokenRes.status, body: redactTokens(tokenRaw) });
       return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, process.env.NEXT_PUBLIC_SITE_URL));
     }
 
@@ -97,10 +104,10 @@ export async function GET(request: NextRequest) {
 
     const longRes = await fetch(`${GRAPH_BASE}/oauth/access_token?${longParams.toString()}`);
     const longRaw = await longRes.text();
-    console.log("[meta/callback] step2 long-lived token", { status: longRes.status, body: longRaw });
+    console.log("[meta/callback] step2 long-lived token", { status: longRes.status, body: redactTokens(longRaw) });
 
     if (!longRes.ok) {
-      console.error("[meta/callback] step2 failed", { status: longRes.status, body: longRaw });
+      console.error("[meta/callback] step2 failed", { status: longRes.status, body: redactTokens(longRaw) });
       return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, process.env.NEXT_PUBLIC_SITE_URL));
     }
 
@@ -114,10 +121,10 @@ export async function GET(request: NextRequest) {
     // just the one(s) the user just checked).
     const pagesRes = await fetch(`${GRAPH_BASE}/me/accounts?fields=id,name,access_token&access_token=${longLivedToken}`);
     const pagesRaw = await pagesRes.text();
-    console.log("[meta/callback] step3 me/accounts", { status: pagesRes.status, body: pagesRaw });
+    console.log("[meta/callback] step3 me/accounts", { status: pagesRes.status, body: redactTokens(pagesRaw) });
 
     if (!pagesRes.ok) {
-      console.error("[meta/callback] step3 failed", { status: pagesRes.status, body: pagesRaw });
+      console.error("[meta/callback] step3 failed", { status: pagesRes.status, body: redactTokens(pagesRaw) });
       return NextResponse.redirect(new URL(`${ANALYTICS_BASE}?error=meta_token_error`, process.env.NEXT_PUBLIC_SITE_URL));
     }
 
