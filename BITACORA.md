@@ -267,6 +267,43 @@ De paso en la misma sesión (fuera del scope de la auditoría, a pedido de Franc
 **backup semanal automático de la base de datos a Google Drive** (ver sección abajo) y se hizo un
 **rename interno del proyecto a "Artist Pro"** (ver sección abajo).
 
+**Re-escaneo `/cyber-neo` (mismo día, tras los fixes)**: se corrió el skill de nuevo para verificar que
+los 7 fixes quedaron bien aplicados -- **todos confirmados corregidos** en el código (no solo "se ve
+bien en el diff", se releyó cada archivo). El puntaje de riesgo bajó de 54/100 (Alto) a 24/100 (Medio).
+Encontró 3 hallazgos nuevos, ya resueltos:
+- **CN-016 (Alto)**: `ws` (dependencia de `@supabase/realtime-js`, sí corre en producción) con un DoS
+  conocido. Corregido con `npm audit fix` (sin cambios mayores) -- quedó en `8.21.3`. De paso,
+  `npm audit fix` también resolvió de yapa varias dependencias de dev-tooling (`hono`, `ip-address`,
+  `fast-uri`, `js-yaml`, `brace-expansion`) que no corren en producción (vienen de la CLI de `shadcn` y
+  de `eslint`), así que no eran urgentes pero total cayeron con el mismo comando.
+  **Quedan pendientes, a propósito, sin aplicar `--force`** (porque el fix automático de npm sería un
+  downgrade/upgrade mayor que hay que revisar a mano, no un parche menor): `@anthropic-ai/sdk` (bump
+  mayor a `0.120.0`, moderado, por permisos de archivo inseguros en su "memory tool" -- verificar antes
+  si esa función se usa en `src/lib/claude.ts`) y `drizzle-kit`/`esbuild` (el "fix" de npm bajaría
+  `drizzle-kit` a la `0.18.1`, una versión vieja -- mejor buscar una versión más nueva que ya haya
+  reemplazado ese `esbuild` vulnerable, en vez de retroceder).
+- **CN-017 (Medio)**: el endpoint `/api/debug` (pensado solo para diagnóstico local) no tenía ningún
+  control de acceso y devolvía la lista de `projects` **sin filtrar por organización** -- cualquier
+  usuario logueado, de cualquier organización, podía verla. Corregido: la ruta ahora devuelve 404 fuera
+  de `NODE_ENV=development`, y de paso se le agregó el filtro `organization_id` a la query de
+  `projects` que le faltaba (por si alguna vez se vuelve a habilitar).
+- **CN-018 (Medio)**: el workflow de backup instalaba `googleapis@latest` sin fijar versión en cada
+  corrida semanal, justo antes de que ese mismo paso recibiera las credenciales OAuth de Google Drive
+  -- un release comprometido de esa dependencia habría corrido con acceso directo a esos secretos.
+  Fijado a la versión estable actual (`googleapis@176.0.0`).
+- De paso, dos ajustes menores en el mismo workflow (`CN-020`/`CN-021`, severidad Baja): se agregó un
+  bloque `permissions: contents: read` explícito (el job no necesita tocar la API de GitHub para nada,
+  no debería heredar permisos amplios del repo por default), y el `SUPABASE_DB_URL` ahora se pasa al
+  contenedor de `pg_dump` como variable de entorno en vez de argumento de línea de comandos (evita que
+  quede visible en la tabla de procesos del runner mientras corre).
+
+**Quedan pendientes, sin urgencia** (severidad Baja/Info, documentadas en el reporte actualizado):
+callback de Gmail OAuth loguea el body de error sin redactar (inconsistente con el fix de Meta, pero
+las respuestas de error de Google normalmente no traen tokens); comparación no constante-en-tiempo del
+secreto en el webhook de leads entrantes y en los endpoints de cron; errores de Postgres devueltos tal
+cual al cliente en algunos endpoints; Docker corriendo como root sin healthcheck; Actions de GitHub
+referenciadas por tag en vez de SHA; sin Dependabot configurado.
+
 ---
 
 ## 🏷️ Rename interno: Auto-CRM → Artist Pro (23 ago 2026)

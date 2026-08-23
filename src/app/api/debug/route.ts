@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase-server";
 
+// Ruta de diagnostico de auth/organizacion -- solo para desarrollo local.
+// No debe quedar accesible en produccion: expone el resultado crudo de
+// get_user_org_id() y la lista de projects sin filtrar por organization_id
+// (a diferencia de todas las demas rutas del API).
 export async function GET() {
+  if (process.env.NODE_ENV !== "development") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   try {
     const supabase = await createSupabaseServer();
     const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -21,7 +29,8 @@ export async function GET() {
 
     const { data: projects, error: projError } = await supabase
       .from("projects")
-      .select("id, name");
+      .select("id, name")
+      .eq("organization_id", memberRow?.organization_id ?? rpcOrgId ?? "");
 
     return NextResponse.json({
       ok: true,
