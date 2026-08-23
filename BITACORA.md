@@ -277,6 +277,18 @@ independiente de que el Mac de Francisco esté prendido o no:
   pasar a Supabase Pro (backups diarios gestionados + PITR) y eventualmente dejar un PC propio prendido
   24/7 como respaldo adicional -- ninguna de las dos cosas se construyó todavía, quedan para cuando lo
   pida.
+- **✅ Bug encontrado en la primera corrida real (23 ago 2026)**: el `pg_dump` funcionó perfecto, pero la
+  subida a Drive falló -- `Service Accounts do not have storage quota`. Las cuentas de servicio de Google
+  no tienen cuota de almacenamiento propia en un Drive personal (solo funcionan sin límite dentro de
+  "Shared Drives", una función de Google Workspace pagado que una cuenta Gmail normal no tiene). Corregido
+  cambiando de cuenta de servicio a **OAuth como la cuenta real de Francisco** -- así el archivo usa su
+  propia cuota. Se agregó `scripts/backup/get-refresh-token.mjs` (correr UNA vez, local, para generar el
+  refresh token) y se reescribió `upload-to-drive.mjs` para usar `google.auth.OAuth2` en vez de
+  `GoogleAuth` con JSON de cuenta de servicio. El workflow ahora pide 4 secrets en vez de 3:
+  `GDRIVE_CLIENT_ID`, `GDRIVE_CLIENT_SECRET`, `GDRIVE_REFRESH_TOKEN` (nuevos), `GDRIVE_FOLDER_ID` (ya
+  existía) -- `GDRIVE_SA_KEY` quedó obsoleto, se puede borrar de los secrets de GitHub.
+- **Falta confirmar**: que la corrida #2 del workflow suba el archivo con éxito una vez que Francisco
+  genere el refresh token y cargue los 3 secrets nuevos.
 
 ---
 

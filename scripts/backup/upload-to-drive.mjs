@@ -1,12 +1,19 @@
-// Sube un archivo de backup a una carpeta de Google Drive usando una cuenta
-// de servicio, y rota (borra) los backups mas antiguos para no acumular
-// espacio indefinidamente. Pensado para correr desde el workflow de GitHub
-// Actions .github/workflows/weekly-db-backup.yml, no a mano.
+// Sube un archivo de backup a una carpeta de Google Drive y rota (borra)
+// los backups mas antiguos para no acumular espacio indefinidamente.
+// Pensado para correr desde el workflow de GitHub Actions
+// .github/workflows/weekly-db-backup.yml, no a mano.
+//
+// Sube como TU cuenta de Google (OAuth), no como una cuenta de servicio --
+// las cuentas de servicio no tienen cuota de almacenamiento propia en un
+// Drive personal (solo funcionan con "Shared Drives" de Google Workspace),
+// asi que suben usando tu cuota. El refresh token se genera una sola vez
+// con scripts/backup/get-refresh-token.mjs.
 //
 // Requiere:
-//   GDRIVE_SA_KEY    -- contenido completo del JSON de la cuenta de servicio
-//   GDRIVE_FOLDER_ID -- ID de la carpeta de Drive (compartida con la cuenta
-//                       de servicio como Editor)
+//   GDRIVE_CLIENT_ID      -- OAuth Client ID (tipo "Desktop app")
+//   GDRIVE_CLIENT_SECRET  -- OAuth Client Secret
+//   GDRIVE_REFRESH_TOKEN  -- generado una vez con get-refresh-token.mjs
+//   GDRIVE_FOLDER_ID      -- ID de la carpeta de Drive donde se guardan
 //
 // Uso: node upload-to-drive.mjs <ruta-del-archivo> <nombre-en-drive>
 
@@ -23,10 +30,12 @@ if (!filePath || !fileName) {
 }
 
 const folderId = process.env.GDRIVE_FOLDER_ID;
-const saKeyRaw = process.env.GDRIVE_SA_KEY;
+const clientId = process.env.GDRIVE_CLIENT_ID;
+const clientSecret = process.env.GDRIVE_CLIENT_SECRET;
+const refreshToken = process.env.GDRIVE_REFRESH_TOKEN;
 
-if (!folderId || !saKeyRaw) {
-  console.error("Faltan las variables GDRIVE_FOLDER_ID o GDRIVE_SA_KEY.");
+if (!folderId || !clientId || !clientSecret || !refreshToken) {
+  console.error("Faltan GDRIVE_FOLDER_ID / GDRIVE_CLIENT_ID / GDRIVE_CLIENT_SECRET / GDRIVE_REFRESH_TOKEN.");
   process.exit(1);
 }
 
@@ -41,20 +50,10 @@ if (stats.size === 0) {
   process.exit(1);
 }
 
-let credentials;
-try {
-  credentials = JSON.parse(saKeyRaw);
-} catch {
-  console.error("GDRIVE_SA_KEY no es un JSON valido.");
-  process.exit(1);
-}
+const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
+oauth2Client.setCredentials({ refresh_token: refreshToken });
 
-const auth = new google.auth.GoogleAuth({
-  credentials,
-  scopes: ["https://www.googleapis.com/auth/drive.file"],
-});
-
-const drive = google.drive({ version: "v3", auth });
+const drive = google.drive({ version: "v3", auth: oauth2Client });
 
 async function uploadBackup() {
   const res = await drive.files.create({
