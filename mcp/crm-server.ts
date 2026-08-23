@@ -1,7 +1,7 @@
 #!/usr/bin/env npx tsx
 
 /**
- * Auto-CRM MCP Server
+ * Artist Pro MCP Server
  *
  * Exposes CRM data as MCP tools so Claude (Desktop, Web, or Code)
  * can read and write CRM data directly — no API key needed.
@@ -9,11 +9,11 @@
  * Add to your Claude Desktop config (claude_desktop_config.json):
  * {
  *   "mcpServers": {
- *     "auto-crm": {
+ *     "artist-pro": {
  *       "command": "npx",
- *       "args": ["tsx", "/path/to/auto-crm/mcp/crm-server.ts"],
+ *       "args": ["tsx", "/path/to/artist-pro/mcp/crm-server.ts"],
  *       "env": {
- *         "CRM_DB_PATH": "/path/to/auto-crm/data/crm.db"
+ *         "CRM_DB_PATH": "/path/to/artist-pro/data/crm.db"
  *       }
  *     }
  *   }
@@ -443,7 +443,7 @@ function handleMessage(msg: MCPMessage): MCPMessage | null {
           protocolVersion: "2024-11-05",
           capabilities: { tools: {} },
           serverInfo: {
-            name: "auto-crm",
+            name: "artist-pro",
             version: "1.0.0",
           },
         },
@@ -501,4 +501,4 @@ function handleMessage(msg: MCPMessage): MCPMessage | null {
   }
 }
 
-process.stderr.write("Auto-CRM MCP Server running\n");
+process.stderr.write("Artist Pro MCP Server running\n");

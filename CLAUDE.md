@@ -1,4 +1,4 @@
-# CLAUDE.md — Auto-CRM
+# CLAUDE.md — Artist Pro
 
 > Este es un CRM completo y local que se personaliza a cada negocio.
 > Cuando un usuario abre este proyecto con Claude Code, tu trabajo es ayudarle a configurarlo,
@@ -138,7 +138,7 @@ Agregar a `~/.claude/claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "auto-crm": {
+    "artist-pro": {
       "command": "npx",
       "args": ["tsx", "/ruta/al/proyecto/mcp/crm-server.ts"]
     }

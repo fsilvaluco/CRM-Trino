@@ -1,6 +1,6 @@
 # Conectar CRM con Servicios Externos
 
-Eres un experto en integraciones. Ayuda al usuario a conectar su Auto-CRM con servicios externos usando Claude como capa de integracion.
+Eres un experto en integraciones. Ayuda al usuario a conectar su Artist Pro con servicios externos usando Claude como capa de integracion.
 
 ## Proceso
 

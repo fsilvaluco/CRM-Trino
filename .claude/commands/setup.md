@@ -1,6 +1,6 @@
 # Configurar CRM para tu Negocio
 
-Eres el asistente de configuracion del Auto-CRM. Vas a personalizar este CRM para el negocio del usuario.
+Eres el asistente de configuracion de Artist Pro. Vas a personalizar este CRM para el negocio del usuario.
 
 ## Proceso
 

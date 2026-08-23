@@ -1,4 +1,4 @@
-# Bitácora de Trabajo — Auto-CRM
+# Bitácora de Trabajo — Artist Pro
 _Checkpoint v1.4 — 18 de agosto de 2026 (sesión 17-18 ago)_
 _Checkpoint anterior: v1.3 — 16 de agosto de 2026_
 
@@ -226,6 +226,25 @@ datos históricos de Gamuza. Un módulo transversal: Planilla de costos de Event
    `null` cuando el flag está activo; la lista de Eventos y Métricas > Resumen (tabla + gráfico "Utilidad
    por mes") muestran "Sin información" en vez de calcularla, y el gráfico mensual los excluye de la
    suma en vez de sumarlos como 0.
+
+---
+
+## 🏷️ Rename interno: Auto-CRM → Artist Pro (23 ago 2026)
+
+Francisco pidió que el proyecto ya no se llame "CRM-Trino"/"Auto-CRM" internamente, sino **Artist Pro**
+(nombre que la app ya mostraba en el título de la pestaña y el manifest PWA -- `layout.tsx`/`manifest.ts`
+no se tocaron porque ya decían "Artist Pro"). **Alcance acordado explícitamente con Francisco**: solo el
+nombre interno del código -- no se tocó el repo de GitHub (`fsilvaluco/CRM-Trino`) ni la carpeta local del
+proyecto, para no romper la conexión con Railway ni la sesión de Claude Code (queda pendiente si algún día
+lo pide).
+
+Renombrado: `package.json` (`"name"`), títulos de `CLAUDE.md`/`BITACORA.md`, branding del email de digest
+(`src/app/api/digest/route.ts`), nombre del servidor MCP y su config de ejemplo (`mcp/crm-server.ts`,
+`CLAUDE.md`), texto de `.claude/commands/setup.md`/`connect.md`, nombre del launch config de dev
+(`.claude/launch.json`), y el log de `scripts/init.ts`. **Se dejaron sin tocar a propósito**: `README.md`
+y `SETUP_GUIDE.md` -- son documentación genérica del template open-source original (referencian el repo
+real `github.com/Hainrixz/auto-crm`), no específica de esta instancia de Francisco; renombrarlas ahí
+implicaría afirmar que el proyecto open-source de origen se llama "Artist Pro", lo cual no es cierto.
 
 ---
 

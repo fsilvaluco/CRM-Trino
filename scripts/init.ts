@@ -1,7 +1,7 @@
 #!/usr/bin/env npx tsx
 
 /**
- * Auto-CRM initialization script.
+ * Artist Pro initialization script.
  * Creates the database, seeds default pipeline stages,
  * and optionally seeds demo data.
  *
@@ -24,7 +24,7 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-console.log("Initializing Auto-CRM...");
+console.log("Initializing Artist Pro...");
 console.log(`Database: ${DB_PATH}`);
 
 const sqlite = new Database(DB_PATH);
@@ -135,6 +135,6 @@ if (shouldSeed) {
   cp.execSync("npx tsx src/db/seed.ts", { stdio: "inherit", cwd: process.cwd() });
 }
 
-console.log("\nAuto-CRM initialized successfully!");
+console.log("\nArtist Pro initialized successfully!");
 console.log("Run 'npm run dev' to start the development server.");
 console.log("Open http://localhost:3000 to access your CRM.");
