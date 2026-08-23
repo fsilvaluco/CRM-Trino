@@ -187,7 +187,7 @@ cada uno en **"🟠 Importante"** más abajo — esto es solo el mapa para orien
 
 ---
 
-## 📦 Qué se construyó en esta sesión (21-23 ago 2026) — resumen ejecutivo
+## 📦 Eventos UX Mobile (21-23 ago 2026) — resumen ejecutivo
 
 Sesión de ajustes chicos disparados por capturas de pantalla del celular de Francisco, más un pedido de
 datos históricos de Gamuza. Un módulo transversal: Planilla de costos de Eventos.
