@@ -22,6 +22,40 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        // Cabeceras de seguridad globales (CN-006, auditoría /cyber-neo
+        // 23 ago 2026) -- antes solo estaban puestas para /embed. El orden
+        // importa: Next.js aplica "el último bloque gana" cuando dos
+        // bloques matchean la misma ruta y la misma clave de header -- este
+        // bloque va PRIMERO para que el de /embed (más abajo) pueda pisar
+        // el Content-Security-Policy con su propio frame-ancestors más
+        // permisivo, sin tener que repetir el resto de las cabeceras acá.
+        source: "/:path*",
+        headers: [
+          // Evita que el navegador "adivine" el tipo de un archivo servido
+          // (ej. tratar un .txt subido como HTML/JS ejecutable) -- mitiga
+          // ataques de MIME-sniffing.
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          // Bloquea que cualquier sitio externo embeba la app en un iframe
+          // (clickjacking). Los navegadores modernos priorizan el
+          // Content-Security-Policy con frame-ancestors del bloque de
+          // /embed más abajo por sobre esta cabecera cuando ambas están
+          // presentes -- por eso /embed sigue funcionando igual para
+          // Gamuza aunque acá diga SAMEORIGIN.
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          // No manda la URL completa (con querystrings que podrían tener
+          // tokens/IDs) como Referer a un sitio de otro origen -- solo el
+          // origen, y nada al bajar de HTTPS a HTTP.
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          // Fuerza HTTPS en el navegador por 2 años, incluyendo subdominios
+          // -- una vez que el navegador la ve, no vuelve a intentar HTTP
+          // plano con este dominio aunque el usuario escriba la URL sin
+          // "https://". Sin "preload": eso requiere enviar el dominio a la
+          // lista de precarga de Chrome/Firefox a mano en hstspreload.org,
+          // no se activa solo por mandar la cabecera.
+          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+        ],
+      },
+      {
         // Solo esta ruta se puede embeber en un iframe externo -- el resto
         // de la app no declara frame-ancestors (default: sin restricción
         // explícita, pero tampoco pensada para iframe). Ajustar esta lista
