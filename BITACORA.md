@@ -287,8 +287,9 @@ independiente de que el Mac de Francisco esté prendido o no:
   `GoogleAuth` con JSON de cuenta de servicio. El workflow ahora pide 4 secrets en vez de 3:
   `GDRIVE_CLIENT_ID`, `GDRIVE_CLIENT_SECRET`, `GDRIVE_REFRESH_TOKEN` (nuevos), `GDRIVE_FOLDER_ID` (ya
   existía) -- `GDRIVE_SA_KEY` quedó obsoleto, se puede borrar de los secrets de GitHub.
-- **Falta confirmar**: que la corrida #2 del workflow suba el archivo con éxito una vez que Francisco
-  genere el refresh token y cargue los 3 secrets nuevos.
+- **✅ Confirmado por Francisco (23 ago 2026)**: corrida #2 del workflow exitosa (✅, 1m 50s) -- el
+  archivo `artist-pro-db-2026-08-23.sql.gz` quedó en la carpeta "Artist Pro — Backups" de su Drive.
+  Sistema funcionando de punta a punta, sin acción pendiente. Corre solo todos los domingos 09:00 UTC.
 
 ---
 
