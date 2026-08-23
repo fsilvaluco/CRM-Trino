@@ -187,6 +187,48 @@ cada uno en **"🟠 Importante"** más abajo — esto es solo el mapa para orien
 
 ---
 
+## 📦 Qué se construyó en esta sesión (21-23 ago 2026) — resumen ejecutivo
+
+Sesión de ajustes chicos disparados por capturas de pantalla del celular de Francisco, más un pedido de
+datos históricos de Gamuza. Un módulo transversal: Planilla de costos de Eventos.
+
+1. **Layout de ítems de costo en mobile** _(commit `7c828ae`)_ — el campo "Detalle" (descripción del
+   gasto) competía por espacio con Categoría/Monto/eliminar en una sola fila y quedaba ilegible en
+   celular. Ahora "Detalle" ocupa su propia fila completa arriba; Categoría, Monto (más angosto) y
+   eliminar van en la fila de abajo. Aplicado tanto a los ítems existentes como a la fila de "agregar
+   ítem nuevo".
+2. **Header de "Planilla de costos" no hacía wrap en mobile** _(commit `a9eb095`)_ — con la caja cerrada,
+   el título + badges ("Cerrada", "Pendiente de aprobación") y la fila de botones (Adjuntar, Imprimir,
+   **Link de firma**, Informar cierre, Reabrir) competían por el mismo ancho sin wrap: el botón "Link de
+   firma" quedaba empujado fuera de pantalla, invisible. Ahora el header se apila en vertical en mobile
+   (`flex-col` → `sm:flex-row`) y los botones hacen wrap en vez de desbordar.
+3. **Preview de WhatsApp/Slack para el link de firma** _(commit `e7244d6`)_ — al copiar y pegar el link
+   de `/eventos/[id]/firmar`, el preview solo mostraba "artistpro.app" pelado (la página era 100%
+   client-side, sin metadata). Se separó en `FirmarClient.tsx` (interactivo) + un `page.tsx` servidor
+   con `generateMetadata` (mismo patrón que `/e/[id]`) que trae nombre del evento/proyecto/fecha/venue de
+   Supabase y arma título + descripción tipo "Firma de cierre de caja -- [evento]". El control de acceso
+   real lo sigue haciendo la API, no la metadata.
+4. **Comprobante de pago bloqueado tras cerrar caja -- rompía el flujo real** _(commit `77252af`)_ —
+   Francisco explicó el flujo real: cierra caja → el equipo firma (aprueba) → **recién ahí** transfiere a
+   trabajadores/gastos → sube el comprobante de la transferencia. Ese último paso pasa después del
+   cierre, pero el checkbox "Pagado" y la subida de comprobante de pago quedaban bloqueados igual que el
+   resto de la Planilla. Se agregó `PATCH /api/eventos/[id]/costs/[itemId]/payment`, que actualiza solo
+   `pagado` + `comprobante_pago_url` **sin** el chequeo de caja cerrada que sí tiene el PUT completo de
+   `costs/route.ts`. Todo lo demás (monto, categoría, comprobante de cobro/boleta) sigue bloqueado tras
+   el cierre, que es lo correcto.
+5. **Utilidad "Sin información" para eventos de Gamuza previos a PAMN** _(commit `f7af4e5`)_ — 21 eventos
+   de Gamuza (feb 2025 - feb 2026) son de antes de llevar el detalle de costos en la app; esa plata vive
+   en un Excel aparte de Francisco. Con `expenses = 0` en la base, la "Utilidad" calculada mostraba el
+   ticket_income completo como ganancia -- un número falso al lado de eventos con costos reales. Se
+   agregó migración `082_financials_untracked.sql` (columna `shows.financials_untracked`, default
+   `false`) y se marcaron con Supabase MCP los 21 eventos con fecha anterior a "Evento PAMN Quinta
+   Normal" (30 jul 2026, el primer evento de Gamuza con costos reales cargados). La API deja `utility` en
+   `null` cuando el flag está activo; la lista de Eventos y Métricas > Resumen (tabla + gráfico "Utilidad
+   por mes") muestran "Sin información" en vez de calcularla, y el gráfico mensual los excluye de la
+   suma en vez de sumarlos como 0.
+
+---
+
 ## 🔴 Crítico (arreglar primero)
 
 _Ningún bug crítico conocido sin resolver._
