@@ -229,6 +229,38 @@ datos históricos de Gamuza. Un módulo transversal: Planilla de costos de Event
 
 ---
 
+## 📦 Backup semanal de la base de datos (23 ago 2026)
+
+Francisco preguntó cómo protegerse de que un cambio de código (o un ataque) borre datos reales -- se
+confirmó vía Supabase MCP que el proyecto está en **plan Free, sin backups automáticos** (ni diarios ni
+Point-in-Time Recovery -- eso es solo desde el plan Pro). Se construyó un backup semanal automático,
+independiente de que el Mac de Francisco esté prendido o no:
+
+- **`.github/workflows/weekly-db-backup.yml`** -- corre todos los domingos 09:00 UTC en GitHub Actions
+  (gratis, en la nube), más `workflow_dispatch` para dispararlo a mano cuando se quiera un backup extra
+  (ej. antes de un cambio riesgoso). Hace `pg_dump` completo de la base vía la imagen oficial
+  `postgres:17` (misma versión que corre Supabase, evita problemas de compatibilidad de versión), lo
+  comprime con gzip y lo sube a una carpeta de Google Drive de Francisco.
+- **`scripts/backup/upload-to-drive.mjs`** -- sube el archivo a Drive vía la API oficial usando una
+  cuenta de servicio (scope acotado `drive.file`, no acceso a todo el Drive), valida que el dump no esté
+  vacío antes de subir, y rota automáticamente dejando solo los últimos 12 backups (~3 meses) para no
+  acumular espacio indefinidamente.
+- **Por qué Google Drive y no un backup dentro de Supabase**: si alguien compromete las credenciales de
+  Supabase y borra tablas, un backup guardado en el mismo proyecto se borra con él. Una copia fuera
+  (Drive, con credenciales propias de la cuenta de servicio) sobrevive a ese escenario.
+- **3 pasos manuales pendientes de que Francisco los haga** (nunca se escriben contraseñas/API keys a
+  mano por Claude, ni siquiera si Francisco las pasa por chat -- regla dura de seguridad): crear la
+  cuenta de servicio de Google + habilitar Drive API, compartir una carpeta de Drive con esa cuenta, y
+  cargar 3 secrets (`SUPABASE_DB_URL`, `GDRIVE_SA_KEY`, `GDRIVE_FOLDER_ID`) en GitHub
+  (`Settings > Secrets and variables > Actions` del repo). Hasta que eso no esté hecho, el workflow existe
+  pero no corre con éxito.
+- **Decisión explícita de Francisco**: por ahora backup semanal a Drive (gratis); más adelante quiere
+  pasar a Supabase Pro (backups diarios gestionados + PITR) y eventualmente dejar un PC propio prendido
+  24/7 como respaldo adicional -- ninguna de las dos cosas se construyó todavía, quedan para cuando lo
+  pida.
+
+---
+
 ## 🔴 Crítico (arreglar primero)
 
 _Ningún bug crítico conocido sin resolver._
