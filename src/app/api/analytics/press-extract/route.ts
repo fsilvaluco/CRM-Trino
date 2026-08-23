@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { extractPressMentionFromText, isOpenAIEnabled } from "@/lib/openai";
 import { htmlToText } from "@/lib/html-to-text";
+import { fetchPublicUrl, SsrfBlockedError } from "@/lib/ssrf-guard";
 import type { PressMentionType } from "@/types/press";
 
 const VALID_TYPES: PressMentionType[] = ["radio", "tv", "digital", "digital_rrss"];
@@ -29,7 +30,7 @@ const UA = "Mozilla/5.0 (compatible; ArtistProBot/1.0)";
 // login es la cuenta que publicó (va en el meta og:url).
 async function extractFromInstagram(url: string): Promise<Extracted> {
   try {
-    const res = await fetch(url, { headers: { "User-Agent": UA } });
+    const res = await fetchPublicUrl(url, { headers: { "User-Agent": UA } });
     const html = await res.text();
     const match = html.match(/property="og:url"\s+content="https:\/\/www\.instagram\.com\/([^/"]+)\//);
     const handle = match?.[1] ?? null;
@@ -59,7 +60,7 @@ async function extractFromOEmbed(oembedUrl: string): Promise<Extracted> {
 }
 
 async function extractFromGenericPage(url: string): Promise<Extracted> {
-  const pageRes = await fetch(url, { headers: { "User-Agent": UA } });
+  const pageRes = await fetchPublicUrl(url, { headers: { "User-Agent": UA } });
   if (!pageRes.ok) throw new Error(`El sitio respondió con error (${pageRes.status})`);
   const html = await pageRes.text();
   const text = htmlToText(html);
@@ -130,6 +131,9 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json(await extractFromGenericPage(parsed.toString()));
   } catch (err) {
+    if (err instanceof SsrfBlockedError) {
+      return NextResponse.json({ error: "Ese link no está permitido." }, { status: 400 });
+    }
     console.error("[press-extract] extracción falló", err);
     const message = err instanceof Error ? err.message : "No se pudo leer ese link -- completa los datos a mano.";
     return NextResponse.json({ error: message }, { status: 502 });

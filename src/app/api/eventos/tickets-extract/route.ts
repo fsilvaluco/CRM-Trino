@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { extractTicketTiersFromScreenshot, extractTicketTiersFromText, isOpenAIEnabled } from "@/lib/openai";
 import { htmlToText } from "@/lib/html-to-text";
+import { fetchPublicUrl, SsrfBlockedError } from "@/lib/ssrf-guard";
 
 const MAX_BASE64_LENGTH = 8_000_000;
 
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
 
       let html: string;
       try {
-        const pageRes = await fetch(parsed.toString(), {
+        const pageRes = await fetchPublicUrl(parsed.toString(), {
           headers: { "User-Agent": "Mozilla/5.0 (compatible; ArtistProBot/1.0)" },
         });
         if (!pageRes.ok) {
@@ -50,6 +51,9 @@ export async function POST(request: NextRequest) {
         }
         html = await pageRes.text();
       } catch (err) {
+        if (err instanceof SsrfBlockedError) {
+          return NextResponse.json({ error: "Ese link no está permitido." }, { status: 400 });
+        }
         console.error("[tickets-extract] fallo el fetch del link", err);
         return NextResponse.json({ error: "No se pudo abrir ese link" }, { status: 502 });
       }
