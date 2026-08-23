@@ -1,6 +1,6 @@
 # Bitácora de Trabajo — Artist Pro
-_Checkpoint v1.4 — 18 de agosto de 2026 (sesión 17-18 ago)_
-_Checkpoint anterior: v1.3 — 16 de agosto de 2026_
+_Checkpoint v1.5 — 23 de agosto de 2026 (sesión Auditoría de Seguridad)_
+_Checkpoint anterior: v1.4 — 18 de agosto de 2026_
 
 > **Formato de tracking:** Registro histórico de trabajo realizado + pendientes actuales.  
 > Cada entrada incluye fecha, estado (🔨 En Progreso / ✅ Hecho), y notas de implementación detalladas.
@@ -226,6 +226,46 @@ datos históricos de Gamuza. Un módulo transversal: Planilla de costos de Event
    `null` cuando el flag está activo; la lista de Eventos y Métricas > Resumen (tabla + gráfico "Utilidad
    por mes") muestran "Sin información" en vez de calcularla, y el gráfico mensual los excluye de la
    suma en vez de sumarlos como 0.
+
+---
+
+## 🛡️ Auditoría de seguridad `/cyber-neo` (23 ago 2026) — resumen ejecutivo
+
+Sesión larga, disparada por Francisco corriendo el skill de seguridad `/cyber-neo` sobre el proyecto.
+Reporte completo en `~/Desktop/cyber-neo-report-CRM-Trino-2026-08-23.md`. **Los 7 hallazgos
+Crítico/Alto/Medio quedaron resueltos, verificados y desplegados en producción** (detalle completo de
+cada uno en su sección correspondiente -- CN-001 en "🔴 Crítico" más abajo, CN-002 a CN-007 en
+"🟠 Importante"):
+
+1. **CN-001 (Crítico)** — IDOR en el comprobante de cierre de caja (`costs/attachment`): cualquier
+   miembro autenticado de la organización podía modificar el comprobante de otro proyecto. Corregido con
+   el mismo chequeo de rol que ya usaban sus rutas hermanas.
+2. **CN-002 (Alto)** — tokens de acceso de Meta/Instagram logueados en texto plano en el callback OAuth.
+   Corregido con una función `redactTokens()` que los oculta antes de loguear.
+3. **CN-003 (Alto)** — `xlsx` (0.18.5) con 2 CVEs sin fix en npm. Corregido fijando el paquete al tarball
+   oficial versionado de SheetJS (`0.20.3`, `cdn.sheetjs.com`).
+4. **CN-004 (Alto)** — Next.js 16.2.2 con ~20 vulnerabilidades conocidas. Corregido con
+   `next@16.3.2`, sin breaking changes.
+5. **CN-005 (Medio)** — SSRF en `press-extract`/`tickets-extract` (aceptaban una URL de usuario y hacían
+   `fetch()` sin bloquear IPs privadas/internas). Corregido con un guard nuevo y reusable
+   (`src/lib/ssrf-guard.ts`) que resuelve DNS antes de conectar y rechaza rangos privados/reservados.
+6. **CN-006 (Medio)** — faltaban cabeceras de seguridad HTTP globales (`X-Content-Type-Options`,
+   `X-Frame-Options`, `HSTS`, `Referrer-Policy`). Agregadas en `next.config.ts`, verificado que no
+   rompen el embed de Gamuza.
+7. **CN-007 (Medio)** — `data/crm.db-shm` (leftover de SQLite pre-Supabase) quedó versionado en git por
+   un hueco en `.gitignore`. Sacado del tracking.
+
+**Quedan solo los hallazgos de severidad Baja/Info** (sin urgencia): errores de Postgres devueltos tal
+cual al cliente en algunos endpoints, Docker corriendo como root sin healthcheck, dependencias con
+rangos de versión flotantes, comparación no constante-en-tiempo del secreto en los endpoints de cron.
+
+**Decisión pendiente de Francisco**: si rotar `META_APP_SECRET` por si los logs con tokens en texto
+plano (CN-002) ya se persistieron en Railway antes del fix -- no se rotó todavía porque no se confirmó
+si hay logs históricos expuestos.
+
+De paso en la misma sesión (fuera del scope de la auditoría, a pedido de Francisco): se armó un
+**backup semanal automático de la base de datos a Google Drive** (ver sección abajo) y se hizo un
+**rename interno del proyecto a "Artist Pro"** (ver sección abajo).
 
 ---
 
