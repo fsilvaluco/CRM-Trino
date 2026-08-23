@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { getProjectRole, canEditEventCosts } from "@/lib/project-roles";
 
 // POST /api/eventos/[id]/costs/attachment -- { filePath, fileName } guarda
 // el documento adjunto al cierre de caja (el archivo ya se subió al bucket
@@ -9,8 +10,14 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, user, isAdmin, error } = await requireAuth();
   if (error) return error;
+
+  const { data: show } = await supabase.from("shows").select("project_id").eq("id", id).single();
+  const role = await getProjectRole(supabase, user!.id, show?.project_id ?? null);
+  if (!canEditEventCosts(isAdmin, role)) {
+    return NextResponse.json({ error: "Tu rol no puede editar los costos de este evento" }, { status: 403 });
+  }
 
   const body = await request.json().catch(() => ({}));
   const { filePath, fileName } = body as { filePath?: string; fileName?: string };
@@ -37,8 +44,14 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, user, isAdmin, error } = await requireAuth();
   if (error) return error;
+
+  const { data: show } = await supabase.from("shows").select("project_id").eq("id", id).single();
+  const role = await getProjectRole(supabase, user!.id, show?.project_id ?? null);
+  if (!canEditEventCosts(isAdmin, role)) {
+    return NextResponse.json({ error: "Tu rol no puede editar los costos de este evento" }, { status: 403 });
+  }
 
   const { error: dbError } = await supabase
     .from("shows")
