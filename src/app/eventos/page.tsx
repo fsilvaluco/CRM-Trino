@@ -350,7 +350,12 @@ export default function EventosPage() {
                     )}
                   </div>
                   <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto shrink-0">
-                    {hasMoney && (
+                    {show.financialsUntracked ? (
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-muted-foreground italic">Sin información</p>
+                        <p className="text-xs text-muted-foreground">utilidad</p>
+                      </div>
+                    ) : hasMoney ? (
                       <div className="text-right">
                         <p
                           className={`text-sm font-semibold ${
@@ -363,7 +368,7 @@ export default function EventosPage() {
                         </p>
                         <p className="text-xs text-muted-foreground">utilidad</p>
                       </div>
-                    )}
+                    ) : null}
                     <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => {

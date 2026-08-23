@@ -75,6 +75,11 @@ export interface LiveShow {
   fee: number | null;
   ticketIncome: number | null;
   expenses: number | null;
+  // Eventos de antes de que se empezara a llevar el detalle de costos en
+  // la app (esa plata vive en un Excel aparte) -- fee/ticketIncome/expenses
+  // quedan en 0 así que la Utilidad calculada ahí sería un número falso.
+  // La UI debe mostrar "Sin información" en vez de calcularla.
+  financialsUntracked: boolean;
   eventLink: string | null;
   riderLocal: string | null;
   riderBanda: string | null;

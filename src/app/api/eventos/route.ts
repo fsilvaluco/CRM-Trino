@@ -21,6 +21,7 @@ function mapLiveShow(row: any) {
     fee: row.fee ?? null,
     ticketIncome: row.ticket_income ?? null,
     expenses: row.expenses ?? null,
+    financialsUntracked: row.financials_untracked ?? false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     projectName: row.projects?.name ?? row.artist_name ?? null,

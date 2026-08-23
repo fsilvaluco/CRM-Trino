@@ -17,8 +17,10 @@ export interface Show {
   notes: string | null;
   createdAt: string;
   updatedAt: string;
-  /** Computed: fee + ticketIncome - expenses (null if all three are null) */
+  /** Computed: fee + ticketIncome - expenses (null if all three are null, or if financialsUntracked) */
   utility: number | null;
+  /** Evento de antes de llevar costos en la app -- utility es null a propósito, mostrar "Sin información" */
+  financialsUntracked: boolean;
   /** Average vibe from show_ratings (1–10), undefined when no ratings exist */
   avgVibe?: number;
 }

@@ -32,7 +32,10 @@ function mapShow(row: any): Show {
     notes: row.notes ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    utility: computeUtility(row.fee ?? null, row.ticket_income ?? null, row.expenses ?? null),
+    financialsUntracked: row.financials_untracked ?? false,
+    utility: row.financials_untracked
+      ? null
+      : computeUtility(row.fee ?? null, row.ticket_income ?? null, row.expenses ?? null),
   };
 }
 

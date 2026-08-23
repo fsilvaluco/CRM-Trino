@@ -63,14 +63,18 @@ export function EventsSummaryTab({ shows }: EventsSummaryTabProps) {
 
   // El grafico agrupa por mes (no un bloque por evento individual) -- con
   // meses de historial mezclando muchas fechas, un bloque por evento se
-  // vuelve ilegible y no se ve la tendencia real.
+  // vuelve ilegible y no se ve la tendencia real. Eventos con
+  // financialsUntracked (plata que vive en Excel aparte, de antes de
+  // llevar costos acá) quedan afuera -- sumarlos como ingreso puro sin
+  // sus costos reales inflaría el mes de forma engañosa.
   const chartData = useMemo(() => {
     const byMonth = new Map<string, { label: string; utilidad: number; sortKey: string }>();
     for (const s of filteredShows) {
+      if (s.financialsUntracked || s.utility == null) continue;
       const d = new Date(`${s.date}T00:00:00`);
       const sortKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       const label = format(d, "MMM yyyy", { locale: es });
-      const utilidad = ((s.fee ?? 0) + (s.ticketIncome ?? 0) - (s.expenses ?? 0)) / 100;
+      const utilidad = s.utility / 100;
       const existing = byMonth.get(sortKey);
       if (existing) existing.utilidad += utilidad;
       else byMonth.set(sortKey, { label, utilidad, sortKey });
@@ -159,8 +163,8 @@ export function EventsSummaryTab({ shows }: EventsSummaryTabProps) {
             </thead>
             <tbody>
               {sortedShows.map((show) => {
-                const utilidad =
-                  (show.fee ?? 0) + (show.ticketIncome ?? 0) - (show.expenses ?? 0);
+                const untracked = show.financialsUntracked || show.utility == null;
+                const utilidad = show.utility ?? 0;
                 return (
                   <tr key={show.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-2 whitespace-nowrap">
@@ -168,18 +172,26 @@ export function EventsSummaryTab({ shows }: EventsSummaryTabProps) {
                     </td>
                     <td className="px-4 py-2 font-medium">{show.venue}</td>
                     <td className="px-4 py-2 text-muted-foreground">{show.city ?? "—"}</td>
-                    <td className="px-4 py-2 text-right">{formatCents(show.fee)}</td>
-                    <td className="px-4 py-2 text-right">{formatCents(show.ticketIncome)}</td>
-                    <td className="px-4 py-2 text-right">{formatCents(show.expenses)}</td>
-                    <td
-                      className={`px-4 py-2 text-right font-semibold ${
-                        utilidad >= 0
-                          ? "text-green-700 dark:text-green-400"
-                          : "text-red-700 dark:text-red-400"
-                      }`}
-                    >
-                      {CLP.format(utilidad / 100)}
-                    </td>
+                    {untracked ? (
+                      <td colSpan={4} className="px-4 py-2 text-right text-muted-foreground italic" title="Plata de este evento registrada aparte -- no hay costos cargados en la app">
+                        Sin información
+                      </td>
+                    ) : (
+                      <>
+                        <td className="px-4 py-2 text-right">{formatCents(show.fee)}</td>
+                        <td className="px-4 py-2 text-right">{formatCents(show.ticketIncome)}</td>
+                        <td className="px-4 py-2 text-right">{formatCents(show.expenses)}</td>
+                        <td
+                          className={`px-4 py-2 text-right font-semibold ${
+                            utilidad >= 0
+                              ? "text-green-700 dark:text-green-400"
+                              : "text-red-700 dark:text-red-400"
+                          }`}
+                        >
+                          {CLP.format(utilidad / 100)}
+                        </td>
+                      </>
+                    )}
                     <td className="px-4 py-2 text-right">
                       {show.avgVibe != null ? show.avgVibe.toFixed(1) : "—"}
                     </td>
