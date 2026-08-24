@@ -37,6 +37,10 @@ function mapLiveShow(row: any) {
     costSheetInformedAt: row.cost_sheet_informed_at ?? null,
     ticketSalesUrl: row.ticket_sales_url ?? null,
     tour: row.tour ?? null,
+    ticketIvaPct: row.ticket_iva_pct ?? null,
+    ticketComisionPct: row.ticket_comision_pct ?? null,
+    ticketScdPct: row.ticket_scd_pct ?? null,
+    ticketSplitProjectPct: row.ticket_split_project_pct ?? null,
     profitSplitNote: row.profit_split_note ?? null,
     profitSplitProjectPct: row.profit_split_project_pct ?? null,
     profitSplitTrinoPct: row.profit_split_trino_pct ?? null,
@@ -166,6 +170,7 @@ export async function PUT(
     fee, ticketIncome, expenses, venueId, name,
     eventLink, riderLocal, riderBanda, ticketSalesUrl, tour, profitSplitNote,
     profitSplitProjectPct, profitSplitTrinoPct, profitSplitTransferProofUrl, profitSplitTransferredAt,
+    ticketIvaPct, ticketComisionPct, ticketScdPct, ticketSplitProjectPct,
   } = body as {
     date?: string;
     eventTime?: string | null;
@@ -189,6 +194,10 @@ export async function PUT(
     profitSplitTrinoPct?: number | null;
     profitSplitTransferProofUrl?: string | null;
     profitSplitTransferredAt?: string | null;
+    ticketIvaPct?: number | null;
+    ticketComisionPct?: number | null;
+    ticketScdPct?: number | null;
+    ticketSplitProjectPct?: number | null;
   };
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -232,6 +241,10 @@ export async function PUT(
     if (fee !== undefined) updates.fee = fee ?? 0;
     if (ticketIncome !== undefined) updates.ticket_income = ticketIncome ?? 0;
     if (expenses !== undefined) updates.expenses = expenses ?? 0;
+    if (ticketIvaPct !== undefined) updates.ticket_iva_pct = ticketIvaPct;
+    if (ticketComisionPct !== undefined) updates.ticket_comision_pct = ticketComisionPct;
+    if (ticketScdPct !== undefined) updates.ticket_scd_pct = ticketScdPct;
+    if (ticketSplitProjectPct !== undefined) updates.ticket_split_project_pct = ticketSplitProjectPct;
   }
   if (eventLink !== undefined) updates.event_link = eventLink || null;
   if (riderLocal !== undefined) updates.rider_local = riderLocal || null;

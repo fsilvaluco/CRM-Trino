@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useProject } from "@/lib/project-context";
@@ -150,6 +150,14 @@ export default function EventDetailPage() {
   const [newTierQty, setNewTierQty] = useState("");
   const [newTierCapacity, setNewTierCapacity] = useState("");
   const ticketFileInputRef = useRef<HTMLInputElement>(null);
+  // Descuentos sobre la venta bruta de entradas (IVA/SCD/comisión) + % que
+  // le corresponde al proyecto sobre el neto -- ver migración 083. Se
+  // guardan como string en el input para permitir "" mientras se edita
+  // (null = no configurado, se comporta como antes sin descuentos).
+  const [ticketIvaPct, setTicketIvaPct] = useState<string>("");
+  const [ticketComisionPct, setTicketComisionPct] = useState<string>("");
+  const [ticketScdPct, setTicketScdPct] = useState<string>("");
+  const [ticketSplitProjectPct, setTicketSplitProjectPct] = useState<string>("");
 
   const [costItems, setCostItems] = useState<CostItem[]>([]);
   const [costsDirty, setCostsDirty] = useState(false);
@@ -203,6 +211,10 @@ export default function EventDetailPage() {
         setSetlist(data.setlist ?? []);
         setTiming(data.timing ?? []);
         setTicketTiers(data.ticketTiers ?? []);
+        setTicketIvaPct(data.ticketIvaPct != null ? String(data.ticketIvaPct) : "");
+        setTicketComisionPct(data.ticketComisionPct != null ? String(data.ticketComisionPct) : "");
+        setTicketScdPct(data.ticketScdPct != null ? String(data.ticketScdPct) : "");
+        setTicketSplitProjectPct(data.ticketSplitProjectPct != null ? String(data.ticketSplitProjectPct) : "");
         setEventContacts(data.eventContacts ?? []);
         setCostItems(data.costItems ?? []);
         setProfitSplitNote(data.profitSplitNote ?? "");
@@ -561,16 +573,39 @@ export default function EventDetailPage() {
     }
   }
 
+  // Bruto -> se descuentan IVA/comisión/SCD (cada uno % del bruto, no
+  // compuestos) -> Neto -> se reparte el % que le corresponde al
+  // proyecto (el resto se lo queda el venue/productora). Si no hay ningún
+  // % configurado, montoProyecto = bruto (mismo comportamiento de antes).
+  const ticketBreakdown = useMemo(() => {
+    const bruto = ticketTiers.reduce((sum, t) => sum + t.unitPrice * t.quantitySold, 0);
+    const ivaPct = parseFloat(ticketIvaPct) || 0;
+    const comisionPct = parseFloat(ticketComisionPct) || 0;
+    const scdPct = parseFloat(ticketScdPct) || 0;
+    const splitPct = ticketSplitProjectPct.trim() === "" ? 100 : parseFloat(ticketSplitProjectPct) || 0;
+    const descuentos = Math.round(bruto * ((ivaPct + comisionPct + scdPct) / 100));
+    const neto = bruto - descuentos;
+    const montoProyecto = Math.round(neto * (splitPct / 100));
+    const hasDescuentos = ivaPct > 0 || comisionPct > 0 || scdPct > 0 || ticketSplitProjectPct.trim() !== "";
+    return { bruto, ivaPct, comisionPct, scdPct, splitPct, descuentos, neto, montoProyecto, hasDescuentos };
+  }, [ticketTiers, ticketIvaPct, ticketComisionPct, ticketScdPct, ticketSplitProjectPct]);
+
   async function applyTicketsToIncome() {
-    const total = ticketTiers.reduce((sum, t) => sum + t.unitPrice * t.quantitySold, 0);
+    const { montoProyecto } = ticketBreakdown;
     try {
       const res = await fetch(`/api/eventos/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticketIncome: total }),
+        body: JSON.stringify({
+          ticketIncome: montoProyecto,
+          ticketIvaPct: ticketIvaPct.trim() === "" ? null : parseFloat(ticketIvaPct),
+          ticketComisionPct: ticketComisionPct.trim() === "" ? null : parseFloat(ticketComisionPct),
+          ticketScdPct: ticketScdPct.trim() === "" ? null : parseFloat(ticketScdPct),
+          ticketSplitProjectPct: ticketSplitProjectPct.trim() === "" ? null : parseFloat(ticketSplitProjectPct),
+        }),
       });
       if (!res.ok) throw new Error();
-      toast.success(`Entradas del evento actualizadas a ${formatCents(total)}`);
+      toast.success(`Entradas del evento actualizadas a ${formatCents(montoProyecto)}`);
       load();
     } catch {
       toast.error("No se pudo actualizar el ingreso por entradas");
@@ -1864,13 +1899,92 @@ export default function EventDetailPage() {
           </div>
           </div>
 
+          {ticketTiers.length > 0 && canEditCosts && (
+            <div className="border-t pt-3 space-y-2 no-print">
+              <p className="text-xs font-medium text-muted-foreground">
+                Descuentos sobre la venta (opcional -- se configuran evento a evento)
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">IVA %</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    placeholder="19"
+                    value={ticketIvaPct}
+                    onChange={(e) => setTicketIvaPct(e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Comisión venta %</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    placeholder="2,5"
+                    value={ticketComisionPct}
+                    onChange={(e) => setTicketComisionPct(e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Derechos SCD %</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    placeholder="5"
+                    value={ticketScdPct}
+                    onChange={(e) => setTicketScdPct(e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">
+                    % que llega a {event.projectName || "el proyecto"}
+                  </Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    placeholder="70"
+                    value={ticketSplitProjectPct}
+                    onChange={(e) => setTicketSplitProjectPct(e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                </div>
+              </div>
+              {ticketBreakdown.hasDescuentos && (
+                <div className="text-xs text-muted-foreground space-y-0.5 bg-muted/40 rounded-md p-2">
+                  <p>Bruto: <span className="font-medium text-foreground">{formatCents(ticketBreakdown.bruto)}</span></p>
+                  <p>
+                    Descuentos ({(ticketBreakdown.ivaPct + ticketBreakdown.comisionPct + ticketBreakdown.scdPct).toFixed(1)}%):{" "}
+                    <span className="font-medium text-foreground">-{formatCents(ticketBreakdown.descuentos)}</span>
+                  </p>
+                  <p>Neto: <span className="font-medium text-foreground">{formatCents(ticketBreakdown.neto)}</span></p>
+                  <p>
+                    {event.projectName || "Proyecto"} ({ticketBreakdown.splitPct}%):{" "}
+                    <span className="font-semibold text-foreground">{formatCents(ticketBreakdown.montoProyecto)}</span>
+                    {ticketBreakdown.splitPct < 100 && (
+                      <span className="text-muted-foreground"> · venue/productora ({(100 - ticketBreakdown.splitPct).toFixed(1)}%): {formatCents(ticketBreakdown.neto - ticketBreakdown.montoProyecto)}</span>
+                    )}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           {ticketTiers.length > 0 && (
             <div className="flex items-center justify-between border-t pt-2">
               <p className="text-sm text-muted-foreground">
                 {ticketTiers.reduce((sum, t) => sum + t.quantitySold, 0)} entradas vendidas · Total:{" "}
                 <span className="font-semibold text-foreground">
-                  {formatCents(ticketTiers.reduce((sum, t) => sum + t.unitPrice * t.quantitySold, 0))}
+                  {formatCents(ticketBreakdown.bruto)}
                 </span>
+                {ticketBreakdown.hasDescuentos && (
+                  <>
+                    {" "}· Neto a {event.projectName || "proyecto"}:{" "}
+                    <span className="font-semibold text-foreground">{formatCents(ticketBreakdown.montoProyecto)}</span>
+                  </>
+                )}
               </p>
               <Button size="sm" variant="ghost" className="h-7 text-xs cursor-pointer no-print" onClick={applyTicketsToIncome}>
                 Usar como Entradas del evento

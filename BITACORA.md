@@ -413,6 +413,49 @@ independiente de que el Mac de Francisco esté prendido o no:
 
 ---
 
+## 💰 Descuentos sobre venta de entradas (IVA, comisión, SCD) + % de reparto con el venue (23 ago 2026)
+
+Francisco pidió automatizar dentro del evento el mismo cálculo que hacía en un Excel aparte: de la venta
+bruta de entradas (suma de los tramos ya cargados en "Venta de entradas") se descuentan IVA, comisión de
+venta con tarjeta y derechos SCD (todos % editables), y lo que queda se reparte en un % con el
+venue/productora (ej. su ejemplo: Chocolate 30% / Gamuza 70%) -- el % que le corresponde al proyecto es
+el que pasa a ser el "Ingreso por entradas" real del evento, que entra a la fórmula de Utilidad que ya
+existía (fee + entradas − gastos).
+
+**Decisiones tomadas con Francisco antes de programar** (para no adivinar en algo financiero):
+1. El monto bruto al que se le aplican los descuentos sale de la **suma de los tramos** (Preventa 1,
+   Preventa 2, General, etc.), no del campo manual de ingreso por entradas -- igual que su Excel.
+2. Los % (IVA/comisión/SCD/reparto) son **siempre manuales, evento por evento** -- no hay un default que
+   se herede del proyecto (a diferencia del reparto de Utilidad general, que si tiene default 70/30).
+3. El neto calculado **reemplaza** el ingreso por entradas -- no es solo informativo, pasa directo a la
+   fórmula de Utilidad existente.
+
+**Implementación:**
+- Migración `083_ticket_fees.sql`: 4 columnas nuevas en `shows`, todas `NUMERIC` nullable
+  (`ticket_iva_pct`, `ticket_comision_pct`, `ticket_scd_pct`, `ticket_split_project_pct`) -- si no se
+  configuran, el botón "Usar como Entradas del evento" se comporta exactamente igual que antes (usa el
+  bruto sin descuentos).
+- **Fórmula** (verificada contra el ejemplo real de Francisco -- Club Chocolate, bruto $4.260.000, IVA
+  19% + SCD 5% + Comisión 2,5% + reparto 70/30 -- cuadra centavo a centavo con su planilla):
+  `descuentos = bruto × (ivaPct + comisionPct + scdPct) / 100` (cada uno % del bruto, no compuestos) →
+  `neto = bruto − descuentos` → `montoProyecto = neto × splitProjectPct / 100`.
+- UI nueva en la sección "Venta de entradas" del evento (`eventos/[id]/page.tsx`): 4 inputs (IVA %,
+  Comisión venta %, Derechos SCD %, "% que llega a {nombre del proyecto}") + un desglose en vivo
+  (Bruto / Descuentos / Neto / monto del proyecto vs. monto que se queda el venue), solo visible para
+  quien puede editar costos del evento (`canEditCosts`, mismo gate que fee/ticketIncome/gastos). El
+  botón "Usar como Entradas del evento" ahora persiste tanto el monto calculado como los 4 % (para que
+  se recuerden al volver a entrar), y si no hay ningún % configurado sigue funcionando igual que siempre
+  (usa el bruto tal cual).
+- Al duplicar un evento (`/api/eventos/[id]/duplicate`) estos 4 campos **no se copian** -- quedan en
+  blanco en el evento nuevo, consistente con que fee/ticketIncome/gastos tampoco se copian y con que el
+  Francisco pidió que sea siempre manual por evento.
+- **Verificado**: `tsc --noEmit` y `eslint` limpios, `npm run build` completo sin errores, migración
+  aplicada en Supabase (confirmado por SQL). **No se probó el flujo completo en el navegador** (requiere
+  login con un evento real que tenga tramos de entradas cargados) -- pendiente que Francisco lo pruebe
+  con un evento real y confirme que el desglose y el monto final calzan con lo esperado.
+
+---
+
 ## 🔴 Crítico (arreglar primero)
 
 _Ningún bug crítico conocido sin resolver._

@@ -89,6 +89,15 @@ export interface LiveShow {
   costSheetInformedAt: string | null;
   ticketSalesUrl: string | null;
   tour: string | null;
+  // Descuentos sobre la venta bruta de entradas (todos % editables,
+  // siempre manuales por evento) + % de esa venta neta que le corresponde
+  // al proyecto (el resto se lo queda el venue/productora y nunca entra a
+  // las finanzas del evento). null = no configurado -- "Usar como
+  // Entradas del evento" usa el bruto sin descuentos, igual que antes.
+  ticketIvaPct: number | null;
+  ticketComisionPct: number | null;
+  ticketScdPct: number | null;
+  ticketSplitProjectPct: number | null;
   profitSplitNote: string | null;
   // Reparto de utilidad estructurado -- % de cada lado (null = usar el
   // default 70/30 en el front) y el comprobante de la transferencia
