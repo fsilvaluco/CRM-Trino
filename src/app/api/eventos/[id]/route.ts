@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { logActivity } from "@/lib/activity-logs";
 import type { ShowStatus } from "@/types/shows";
-import { getProjectRole, canViewEventCosts, canEditEventCosts } from "@/lib/project-roles";
+import { getProjectPermissions, canViewEventCosts, canEditEventCosts } from "@/lib/project-roles";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapLiveShow(row: any) {
@@ -99,7 +99,7 @@ export async function GET(
   // números que está aprobando) pero no puede editarla. El resto del
   // evento (Setlist, Timing, Contactos) sigue visible/editable igual que
   // hoy para cualquiera con acceso al proyecto -- eso queda para fase 2.
-  const role = await getProjectRole(supabase, user!.id, data.project_id ?? null);
+  const role = await getProjectPermissions(supabase, user!.id, data.project_id ?? null);
   const canViewCosts = canViewEventCosts(role);
   const canEditCosts = canEditEventCosts(role);
 
@@ -202,7 +202,7 @@ export async function PUT(
     );
   }
 
-  const role = await getProjectRole(supabase, user!.id, showForRole?.project_id ?? null);
+  const role = await getProjectPermissions(supabase, user!.id, showForRole?.project_id ?? null);
   const canViewCosts = canViewEventCosts(role);
   const canEditCosts = canEditEventCosts(role);
 

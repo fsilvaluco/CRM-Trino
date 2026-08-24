@@ -73,9 +73,13 @@ export async function GET(request: NextRequest) {
 
 
 export async function POST(request: NextRequest) {
-  const { supabase, user, orgId, isAdmin, error } = await requireAuth();
+  const { supabase, user, orgId, role, error } = await requireAuth();
   if (error) return error;
-  if (!isAdmin) return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
+  // Rediseño 24 ago 2026 (ROLES.md 0.3): crear un proyecto nuevo queda
+  // reservado a `owner` -- ni siquiera un admin de organización puede.
+  if (role !== "owner") {
+    return NextResponse.json({ error: "Solo el dueño de la cuenta puede crear proyectos" }, { status: 403 });
+  }
 
   let body: Record<string, unknown>;
   try {

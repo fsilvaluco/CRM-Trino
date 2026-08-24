@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { markEntityViewed, getViewedAtMap, getLatestCommentAtMap, isUnseen, latestActivityAt } from "@/lib/entity-views";
-import { getProjectRole, canViewDeals, canEditDeals } from "@/lib/project-roles";
+import { getProjectPermissions, canViewDeals, canEditDeals } from "@/lib/project-roles";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapStage(stage: any, deals: any[], unseenMap: Map<string, boolean>) {
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
     if (!allowedProjectIds.includes(projectId)) {
       return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
     }
-    const role = await getProjectRole(supabase, user!.id, projectId);
+    const role = await getProjectPermissions(supabase, user!.id, projectId);
     if (!canViewDeals(role)) {
       return NextResponse.json({ error: "Sin acceso a Deals para tu rol" }, { status: 403 });
     }
@@ -163,7 +163,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Deal no encontrado" }, { status: 404 });
     }
 
-    const dealRole = await getProjectRole(supabase, user!.id, existing.artist_project_id || existing.project_id || null);
+    const dealRole = await getProjectPermissions(supabase, user!.id, existing.artist_project_id || existing.project_id || null);
     if (!canEditDeals(dealRole)) {
       return NextResponse.json({ error: "Tu rol no puede mover este deal" }, { status: 403 });
     }

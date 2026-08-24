@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
-import { getProjectRole, canEditEventCosts } from "@/lib/project-roles";
+import { getProjectPermissions, canEditEventCosts } from "@/lib/project-roles";
 
 // POST /api/eventos/[id]/costs/reopen -- deshace el cierre, por si hay que
 // corregir algo despues. Borra tambien las firmas de aprobacion que ya se
@@ -20,7 +20,7 @@ export async function POST(
   if (error) return error;
 
   const { data: show } = await supabase.from("shows").select("project_id").eq("id", id).single();
-  const role = await getProjectRole(supabase, user!.id, show?.project_id ?? null);
+  const role = await getProjectPermissions(supabase, user!.id, show?.project_id ?? null);
   if (!canEditEventCosts(role)) {
     return NextResponse.json({ error: "Tu rol no puede editar los costos de este evento" }, { status: 403 });
   }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
-import { getProjectRole, canEditEventCosts } from "@/lib/project-roles";
+import { getProjectPermissions, canEditEventCosts } from "@/lib/project-roles";
 import { getSignaturesState } from "@/lib/event-signatures";
 import { sendEmail, buildCostSheetSummaryEmailHtml, isResendEnabled } from "@/lib/resend";
 
@@ -38,7 +38,7 @@ export async function POST(
     return NextResponse.json({ error: "El evento no tiene proyecto asignado" }, { status: 400 });
   }
 
-  const role = await getProjectRole(supabase, user!.id, show.project_id);
+  const role = await getProjectPermissions(supabase, user!.id, show.project_id);
   if (!canEditEventCosts(role)) {
     return NextResponse.json({ error: "Tu rol no puede informar el cierre de este evento" }, { status: 403 });
   }

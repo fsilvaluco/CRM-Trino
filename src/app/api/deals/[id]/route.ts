@@ -3,7 +3,7 @@ import { requireAuth } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { markEntityViewed } from "@/lib/entity-views";
 import { logActivity } from "@/lib/activity-logs";
-import { getProjectRole, canEditDeals } from "@/lib/project-roles";
+import { getProjectPermissions, canEditDeals } from "@/lib/project-roles";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapDeal(row: any) {
@@ -111,7 +111,7 @@ export async function PUT(
     return NextResponse.json({ error: "Deal no encontrado" }, { status: 404 });
   }
 
-  const dealRole = await getProjectRole(supabase, user!.id, existing.artist_project_id || existing.project_id || null);
+  const dealRole = await getProjectPermissions(supabase, user!.id, existing.artist_project_id || existing.project_id || null);
   if (!canEditDeals(dealRole)) {
     return NextResponse.json({ error: "Tu rol no puede editar este deal" }, { status: 403 });
   }
@@ -280,7 +280,7 @@ export async function DELETE(
   // deal, sin importar el proyecto -- mismo hueco que en eventos (23 ago
   // 2026). Ahora se exige el mismo rol de proyecto que ya se usa para
   // editar (admin/member de ESE proyecto puntual).
-  const dealRole = await getProjectRole(supabase, user!.id, existing.artist_project_id || existing.project_id || null);
+  const dealRole = await getProjectPermissions(supabase, user!.id, existing.artist_project_id || existing.project_id || null);
   if (!canEditDeals(dealRole)) {
     return NextResponse.json({ error: "Tu rol no puede eliminar este deal" }, { status: 403 });
   }

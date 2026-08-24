@@ -1,16 +1,257 @@
 # Roles y control de acceso en Artist Pro
 
-**Última actualización:** 23 ago 2026 — este documento se escribió el mismo día que se hizo la
-corrección grande de aislamiento entre proyectos (ver `BITACORA.md`), así que refleja el estado justo
-después de esa corrección. Es un documento vivo — está pensado para seguir trabajándolo, no es un
-resumen de una sola sesión.
+**Última actualización:** 24 ago 2026 — se agregó la sección 0 con el modelo de roles **decidido** ese
+día (rediseño hacia "solo proyecto"), y se reordenaron los pendientes en base a esa decisión. El resto
+del documento (secciones 1 a 9) describe el **estado actual del código**, que todavía es el modelo viejo
+(organización + proyecto) — queda como referencia mientras se implementa el rediseño. Es un documento
+vivo — no es un resumen de una sola sesión.
 
-**Para qué sirve este documento:** es una auditoría completa de cómo funciona hoy el sistema de roles y
-permisos de Artist Pro — qué existe, cómo se calcula el acceso en el código, dónde ya se aplica bien,
-dónde NO se aplica todavía (y por qué eso importa), y las inconsistencias encontradas entre lo que dice
-la base de datos, lo que hace el código de la aplicación, y lo que dice la interfaz. Está pensado para
-que Francisco lo use como referencia de trabajo al planificar la intranet de trabajadores de la app (no
-del proyecto/CRM) y cualquier rediseño futuro del sistema de permisos.
+**Para qué sirve este documento:** es la referencia de trabajo para (a) entender cómo funciona HOY el
+sistema de roles y permisos de Artist Pro, y (b) el plan decidido de hacia dónde va, para que Francisco
+lo use al planificar la intranet de trabajadores de la app (no del proyecto/CRM) y para guiar la
+implementación del rediseño.
+
+---
+
+## 0. Modelo decidido el 24 ago 2026 — "solo proyecto" (todavía NO implementado)
+
+Francisco planteó que tener dos capas (organización + proyecto) es confuso e innecesario para el día a
+día, y hoy es exactamente lo que causó el bug del 23 ago. Se decidió simplificar a **una sola capa
+visible de permisos: el proyecto.** Esto es el objetivo a implementar — las secciones 1-9 describen el
+estado actual (todavía sin este cambio).
+
+### 0.1 Qué pasa con "organización"
+
+**No se borra de la base de datos** — `organization_id` sigue existiendo como el límite técnico de
+"instalación/cliente" (relevante si Artist Pro se instala para otro negocio distinto de Trino en el
+futuro). Pero **desaparece por completo como capa de permisos y de UI**:
+
+- Nadie ve un "rol de organización" en ninguna pantalla.
+- No hay panel de "Equipo y Acceso" a nivel organización — todo se gestiona por proyecto.
+- El bypass `is_org_admin()` que hoy vive en RLS (hallazgo 8.2) se elimina como parte de este cambio —
+  ya no debería quedar ninguna regla de acceso que dependa de organización, ni en la app ni en RLS.
+- El dropdown que hoy mezcla rol de organización y rol de proyecto al invitar gente (hallazgo 9.4)
+  también se resuelve solo: al no existir más el rol de organización, ese selector pasa a ser
+  simplemente "rol de proyecto".
+
+### 0.2 Modelo de permisos: matriz por persona × módulo (revisado el mismo 24 ago, tras ver casos reales)
+
+**Esta sección reemplaza una versión anterior de la misma tarde** que proponía una tabla única de 4
+roles fijos (`admin`/`member`/`artist`/`staff`) con un permiso fijo por módulo para cada uno. Al revisar
+casos reales de gente que se va a sumar (Rodrick, Gonzalo, Daniela -- ver 0.2.3), quedó claro que
+**ninguno de los 4 roles fijos alcanza a describir lo que cada persona necesita** -- cada una tiene una
+combinación distinta de qué módulo ve, edita, y si ve ingresos/costos. Se reemplaza la tabla única por
+una **matriz editable persona × módulo**, y el "rol" baja de categoría: pasa de ser lo que determina el
+permiso a ser solo una **plantilla de partida** (una etiqueta visible al agregar a alguien y al mirar el
+listado de gente, pero editable persona por persona después).
+
+#### 0.2.1 Gestión de gente del proyecto (independiente de la matriz de módulos)
+
+Poder invitar, dar de baja o cambiar la matriz de otra persona del proyecto es **su propio interruptor**,
+no depende de cuánto acceso tenga esa persona al resto de los módulos -- así alguien puede tener acceso
+total a todos los módulos y aun así no poder gestionar gente, o viceversa.
+
+- `puede_gestionar_equipo`: sí/no, por persona y por proyecto. Si es sí, incluye poder **crear cuentas
+  nuevas de cero** (un email que nunca existió en Artist Pro) y gestionar a cualquiera del proyecto --
+  incluidos otros que también tengan este permiso, sin jerarquía especial entre ellos.
+- La plantilla "Admin" trae este interruptor en `sí` por defecto; el resto de las plantillas lo traen en
+  `no` -- pero es editable aparte, igual que el resto de la matriz.
+
+#### 0.2.2 Matriz por módulo
+
+Por cada persona, en cada proyecto donde tiene acceso, se define fila por fila:
+
+| Dimensión | Valores | Aplica a |
+|---|---|---|
+| Ver | sí/no | Todos los módulos |
+| Editar | sí/no (solo tiene sentido si Ver = sí) | Todos los módulos |
+| **Eliminar** | sí/no (solo tiene sentido si Editar = sí) | Todos los módulos -- **separada de Editar** (decisión del 24 ago): alguien puede poder editar un registro sin poder borrarlo. |
+| Ve ingresos | sí/no | Deals (el monto del trato), Eventos |
+| Ve costos | sí/no | Eventos (Deals es un solo monto, no distingue ingreso/costo) |
+
+La Utilidad de un evento (ingresos − costos) se oculta automáticamente si falta cualquiera de las dos.
+Cuando `ve_ingresos`/`ve_costos` = no, se oculta **todo** -- no solo el total: ningún monto individual
+de línea (cada tier de entrada, cada sponsor, cada ítem de costo) queda visible tampoco (decisión del
+24 ago, más estricta que "solo ocultar el resumen").
+
+**Módulos cubiertos:** Contactos, Empresas, Deals, Tareas, Eventos (incluye su logística: setlist,
+timing, invitados), Campañas, **Finanzas** (`/finances`, `/prestamos` -- agregado el 24 ago, ver 0.2.5).
+
+**Visibilidad parcial entre módulos (decisión del 24 ago):** si alguien no tiene acceso al módulo
+Contactos/Empresas pero sí ve un Deal o una Tarea que referencia a un contacto o empresa, **ve el
+nombre** (para poder ubicarse -- "con quién es este trato"), pero **no accede al resto del registro**
+(teléfono, email, notas, historial) -- eso sigue exigiendo acceso directo al módulo Contactos/Empresas.
+Es un permiso intermedio, no calca ni el "todo visible" ni el "todo oculto".
+
+**Se deja fuera de esta primera versión** (se agrega después si aparece un caso real que lo necesite):
+un "alcance" por debajo de Ver/Editar -- por ejemplo "solo lo que tengo asignado a mí" en vez de todo el
+proyecto. Ninguno de los casos reales de hoy lo necesita (decisión del 24 ago).
+
+#### 0.2.3 Casos reales, probados contra este diseño
+
+| Persona | Contactos | Empresas | Deals | Tareas | Eventos | Campañas | Finanzas | Gestiona equipo |
+|---|---|---|---|---|---|---|---|---|
+| **Rodrick** (sonidista, variante de `staff`) | No | No | Ve, no edita, sin $ | Ve y edita | Ve, no edita, sin $ | Ve, no edita, sin $ | No | No |
+| **Gonzalo** (artista) | Ve, no edita | Ve, no edita | Ve, no edita, con $ | Ve y edita | Ve, no edita, con $ (ingresos y costos) | Ve y edita, incluso crea | Ve, no edita | No |
+| **Daniela** (logística de eventos, variante de `staff`) | No | No | Ve, no edita, sin $ | Ve y edita | Ve y edita (ingresos y costos, incluye sumar costos) | Ve y edita | No | No |
+| **Joaquín** (admin) | Ve y edita | Ve y edita | Ve y edita, con $ | Ve y edita | Ve y edita, con $ | Ve y edita | Ve y edita | **Sí** |
+| Plantilla `admin` | Ve y edita | Ve y edita | Ve y edita, con $ | Ve y edita | Ve y edita, con $ | Ve y edita | Ve y edita | **Sí** |
+| Plantilla `member` | Ve y edita | Ve y edita | Ve y edita, con $ | Ve y edita | Ve y edita, con $ | Ve y edita | **Ve, no edita** | No |
+| Plantilla `artist` | Ve, no edita | Ve, no edita | Ve, no edita, con $ | Ve y edita | Ve, no edita, con $ | Ve y edita | Ve, no edita | No |
+| Plantilla `staff` | No | No | No | Ve y edita | Ve y edita, sin $ | Ve y edita, sin $ | No | No |
+
+**Confirmado el 24 ago** (ya no son inferencias): Gonzalo **ve pero no edita** Contactos/Empresas (igual
+que Deals); y tanto Gonzalo como Daniela **ven y editan** Campañas (Gonzalo incluso puede crearlas). Con
+esto, la fila de Gonzalo pasa a ser directamente la definición de la plantilla `artist` -- no necesitó
+ningún ajuste particular. Nota importante que corrige la primera versión de este documento (antes de la
+sección 0): ahí se había asumido que `artist` **no ve ningún número de plata** -- el caso real de Gonzalo
+confirma que sí ve ingresos y costos, solo que no edita nada. La regla de "sin plata" es de `staff`, no
+de `artist`.
+
+**Lo que este ejercicio confirma:** Rodrick y Daniela siguen siendo variantes de `staff` que necesitan
+ajuste puntual (Rodrick pierde $ en todo pero gana ver -sin editar- Deals/Eventos/Campañas; Daniela gana
+editar Eventos y ver -sin $- Deals). Gonzalo, en cambio, terminó calzando exacto con la plantilla
+`artist` una vez corregida. Esto es el comportamiento esperado del modelo de matriz: la plantilla da un
+punto de partida razonable, y la persona real a veces no necesita ningún ajuste (Gonzalo) y a veces sí
+(Rodrick, Daniela).
+
+#### 0.2.4 Otras reglas de comportamiento (decididas el 24 ago, tras revisar casos técnicos)
+
+- **Comentar es independiente de Editar.** Alguien con solo `puede_ver = sí` en un módulo puede
+  comentar en un Deal/Tarea igual, sin tener `puede_editar`. Un `artist` como Gonzalo puede opinar en un
+  Deal que no puede editar.
+- **Referenciar contenido de un módulo bloqueado está permitido**, aunque la persona no tenga ni
+  `puede_ver` ahí. Por ejemplo: alguien sin acceso a Deals puede igual crear una Tarea y engancharla a un
+  Deal existente (para que otro con más acceso la revise) -- no hace falta poder ver el Deal para poder
+  referenciarlo desde otro módulo.
+- **Protección contra que un proyecto se quede sin nadie que pueda gestionar el equipo**: no se puede
+  guardar un estado donde ningún miembro del proyecto tenga `puede_gestionar_equipo = sí` -- ni
+  quitándoselo a la última persona que lo tiene, ni sacándola del proyecto sin traspasarlo antes a otra
+  persona. `owner` queda como única vía de rescate manual si igual pasara.
+- **El "Gestor de Integrantes" (matriz completa del equipo) es visible solo para quien tiene
+  `puede_gestionar_equipo = sí`** en ese proyecto -- el resto de la gente del proyecto no ve la matriz
+  fina de sus compañeros, solo interactúa con ellos dentro de cada módulo.
+- **"Referenciar sin Ver" sigue acotado al mismo proyecto**: el módulo bloqueado solo afecta qué se
+  ve/edita DENTRO de un proyecto al que la persona ya pertenece -- nunca abre acceso a datos de un
+  proyecto ajeno.
+- **Reportar un gasto de evento (`event_cost_submissions`) es independiente de `puede_editar` en
+  Eventos.** Ya existe como funcionalidad (`/api/eventos/[id]/cost-submissions`, usada desde
+  `/eventos/[id]/gastos`): cualquiera con `puede_ver` en Eventos puede enviar su propio gasto con monto y
+  comprobante, queda en estado "pendiente" y no toca los costos reales hasta que alguien con
+  `puede_editar` + `ve_costos` lo aprueba. Es la vía por la que un `artist` como Gonzalo -- que no puede
+  editar Eventos -- igual puede reportar un gasto suyo. Cada quien solo ve sus propios envíos hasta que
+  tiene permiso de revisar (eso ya está construido así en el código); lo que falta es migrar el chequeo
+  de "quién puede revisar/aprobar" de `isAdmin` (organización) a `puede_editar` + `ve_costos` de proyecto.
+- **Firmar el cierre de caja de un evento exige `ve_ingresos` Y `ve_costos`** en ese proyecto -- nadie
+  firma una aprobación de números que no puede revisar. Es consistente con que `artist` vea todo el $ del
+  evento aunque no lo edite: ese acceso de solo-ver es justamente lo que le permite firmar con criterio.
+- **Los archivos adjuntos a un costo (comprobantes, boletas) heredan `ve_costos`**: sin ese permiso,
+  tampoco se puede ver ni descargar el archivo, aunque se tenga acceso al resto del evento.
+- **Si a alguien le sacan acceso a un módulo mientras tiene contenido asignado ahí** (ej. Tareas activas
+  asignadas a Rodrick, y le sacan Tareas), **ese contenido queda asignado igual, solo que la persona ya
+  no lo puede ver ni editar** -- no hay reasignación automática; alguien con acceso tiene que notarlo y
+  reasignarlo a mano.
+- **`self_managed` (Autogestionado) se retira** -- queda reemplazado por la matriz: el mismo resultado
+  (un `artist` editando sus propios Deals) se logra poniendo `Deals: Editar = sí` en la fila de esa
+  persona puntual, sin necesitar un flag aparte a nivel de proyecto completo. Incluye retirar la policy
+  de RLS `deals_artist_selfmanaged_write` y la columna `projects.self_managed` (o dejarla sin uso si se
+  prefiere no tocar el esquema todavía).
+- **La matriz de una persona en un proyecto se borra cuando se elimina su fila de `project_members`** en
+  ese proyecto -- no queda guardada para si vuelve a entrar más adelante; si vuelve, se configura de
+  cero.
+- **Las notificaciones (push, digest por email) no necesitan aplicar la matriz.** En vez de chequear
+  permisos en cada notificación, la regla es de redacción: ningún texto de notificación incluye montos --
+  ej. "hay un gasto nuevo reportado en Evento X", nunca "se reportó un gasto de $45.000 en Evento X". Así
+  no hace falta filtrar destinatarios por `ve_ingresos`/`ve_costos` en ningún canal de aviso.
+
+#### 0.2.5 Finanzas (`/finances`, `/prestamos`) -- agregado el 24 ago 2026
+
+Esta sección quedaba explícitamente fuera de alcance en la primera versión del documento (sección 3) --
+se corrige acá: **toda transacción pertenece a un proyecto, sin excepción.** Hoy `transactions.project_id`
+es nullable en la base y el código lo permite (hay transacciones "generales de la agencia" sin proyecto)
+-- eso se considera un problema de datos a corregir, no una excepción de diseño a sostener.
+
+- **Finanzas se agrega como séptimo módulo de la matriz**, con las mismas dimensiones que el resto
+  (Ver/Editar/Eliminar/Ve ingresos/Ve costos).
+- **Perfil de permiso por defecto, distinto al resto de los módulos**: en Finanzas, `member` **no** tiene
+  el mismo poder que `admin` -- queda igualado a `artist` (ve, no edita). Solo `admin` (y `owner` cuando
+  actúa con ese rol en el proyecto) edita. `staff` no ve nada de Finanzas, igual que en el resto de los
+  módulos con plata.
+
+  | Plantilla | Finanzas |
+  |---|---|
+  | `admin` / `owner` | Ve y edita |
+  | `member` | **Ve, no edita** (excepción -- en el resto de los módulos member = admin) |
+  | `artist` | Ve, no edita |
+  | `staff` | No ve nada |
+
+- **La herencia por sello (0.6) se sigue aplicando igual que en el resto de los módulos** -- si alguien
+  tiene matriz en Trino y esa da acceso a Finanzas, también accede a Finanzas de Gamuza por herencia,
+  igual que accede a sus Deals/Eventos.
+- **Lo que NO se hereda ni se mezcla es la vista agregada de datos.** El agrupamiento de listas que hoy
+  existe para Deals/Eventos/Contactos/Empresas (sección 4: al seleccionar la madre, se listan también los
+  registros de los hijos) **no debe aplicarse a Finanzas** -- las finanzas de Trino y las de cada proyecto
+  hijo son libros separados que no se suman ni se mezclan en ningún reporte, aunque la persona tenga
+  acceso a ambos por herencia de matriz.
+- **Hoy `GET /api/finances` no tiene ningún chequeo de proyecto ni de rol** -- si no se manda
+  `?projectId=` en la URL, devuelve todas las transacciones de todos los proyectos de la organización a
+  cualquiera autenticado. Es una brecha del mismo tipo que la que motivó la corrección del 23 ago, solo
+  que en un módulo que había quedado fuera de esa corrección -- prioridad alta en el roadmap (ver §11).
+
+### 0.3 Crear proyectos nuevos
+
+**Regla general: nadie excepto `owner` puede crear un proyecto nuevo.** Ni siquiera un `admin` de
+proyecto puede crear otro proyecto — solo puede operar dentro de los proyectos donde ya tiene rol.
+
+### 0.4 Alcance de `owner`
+
+Se decidió explícitamente que **`owner` NO tiene bypass ni siquiera para editar** — se rige por la misma
+regla que todos: sin un proyecto seleccionado, no edita nada (ver 0.5). La única atribución especial que
+conserva `owner` es poder crear proyectos nuevos (0.3). Esto es consistente con la decisión ya tomada el
+23 ago de que "nadie tiene bypass, ni siquiera el dueño" — ahora se extiende también a la regla de
+selección de proyecto.
+
+### 0.5 Selector de proyecto y modo "ver todos los proyectos"
+
+El modo "Todos los proyectos" se mantiene, pero cambia su comportamiento:
+
+- Solo muestra los proyectos a los que la persona ya está asignada (nunca todos los de la
+  organización).
+- Es **exclusivamente de lectura** — no se puede crear ni editar nada estando en este modo, sin
+  excepción de rol (ni siquiera `owner`).
+- **Respeta el rol de cada proyecto individualmente dentro de la vista agregada** — si alguien es
+  `staff` en el Proyecto A (sin ver $) y `admin` en el Proyecto B, la vista agregada le sigue ocultando
+  la plata del Proyecto A. No es un resumen plano sin distinción de rol.
+- Si alguien intenta editar algo estando en este modo, la interfaz debe mostrar un mensaje de
+  advertencia ("Selecciona un proyecto para editar") en vez de dejarlo pasar o fallar en silencio. Esto
+  es lo que evita el problema real que motivó el cambio: cosas quedando guardadas sin proyecto asignado.
+
+### 0.6 Qué se hereda del modelo actual sin cambios
+
+- **Proyecto madre / sello** (`parent_project_id`, sección 4): se mantiene igual — el rol se sigue
+  heredando de la madre hacia los hijos, y las listas se siguen agrupando. Un `admin` heredado de Trino
+  en Gamuza puede invitar/gestionar gente en Gamuza igual que un admin directo, por la misma lógica de
+  herencia. **Con el modelo de matriz (0.2), lo que se hereda es la matriz completa tal cual está en la
+  madre** -- decisión explícita del 24 ago, no hay matriz aparte por proyecto hijo. Si alguien necesita
+  ver menos/más en un hijo puntual que en la madre, hoy eso no está cubierto (quedaría para una versión
+  futura si aparece un caso real, igual que "alcance" en 0.2.2).
+- **`self_managed`**: **corrección** -- ya no se mantiene igual, se retira (ver 0.2.4). Esta línea decía
+  originalmente "se mantiene igual" y quedó desactualizada apenas se revisó el caso técnico ese mismo día.
+
+### 0.7 Otras superficies de acceso a alinear con la matriz (halladas el 24 ago, fuera de la app web)
+
+La matriz cubre la aplicación web (Next.js). Hay al menos una superficie más que toca los mismos datos y
+que hoy queda completamente afuera de cualquier control de acceso:
+
+- **Servidor MCP** (`mcp/crm-server.ts`, `npm run mcp`) -- documentado en `CLAUDE.md` como "MCP Mode"
+  para conectar Claude Desktop/Web al CRM. Hoy está desalineado con la arquitectura real de la app: se
+  conecta directo a una base SQLite local (`src/db/`, sin tocar desde el 17 jul) mientras que la
+  aplicación real corre sobre Supabase desde hace tiempo. No tiene ningún chequeo de autenticación,
+  organización, proyecto ni matriz -- abre lectura y escritura completa sobre lo que sea que haya en esa
+  base. Hoy no expone datos reales porque esa base quedó vieja/desconectada, pero es una función
+  documentada como si estuviera activa. **Decisión del 24 ago: se retira por ahora** -- se saca de
+  `CLAUDE.md` como función soportada (o se marca claramente como no disponible) hasta que alguien la
+  reescriba de cero contra Supabase, autenticada, respetando la matriz nueva. No se reescribe todavía.
 
 ---
 
@@ -113,6 +354,13 @@ distinción de rol de proyecto en la aplicación, solo lo que ya cubre RLS a niv
 sección 8, sí hay algo de scoping por proyecto a nivel de RLS en `transactions` que la app no usa
 todavía).
 
+**Tampoco cubre hoy el módulo de Tareas** (`/tasks`, `task_assignees`) **ni Campañas** (`/campanas`,
+subproyectos) -- ambos módulos existen y funcionan en el código, pero sin ninguna distinción de rol:
+cualquiera con acceso al proyecto puede ver, crear, editar y asignar tareas o campañas, sin importar si
+es `admin`, `member`, `artist` o `staff`. Esto es justamente lo que cubre por primera vez el modelo nuevo
+decidido el 24 ago (sección 0.2) -- no es una corrección de un comportamiento roto, es agregar reglas
+donde hoy no existe ninguna.
+
 ---
 
 ## 4. Nivel 3: proyecto madre / sello (`projects.parent_project_id`)
@@ -195,7 +443,7 @@ Cuando llega un request a un endpoint de la API (ej. `GET /api/eventos/[id]`):
 `project_members` directamente (mismo criterio para TODOS los roles de organización, incluido owner/admin
 desde el 23 ago) y arma la lista de proyectos que aparecen en el selector de arriba a la izquierda. Solo
 lista proyectos con fila DIRECTA -- los hijos heredados vía proyecto madre no aparecen como entradas
-separadas del selector (si querés ver solo Gamuza sin el resto de Trino, tendrías que estar agregado
+separadas del selector (si quieres ver solo Gamuza sin el resto de Trino, tendrías que estar agregado
 directamente a Gamuza).
 
 `activeProject === null` = "Todos los proyectos" -- solo alcanzable si hay más de un proyecto en la
@@ -381,20 +629,147 @@ no seguir manteniendo dos configuraciones de acceso en paralelo para la misma pe
 
 ---
 
-## 11. Para cuando se trabaje esto en serio (intranet de trabajadores de la app)
+## 11. Roadmap de implementación del modelo "solo proyecto" (decidido 24 ago 2026)
 
-Ideas que surgieron de esta auditoría, sin implementar todavía -- quedan acá para no perderlas:
+Reordenado en base a las decisiones de la sección 0. Antes esta lista era "ideas sueltas" -- ahora es la
+secuencia recomendada para implementar el rediseño, de mayor a menor prioridad. Nada de esto está
+implementado todavía.
 
-1. **Cerrar la brecha de RLS de eventos** (sección 8.1) es probablemente lo más urgente de todo lo que
-   quedó pendiente -- es la única tabla de datos sensibles (montos, comprobantes) sin ningún tipo de
-   scoping por proyecto a nivel de base de datos.
-2. **Decidir el modelo de "owner" de una vez**: ¿tiene bypass total o no? Hoy el código dice que no, pero
-   la UI todavía dice que sí. Esto también determina si vale la pena escribir una función SQL
-   `is_org_owner()` separada de `is_org_admin()` para las policies de RLS.
-3. **Escribir una función SQL de herencia de proyecto madre** (`is_project_member_or_parent(project_id)`
-   o similar) para poder usarla en RLS igual que se usa `getProjectRole()` en la aplicación -- hoy esa
-   lógica solo vive en TypeScript.
-4. **Separar visualmente rol de organización vs. rol de proyecto** en la UI de invitación (hallazgo 9.4).
-5. **Aplicar el aislamiento por proyecto a la gestión de accesos en sí** (`/api/org-members`,
-   `/api/project-members` -- hallazgo 9.2), no solo a la lectura de datos.
-6. **Consolidar las cuentas duplicadas de Francisco** antes de seguir configurando accesos por encima.
+### Prioridad 1 -- base del modelo nuevo (sin esto, el resto no tiene dónde pararse)
+
+**Estado (24 ago 2026, tarde):** ítems 1, 2, 4 y 7 implementados y aplicados en producción. Ítems 5, 6,
+8, 9, 10, 12 siguen pendientes. Ítem 3 resultó mucho más grande de lo que parecía en el papel -- ver nota
+al final de esta prioridad. Ítem 11 se resolvió como parte del ítem 1 (no había transacciones existentes
+que migrar, así que la constraint se aplicó directo).
+
+1. ✅ **Crear la tabla de matriz de permisos** (0.2.2) -- migración `084_permission_matrix.sql`, aplicada.
+   `project_member_permissions`: una fila por persona × módulo (Contactos, Empresas, Deals, Tareas,
+   Eventos, Campañas, Finanzas), con `puede_ver`, `puede_editar`, `puede_eliminar`, `ve_ingresos`,
+   `ve_costos` + constraints que impiden estados inválidos (`editar` exige `ver`, `eliminar` exige
+   `editar`, `ve_ingresos`/`ve_costos` exigen `ver`). `project_members.puede_gestionar_equipo` agregado
+   como columna aparte (0.2.1). **Pendiente todavía dentro de este ítem:** la lógica de visibilidad
+   parcial entre módulos (nombre de contacto visible en Deals aunque el módulo esté bloqueado) y el
+   ocultamiento de montos línea por línea -- esas dos viven en cada endpoint de lectura, no en el
+   esquema; se van resolviendo módulo por módulo (ver ítems 8+ y Prioridad 2).
+2. ✅ **Migrar las 4 plantillas actuales a filas precargadas** -- hecho como backfill de la misma
+   migración: las 30 filas de `project_members` existentes (14 admin, 15 member, 1 artist) se
+   convirtieron en 210 filas de matriz según la tabla de 0.2.3. `admin` recibió `puede_gestionar_equipo`.
+3. ⏳ **Sacar el rol de organización del cálculo de permisos** -- **hallazgo al ejecutar:** `isAdmin` se
+   usa en **38 endpoints distintos** (préstamos, venues, billing, QR, smartlinks, gestión de equipo,
+   importación, broadcasts, integraciones de Gmail, etc.), la gran mayoría de los cuales nunca se
+   mapearon a la matriz nueva en este documento -- solo Deals y Costos de eventos (ítem 7) estaban
+   realmente especificados. Migrar los 38 a ciegas es un trabajo aparte, con su propia revisión caso por
+   caso de qué reemplaza a `isAdmin` en cada uno (¿`puede_gestionar_equipo` del proyecto correspondiente?
+   ¿algo específico de organización que sí debería seguir existiendo, como billing?). Queda pendiente,
+   más grande de lo que parecía en el papel.
+4. ✅ **Gatear la creación de proyectos a solo `owner`** (0.3) -- `POST /api/projects` ahora exige
+   `role === "owner"` en vez de `isAdmin`.
+5. ⏳ **"Sin proyecto seleccionado, no se edita"** en el frontend (0.5) -- pendiente.
+6. ⏳ **Vista agregada respeta la matriz de cada proyecto individualmente** (0.5) -- pendiente.
+7. ✅ **`project-roles.ts` reescrito para leer la matriz** -- `getProjectRole()` reemplazado por
+   `getProjectPermissions()` (misma herencia por sello, ahora trae la matriz completa en vez de un rol).
+   `canViewDeals`/`canEditDeals`/`canViewEventCosts`/`canEditEventCosts` migrados a leer
+   `ProjectPermissions` en vez del enum; se agregaron `canDeleteDeals`, `canViewEvent`, `canEditEvent`,
+   `canViewModule`/`canEditModule`/`canDeleteModule` genéricos y `canManageTeam`. Los 10 endpoints que
+   usaban las funciones viejas (`deals`, `eventos/[id]`, `eventos/[id]/costs/*`, `pipeline`) migrados y
+   verificados con `tsc --noEmit` sin errores. `canEditEventCosts` ahora exige `puedeEditar && veCostos`
+   del módulo Eventos (antes era solo rol admin/member) -- semántica equivalente, expresada en la matriz.
+8. **Comentarios como permiso independiente, y referencias sin exigir Ver** (0.2.4): el endpoint de
+   comentarios (`/api/tasks/[id]/comments`, `/api/deals/[id]/comments`) solo exige `puede_ver` del
+   módulo, no `puede_editar`; y crear/editar una Tarea con un `dealId`/`contactId`/`companyId` asociado
+   no debe exigir `puede_ver` en el módulo referenciado.
+9. **Todos los endpoints de exportación (`/api/export`) tienen que aplicar la misma redacción de $ y de
+   módulos que la matriz** -- es la fuga más directa si se olvida: alguien sin `ve_ingresos` no ve el
+   monto en pantalla, pero si el CSV lo incluye igual, se lo lleva completo. Prioridad alta porque es
+   fácil de pasar por alto al construir la matriz mirando solo las pantallas principales.
+10. **Cerrar la brecha de `GET /api/finances`** (0.2.5) -- hoy no filtra por proyecto ni chequea rol en
+    absoluto si no se manda `?projectId=`. Del mismo nivel de urgencia que el bug del 23 ago, solo que en
+    un módulo que había quedado fuera de esa corrección.
+11. ✅ **Migración de datos: `transactions.project_id` deja de aceptar nulos** (0.2.5) -- verificado antes
+    de migrar: 0 transacciones existentes en la base (total y sin proyecto), así que la constraint
+    `NOT NULL` se aplicó directo en la misma migración 084, sin backfill necesario.
+12. **Excluir Finanzas del agrupamiento de listas por sello** (0.2.5) -- el patrón que hoy junta
+    Deals/Eventos/Contactos/Empresas de la madre con los de sus hijos al seleccionar la madre (sección 4)
+    no debe aplicarse a Finanzas: son libros separados que no se suman ni se mezclan en ningún reporte.
+
+### Prioridad 2 -- gestión de gente (nueva superficie que hoy no tiene reglas)
+
+13. **Independizar `puede_gestionar_equipo` del resto de la matriz** (0.2.1) -- no depende de cuánto
+    acceso a módulos tenga la persona. Incluye poder invitar y **crear cuentas nuevas de cero**, con
+    alcance limitado a los proyectos donde esa persona ya tiene `puede_gestionar_equipo = sí` -- endpoint
+    nuevo o reescritura de `/api/project-members`.
+14. **Sin jerarquía especial entre personas con `puede_gestionar_equipo = sí`** del mismo proyecto
+    (0.2.1) -- cualquiera con este permiso puede gestionar a cualquier otra, incluidos otros con el mismo
+    permiso.
+15. **Aplicar el aislamiento por proyecto a la gestión de accesos en sí** (hallazgo 9.2, sigue vigente en
+    el modelo nuevo): alguien solo puede invitar/gestionar gente en proyectos donde él mismo tiene
+    `puede_gestionar_equipo`, nunca en proyectos ajenos.
+16. **Protección contra que un proyecto se quede sin nadie que pueda gestionar equipo** (0.2.4): validar
+    en el backend -- no solo advertir en el frontend -- antes de guardar cualquier cambio que deje a
+    `puede_gestionar_equipo = sí` en cero personas para un proyecto.
+17. **Restringir el "Gestor de Integrantes" (matriz completa del equipo) a quien tiene
+    `puede_gestionar_equipo = sí`** (0.2.4) -- el resto de la gente del proyecto no debería poder pedir
+    esa lista vía API tampoco, no solo que la UI no la muestre.
+18. **Completar la instrumentación de `activity_logs`** -- hoy solo 12 de los ~38 endpoints que
+    editan/borran algo llaman a `logActivity()` (Companies, Project-Members, Org-Members, Cost-Items,
+    Ticket-Tiers, Setlist y otros quedan sin registrar). Es la causa real de "el cuadro de logs no
+    funciona" -- no está roto, está incompleto. De paso, migrar `GET /api/activity-logs` de exigir
+    `isAdmin` (rol de organización, que se retira) a exigir `puede_gestionar_equipo` en al menos un
+    proyecto.
+19. **Migrar `/api/eventos/[id]/cost-submissions`** (0.2.4) de `isAdmin` (organización) a `puede_editar` +
+    `ve_costos` de proyecto, tanto para decidir quién puede revisar/aprobar un gasto reportado como para
+    decidir a quién avisar por push cuando llega uno nuevo (hoy notifica a "admins de organización").
+20. **Gatear la firma de cierre de caja a `ve_ingresos` + `ve_costos`** (0.2.4) y **el acceso a
+    comprobantes/archivos adjuntos de costos a `ve_costos`** (0.2.4) en
+    [`SignedFileLink.tsx`](src/components/finances/SignedFileLink.tsx) y el endpoint de attachment de
+    costos (`/api/eventos/[id]/costs/attachment`).
+
+### Prioridad 3 -- cerrar la brecha de seguridad en RLS (además queda más simple con el modelo nuevo)
+
+21. **Cerrar la brecha de RLS de eventos** (sección 8.1) -- sigue siendo la más urgente en términos de
+    datos sensibles expuestos: `shows` y sus 8 tablas hijas no tienen scoping por proyecto en la base de
+    datos, solo en la aplicación.
+22. **Eliminar el bypass `is_org_admin()` de las policies de RLS** (`contacts`, `companies`, `deals`,
+    `transactions`, hallazgo 8.2) -- con el rediseño esto deja de ser opcional: si "organización" ya no
+    es una capa de permisos en la app, tampoco puede seguir siéndolo en RLS.
+23. **Escribir una función SQL de herencia de proyecto madre** (`is_project_member_or_parent(project_id)`)
+    para reemplazar `is_project_member()` en RLS -- hoy esa lógica de herencia solo vive en TypeScript
+    (`getProjectRole()`).
+24. **Retirar `self_managed`** (0.2.4): eliminar la policy de RLS `deals_artist_selfmanaged_write` y
+    decidir si se elimina la columna `projects.self_managed` o se deja sin uso -- queda reemplazado por
+    la matriz persona por persona.
+25. **Reflejar la matriz de permisos en RLS**, no solo en la aplicación -- una vez que la matriz
+    reemplace al enum de rol (Prioridad 1), las policies que hoy miran `role` directamente quedan
+    desalineadas igual que pasó con el modelo de roles el 23 ago. Requiere decidir si RLS consulta la
+    tabla de matriz en cada policy o si se mantiene una copia simplificada a nivel de fila para no pagar
+    el costo de un join en cada chequeo. **Importante:** RLS solo puede cubrir la parte de "ver la fila
+    completa o no verla en absoluto" -- la redacción fina (nombre de contacto visible pero teléfono
+    oculto, montos ocultos línea por línea) no es algo que RLS resuelva bien a nivel de columna; esa
+    parte va a seguir viviendo en la capa de aplicación pase lo que pase con este ítem.
+
+### Prioridad 4 -- huecos menores de aplicación, ya documentados, siguen vigentes
+
+26. Endpoints de detalle por ID sin chequeo de proyecto: `contacts/[id]`, `companies/[id]`, `venues/[id]`
+    (hallazgo 9.1).
+27. `POST /api/companies` no chequea proyecto en absoluto (hallazgo 9.3).
+
+### Prioridad 5 -- limpieza de datos, no bloquea nada del rediseño
+
+28. **Consolidar las cuentas duplicadas de Francisco** (`francisco@somostrino.cl` /
+    `francisco@katarsis.music`) -- mejor hacerlo antes de repartir permisos nuevos bajo el modelo de
+    matriz, para no configurar dos veces.
+29. Decidir si **La Sagrada** y **Prueba 2** deberían tener alguien con `puede_gestionar_equipo` asignado
+    -- hoy nadie de los 3 administradores actuales tiene acceso ahí.
+30. **Retirar el servidor MCP como función soportada** (0.7) -- sacarlo o marcarlo claramente como no
+    disponible en `CLAUDE.md` hasta que se reescriba contra Supabase con la matriz nueva.
+
+### Prioridad 6 -- intranet de trabajadores (lo que motivó este rediseño)
+
+31. **Dashboard por proyecto**: listado de usuarios activos por proyecto y su matriz de permisos
+    resumida -- la vista que Francisco describió como objetivo de la intranet.
+32. **Gestor de Integrantes visual**: matriz editable con checkboxes/toggles por persona × módulo (la
+    tabla de 0.2.2), reemplazando el selector de un solo rol que existe hoy en `MemberAccessSheet.tsx`.
+33. **Vista agregada de solo lectura para quien tenga acceso a varios proyectos** (no un "admin global"
+    con bypass -- ver 0.4): un resumen de salud de todos los proyectos a los que la persona ya tiene
+    acceso, respetando la matriz de cada uno, sin entrar al detalle editable de ninguno sin seleccionarlo
+    primero.

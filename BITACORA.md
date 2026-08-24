@@ -647,6 +647,52 @@ hoy el sistema de roles y permisos -- pensado como referencia de trabajo para cu
 **Versión de la app subida a 2.54** (convención: subir el número después del punto en cada sesión de
 trabajo que actualiza la bitácora -- `src/lib/constants.ts`).
 
+### 🧩 Rediseño de roles: matriz de permisos por persona × módulo (24 ago 2026)
+
+Sesión larga de diseño con Francisco (documentada completa en `ROLES.md`, sección 0) que terminó en una
+decisión bien distinta a lo que existía: en vez de 4 roles fijos (`admin`/`member`/`artist`/`staff`) con
+un permiso único por rol, cada persona tiene ahora una **matriz editable por módulo** (Contactos,
+Empresas, Deals, Tareas, Eventos, Campañas, Finanzas) -- Ver / Editar / Eliminar / Ve ingresos / Ve
+costos, independiente entre módulos. Los 4 roles pasan a ser solo **plantillas de partida**, no lo que
+gobierna el permiso. Motivo del cambio: casos reales de gente que se va a sumar (Rodrick, Gonzalo,
+Daniela) no encajaban en ningún combo fijo de rol.
+
+**Implementado hoy (Prioridad 1 del roadmap, parcial):**
+- Migración `084_permission_matrix.sql`: tabla `project_member_permissions` (una fila por persona ×
+  módulo, con constraints que impiden estados inválidos -- editar exige ver, eliminar exige editar, etc.)
+  + columna `project_members.puede_gestionar_equipo` (gestión de equipo, independiente de la matriz de
+  módulos) + backfill de las 30 filas de `project_members` existentes a 210 filas de matriz según su rol
+  actual + `transactions.project_id` ahora `NOT NULL` (no había transacciones existentes que migrar).
+- `src/lib/project-roles.ts` reescrito: `getProjectRole()` → `getProjectPermissions()` (misma herencia
+  por proyecto madre, ahora trae la matriz completa en vez de un rol). `canViewDeals`/`canEditDeals`/
+  `canViewEventCosts`/`canEditEventCosts` migrados a leer la matriz; agregadas `canDeleteDeals`,
+  `canViewEvent`/`canEditEvent`, `canViewModule`/`canEditModule`/`canDeleteModule` genéricos y
+  `canManageTeam`.
+- Los 10 endpoints que usaban las funciones viejas (Deals, Pipeline, Eventos y sus 5 sub-rutas de costos)
+  migrados a `getProjectPermissions()`.
+- `POST /api/projects` ahora exige `role === "owner"` en vez de `isAdmin` -- nadie más puede crear un
+  proyecto nuevo (decisión explícita de Francisco).
+
+**Hallazgo importante al ejecutar:** `isAdmin` (rol de organización) se usa en **38 endpoints
+distintos** -- préstamos, venues, billing, QR, smartlinks, gestión de equipo, importación, broadcasts,
+integraciones de Gmail, etc. La gran mayoría nunca se mapeó a la matriz nueva en `ROLES.md` (solo Deals
+y Costos de eventos estaban realmente especificados). Migrar los 38 a ciegas queda pendiente, es trabajo
+aparte -- cada uno necesita su propia revisión de qué reemplaza a `isAdmin` (¿`puede_gestionar_equipo`
+del proyecto correspondiente? ¿algo de organización que debería seguir existiendo, como billing?).
+
+**Pendiente del resto de la Prioridad 1:** regla "sin proyecto seleccionado, no se edita" en el
+frontend; vista agregada ("Todos los proyectos") respetando la matriz de cada proyecto individualmente;
+comentarios como permiso independiente de Editar; exportación CSV aplicando la misma redacción que la
+matriz; cerrar la brecha de `GET /api/finances` (hoy sin ningún chequeo de proyecto); excluir Finanzas
+del agrupamiento de listas por sello. Detalle completo del roadmap en `ROLES.md`, sección 11.
+
+**Verificado:** `tsc --noEmit` limpio, `eslint` limpio (mismos 3 `no-explicit-any` preexistentes sin
+tocar, confirmados con `git stash` que ya estaban antes de esta sesión), `npm run build` completo sin
+errores. Migración verificada en Supabase: 210 filas de matriz (30 personas × 7 módulos), 14 con
+`puede_gestionar_equipo` (los 14 que eran `admin`). **No probado en el navegador.**
+
+**Versión de la app subida a 2.55.**
+
 ---
 
 ## 🔴 Crítico (arreglar primero)
