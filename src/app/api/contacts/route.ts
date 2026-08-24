@@ -85,7 +85,7 @@ function mapContact(row: any) {
 }
 
 export async function GET(request: NextRequest) {
-  const { supabase, orgId, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
     if (!proj) {
       return errorResponse("Proyecto no encontrado", 404);
     }
-    if (!isAdmin && allowedProjectIds && !allowedProjectIds.includes(projectIdParam)) {
+    if (!allowedProjectIds.includes(projectIdParam)) {
       return errorResponse("Sin acceso al proyecto", 403);
     }
   }
@@ -128,6 +128,17 @@ export async function GET(request: NextRequest) {
     query = query.or(
       `project_id.in.(${visibleIds.join(",")}),artist_project_id.in.(${visibleIds.join(",")})`
     );
+  } else {
+    // Sin projectId (listado general de contactos): antes esto devolvía
+    // contactos de TODA la organización sin restringir por proyecto --
+    // mismo hueco que en Eventos/Deals (23 ago 2026). allowedProjectIds ya
+    // incluye los hijos de cualquier proyecto madre asignado.
+    if (allowedProjectIds.length === 0) {
+      return NextResponse.json([]);
+    }
+    query = query.or(
+      `project_id.in.(${allowedProjectIds.join(",")}),artist_project_id.in.(${allowedProjectIds.join(",")})`
+    );
   }
   if (temperature) query = query.eq("temperature", temperature);
   if (source) query = query.eq("source", source);
@@ -147,7 +158,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { supabase, user, orgId, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, user, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   let body;
@@ -165,7 +176,7 @@ export async function POST(request: NextRequest) {
   const { name, email, phone, companyId, source, temperature, score, notes, projectId, artistProjectId } =
     parsedBody.data;
 
-  if (!isAdmin && allowedProjectIds && !allowedProjectIds.includes(String(projectId))) {
+  if (!allowedProjectIds.includes(String(projectId))) {
     return errorResponse("No tienes acceso al proyecto seleccionado", 403);
   }
 

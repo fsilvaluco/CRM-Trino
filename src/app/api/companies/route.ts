@@ -21,7 +21,7 @@ function mapCompany(row: any) {
 }
 
 export async function GET(request: NextRequest) {
-  const { supabase, orgId, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
@@ -39,8 +39,7 @@ export async function GET(request: NextRequest) {
     if (!proj) {
       return NextResponse.json({ error: "Proyecto no encontrado" }, { status: 404 });
     }
-    // Members can only query projects they belong to
-    if (!isAdmin && allowedProjectIds && !allowedProjectIds.includes(projectIdParam)) {
+    if (!allowedProjectIds.includes(projectIdParam)) {
       return NextResponse.json({ error: "Sin acceso al proyecto" }, { status: 403 });
     }
   }
@@ -62,6 +61,16 @@ export async function GET(request: NextRequest) {
 
     query = query.or(
       `project_id.in.(${visibleIds.join(",")}),artist_project_id.in.(${visibleIds.join(",")})`
+    );
+  } else {
+    // Sin projectId (listado general de empresas): mismo hueco que en
+    // Eventos/Deals/Contactos (23 ago 2026). allowedProjectIds ya incluye
+    // los hijos de cualquier proyecto madre asignado.
+    if (allowedProjectIds.length === 0) {
+      return NextResponse.json([]);
+    }
+    query = query.or(
+      `project_id.in.(${allowedProjectIds.join(",")}),artist_project_id.in.(${allowedProjectIds.join(",")})`
     );
   }
   if (search) query = query.ilike("name", `%${search}%`);

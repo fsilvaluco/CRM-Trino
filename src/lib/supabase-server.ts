@@ -46,8 +46,11 @@ export type UserRole = "owner" | "admin" | "member";
  *   pero YA NO implica acceso a los datos de un proyecto puntual (corregido
  *   23 ago 2026 -- ver project-roles.ts, "Fase 2").
  * - allowedProjectIds: proyectos en los que el usuario tiene fila explícita
- *   en `project_members` -- se calcula siempre, para TODOS los roles de
- *   organización por igual (antes solo se calculaba para "member", y
+ *   en `project_members`, MÁS los proyectos hijos de cualquier proyecto
+ *   madre/sello asignado (`projects.parent_project_id`, ej. Trino sobre
+ *   Deni Li/Gamuza/Los Últimos Románticos/Simplemente Yo -- ver
+ *   project-roles.ts, "Fase 3"). Se calcula siempre, para TODOS los roles
+ *   de organización por igual (antes solo se calculaba para "member", y
  *   admin/owner veían todo sin chequeo -- ese era el hueco).
  */
 export async function requireAuth() {
@@ -151,7 +154,22 @@ export async function requireAuth() {
     .eq("user_id", user.id)
     .eq("organization_id", orgId);
 
-  const allowedProjectIds: string[] = (memberships ?? []).map((m) => m.project_id);
+  const directProjectIds = (memberships ?? []).map((m) => m.project_id);
+
+  // Proyecto madre/sello (23 ago 2026): si el usuario tiene fila directa en
+  // un proyecto que es madre de otros (ej. Trino sobre Deni Li/Gamuza/Los
+  // Últimos Románticos/Simplemente Yo), también se le agregan esos hijos --
+  // mismo criterio que ya usaban las listas de Deals/Eventos/Contactos.
+  let childProjectIds: string[] = [];
+  if (directProjectIds.length > 0) {
+    const { data: children } = await admin
+      .from("projects")
+      .select("id")
+      .in("parent_project_id", directProjectIds);
+    childProjectIds = (children ?? []).map((c) => c.id);
+  }
+
+  const allowedProjectIds: string[] = Array.from(new Set([...directProjectIds, ...childProjectIds]));
 
   return { supabase, user, orgId: orgId as string, role, isAdmin, allowedProjectIds, error: null };
 }

@@ -33,6 +33,18 @@
 //
 // Deliberadamente NO cubre todavía Finanzas general ni Métricas -- eso
 // queda para una fase 2 si Francisco lo pide.
+//
+// Fase 3 (23 ago 2026, mismo día -- concepto de "proyecto madre"/sello):
+// un proyecto puede tener `parent_project_id` (ej. Trino es la madre de
+// Deni Li, Gamuza, Los Últimos Románticos y Simplemente Yo). Esto ya se
+// usaba para AGRUPAR listas (Deals/Eventos/Contactos/Empresas muestran
+// también lo de los hijos cuando el proyecto activo es la madre), pero no
+// estaba integrado al control de acceso -- alguien con project_members
+// solo en la madre no podía abrir el detalle de un evento puntual de un
+// hijo. `getProjectRole` ahora sube un nivel a la madre si no encuentra
+// fila directa en el hijo -- el rol en la madre aplica igual en los hijos
+// (mismo criterio que ya usaban las listas: acceso completo, no solo
+// visibilidad).
 
 export type ProjectRole = "admin" | "member" | "artist" | "staff";
 
@@ -57,8 +69,10 @@ function normalizeRole(role: string | null | undefined): ProjectRole | null {
 
 /**
  * Trae el rol del usuario en un proyecto específico. `null` si no es
- * project_member de ese proyecto -- en ese caso NO tiene acceso a nada de
- * ese proyecto, sin excepción (ver nota de Fase 2 arriba).
+ * project_member de ese proyecto NI de su proyecto madre (si tiene) -- en
+ * ese caso NO tiene acceso a nada de ese proyecto, sin excepción (ver nota
+ * de Fase 2 arriba). Si tiene rol en la madre pero no fila directa en el
+ * hijo, se usa el rol de la madre (ver nota de Fase 3 arriba).
  */
 export async function getProjectRole(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -73,7 +87,23 @@ export async function getProjectRole(
     .eq("project_id", projectId)
     .eq("user_id", userId)
     .maybeSingle();
-  return normalizeRole(data?.role);
+  const directRole = normalizeRole(data?.role);
+  if (directRole) return directRole;
+
+  const { data: project } = await supabase
+    .from("projects")
+    .select("parent_project_id")
+    .eq("id", projectId)
+    .maybeSingle();
+  if (!project?.parent_project_id) return null;
+
+  const { data: parentMembership } = await supabase
+    .from("project_members")
+    .select("role")
+    .eq("project_id", project.parent_project_id)
+    .eq("user_id", userId)
+    .maybeSingle();
+  return normalizeRole(parentMembership?.role);
 }
 
 /** Deals: "staff" no ve el módulo; todos los demás sí (necesita ser project_member). */

@@ -89,6 +89,18 @@ export async function GET(request: NextRequest) {
     query = query.or(
       `project_id.in.(${visibleIds.join(",")}),artist_project_id.in.(${visibleIds.join(",")})`
     );
+  } else {
+    // Sin projectId (listado general, ej. Pipeline sin filtro): antes esto
+    // devolvía deals de TODA la organización sin restringir por proyecto --
+    // mismo hueco que en Eventos (23 ago 2026). allowedProjectIds ya
+    // incluye los hijos de cualquier proyecto madre asignado (ver
+    // requireAuth()).
+    if (allowedProjectIds.length === 0) {
+      return NextResponse.json([]);
+    }
+    query = query.or(
+      `project_id.in.(${allowedProjectIds.join(",")}),artist_project_id.in.(${allowedProjectIds.join(",")})`
+    );
   }
 
   const { data, error: dbError } = await query;

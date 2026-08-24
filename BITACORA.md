@@ -572,6 +572,52 @@ que aparecen en `deals/route.ts`, `deals/[id]/route.ts` y `pipeline/route.ts` so
 funciones de mapeo no tocadas, confirmado con `git diff` línea por línea), `npm run build` completo sin
 errores. **No probado en el navegador** -- mismo motivo que arriba (requiere múltiples cuentas).
 
+### 🌳 Segunda corrección, mismo día: faltaba el concepto de "proyecto madre" (sello)
+
+Francisco hizo notar que el control de acceso nuevo no tenía en cuenta algo que YA EXISTÍA en el
+esquema: `projects.parent_project_id` -- Trino es la "madre" de Deni Li, Gamuza, Los Últimos Románticos
+y Simplemente Yo (Katarsis, La Sagrada, Prueba 2 y SiSoy son independientes, sin madre). Este concepto
+ya se usaba para AGRUPAR listas -- `deals`/`eventos`/`contacts`/`companies` ya mostraban también lo de
+los hijos cuando el proyecto activo era la madre (`.eq("parent_project_id", projectId)` + `.or(...)`) --
+pero el fix de aislamiento de hoy (`getProjectRole`, `allowedProjectIds`) no lo integraba: alguien con
+`project_members` solo en Trino podía ver la LISTA agregada de Gamuza, pero no podía abrir el DETALLE de
+un evento puntual de Gamuza (el chequeo por id no sabía de la herencia).
+
+**Corregido en la fuente, no endpoint por endpoint:**
+- `getProjectRole()` (`project-roles.ts`): si no encuentra fila directa del usuario en el proyecto
+  pedido, ahora sube un nivel a `parent_project_id` (si tiene) y usa el rol que el usuario tenga ahí --
+  mismo criterio de acceso completo que ya usaban las listas, no solo visibilidad.
+- `allowedProjectIds` (`requireAuth()`): además de los proyectos con fila directa, ahora también incluye
+  los proyectos HIJOS de cualquier proyecto madre asignado (una consulta extra: `projects` donde
+  `parent_project_id IN (proyectos directos)`).
+- Como estos dos son la base de todo lo demás, el resto de los endpoints (eventos, deals, pipeline,
+  costos) heredan la herencia automáticamente sin tocarlos de nuevo.
+
+**Efecto colateral importante, corrige lo que se advirtió antes**: como Joaquín, Diego y el propio
+Francisco (`francisco@somostrino.cl`) YA tienen fila `admin` directa en **Trino**, ahora heredan acceso
+automático a Deni Li, Gamuza, Los Últimos Románticos y Simplemente Yo **sin necesitar agregarse a mano**
+a cada uno -- la advertencia de la sección anterior ("vas a perder acceso a Gamuza/LUR/etc.") queda
+mayormente sin efecto para esos 4 proyectos. Lo único que Francisco sigue sin poder ver, a menos que se
+agregue manualmente, es Katarsis, La Sagrada y SiSoy (no son hijos de Trino, y no tiene fila directa ahí).
+
+**De paso, siguiendo con los pendientes de la sección anterior** (ya con el concepto de proyecto madre
+incorporado):
+- `/api/deals` y `/api/pipeline` (GET sin `projectId`): ahora sí restringen por `allowedProjectIds`
+  (que ya incluye los hijos heredados) en vez de devolver todo sin filtro.
+- `/api/contacts` y `/api/companies`: mismo fix -- tenían el mismo bypass `!isAdmin &&` en el chequeo de
+  `projectId` puntual, y el mismo hueco de listar todo sin filtrar cuando no se pasa `projectId`.
+  Corregidos ambos.
+- `POST /api/companies` sigue sin chequear acceso a proyecto en absoluto (cualquiera de la organización
+  puede crear una empresa etiquetada a cualquier proyecto) -- queda pendiente, es un problema menor
+  (no expone datos ajenos, solo permite etiquetar mal una empresa nueva).
+- `contacts/[id]`, `companies/[id]`, `venues/[id]` (aislamiento por id, como se hizo para eventos) sigue
+  pendiente.
+
+**Verificado**: `tsc --noEmit` y `eslint` limpios (mismos 2 `no-explicit-any` preexistentes sin tocar),
+`npm run build` completo sin errores. Verificado el árbol de proyecto madre directo en la base
+(`Deni Li`/`Gamuza`/`Los Últimos Románticos`/`Simplemente Yo` → `parent_project_id` = Trino;
+`Katarsis`/`La Sagrada`/`Prueba 2`/`SiSoy` → sin madre). **No probado en el navegador**.
+
 ---
 
 ## 🔴 Crítico (arreglar primero)
