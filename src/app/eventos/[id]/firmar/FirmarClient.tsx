@@ -12,6 +12,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import type { CostItem, TicketTier } from "@/types/shows";
 import { useAuth } from "@/lib/auth-context";
+import { SignedFileLink } from "@/components/finances/SignedFileLink";
 
 const CLP = new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
 
@@ -278,30 +279,26 @@ export default function FirmarClient() {
                             <td className="py-1.5 text-right font-medium whitespace-nowrap">{formatCents(c.amount)}</td>
                             <td className="py-1.5 text-center">
                               {c.comprobanteUrl ? (
-                                <a
-                                  href={c.comprobanteUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
+                                <SignedFileLink
+                                  path={c.comprobanteUrl}
                                   className="inline-flex items-center justify-center h-7 w-7 rounded-md border text-muted-foreground hover:text-foreground hover:bg-muted"
                                   title="Ver comprobante de cobro (boleta/factura)"
                                 >
                                   <Receipt className="h-3.5 w-3.5" />
-                                </a>
+                                </SignedFileLink>
                               ) : (
                                 <span className="text-muted-foreground">—</span>
                               )}
                             </td>
                             <td className="py-1.5 text-center">
                               {c.comprobantePagoUrl ? (
-                                <a
-                                  href={c.comprobantePagoUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
+                                <SignedFileLink
+                                  path={c.comprobantePagoUrl}
                                   className="inline-flex items-center justify-center h-7 w-7 rounded-md border text-muted-foreground hover:text-foreground hover:bg-muted"
                                   title="Ver comprobante de pago (transferencia)"
                                 >
                                   <Banknote className="h-3.5 w-3.5" />
-                                </a>
+                                </SignedFileLink>
                               ) : (
                                 <span className="text-muted-foreground">—</span>
                               )}
@@ -331,14 +328,12 @@ export default function FirmarClient() {
                     </p>
                   )}
                   {event?.profitSplitTransferProofUrl ? (
-                    <a
-                      href={event.profitSplitTransferProofUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <SignedFileLink
+                      path={event.profitSplitTransferProofUrl}
                       className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline inline-flex items-center gap-1"
                     >
                       <CheckCircle2 className="h-3 w-3" /> Ya se transfirió -- ver comprobante
-                    </a>
+                    </SignedFileLink>
                   ) : (
                     <p className="text-xs text-muted-foreground">
                       Todavía no se ha subido el comprobante de la transferencia.

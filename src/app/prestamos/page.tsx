@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useProject } from "@/lib/project-context";
 import { supabase } from "@/lib/supabase";
+import { SignedFileLink } from "@/components/finances/SignedFileLink";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -451,9 +452,9 @@ function LoanCard({ loan, onChanged, onEdit }: { loan: Loan; onChanged: () => vo
                 <span>{formatCents(r.amount)} {r.repaymentDate && `· ${format(new Date(`${r.repaymentDate}T00:00:00`), "d MMM yyyy", { locale: es })}`}</span>
                 <div className="flex items-center gap-1.5 shrink-0">
                   {r.comprobanteUrl && (
-                    <a href={r.comprobanteUrl} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground">
+                    <SignedFileLink path={r.comprobanteUrl} className="text-muted-foreground hover:text-foreground">
                       <ExternalLink className="h-3 w-3" />
-                    </a>
+                    </SignedFileLink>
                   )}
                   <button onClick={() => deleteRepayment(r.id)} className="text-muted-foreground hover:text-destructive cursor-pointer">
                     <Trash2 className="h-3 w-3" />
@@ -601,9 +602,9 @@ export default function LoansPage() {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {c.comprobanteUrl && (
-                        <a href={c.comprobanteUrl} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground">
+                        <SignedFileLink path={c.comprobanteUrl} className="text-muted-foreground hover:text-foreground">
                           <ExternalLink className="h-3.5 w-3.5" />
-                        </a>
+                        </SignedFileLink>
                       )}
                       <button onClick={() => deleteContribution(c.id)} className="text-muted-foreground hover:text-destructive cursor-pointer">
                         <Trash2 className="h-3.5 w-3.5" />

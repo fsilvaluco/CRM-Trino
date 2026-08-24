@@ -18,6 +18,7 @@ import { MoneyInput } from "@/components/shared/MoneyInput";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { COST_CATEGORIES } from "@/lib/cost-categories";
 import { BencinaCalculator } from "@/components/events/BencinaCalculator";
+import { SignedFileLink } from "@/components/finances/SignedFileLink";
 
 const CLP = new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
 
@@ -455,10 +456,10 @@ export default function ReportarGastoPage() {
                   Podés subir hasta {MAX_FILES} fotos juntas (ej. varias boletas del mismo pago) -- se combinan en un solo PDF y se suma el monto de cada una.
                 </p>
                 {comprobanteUrl && (
-                  <a href={comprobanteUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline inline-flex items-center gap-1">
+                  <SignedFileLink path={comprobanteUrl} className="text-xs text-primary hover:underline inline-flex items-center gap-1">
                     <Receipt className="h-3 w-3" />
                     {comprobanteCount > 1 ? `Ver PDF combinado (${comprobanteCount} comprobantes)` : "Ver comprobante subido"}
-                  </a>
+                  </SignedFileLink>
                 )}
                 {extracting && (
                   <p className="text-xs text-muted-foreground flex items-center gap-1">

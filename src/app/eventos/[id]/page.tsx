@@ -32,6 +32,7 @@ import { EventPrintHeader } from "@/components/events/EventPrintHeader";
 import { EventPrintFooter } from "@/components/events/EventPrintFooter";
 import { compressImage } from "@/lib/image-compress";
 import { supabase } from "@/lib/supabase";
+import { SignedFileLink } from "@/components/finances/SignedFileLink";
 
 const STATUS_CONFIG: Record<ShowStatus, { label: string; className: string }> = {
   cotizando: { label: "Cotizando", className: "bg-yellow-100 text-yellow-700" },
@@ -927,11 +928,6 @@ export default function EventDetailPage() {
     } finally {
       setInformingClosing(false);
     }
-  }
-
-  function getClosingAttachmentUrl(filePath: string): string {
-    const { data } = supabase.storage.from("finances").getPublicUrl(filePath);
-    return data.publicUrl;
   }
 
   async function handleClosingAttachmentUpload(file: File) {
@@ -2025,14 +2021,12 @@ export default function EventDetailPage() {
           {event.costSheetClosingFilePath && (
             <div className="flex items-center gap-2 rounded-md bg-muted/50 px-2.5 py-1.5 no-print">
               <Paperclip className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              <a
-                href={getClosingAttachmentUrl(event.costSheetClosingFilePath)}
-                target="_blank"
-                rel="noopener noreferrer"
+              <SignedFileLink
+                path={event.costSheetClosingFilePath}
                 className="text-xs text-primary hover:underline truncate"
               >
                 {event.costSheetClosingFileName ?? "Documento adjunto"}
-              </a>
+              </SignedFileLink>
               <button
                 onClick={handleRemoveClosingAttachment}
                 className="text-muted-foreground hover:text-destructive cursor-pointer ml-auto shrink-0"
@@ -2066,9 +2060,9 @@ export default function EventDetailPage() {
                       </p>
                       {s.notes && <p className="text-slate-500 italic">{s.notes}</p>}
                       {s.comprobanteUrl && (
-                        <a href={s.comprobanteUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-700 hover:underline inline-flex items-center gap-1 mt-0.5">
+                        <SignedFileLink path={s.comprobanteUrl} className="text-emerald-700 hover:underline inline-flex items-center gap-1 mt-0.5">
                           <Receipt className="h-3 w-3" /> Ver comprobante
-                        </a>
+                        </SignedFileLink>
                       )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
@@ -2263,9 +2257,9 @@ export default function EventDetailPage() {
                           <Paperclip className="h-3.5 w-3.5" />
                         </label>
                         {item.comprobanteUrl && (
-                          <a href={item.comprobanteUrl} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground">
+                          <SignedFileLink path={item.comprobanteUrl} className="text-muted-foreground hover:text-foreground">
                             <Receipt className="h-3.5 w-3.5" />
-                          </a>
+                          </SignedFileLink>
                         )}
                       </div>
                       <label className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0 cursor-pointer no-print">
@@ -2344,9 +2338,9 @@ export default function EventDetailPage() {
                         {item.comprobantePagoUrl ? "Cambiar comprobante de pago" : "Adjuntar comprobante de pago"}
                       </label>
                       {item.comprobantePagoUrl && (
-                        <a href={item.comprobantePagoUrl} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground" title="Ver comprobante de pago">
+                        <SignedFileLink path={item.comprobantePagoUrl} className="text-muted-foreground hover:text-foreground" title="Ver comprobante de pago">
                           <Banknote className="h-3.5 w-3.5" />
-                        </a>
+                        </SignedFileLink>
                       )}
                     </div>
                   </div>
@@ -2552,9 +2546,9 @@ export default function EventDetailPage() {
                 {profitSplitTransferProofUrl ? "Cambiar comprobante" : "Subir comprobante de transferencia"}
               </Button>
               {profitSplitTransferProofUrl && (
-                <a href={profitSplitTransferProofUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline inline-flex items-center gap-1">
+                <SignedFileLink path={profitSplitTransferProofUrl} className="text-xs text-primary hover:underline inline-flex items-center gap-1">
                   <Receipt className="h-3.5 w-3.5" /> Ver comprobante
-                </a>
+                </SignedFileLink>
               )}
             </div>
             {profitSplitTransferredAt && (

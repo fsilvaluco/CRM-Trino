@@ -304,6 +304,49 @@ secreto en el webhook de leads entrantes y en los endpoints de cron; errores de 
 cual al cliente en algunos endpoints; Docker corriendo como root sin healthcheck; Actions de GitHub
 referenciadas por tag en vez de SHA; sin Dependabot configurado.
 
+**Dos preguntas de Francisco fuera del reporte de `/cyber-neo`, investigadas y corregidas el mismo día:**
+
+1. **"¿El repo de GitHub público es un problema?"** -- Sí. Confirmado con la API de GitHub:
+   `fsilvaluco/CRM-Trino` es público. Se revisó todo el historial de git: nunca se commiteó `.env.local`
+   ni ningún archivo de credenciales reales (solo `.env.example` con placeholders), así que no hay
+   secretos de producción expuestos. Pero sí queda expuesto todo el código fuente (facilita encontrar
+   agujeros como el de `/api/debug`) y `BITACORA.md` (nombres reales de colaboradores, montos de
+   préstamos -- sin RUTs/cuentas/emails reales, esos solo están en la base de datos). También el archivo
+   `data/crm.db-shm` (sacado del tracking en CN-007) sigue siendo recuperable del historial en los
+   commits `2dce401`/`2f49d26` mientras el repo sea público -- revisado, no tiene texto legible con datos
+   de contactos. **Decisión: Francisco pasa el repo a privado él mismo** desde GitHub (Settings > Danger
+   Zone), fuera del alcance de Claude Code.
+
+2. **"¿El bucket de Supabase donde se suben los costos es público, es un problema?"** -- Sí, y este era
+   más serio. Verificado directo en la base: el bucket `finances` tenía `public: true` **más** una policy
+   RLS explícita `"Public read finances"` que daba `SELECT` al rol `public` (sin login) sobre cualquier
+   archivo del bucket -- ahí se guardan los comprobantes de gastos y de pago de costos de eventos. Las
+   rutas usan UUIDs (no adivinables por fuerza bruta), pero cualquiera con la URL exacta (reenviada por
+   WhatsApp, cacheada en un navegador, indexada por algún proxy) podía verla para siempre, sin login y
+   sin forma de revocar el acceso salvo borrando el archivo.
+   - **Causa raíz encontrada**: el módulo `/finances` (transacciones generales) ya generaba URLs firmadas
+     (`createSignedUrl`, 1 hora, requieren login) desde `/api/finances/route.ts` -- pero el flujo de
+     **costos de eventos** (`eventos/[id]/page.tsx`, `gastos/page.tsx`, `prestamos/page.tsx`,
+     `TransactionForm.tsx`, y la **página pública de firma** `firmar/FirmarClient.tsx`) seguía usando
+     `getPublicUrl()` directo, que solo funciona si el bucket es público. Por eso nunca se había migrado.
+   - **Corregido**: nuevo helper compartido `src/lib/finance-files.ts` (`getFinanceSignedUrl` /
+     `extractFinancePath` -- este último sirve tanto para paths guardados como para URLs públicas viejas
+     ya persistidas en la base, sin necesitar migrar datos) y componente `src/components/finances/SignedFileLink.tsx`
+     (genera la URL firmada al vuelo, con spinner mientras carga e ícono de error si falla). Se
+     reemplazaron los ~8 puntos que renderizaban un link directo a la URL pública en los 6 archivos
+     mencionados arriba.
+   - **En Supabase**: `finances` pasó a `public: false`; se sacó la policy `"Public read finances"` y se
+     agregó `"Authenticated read finances"` (SELECT solo para `role: authenticated`) -- cualquier usuario
+     logueado de la organización sigue pudiendo ver los comprobantes (mismo comportamiento de antes en la
+     práctica), pero ya no un visitante anónimo con la URL.
+   - **Verificado**: `tsc --noEmit` limpio, `eslint` limpio en los archivos tocados (los 2 warnings/1
+     error que aparecen en `finances/page.tsx`/`TransactionForm.tsx` ya existían antes de este cambio,
+     confirmado con `git stash`), `npm run build` completo sin errores, y confirmado por SQL que el
+     bucket quedó privado y la policy nueva activa. **No se pudo probar el flujo completo en el
+     navegador** (requiere login, y no corresponde que Claude Code tenga o pida credenciales) -- pendiente
+     que alguien confirme manualmente que un comprobante de costos sigue abriendo bien tras el próximo
+     deploy.
+
 ---
 
 ## 🏷️ Rename interno: Auto-CRM → Artist Pro (23 ago 2026)

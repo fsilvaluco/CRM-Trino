@@ -27,6 +27,7 @@ import { Upload, Loader2, File, X, ExternalLink } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth-context";
 import { useProject } from "@/lib/project-context";
+import { SignedFileLink } from "@/components/finances/SignedFileLink";
 
 const EXPENSE_CATEGORIES = [
   "Transporte", "Alimentación", "Equipamiento", "Producción",
@@ -38,12 +39,6 @@ const EXPENSE_CATEGORIES = [
   "Otro",
 ];
 const INCOME_CATEGORIES = ["Venta", "Patrocinio", "Subsidio", "Transferencia", "Préstamo", "Otro"];
-
-// Helper para obtener URL pública del archivo (bucket debe ser público)
-const getFilePublicUrl = (filePath: string): string => {
-  const { data } = supabase.storage.from("finances").getPublicUrl(filePath);
-  return data.publicUrl;
-};
 
 const schema = z.object({
   type: z.enum(["income", "expense"]),
@@ -377,16 +372,14 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
           {isEditMode && initialData.filePath && (
             <div className="space-y-1.5">
               <Label>Comprobante adjunto</Label>
-              <a
-                href={getFilePublicUrl(initialData.filePath)}
-                target="_blank"
-                rel="noopener noreferrer"
+              <SignedFileLink
+                path={initialData.filePath}
                 className="flex items-center gap-2 p-2.5 rounded-lg border bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
               >
                 <File className="h-4 w-4 text-muted-foreground shrink-0" />
                 <span className="text-sm flex-1 truncate">{initialData.fileName || "Ver comprobante"}</span>
                 <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              </a>
+              </SignedFileLink>
             </div>
           )}
 

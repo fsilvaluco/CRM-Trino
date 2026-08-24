@@ -12,7 +12,6 @@ import { TransactionForm } from "@/components/finances/TransactionForm";
 import { AttachReceiptDialog } from "@/components/finances/AttachReceiptDialog";
 import { useProject } from "@/lib/project-context";
 import { useAuth } from "@/lib/auth-context";
-import { supabase } from "@/lib/supabase";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -38,12 +37,6 @@ interface Transaction {
 
 function formatCLP(amount: number) {
   return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(amount);
-}
-
-// Helper para obtener URL pública del archivo (bucket debe ser público)
-function getFilePublicUrl(filePath: string): string {
-  const { data } = supabase.storage.from("finances").getPublicUrl(filePath);
-  return data.publicUrl;
 }
 
 function TransactionList({
@@ -125,8 +118,8 @@ function TransactionList({
 
             {/* Acciones */}
             <div className="flex items-center gap-1 shrink-0">
-              {t.filePath && (
-                <a href={getFilePublicUrl(t.filePath)} target="_blank" rel="noopener noreferrer" title="Ver comprobante">
+              {t.filePath && t.fileUrl && (
+                <a href={t.fileUrl} target="_blank" rel="noopener noreferrer" title="Ver comprobante">
                   <Button variant="ghost" size="icon" className="h-7 w-7">
                     <ExternalLink className="h-3.5 w-3.5" />
                   </Button>
