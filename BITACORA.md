@@ -618,6 +618,35 @@ incorporado):
 (`Deni Li`/`Gamuza`/`Los Últimos Románticos`/`Simplemente Yo` → `parent_project_id` = Trino;
 `Katarsis`/`La Sagrada`/`Prueba 2`/`SiSoy` → sin madre). **No probado en el navegador**.
 
+### 📋 Documento nuevo: `ROLES.md` -- auditoría completa del sistema de roles
+
+Francisco pidió un documento aparte (no solo la bitácora) que explique de punta a punta cómo funciona
+hoy el sistema de roles y permisos -- pensado como referencia de trabajo para cuando se aborde en serio
+(incluyendo una futura intranet de trabajadores de la app, no del proyecto). Se creó
+**[`ROLES.md`](ROLES.md)** en la raíz del repo, con:
+
+- Los 3 niveles de rol (organización, proyecto, proyecto madre) y cómo se relacionan.
+- Tabla del estado actual real de la organización Trino (quién tiene qué rol, dónde) -- confirmada
+  directo en la base, no de memoria.
+- El flujo completo de cómo se calcula el acceso en el código, paso a paso (`requireAuth` →
+  `allowedProjectIds` → `getProjectRole` → funciones `can*`).
+- **Un hallazgo nuevo, importante, que no había salido en las sesiones anteriores**: todas las
+  correcciones de aislamiento entre proyectos de hoy se hicieron a nivel de **aplicación** (Next.js) --
+  el RLS de Supabase (la última línea de defensa si alguien accediera a la base directo, sin pasar por
+  la API) **no se actualizó en la misma sesión** y hoy está desalineado: las tablas de Eventos (`shows`
+  y sus 7 tablas relacionadas) no tienen NINGÚN scoping por proyecto en RLS -- solo por organización.
+  Contactos/Empresas/Deals/Transacciones sí tienen scoping por proyecto en RLS, pero con el mismo bypass
+  de "admin de organización" que se sacó de la aplicación hoy (sigue vivo en la función SQL
+  `is_org_admin()`). Documentado como la brecha más urgente a cerrar.
+- Otros hallazgos: `/api/org-members` y `/api/project-members` (gestión de accesos en sí) no verifican
+  que quien invita/asigna tenga acceso al proyecto correspondiente; el dropdown de invitar mezcla rol de
+  organización con rol de proyecto; dos cuentas distintas de Francisco con accesos muy distintos entre
+  sí; texto desactualizado en "Gestionar Acceso" que dice que el owner tiene bypass total (ya no es así).
+- Sección final de recomendaciones para cuando se retome este tema.
+
+**Versión de la app subida a 2.54** (convención: subir el número después del punto en cada sesión de
+trabajo que actualiza la bitácora -- `src/lib/constants.ts`).
+
 ---
 
 ## 🔴 Crítico (arreglar primero)
