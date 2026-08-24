@@ -456,6 +456,71 @@ existía (fee + entradas − gastos).
 
 ---
 
+## 🔒 Aislamiento entre proyectos (23 ago 2026)
+
+Francisco encontró un bug real de seguridad: con "Los Últimos Románticos" seleccionado en el selector de
+proyecto (arriba a la izquierda), seguía pudiendo ver -- y editar -- un evento de "Gamuza", otro proyecto
+de la misma organización. Investigado a fondo, encontramos **dos problemas independientes**:
+
+1. **Hueco de RLS en Supabase**: la policy `"public read shows for rating"` en la tabla `shows` daba
+   `SELECT` sin ninguna restricción (`qual: true`) al rol `public` -- que en Postgres incluye tanto a
+   usuarios sin login como a cualquier usuario logueado de **cualquier organización**. Pensada para la
+   página pública `/rate/[showId]` (calificar un show sin login), pero como no filtraba columnas,
+   cualquiera con un ID de evento podía leer fee/ingreso por entradas/gastos/todo, de cualquier
+   organización. Revisamos las otras 2 páginas públicas que tocan `shows` (`/e/[id]`, `/eventos/[id]/firmar`)
+   -- ambas usan el cliente admin server-side (bypasea RLS, no dependían de esta policy). Corregido:
+   se sacó la policy amplia, se reemplazó por una policy + grant a nivel de columna que solo le da al rol
+   `anon` acceso a `id, venue, city, date` (lo único que `/rate/[showId]` necesita) -- los usuarios
+   logueados ya no se benefician de ningún atajo, dependen solo de las policies scopeadas por
+   organización que ya existían.
+
+2. **El aislamiento por proyecto nunca se aplicaba a los admins de organización, y las restricciones para
+   "member" tenían un default inseguro.** `project-roles.ts` fue diseñado con la regla "admin de
+   organización = acceso total, siempre" (por diseño, sin mirar el proyecto activo) -- y el endpoint del
+   evento (`/api/eventos/[id]`) nunca chequeaba que el evento perteneciera al proyecto/organización antes
+   de mostrarlo, solo decidía si mostrar los montos ($) según un rol que, si no había fila explícita en
+   `project_members`, por diseño "no restringía" (`role === null → true` en todos los `can*`). Esto
+   afectaba también a los "member" reales del sistema (Simplemente Yo, Ignacio Pizarro, Denis Lizama,
+   Gonzalo): aunque **sí tenían fila en `project_members` para su propio proyecto** (verificado en la
+   base -- no estaba vacía como pensé en un primer chequeo con una query mal armada), ese mismo default
+   "null = permitir" los dejaba ver también cualquier OTRO proyecto para el que no tuvieran fila.
+
+   **Decisiones tomadas con Francisco:**
+   - Los admins de organización (Francisco, Joaquín, Diego) también quedan restringidos al proyecto que
+     tengan seleccionado en el selector -- ya no es solo un filtro visual, es una restricción real.
+     "Todos los proyectos" (sin selección) sigue sin restringir, para vistas globales de admin.
+   - Los "member" quedan restringidos a solo su(s) proyecto(s) asignado(s) en `project_members`.
+     Confirmado el mapeo real con Francisco: `simplementeyomusica@gmail.com` → Los Últimos Románticos +
+     Simplemente Yo, `ignaciopizarro2h@gmail.com` → Los Últimos Románticos, `denis.lizama.bobadilla@gmail.com`
+     → Deni Li, `gonzaloanaism@gmail.com` → Gamuza -- **los 4 ya estaban correctamente cargados** en
+     `project_members` (no hizo falta agregar nada ahí).
+
+   **Implementación** en `/api/eventos/[id]/route.ts` (GET y PUT):
+   - Si el usuario NO es admin de organización, se exige que el `project_id` del evento esté en
+     `allowedProjectIds` (ya lo calculaba `requireAuth()`, solo no se usaba en este endpoint) --
+     aplica siempre, sin importar qué proyecto tenga seleccionado.
+   - El cliente ahora manda `?projectId=` con el proyecto activo del selector (`eventos/[id]/page.tsx`,
+     tanto al cargar el evento como en las 6 llamadas PUT directas a ese endpoint) -- si el evento
+     pertenece a un proyecto distinto, la API devuelve 403 con `wrongProject: true`, y la página muestra
+     "Este evento pertenece a otro proyecto -- cambia el selector arriba para verlo" en vez del genérico
+     "Evento no encontrado". Si no hay proyecto activo (modo "Todos los proyectos"), no se manda el
+     parámetro y no se restringe -- ese modo sigue siendo solo para admins.
+   - El chequeo se aplica tanto en GET (bloquea ver la página) como en PUT (bloquea editar llamando
+     directo a la API, no solo por UI).
+
+   **Pendiente, fuera del alcance de hoy**: este mismo patrón (aislamiento por proyecto activo) casi
+   seguro falta en otros endpoints de detalle por ID -- `deals/[id]`, `contacts/[id]`, `companies/[id]`,
+   `venues/[id]`, etc. -- no se tocaron todavía porque el reporte de Francisco fue específicamente sobre
+   Eventos. Revisar y aplicar el mismo fix ahí es la continuación natural de esto.
+
+   **Verificado**: `tsc --noEmit` y `eslint` limpios, `npm run build` completo sin errores, policy y
+   grant de RLS aplicados en Supabase (confirmado por SQL), mapeo de `project_members` confirmado
+   directo en la base. **No se probó en el navegador** (requiere login con al menos 2 cuentas distintas
+   para reproducir el escenario cruzado) -- pendiente que Francisco confirme que, con un proyecto
+   seleccionado, ya no puede abrir un evento de otro proyecto (ni él ni el resto del equipo).
+
+---
+
 ## 🔴 Crítico (arreglar primero)
 
 _Ningún bug crítico conocido sin resolver._

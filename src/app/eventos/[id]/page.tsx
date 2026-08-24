@@ -104,10 +104,11 @@ interface SignatureData {
 export default function EventDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { projects } = useProject();
+  const { projects, activeProject } = useProject();
 
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<{ message: string; wrongProject: boolean } | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [notifyingChange, setNotifyingChange] = useState(false);
 
@@ -203,8 +204,23 @@ export default function EventDetailPage() {
 
   const load = useCallback(() => {
     setLoading(true);
-    fetch(`/api/eventos/${id}`)
-      .then((r) => (r.ok ? r.json() : null))
+    setLoadError(null);
+    // Se informa qué proyecto está activo en el selector -- la API rechaza
+    // el evento si pertenece a otro proyecto (aislamiento entre proyectos,
+    // ver /api/eventos/[id]/route.ts). "Todos los proyectos" (activeProject
+    // null) no manda el parámetro, sin restricción -- ese modo es solo
+    // para admins.
+    const url = activeProject ? `/api/eventos/${id}?projectId=${activeProject.id}` : `/api/eventos/${id}`;
+    fetch(url)
+      .then(async (r) => {
+        if (r.ok) return r.json();
+        const body = await r.json().catch(() => ({}));
+        setLoadError({
+          message: body.error || "No se pudo cargar el evento",
+          wrongProject: Boolean(body.wrongProject),
+        });
+        return null;
+      })
       .then((data: EventDetail | null) => {
         if (!data) return;
         setEvent(data);
@@ -251,7 +267,7 @@ export default function EventDetailPage() {
       })
       .catch(() => setEvent(null))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, activeProject]);
 
   const loadCostSubmissions = useCallback(() => {
     fetch(`/api/eventos/${id}/cost-submissions`)
@@ -593,7 +609,7 @@ export default function EventDetailPage() {
   async function applyTicketsToIncome() {
     const { montoProyecto } = ticketBreakdown;
     try {
-      const res = await fetch(`/api/eventos/${id}`, {
+      const res = await fetch(`/api/eventos/${id}${activeProject ? `?projectId=${activeProject.id}` : ""}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -664,7 +680,7 @@ export default function EventDetailPage() {
     setSyncingTickets(true);
     try {
       // Guarda el link de una vez, para no tener que hacerlo aparte.
-      await fetch(`/api/eventos/${id}`, {
+      await fetch(`/api/eventos/${id}${activeProject ? `?projectId=${activeProject.id}` : ""}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ticketSalesUrl: trimmedUrl }),
@@ -733,7 +749,7 @@ export default function EventDetailPage() {
             })),
           }),
         }),
-        fetch(`/api/eventos/${id}`, {
+        fetch(`/api/eventos/${id}${activeProject ? `?projectId=${activeProject.id}` : ""}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -775,7 +791,7 @@ export default function EventDetailPage() {
   async function saveDetails() {
     setSavingDetails(true);
     try {
-      const res = await fetch(`/api/eventos/${id}`, {
+      const res = await fetch(`/api/eventos/${id}${activeProject ? `?projectId=${activeProject.id}` : ""}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventLink: eventLink || null, riderLocal: riderLocal || null, riderBanda: riderBanda || null, ticketSalesUrl: ticketSalesUrl || null }),
@@ -793,7 +809,7 @@ export default function EventDetailPage() {
   async function applyCostsToExpenses() {
     const total = costItems.reduce((sum, c) => sum + (c.amount || 0), 0);
     try {
-      const res = await fetch(`/api/eventos/${id}`, {
+      const res = await fetch(`/api/eventos/${id}${activeProject ? `?projectId=${activeProject.id}` : ""}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ expenses: total }),
@@ -829,7 +845,7 @@ export default function EventDetailPage() {
       }
       const { data } = supabase.storage.from("finances").getPublicUrl(storagePath);
       const transferredAt = new Date().toISOString();
-      const res = await fetch(`/api/eventos/${id}`, {
+      const res = await fetch(`/api/eventos/${id}${activeProject ? `?projectId=${activeProject.id}` : ""}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1017,8 +1033,12 @@ export default function EventDetailPage() {
 
   if (!event) {
     return (
-      <div className="text-center py-16">
-        <p className="text-muted-foreground">Evento no encontrado.</p>
+      <div className="text-center py-16 space-y-1.5">
+        <p className="text-muted-foreground">
+          {loadError?.wrongProject
+            ? "Este evento pertenece a otro proyecto -- cambia el selector arriba para verlo."
+            : loadError?.message || "Evento no encontrado."}
+        </p>
         <Link href="/eventos" className="text-sm text-primary hover:underline">Volver a Eventos</Link>
       </div>
     );

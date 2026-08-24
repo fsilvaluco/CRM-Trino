@@ -50,11 +50,11 @@ function mapLiveShow(row: any) {
 }
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, user, isAdmin, error } = await requireAuth();
+  const { supabase, user, isAdmin, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { data, error: dbError } = await supabase
@@ -65,6 +65,28 @@ export async function GET(
 
   if (dbError || !data) {
     return NextResponse.json({ error: "Evento no encontrado" }, { status: 404 });
+  }
+
+  // Aislamiento entre proyectos (23 ago 2026, hallazgo de Francisco --
+  // podía ver un evento de otro proyecto teniendo uno distinto
+  // seleccionado). Dos chequeos independientes:
+  // 1. Si es "member" de la organización (no admin/owner), solo puede
+  //    ver eventos de sus proyectos asignados (project_members) --
+  //    aplica siempre, sin importar qué proyecto tenga seleccionado.
+  // 2. Si el cliente informa qué proyecto tiene activo en el selector
+  //    (?projectId=), el evento tiene que pertenecer a ESE proyecto --
+  //    aplica también a admins (a pedido explícito de Francisco: el
+  //    selector debe ser una restricción real, no solo un filtro
+  //    visual). "Todos los proyectos" (sin projectId) no restringe.
+  if (!isAdmin && (!allowedProjectIds || !allowedProjectIds.includes(data.project_id))) {
+    return NextResponse.json({ error: "No tienes acceso a este proyecto" }, { status: 403 });
+  }
+  const activeProjectId = request.nextUrl.searchParams.get("projectId");
+  if (activeProjectId && data.project_id !== activeProjectId) {
+    return NextResponse.json(
+      { error: "Este evento pertenece a otro proyecto -- cambia el selector para verlo", wrongProject: true },
+      { status: 403 }
+    );
   }
 
   // "staff" no ve nada de plata de este evento (ni el resumen ni el
@@ -156,10 +178,26 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, user, isAdmin, error } = await requireAuth();
+  const { supabase, user, isAdmin, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { data: showForRole } = await supabase.from("shows").select("project_id").eq("id", id).single();
+
+  // Mismo aislamiento entre proyectos que en el GET -- ver comentario ahí.
+  // Se valida ANTES de aplicar cualquier cambio, no solo al cargar la
+  // página, para que tampoco se pueda editar un evento de otro proyecto
+  // llamando directo a la API.
+  if (!isAdmin && (!allowedProjectIds || !allowedProjectIds.includes(showForRole?.project_id ?? ""))) {
+    return NextResponse.json({ error: "No tienes acceso a este proyecto" }, { status: 403 });
+  }
+  const activeProjectId = request.nextUrl.searchParams.get("projectId");
+  if (activeProjectId && showForRole?.project_id !== activeProjectId) {
+    return NextResponse.json(
+      { error: "Este evento pertenece a otro proyecto -- cambia el selector para verlo", wrongProject: true },
+      { status: 403 }
+    );
+  }
+
   const role = await getProjectRole(supabase, user!.id, showForRole?.project_id ?? null);
   const canViewCosts = canViewEventCosts(isAdmin, role);
   const canEditCosts = canEditEventCosts(isAdmin, role);
