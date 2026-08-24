@@ -46,18 +46,18 @@ function mapDeal(row: any) {
 }
 
 export async function GET(request: NextRequest) {
-  const { supabase, user, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get("projectId");
 
   if (projectId) {
-    if (!isAdmin && allowedProjectIds && !allowedProjectIds.includes(projectId)) {
+    if (!allowedProjectIds.includes(projectId)) {
       return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
     }
     const role = await getProjectRole(supabase, user!.id, projectId);
-    if (!canViewDeals(isAdmin, role)) {
+    if (!canViewDeals(role)) {
       return NextResponse.json({ error: "Sin acceso a Deals para tu rol" }, { status: 403 });
     }
   }
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { supabase, user, orgId, isAdmin, error } = await requireAuth();
+  const { supabase, user, orgId, error } = await requireAuth();
   if (error) return error;
 
   let body;
@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
 
   const dealProjectId = artistProjectId || projectId || null;
   const dealRole = await getProjectRole(supabase, user!.id, dealProjectId);
-  if (!canEditDeals(isAdmin, dealRole)) {
+  if (!canEditDeals(dealRole)) {
     return NextResponse.json({ error: "Tu rol no puede crear deals en este proyecto" }, { status: 403 });
   }
 

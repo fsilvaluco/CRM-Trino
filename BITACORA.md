@@ -519,6 +519,59 @@ de la misma organización. Investigado a fondo, encontramos **dos problemas inde
    para reproducir el escenario cruzado) -- pendiente que Francisco confirme que, con un proyecto
    seleccionado, ya no puede abrir un evento de otro proyecto (ni él ni el resto del equipo).
 
+### ⚠️ Corrección al fix de arriba, mismo día: el fix anterior seguía dejando pasar a los admins de organización
+
+Francisco hizo notar algo que el fix de arriba no cubría: ser admin/owner de la **organización** no
+significa tener acceso a **todos** los proyectos -- cada persona (Joaquín, Diego, él mismo) es
+admin/member/artist en cada proyecto de forma independiente, vía `project_members`. Confirmado en la
+base: Joaquín y Diego (admin de organización) tienen fila `admin` en `project_members` para Deni Li,
+Gamuza, Katarsis, Simplemente Yo, SiSoy y Trino -- pero **cero fila** para "Los Últimos Románticos" y
+"La Sagrada". El fix de arriba usaba `isAdmin` (rol de organización) como bypass total en el endpoint de
+eventos y en `project-roles.ts` -- exactamente el mismo patrón de hueco, solo que ahora aplicado a
+"admin de organización" en vez de "sin fila explícita".
+
+**Decisiones tomadas con Francisco:**
+- **Nadie tiene bypass, ni siquiera el dueño de la agencia** -- absolutamente todos necesitan una fila
+  explícita en `project_members` para ver/editar algo de un proyecto puntual. El rol de organización
+  (owner/admin/member) queda solo para acciones administrativas de la organización en sí (billing,
+  equipo, etc.), no para datos de un proyecto.
+- **Su propia cuenta** (`francisco@somostrino.cl`) hoy solo tiene fila en Prueba 2 y Trino -- **a
+  propósito no se le agregó nada más**, Francisco prefiere ajustarlo él mismo desde "Equipo y Acceso"
+  después. **Consecuencia real e inmediata de este deploy**: con este cambio, esa cuenta deja de poder
+  ver eventos/deals/costos de Gamuza, Deni Li, Katarsis, La Sagrada, Los Últimos Románticos, Simplemente
+  Yo y SiSoy hasta que se agregue manualmente a cada uno.
+
+**Implementación:**
+- `src/lib/project-roles.ts`: se sacó el parámetro `isOrgAdmin` de las 4 funciones (`canViewDeals`,
+  `canEditDeals`, `canViewEventCosts`, `canEditEventCosts`) -- ya no bypasean nada, dependen 100% del rol
+  de proyecto. Se cambió también el default de `role === null` de "permitir" a "denegar" (ese era el
+  hueco original de Fase 1, del 18 ago: "sin fila explícita -- no restringir por default").
+- `src/lib/supabase-server.ts` (`requireAuth()`): `allowedProjectIds` ahora se calcula siempre, para
+  todos los roles de organización (antes solo se calculaba `if (!isAdmin)` -- admin/owner nunca pasaban
+  por este chequeo).
+- Sacado el bypass `!isAdmin &&` de los chequeos de proyecto en `/api/eventos/[id]` (GET y PUT),
+  `/api/pipeline` (GET) y `/api/deals` (GET) -- ahora aplican siempre, sin excepción de rol.
+- `/api/deals/[id]` (DELETE): antes bastaba con ser admin de organización para borrar cualquier deal de
+  cualquier proyecto -- corregido para exigir el mismo rol de proyecto (`canEditDeals`) que ya se usaba
+  para editar.
+- **Frontend** (`src/lib/project-context.tsx`): el selector de proyectos también le mostraba a los
+  admins de organización TODOS los proyectos de la organización con rol "admin" forzado, sin mirar
+  `project_members` -- corregido para que use la misma consulta real que ya usaban los "member" (así el
+  selector nunca ofrece un proyecto al que el usuario no tendría acceso real).
+- Los 17 call sites que llamaban a las funciones `can*` con `isAdmin` como primer argumento se
+  actualizaron para no pasarlo más (ya no existe ese parámetro).
+
+**Pendiente, fuera del alcance de hoy** (mismo pendiente que arriba, ahora más urgente): el patrón
+"listar todo sin filtrar por `allowedProjectIds` cuando no se pasa `projectId`" sigue sin corregirse en
+`/api/deals` y `/api/pipeline` (GET sin query param) -- alguien podría listar deals de TODOS los
+proyectos de la organización sin filtro. Igual que antes, aplicar el mismo aislamiento a
+`contacts/[id]`, `companies/[id]`, `venues/[id]` queda pendiente.
+
+**Verificado**: `tsc --noEmit` y `eslint` limpios (los 3 errores de `@typescript-eslint/no-explicit-any`
+que aparecen en `deals/route.ts`, `deals/[id]/route.ts` y `pipeline/route.ts` son deuda preexistente en
+funciones de mapeo no tocadas, confirmado con `git diff` línea por línea), `npm run build` completo sin
+errores. **No probado en el navegador** -- mismo motivo que arriba (requiere múltiples cuentas).
+
 ---
 
 ## 🔴 Crítico (arreglar primero)

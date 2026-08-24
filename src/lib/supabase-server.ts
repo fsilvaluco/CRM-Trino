@@ -41,8 +41,14 @@ export type UserRole = "owner" | "admin" | "member";
 
 /**
  * Obtiene el usuario autenticado, su organization_id, rol y proyectos accesibles.
- * - isAdmin: true si el rol es owner/admin → acceso total
- * - allowedProjectIds: null si isAdmin (ve todo), o array de IDs si es member
+ * - isAdmin: true si el rol es owner/admin de la ORGANIZACIÓN -- da acceso
+ *   a acciones administrativas de la organización (billing, equipo, etc.),
+ *   pero YA NO implica acceso a los datos de un proyecto puntual (corregido
+ *   23 ago 2026 -- ver project-roles.ts, "Fase 2").
+ * - allowedProjectIds: proyectos en los que el usuario tiene fila explícita
+ *   en `project_members` -- se calcula siempre, para TODOS los roles de
+ *   organización por igual (antes solo se calculaba para "member", y
+ *   admin/owner veían todo sin chequeo -- ese era el hueco).
  */
 export async function requireAuth() {
   const supabase = await createSupabaseServer();
@@ -136,18 +142,16 @@ export async function requireAuth() {
   const role: UserRole = (memberRow?.role as UserRole) ?? "member";
   const isAdmin = role === "owner" || role === "admin";
 
-  // Si es member, obtener solo sus proyectos asignados (admin client para evitar bloqueo por RLS)
-  let allowedProjectIds: string[] | null = null;
-  if (!isAdmin) {
-    const admin = createAdminClient();
-    const { data: memberships } = await admin
-      .from("project_members")
-      .select("project_id")
-      .eq("user_id", user.id)
-      .eq("organization_id", orgId);
+  // Proyectos asignados explícitamente -- se calcula para TODOS, incluido
+  // owner/admin de organización (admin client para evitar bloqueo por RLS).
+  const admin = createAdminClient();
+  const { data: memberships } = await admin
+    .from("project_members")
+    .select("project_id")
+    .eq("user_id", user.id)
+    .eq("organization_id", orgId);
 
-    allowedProjectIds = (memberships ?? []).map((m) => m.project_id);
-  }
+  const allowedProjectIds: string[] = (memberships ?? []).map((m) => m.project_id);
 
   return { supabase, user, orgId: orgId as string, role, isAdmin, allowedProjectIds, error: null };
 }

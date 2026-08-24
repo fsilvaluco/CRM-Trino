@@ -90,7 +90,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, user, isAdmin, error } = await requireAuth();
+  const { supabase, user, error } = await requireAuth();
   if (error) return error;
 
   let body;
@@ -112,7 +112,7 @@ export async function PUT(
   }
 
   const dealRole = await getProjectRole(supabase, user!.id, existing.artist_project_id || existing.project_id || null);
-  if (!canEditDeals(isAdmin, dealRole)) {
+  if (!canEditDeals(dealRole)) {
     return NextResponse.json({ error: "Tu rol no puede editar este deal" }, { status: 403 });
   }
 
@@ -262,11 +262,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, user, isAdmin, error } = await requireAuth();
+  const { supabase, user, error } = await requireAuth();
   if (error) return error;
-  if (!isAdmin) {
-    return NextResponse.json({ error: "Solo Admin o Propietario pueden eliminar tratos" }, { status: 403 });
-  }
 
   const { data: existing, error: findErr } = await supabase
     .from("deals")
@@ -277,6 +274,15 @@ export async function DELETE(
 
   if (findErr || !existing) {
     return NextResponse.json({ error: "Deal no encontrado" }, { status: 404 });
+  }
+
+  // Antes bastaba con ser admin de la ORGANIZACIÓN para borrar cualquier
+  // deal, sin importar el proyecto -- mismo hueco que en eventos (23 ago
+  // 2026). Ahora se exige el mismo rol de proyecto que ya se usa para
+  // editar (admin/member de ESE proyecto puntual).
+  const dealRole = await getProjectRole(supabase, user!.id, existing.artist_project_id || existing.project_id || null);
+  if (!canEditDeals(dealRole)) {
+    return NextResponse.json({ error: "Tu rol no puede eliminar este deal" }, { status: 403 });
   }
 
   const { error: dbError } = await createAdminClient()

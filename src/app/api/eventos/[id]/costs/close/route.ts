@@ -10,12 +10,12 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, user, isAdmin, error } = await requireAuth();
+  const { supabase, user, error } = await requireAuth();
   if (error) return error;
 
   const { data: show } = await supabase.from("shows").select("project_id").eq("id", id).single();
   const role = await getProjectRole(supabase, user!.id, show?.project_id ?? null);
-  if (!canEditEventCosts(isAdmin, role)) {
+  if (!canEditEventCosts(role)) {
     return NextResponse.json({ error: "Tu rol no puede editar los costos de este evento" }, { status: 403 });
   }
 

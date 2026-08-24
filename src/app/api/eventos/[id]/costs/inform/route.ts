@@ -20,7 +20,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, user, isAdmin, error } = await requireAuth();
+  const { supabase, user, error } = await requireAuth();
   if (error) return error;
 
   const { data: show, error: showErr } = await supabase
@@ -39,7 +39,7 @@ export async function POST(
   }
 
   const role = await getProjectRole(supabase, user!.id, show.project_id);
-  if (!canEditEventCosts(isAdmin, role)) {
+  if (!canEditEventCosts(role)) {
     return NextResponse.json({ error: "Tu rol no puede informar el cierre de este evento" }, { status: 403 });
   }
   if (!show.cost_sheet_closed_at) {

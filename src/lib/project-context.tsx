@@ -118,81 +118,61 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       const role = memberRow.role as OrgRole;
       console.log(`[project-context] orgRole -> ${role} (reloadProjects OK)`, new Date().toISOString());
       setOrgRole(role);
-      const isAdmin = role === "owner" || role === "admin";
 
+      // El rol de organización (owner/admin/member) ya NO da acceso
+      // automático a los proyectos -- corregido 23 ago 2026, mismo día que
+      // el fix del servidor (ver BITACORA.md, "Aislamiento entre
+      // proyectos"). Todos, sin excepción, ven solo los proyectos donde
+      // tienen fila en `project_members` -- el rol de organización solo
+      // controla acciones administrativas de la organización en sí
+      // (billing, equipo, etc.), no visibilidad de datos de un proyecto.
       let list: ProjectOption[] = [];
 
-      if (isAdmin) {
-        // Owner/admin: ve todos los proyectos de la organización
-        const { data, error: projectsError } = await supabase
-          .from("projects")
-          .select("id, name, theme_color, avatar_url, avatar_source, drive_url")
-          .eq("organization_id", memberRow.organization_id)
-          .order("created_at", { ascending: false });
+      const { data: memberships, error: membershipsError } = await supabase
+        .from("project_members")
+        .select("project_id, role")
+        .eq("user_id", userId)
+        .eq("organization_id", memberRow.organization_id);
 
-        if (projectsError) {
-          throw projectsError;
-        }
-
-        list = (data ?? []).map(
-          (p: { id: string; name: string; theme_color?: string; avatar_url?: string | null; avatar_source?: string | null; drive_url?: string | null }) => ({
-            id: p.id,
-            name: p.name,
-            themeColor: p.theme_color,
-            avatarUrl: p.avatar_url,
-            avatarSource: p.avatar_source,
-            driveUrl: p.drive_url,
-            role: "admin" as const,
-          })
-        );
-      } else {
-        // Member: solo los proyectos asignados en project_members
-        const { data: memberships, error: membershipsError } = await supabase
-          .from("project_members")
-          .select("project_id, role")
-          .eq("user_id", userId)
-          .eq("organization_id", memberRow.organization_id);
-
-        if (membershipsError) {
-          throw membershipsError;
-        }
-
-        const projectIds = (memberships ?? []).map((m: { project_id: string }) => m.project_id);
-        const roleByProjectId = new Map(
-          (memberships ?? []).map((m: { project_id: string; role: string }) => [m.project_id, m.role as ProjectRole])
-        );
-        if (projectIds.length === 0) {
-          setProjects([]);
-          if (typeof window !== "undefined") {
-            localStorage.setItem(STORAGE_PROJECTS_KEY, JSON.stringify([]));
-            localStorage.removeItem(STORAGE_KEY);
-          }
-          setActiveProjectState(null);
-          return;
-        }
-
-        const { data, error: projectsError } = await supabase
-          .from("projects")
-          .select("id, name, theme_color, avatar_url, avatar_source, drive_url")
-          .in("id", projectIds)
-          .order("created_at", { ascending: false });
-
-        if (projectsError) {
-          throw projectsError;
-        }
-
-        list = (data ?? []).map(
-          (p: { id: string; name: string; theme_color?: string; avatar_url?: string | null; avatar_source?: string | null; drive_url?: string | null }) => ({
-            id: p.id,
-            name: p.name,
-            themeColor: p.theme_color,
-            avatarUrl: p.avatar_url,
-            avatarSource: p.avatar_source,
-            driveUrl: p.drive_url,
-            role: roleByProjectId.get(p.id) ?? null,
-          })
-        );
+      if (membershipsError) {
+        throw membershipsError;
       }
+
+      const projectIds = (memberships ?? []).map((m: { project_id: string }) => m.project_id);
+      const roleByProjectId = new Map(
+        (memberships ?? []).map((m: { project_id: string; role: string }) => [m.project_id, m.role as ProjectRole])
+      );
+      if (projectIds.length === 0) {
+        setProjects([]);
+        if (typeof window !== "undefined") {
+          localStorage.setItem(STORAGE_PROJECTS_KEY, JSON.stringify([]));
+          localStorage.removeItem(STORAGE_KEY);
+        }
+        setActiveProjectState(null);
+        return;
+      }
+
+      const { data, error: projectsError } = await supabase
+        .from("projects")
+        .select("id, name, theme_color, avatar_url, avatar_source, drive_url")
+        .in("id", projectIds)
+        .order("created_at", { ascending: false });
+
+      if (projectsError) {
+        throw projectsError;
+      }
+
+      list = (data ?? []).map(
+        (p: { id: string; name: string; theme_color?: string; avatar_url?: string | null; avatar_source?: string | null; drive_url?: string | null }) => ({
+          id: p.id,
+          name: p.name,
+          themeColor: p.theme_color,
+          avatarUrl: p.avatar_url,
+          avatarSource: p.avatar_source,
+          driveUrl: p.drive_url,
+          role: roleByProjectId.get(p.id) ?? null,
+        })
+      );
 
       setProjects(list);
       if (typeof window !== "undefined") {
@@ -285,10 +265,18 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   const isAdmin = orgRole === "owner" || orgRole === "admin";
 
-  // Rol granular del proyecto activo -- "Todos los proyectos" (activeProject
-  // null) solo lo puede ver un admin, así que ahí siempre es "admin".
-  const activeProjectRole: ProjectRole | null = isAdmin ? "admin" : activeProject?.role ?? null;
-  const canViewDealsModule = activeProjectRole !== "staff";
+  // Rol granular del proyecto activo -- ya NO se fuerza a "admin" solo por
+  // ser admin de organización (corregido 23 ago 2026, ver BITACORA.md).
+  // En "Todos los proyectos" (activeProject null, solo alcanzable si hay
+  // más de un proyecto asignado) no hay un único rol -- para la
+  // visibilidad de nav (lo único que consume esto hoy, ver Sidebar.tsx) se
+  // usa el mejor rol entre los proyectos asignados.
+  const activeProjectRole: ProjectRole | null = activeProject
+    ? activeProject.role ?? null
+    : projects.some((p) => p.role && p.role !== "staff")
+      ? "member"
+      : null;
+  const canViewDealsModule = activeProjectRole !== "staff" && activeProjectRole !== null;
   const canEditDeals = activeProjectRole === "admin" || activeProjectRole === "member";
   const canViewEventCosts = activeProjectRole === "admin" || activeProjectRole === "member";
 

@@ -54,7 +54,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, user, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { data, error: dbError } = await supabase
@@ -69,16 +69,20 @@ export async function GET(
 
   // Aislamiento entre proyectos (23 ago 2026, hallazgo de Francisco --
   // podía ver un evento de otro proyecto teniendo uno distinto
-  // seleccionado). Dos chequeos independientes:
-  // 1. Si es "member" de la organización (no admin/owner), solo puede
-  //    ver eventos de sus proyectos asignados (project_members) --
+  // seleccionado; corregido de nuevo el mismo día porque el bypass de
+  // admin de ORGANIZACIÓN seguía dejando pasar a alguien admin de otros
+  // proyectos pero sin fila en éste, ej. Joaquín/Diego en "Los Últimos
+  // Románticos"). Nadie tiene bypass, ni siquiera owner/admin de
+  // organización -- el acceso a un proyecto se rige 100% por
+  // `project_members`. Dos chequeos independientes:
+  // 1. El evento tiene que pertenecer a uno de los proyectos asignados
+  //    del usuario (`allowedProjectIds`, calculado en requireAuth()) --
   //    aplica siempre, sin importar qué proyecto tenga seleccionado.
   // 2. Si el cliente informa qué proyecto tiene activo en el selector
-  //    (?projectId=), el evento tiene que pertenecer a ESE proyecto --
-  //    aplica también a admins (a pedido explícito de Francisco: el
-  //    selector debe ser una restricción real, no solo un filtro
-  //    visual). "Todos los proyectos" (sin projectId) no restringe.
-  if (!isAdmin && (!allowedProjectIds || !allowedProjectIds.includes(data.project_id))) {
+  //    (?projectId=), el evento tiene que pertenecer a ESE proyecto
+  //    puntual. "Todos los proyectos" (sin projectId) no agrega esta
+  //    segunda restricción -- pero el chequeo 1 sigue aplicando siempre.
+  if (!allowedProjectIds.includes(data.project_id)) {
     return NextResponse.json({ error: "No tienes acceso a este proyecto" }, { status: 403 });
   }
   const activeProjectId = request.nextUrl.searchParams.get("projectId");
@@ -96,8 +100,8 @@ export async function GET(
   // evento (Setlist, Timing, Contactos) sigue visible/editable igual que
   // hoy para cualquiera con acceso al proyecto -- eso queda para fase 2.
   const role = await getProjectRole(supabase, user!.id, data.project_id ?? null);
-  const canViewCosts = canViewEventCosts(isAdmin, role);
-  const canEditCosts = canEditEventCosts(isAdmin, role);
+  const canViewCosts = canViewEventCosts(role);
+  const canEditCosts = canEditEventCosts(role);
 
   const [{ data: setlistRows }, { data: costRows }, { data: timingRows }, { data: ticketRows }, { data: contactRows }] = await Promise.all([
     supabase.from("event_setlist_items").select("*").eq("show_id", id).order("position"),
@@ -178,7 +182,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, user, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { data: showForRole } = await supabase.from("shows").select("project_id").eq("id", id).single();
@@ -187,7 +191,7 @@ export async function PUT(
   // Se valida ANTES de aplicar cualquier cambio, no solo al cargar la
   // página, para que tampoco se pueda editar un evento de otro proyecto
   // llamando directo a la API.
-  if (!isAdmin && (!allowedProjectIds || !allowedProjectIds.includes(showForRole?.project_id ?? ""))) {
+  if (!allowedProjectIds.includes(showForRole?.project_id ?? "")) {
     return NextResponse.json({ error: "No tienes acceso a este proyecto" }, { status: 403 });
   }
   const activeProjectId = request.nextUrl.searchParams.get("projectId");
@@ -199,8 +203,8 @@ export async function PUT(
   }
 
   const role = await getProjectRole(supabase, user!.id, showForRole?.project_id ?? null);
-  const canViewCosts = canViewEventCosts(isAdmin, role);
-  const canEditCosts = canEditEventCosts(isAdmin, role);
+  const canViewCosts = canViewEventCosts(role);
+  const canEditCosts = canEditEventCosts(role);
 
   const body = await request.json().catch(() => ({}));
   const {
