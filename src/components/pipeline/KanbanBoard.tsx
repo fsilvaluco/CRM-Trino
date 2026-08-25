@@ -15,6 +15,7 @@ import { EventSetupDialog } from "@/components/events/EventSetupDialog";
 import { toast } from "sonner";
 import type { PipelineColumn } from "@/types";
 import { useKanbanDnd } from "@/lib/hooks/use-kanban-dnd";
+import { useProject } from "@/lib/project-context";
 
 interface KanbanBoardProps {
   initialColumns: PipelineColumn[];
@@ -24,6 +25,7 @@ interface KanbanBoardProps {
 }
 
 export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealClick }: KanbanBoardProps) {
+  const { isAllProjects } = useProject();
   const [columns, setColumns] = useState(initialColumns);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [closeDialog, setCloseDialog] = useState<{
@@ -115,6 +117,16 @@ export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealCl
 
       if (!overColumn) return;
 
+      // Regla del rediseño de roles (ROLES.md 0.5): en "Todos los
+      // proyectos" no se edita nada -- el servidor ya lo rechazaría, pero
+      // evitamos el viaje de red y damos un mensaje específico en vez del
+      // genérico "Error al mover el deal".
+      if (isAllProjects) {
+        setColumns(columnsSnapshot.current);
+        toast.warning("Selecciona un proyecto para mover deals de etapa");
+        return;
+      }
+
       // Update the deal's stage via API
       try {
         const res = await fetch("/api/pipeline", {
@@ -159,7 +171,7 @@ export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealCl
         toast.error("Error al mover el deal. Se revirtio el cambio.");
       }
     },
-    [columns, onMoveSuccess]
+    [columns, onMoveSuccess, isAllProjects]
   );
 
   return (

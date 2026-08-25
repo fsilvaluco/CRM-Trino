@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useProject } from "@/lib/project-context";
+import { toast } from "sonner";
 import {
   Table,
   TableBody,
@@ -133,7 +134,7 @@ function SortableHead({
 // ── Page ─────────────────────────────────────────────────────────────────────
 export default function CompaniesPage() {
   const router = useRouter();
-  const { activeProject } = useProject();
+  const { activeProject, isAllProjects } = useProject();
   const [companiesList, setCompanies] = useState<CompanyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -225,7 +226,18 @@ export default function CompaniesPage() {
             {companiesList.length} empresa{companiesList.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <Button onClick={() => setShowForm(true)} className="cursor-pointer">
+        <Button
+          onClick={() => {
+            if (isAllProjects) {
+              toast.warning("Selecciona un proyecto para crear una empresa");
+              return;
+            }
+            setShowForm(true);
+          }}
+          className="cursor-pointer"
+          disabled={isAllProjects}
+          title={isAllProjects ? "Selecciona un proyecto para crear una empresa" : undefined}
+        >
           <Plus className="h-4 w-4 mr-2" />
           Nueva Empresa
         </Button>
@@ -251,8 +263,8 @@ export default function CompaniesPage() {
           icon={Building2}
           title="Sin empresas"
           description="Crea tu primera empresa para organizar contactos y deals por organizacion."
-          actionLabel="Nueva Empresa"
-          onAction={() => setShowForm(true)}
+          actionLabel={isAllProjects ? undefined : "Nueva Empresa"}
+          onAction={isAllProjects ? undefined : () => setShowForm(true)}
         />
       ) : (
         <div className="rounded-lg border">

@@ -894,6 +894,45 @@ confirmado con `git stash`), `npm run build` completo sin errores.
 
 **Versión de la app subida a 2.60.**
 
+### ✅ Prioridad 1 completa: rediseño de roles cerrado (25 ago 2026)
+
+Cierre del ítem 5 (el último que quedaba de los 12) -- **la Prioridad 1 completa del rediseño de roles
+queda implementada y en producción**, de punta a punta desde el diseño en `ROLES.md` sección 0 hasta acá.
+
+**Terminado hoy:**
+- Botón deshabilitado + advertencia al crear en modo "Todos los proyectos": Contactos, Empresas (2 puntos
+  de entrada -- botón principal y `EmptyState`).
+- **Drag-and-drop del Kanban de Deals**: antes solo el servidor lo bloqueaba (revertía la tarjeta con un
+  error genérico) -- ahora se corta antes de llamar a la API, mismo mensaje específico que el resto de
+  los módulos.
+- **Tareas verificado a fondo**: su formulario ya exigía elegir proyecto adentro del form mismo
+  (`projectId` obligatorio en el schema `zod`) -- cubría la regla con una UX distinta (selector en el
+  form en vez de botón deshabilitado), no necesitó cambios.
+
+**Resumen de toda la Prioridad 1** (sesión larga, 24-25 ago 2026, ver `ROLES.md` sección 11 para el
+detalle completo de los 12 ítems):
+- Migración de un sistema de 4 roles fijos a una **matriz de permisos por persona × módulo** (7 módulos:
+  Contactos, Empresas, Deals, Tareas, Eventos, Campañas, Finanzas).
+- **Docenas de endpoints con brechas graves encontradas y cerradas en el camino** -- varios sin NINGÚN
+  chequeo de proyecto en absoluto (no solo "falta pulir"): `/api/finances` completo, `/api/export`,
+  comentarios de Deals/Tareas, `POST /api/eventos`/`subprojects`/`tasks`/`companies`, `deals/[id]` GET.
+  Ninguna de estas brechas estaba en la lista original del roadmap -- todas se encontraron al implementar
+  y probar con cuentas de prueba reales.
+- **26 de 38 endpoints migrados** fuera del bypass de `isAdmin` de organización.
+- Probado en producción, en vivo, contra 3 cuentas de prueba con matrices reales distintas
+  (Rodrick/Gonzalo/Daniela) vía login por API.
+
+**Pendiente para más adelante** (documentado en `ROLES.md`, Prioridades 2-6, no bloquea nada de lo de
+hoy): gestión de gente con `puede_gestionar_equipo` (invitar/crear cuentas por proyecto), cerrar la
+brecha de RLS en Supabase (hoy el aislamiento es 100% de aplicación, no de base de datos), consolidar
+cuentas duplicadas de Francisco, retirar el servidor MCP desalineado, y construir la intranet de
+trabajadores que motivó todo este trabajo (dashboard por proyecto, Gestor de Integrantes visual).
+
+**Verificado:** `tsc --noEmit` limpio, `eslint` limpio, `npm run build` completo sin errores.
+
+**Versión de la app subida a 3.0** (cambio grande -- cierre completo de la Prioridad 1 del rediseño de
+roles, convención de subir el número antes del punto).
+
 ---
 
 ## 🔴 Crítico (arreglar primero)

@@ -8,13 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Plus, Copy } from "lucide-react";
 import type { Contact } from "@/types";
 import { useProject } from "@/lib/project-context";
+import { toast } from "sonner";
 
 export default function ContactsPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [loading, setLoading] = useState(true);
-  const { activeProject } = useProject();
+  const { activeProject, isAllProjects } = useProject();
 
   const loadContacts = () => {
     const params = activeProject ? `?projectId=${activeProject.id}` : "";
@@ -55,7 +56,18 @@ export default function ContactsPage() {
             <Copy className="h-4 w-4 mr-2" />
             Quitar duplicados
           </Button>
-          <Button onClick={() => setShowForm(true)} className="cursor-pointer">
+          <Button
+            onClick={() => {
+              if (isAllProjects) {
+                toast.warning("Selecciona un proyecto para crear un contacto");
+                return;
+              }
+              setShowForm(true);
+            }}
+            className="cursor-pointer"
+            disabled={isAllProjects}
+            title={isAllProjects ? "Selecciona un proyecto para crear un contacto" : undefined}
+          >
             <Plus className="h-4 w-4 mr-2" />
             Nuevo Contacto
           </Button>

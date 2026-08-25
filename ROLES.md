@@ -637,14 +637,14 @@ implementado todavía.
 
 ### Prioridad 1 -- base del modelo nuevo (sin esto, el resto no tiene dónde pararse)
 
-**Estado (25 ago 2026):** ítems 1, 2, 3, 4, 6, 7, 8, 9, 10, 11 y 12 implementados y aplicados en
-producción, más varias correcciones encontradas al probar/implementar (redacción de $ en Deals,
-aislamiento de `deals/[id]`, exportación CSV sin ningún chequeo de proyecto, comentarios de Deals/Tareas
-sin ningún chequeo de proyecto, `POST /api/eventos`/`subprojects`/`tasks`/`companies` sin ningún chequeo
-de proyecto -- ver el detalle en cada ítem). Ítem 3: de 38 endpoints con `isAdmin`, 26 migrados a la
-matriz, 12 se dejan a propósito como acciones de organización (billing, integraciones, gestión de gente
--- ver detalle del ítem). **Solo queda pendiente el ítem 5 (parcial, ver su propio detalle)** para cerrar
-la Prioridad 1 por completo. Probado en producción contra 3 cuentas de prueba
+**Estado (25 ago 2026): Prioridad 1 completa -- los 12 ítems implementados y aplicados en producción.**
+En el camino aparecieron varias correcciones que no estaban en la lista original (redacción de $ en
+Deals, aislamiento de `deals/[id]`, exportación CSV sin ningún chequeo de proyecto, comentarios de
+Deals/Tareas sin ningún chequeo de proyecto, `POST /api/eventos`/`subprojects`/`tasks`/`companies` sin
+ningún chequeo de proyecto -- ver el detalle en cada ítem). Ítem 3: de 38 endpoints con `isAdmin`, 26
+migrados a la matriz, 12 se dejan a propósito como acciones de organización (billing, integraciones,
+gestión de gente -- ver detalle del ítem, son trabajo de Prioridad 2). Probado en producción contra 3
+cuentas de prueba
 reales (Rodrick/Gonzalo/Daniela en el proyecto
 Prueba 2) vía login por API -- ver bitácora del 24-25 ago.
 
@@ -694,18 +694,18 @@ Prueba 2) vía login por API -- ver bitácora del 24-25 ago.
    existe hoy de agregar gente nueva al sistema.
 4. ✅ **Gatear la creación de proyectos a solo `owner`** (0.3) -- `POST /api/projects` ahora exige
    `role === "owner"` en vez de `isAdmin`.
-5. 🔶 **"Sin proyecto seleccionado, no se edita"** en el frontend (0.5) -- parcial. Bloqueado (botón
-   deshabilitado + advertencia) en: crear/editar Deal (`CrmPageClient.tsx`, incluye el "+" por columna),
-   crear/editar evento (`eventos/page.tsx`, botón y lápiz de editar), crear/adjuntar en Finanzas
-   (`finances/page.tsx`). Campañas ya lo tenía de antes. Contactos ya bloqueaba al guardar (no al
-   mostrar el botón); **se encontró y corrigió un bug real en el camino**: `CompanyForm` guardaba
-   `projectId: null` en silencio si no había proyecto activo -- exactamente el problema que motivó esta
-   regla -- ahora tira un error claro antes de guardar, igual que Contactos. **Sigue sin cubrir**: Tareas
-   (su formulario ya exige elegir proyecto adentro del form, así que no debería quedar nada sin proyecto,
-   pero no se verificó a fondo), el drag-and-drop entre etapas del Kanban de Deals (el servidor ya lo
-   bloquea con 403, pero la interfaz no lo previene antes de intentarlo), y los botones de crear/editar de
-   Contactos/Empresas en la lista (el guardado ya está protegido, falta deshabilitar el botón mismo para
-   mejor UX).
+5. ✅ **"Sin proyecto seleccionado, no se edita"** en el frontend (0.5) -- bloqueado (botón deshabilitado +
+   advertencia) en: crear/editar Deal (`CrmPageClient.tsx`, incluye el "+" por columna), crear/editar
+   evento (`eventos/page.tsx`, botón y lápiz de editar), crear/adjuntar en Finanzas (`finances/page.tsx`),
+   crear Contacto, crear Empresa (2 puntos de entrada: botón principal y `EmptyState`). Campañas ya lo
+   tenía de antes. **Drag-and-drop del Kanban de Deals** (`KanbanBoard.tsx`): antes solo el servidor lo
+   bloqueaba (con un error genérico tras revertir la tarjeta) -- ahora se corta antes de llamar a la API,
+   con el mismo mensaje específico que el resto. **Tareas verificado**: su formulario exige elegir
+   proyecto adentro del form mismo (`projectId` es obligatorio en el schema de validación) -- ya cubría
+   la regla con una UX distinta (selector dentro del form en vez de botón deshabilitado), no necesitó
+   cambios. Bug real encontrado en el camino: `CompanyForm` guardaba `projectId: null` en silencio si no
+   había proyecto activo -- exactamente el problema que motivó esta regla -- corregido con el mismo
+   patrón que `ContactForm`.
 6. ✅ **Vista agregada respeta la matriz de cada proyecto individualmente** (0.5) -- resuelto para los 6
    módulos restantes (Deals y Finanzas ya estaban resueltos de la sesión anterior). **Se encontraron
    brechas graves al implementar, del mismo patrón que Finanzas -- endpoints sin ningún chequeo de
