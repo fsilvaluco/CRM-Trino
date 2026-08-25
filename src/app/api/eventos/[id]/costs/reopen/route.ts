@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { getProjectPermissions, canEditEventCosts } from "@/lib/project-roles";
+import { logActivity } from "@/lib/activity-logs";
 
 // POST /api/eventos/[id]/costs/reopen -- deshace el cierre, por si hay que
 // corregir algo despues. Borra tambien las firmas de aprobacion que ya se
@@ -19,7 +20,7 @@ export async function POST(
   const { supabase, user, error } = await requireAuth();
   if (error) return error;
 
-  const { data: show } = await supabase.from("shows").select("project_id").eq("id", id).single();
+  const { data: show } = await supabase.from("shows").select("name, project_id").eq("id", id).single();
   const role = await getProjectPermissions(supabase, user!.id, show?.project_id ?? null);
   if (!canEditEventCosts(role)) {
     return NextResponse.json({ error: "Tu rol no puede editar los costos de este evento" }, { status: 403 });
@@ -37,6 +38,17 @@ export async function POST(
   // que la limpia, y lo hace con el service role, no con el cliente del
   // usuario.
   await createAdminClient().from("event_closing_signatures").delete().eq("show_id", id);
+
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "reopen_cost_sheet",
+    entityType: "event",
+    entityId: id,
+    entityName: show?.name ?? null,
+    projectId: show?.project_id ?? null,
+  });
 
   return NextResponse.json({ ok: true });
 }

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { getProjectPermissions, canViewEvent, canEditEvent } from "@/lib/project-roles";
+import { logActivity } from "@/lib/activity-logs";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapRow(r: any) {
@@ -20,8 +22,26 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
+
+  // 25 ago 2026 (ROLES.md, ítem 18 del rediseño de roles): este endpoint no
+  // tenía NINGÚN chequeo de proyecto ni permiso -- cualquiera autenticado en
+  // la organización podía leer/reemplazar el cronograma de cualquier evento
+  // ajeno. Corregido con el mismo patrón que `eventos/[id]`.
+  const { data: show, error: showErr } = await supabase
+    .from("shows")
+    .select("id, project_id")
+    .eq("id", id)
+    .single();
+  if (showErr || !show) return NextResponse.json({ error: "Evento no encontrado" }, { status: 404 });
+  if (!show.project_id || !allowedProjectIds.includes(show.project_id)) {
+    return NextResponse.json({ error: "Sin acceso a este evento" }, { status: 403 });
+  }
+  const perm = await getProjectPermissions(supabase, user!.id, show.project_id);
+  if (!canViewEvent(perm)) {
+    return NextResponse.json({ error: "Sin acceso a este evento" }, { status: 403 });
+  }
 
   const { data, error: dbError } = await supabase
     .from("event_timing_items")
@@ -42,8 +62,22 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
+
+  const { data: show, error: showErr } = await supabase
+    .from("shows")
+    .select("id, name, project_id")
+    .eq("id", id)
+    .single();
+  if (showErr || !show) return NextResponse.json({ error: "Evento no encontrado" }, { status: 404 });
+  if (!show.project_id || !allowedProjectIds.includes(show.project_id)) {
+    return NextResponse.json({ error: "Sin acceso a este evento" }, { status: 403 });
+  }
+  const perm = await getProjectPermissions(supabase, user!.id, show.project_id);
+  if (!canEditEvent(perm)) {
+    return NextResponse.json({ error: "Tu rol no puede editar este evento" }, { status: 403 });
+  }
 
   const body = await request.json().catch(() => ({}));
   const items = Array.isArray(body.items) ? body.items : [];
@@ -90,6 +124,17 @@ export async function PUT(
     const { error: upsertError } = await supabase.from("event_timing_items").upsert(rows);
     if (upsertError) return NextResponse.json({ error: upsertError.message }, { status: 500 });
   }
+
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "update",
+    entityType: "event_timing",
+    entityId: id,
+    entityName: show.name,
+    projectId: show.project_id,
+  });
 
   return NextResponse.json({ ok: true });
 }

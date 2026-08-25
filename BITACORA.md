@@ -979,6 +979,38 @@ no tocan ningún archivo de esta sesión), `npm run build` completo sin errores.
 
 **Versión de la app subida a 3.1.**
 
+### 🧑‍🤝‍🧑 Prioridad 2, segundo tramo: instrumentación de `activity_logs` + brecha grave en Eventos (25 ago 2026)
+
+Continuación de la Prioridad 2 -- ítem 18 (completar `activity_logs`).
+
+**Instrumentado con `logActivity()`:** Companies (`POST /api/companies`, `PUT`/`DELETE
+/api/companies/[id]`), Project-Members (POST/PATCH/DELETE), Org-Members (invitar, cambiar rol,
+eliminar), y los endpoints financieros de Eventos: guardado de ítems de costo, cierre/reapertura de
+caja, aprobar/rechazar gastos reportados.
+
+**Hallazgo grave encontrado al revisar Eventos, no relacionado con logs:** `setlist`, `tickets`,
+`timing` y `contacts` de un evento (`GET`/`PUT /api/eventos/[id]/{setlist,tickets,timing,contacts}`)
+**no tenían NINGÚN chequeo de proyecto ni de permiso** -- ni `allowedProjectIds` ni la matriz de
+módulos. Cualquiera autenticado en la organización podía leer y, más grave, **reemplazar por completo**
+(el PUT borra del todo lo que no viene en la lista nueva del body) el setlist, los tramos de venta de
+entradas, el cronograma o los contactos de CUALQUIER evento de CUALQUIER proyecto ajeno -- sin siquiera
+tener que pertenecer a ese proyecto. Mismo patrón que las brechas encontradas en Prioridad 1 (`POST
+/api/eventos` sin chequeo), solo que en cuatro sub-recursos que se habían quedado atrás. Corregidos los
+cuatro con el mismo patrón que `eventos/[id]`: `allowedProjectIds` + `canViewEvent`/`canEditEvent`.
+
+**De paso, aprovechando estar en `companies/[id]`:** se cerró también el hallazgo 9.1 para ese archivo
+puntual (GET/PUT/DELETE sin chequeo de proyecto, documentado desde el 23 ago) -- `contacts/[id]` y
+`venues/[id]` quedan con el mismo hueco todavía, no tocados.
+
+**Queda pendiente del ítem 18:** `logActivity` en el POST de `cost-submissions` (el reporte de gasto en
+sí) y en `costs/inform`; instrumentación del resto de módulos que hoy no la tienen fuera de lo tocado
+esta sesión.
+
+**Verificado:** `tsc --noEmit` limpio, `eslint` sin errores en los archivos tocados, `npm run build`
+completo sin errores.
+
+**Versión de la app subida a 3.2.**
+
 ---
 
 ## 🔴 Crítico (arreglar primero)

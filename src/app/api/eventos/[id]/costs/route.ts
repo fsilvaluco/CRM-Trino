@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { isCostCategory } from "@/lib/cost-categories";
 import { getProjectPermissions, canViewEventCosts, canEditEventCosts } from "@/lib/project-roles";
+import { logActivity } from "@/lib/activity-logs";
 
 export async function GET(
   _request: NextRequest,
@@ -56,7 +57,7 @@ export async function PUT(
   const { supabase, user, orgId, error } = await requireAuth();
   if (error) return error;
 
-  const { data: show } = await supabase.from("shows").select("cost_sheet_closed_at, project_id").eq("id", id).single();
+  const { data: show } = await supabase.from("shows").select("name, cost_sheet_closed_at, project_id").eq("id", id).single();
   const role = await getProjectPermissions(supabase, user!.id, show?.project_id ?? null);
   if (!canEditEventCosts(role)) {
     return NextResponse.json({ error: "Tu rol no puede editar los costos de este evento" }, { status: 403 });
@@ -151,6 +152,17 @@ export async function PUT(
       }
     }
   }
+
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "update",
+    entityType: "event_cost_items",
+    entityId: id,
+    entityName: show?.name ?? null,
+    projectId: show?.project_id ?? null,
+  });
 
   return NextResponse.json({ ok: true });
 }

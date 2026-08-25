@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { getProjectPermissions, canEditEventCosts } from "@/lib/project-roles";
+import { logActivity } from "@/lib/activity-logs";
 
 // POST /api/eventos/[id]/costs/close -- marca la planilla de costos como
 // cerrada: fecha + quien la cerró. Desde ahí queda de solo lectura (el
@@ -13,7 +14,7 @@ export async function POST(
   const { supabase, user, error } = await requireAuth();
   if (error) return error;
 
-  const { data: show } = await supabase.from("shows").select("project_id").eq("id", id).single();
+  const { data: show } = await supabase.from("shows").select("name, project_id").eq("id", id).single();
   const role = await getProjectPermissions(supabase, user!.id, show?.project_id ?? null);
   if (!canEditEventCosts(role)) {
     return NextResponse.json({ error: "Tu rol no puede editar los costos de este evento" }, { status: 403 });
@@ -27,6 +28,17 @@ export async function POST(
     .single();
 
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
+
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "close_cost_sheet",
+    entityType: "event",
+    entityId: id,
+    entityName: show?.name ?? null,
+    projectId: show?.project_id ?? null,
+  });
 
   return NextResponse.json({ closedAt: data.cost_sheet_closed_at });
 }

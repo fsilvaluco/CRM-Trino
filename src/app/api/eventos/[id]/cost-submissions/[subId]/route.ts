@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { sendPushToUsers } from "@/lib/push";
 import { getProjectPermissions, canEditEventCosts } from "@/lib/project-roles";
+import { logActivity } from "@/lib/activity-logs";
 
 function siteUrl(path: string): string {
   const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -62,6 +63,17 @@ export async function PUT(
     const { error: deleteError } = await supabase.from("event_cost_submissions").delete().eq("id", subId);
     if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 500 });
 
+    await logActivity({
+      supabase,
+      userId: user!.id,
+      userEmail: user!.email,
+      action: "reject",
+      entityType: "event_cost_submission",
+      entityId: subId,
+      entityName: submission.label,
+      projectId: show.project_id,
+    });
+
     void sendPushToUsers([submission.submitted_by], {
       title: "Tu gasto fue rechazado",
       body: `"${submission.label}"${reviewNote ? `: ${reviewNote}` : ""} -- puedes volver a reportarlo corregido`,
@@ -115,6 +127,17 @@ export async function PUT(
     .eq("id", subId);
 
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "approve",
+    entityType: "event_cost_submission",
+    entityId: subId,
+    entityName: submission.label,
+    projectId: show.project_id,
+  });
 
   void sendPushToUsers([submission.submitted_by], {
     title: "Tu gasto fue aprobado",

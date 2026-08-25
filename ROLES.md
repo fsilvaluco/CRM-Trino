@@ -782,7 +782,11 @@ Prueba 2) vía login por API -- ver bitácora del 24-25 ago.
 **Estado (25 ago 2026): ítems 13, 14, 15, 16 y 20 implementados y verificados (`tsc`/`build` limpios).
 Ítem 19 resultó estar hecho de antes (migrado dentro del ítem 3 de Prioridad 1, sin saberlo en ese
 momento). Ítem 17 solo a nivel de API -- la UI de "Equipo y Acceso" sigue con `adminOnly: true` en la
-navegación (ver detalle abajo). Ítem 18 sigue pendiente completo (instrumentación de `activity_logs`).**
+navegación (ver detalle abajo). Ítem 18 avanzado: Companies, Project-Members, Org-Members, Setlist,
+Tickets, Timing, Contactos de Eventos y los endpoints financieros de Eventos (cost-items,
+cierre/reapertura de caja, aprobar/rechazar gastos) instrumentados. Quedan sin `logActivity` --
+`cost-submissions` (POST del reporte en sí, no la revisión), `costs/inform`, y los módulos que ya
+tenían instrumentación de antes no se tocaron (Deals/Eventos/Finanzas/Contacts/Loans/Tasks).
 
 13. ✅ **Independizar `puede_gestionar_equipo` del resto de la matriz** (0.2.1) -- reescrito
     `/api/project-members` (POST/PATCH/DELETE) y `/api/org-members` (GET/POST) para exigir
@@ -822,11 +826,24 @@ navegación (ver detalle abajo). Ítem 18 sigue pendiente completo (instrumentac
     pantalla desde la UI, aunque la API ya lo dejaría operar. Se deja así a propósito por alcance (tocar
     la navegación entra en el mismo trabajo que el Gestor de Integrantes visual, ítem 32, Prioridad 6) --
     documentado para no perderlo.
-18. **Pendiente -- Completar la instrumentación de `activity_logs`** -- sigue igual que estaba: solo
-    Deals/Eventos/Finanzas/Contacts/Loans/Tasks llaman a `logActivity()`; Companies, Cost-Items,
-    Ticket-Tiers, Setlist y otros quedan sin registrar. La migración de `GET /api/activity-logs` de
-    `isAdmin` a `puede_gestionar_equipo` **ya estaba hecha** (se hizo sin saberlo dentro del ítem 3 de
-    Prioridad 1) -- lo que falta de este ítem es solo la instrumentación en sí.
+18. **Avanzado -- Completar la instrumentación de `activity_logs`.** Agregado `logActivity()` a:
+    Companies (POST/PUT/DELETE de `/api/companies` y `/api/companies/[id]`), Project-Members
+    (POST/PATCH/DELETE), Org-Members (invitar, cambiar rol, eliminar), y los endpoints financieros de
+    Eventos: `costs` (guardado de ítems), `costs/close`, `costs/reopen`, `cost-submissions/[subId]`
+    (aprobar/rechazar). También Setlist, Tickets, Timing y Contactos de Eventos (ver hallazgo de
+    seguridad abajo).
+    **Hallazgo grave encontrado al revisar estos 4 últimos, no relacionado con logs:** `setlist`,
+    `tickets`, `timing` y `contacts` de un evento (`/api/eventos/[id]/{setlist,tickets,timing,contacts}`)
+    **no tenían NINGÚN chequeo de proyecto ni de permiso** -- ni `allowedProjectIds` ni la matriz --
+    cualquiera autenticado en la organización podía leer y **reemplazar por completo** (el PUT borra lo
+    que no viene en la lista nueva) el setlist/tramos de venta/cronograma/contactos de CUALQUIER evento
+    de CUALQUIER proyecto ajeno. Corregido con el mismo patrón que `eventos/[id]`
+    (`allowedProjectIds` + `canViewEvent`/`canEditEvent` del módulo Eventos).
+    **Queda pendiente:** `cost-submissions` POST (el reporte de gasto en sí, no su revisión) y
+    `costs/inform` sin `logActivity` todavía; el resto de la instrumentación completa (`activity_logs`
+    para módulos fuera de Eventos/Companies/gestión de gente) no se tocó esta sesión. La migración de
+    `GET /api/activity-logs` de `isAdmin` a `puede_gestionar_equipo` ya estaba hecha de antes (dentro del
+    ítem 3 de Prioridad 1).
 19. ✅ **Ya estaba hecho.** `/api/eventos/[id]/cost-submissions` ya exigía `puede_editar` + `ve_costos` de
     proyecto (migrado dentro del ítem 3 de Prioridad 1, sin que quedara marcado como cierre de este ítem
     puntual -- confirmado leyendo el código el 25 ago).
@@ -865,9 +882,12 @@ navegación (ver detalle abajo). Ítem 18 sigue pendiente completo (instrumentac
 
 ### Prioridad 4 -- huecos menores de aplicación, ya documentados, siguen vigentes
 
-26. Endpoints de detalle por ID sin chequeo de proyecto: `contacts/[id]`, `companies/[id]`, `venues/[id]`
-    (hallazgo 9.1).
-27. `POST /api/companies` no chequea proyecto en absoluto (hallazgo 9.3).
+26. **Parcial -- `companies/[id]` corregido** (25 ago 2026, de paso al trabajar el ítem 18 de Prioridad
+    2): GET/PUT/DELETE ahora exigen `allowedProjectIds` + `canViewModule`/`canEditModule`/`canDeleteModule`
+    de Empresas, igual que el resto de los endpoints de detalle ya corregidos. **Quedan pendientes**
+    `contacts/[id]` y `venues/[id]` (hallazgo 9.1) -- mismo patrón, no tocados todavía.
+27. ✅ `POST /api/companies` no chequeaba proyecto en absoluto (hallazgo 9.3) -- **ya estaba resuelto**
+    (corregido dentro del ítem 6 de Prioridad 1, 25 ago 2026).
 
 ### Prioridad 5 -- limpieza de datos, no bloquea nada del rediseño
 

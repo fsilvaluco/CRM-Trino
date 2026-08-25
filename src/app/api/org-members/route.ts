@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { sendEmail, buildInviteEmailHtml } from "@/lib/resend";
 import { canManageTeam, getProjectPermissions, seedTemplateMatrix, type ProjectRole } from "@/lib/project-roles";
+import { logActivity } from "@/lib/activity-logs";
 
 type MemberStatus = "pending" | "active";
 type MemberRole = "owner" | "admin" | "member" | "artist" | "staff";
@@ -317,6 +318,17 @@ export async function POST(request: NextRequest) {
         }).catch((err) => console.error("[org-members] fallo correo de nuevo proyecto (no bloqueante)", err));
       }
 
+      await logActivity({
+        supabase,
+        userId: user!.id,
+        userEmail: user!.email,
+        action: "invite",
+        entityType: "org_member",
+        entityId: existingUser.id,
+        entityName: normalizedEmail,
+        projectId: projectId ?? null,
+      });
+
       return NextResponse.json({ ok: true, userId: existingUser.id, state: "already_active", notified: !!projectName });
     }
 
@@ -350,6 +362,17 @@ export async function POST(request: NextRequest) {
       } else if (upsertPending.error) {
         return NextResponse.json({ error: upsertPending.error.message }, { status: 500 });
       }
+
+      await logActivity({
+        supabase,
+        userId: user!.id,
+        userEmail: user!.email,
+        action: "invite",
+        entityType: "org_member",
+        entityId: existingUser.id,
+        entityName: normalizedEmail,
+        projectId: projectId ?? null,
+      });
 
       return NextResponse.json({
         ok: true,
@@ -420,6 +443,17 @@ export async function POST(request: NextRequest) {
     // Si no hay RESEND_API_KEY, se añade igual pero sin email (no es bloqueante)
   }
 
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "invite",
+    entityType: "org_member",
+    entityId: userId,
+    entityName: normalizedEmail,
+    projectId: projectId ?? null,
+  });
+
   return NextResponse.json({
     ok: true,
     userId,
@@ -431,7 +465,7 @@ export async function POST(request: NextRequest) {
 
 // PATCH /api/org-members → { userId, role } → cambiar rol
 export async function PATCH(request: NextRequest) {
-  const { orgId, role: actorRole, isAdmin, error } = await requireAuth();
+  const { supabase, orgId, role: actorRole, isAdmin, user, error } = await requireAuth();
   if (error) return error;
   if (!isAdmin) return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
 
@@ -478,12 +512,23 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "No se puede modificar el owner" }, { status: 403 });
   }
 
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "update",
+    entityType: "org_member",
+    entityId: userId,
+    entityName: role,
+    projectId: null,
+  });
+
   return NextResponse.json({ ok: true, member: updatedMember });
 }
 
 // DELETE /api/org-members → { userId } → eliminar usuario de la org
 export async function DELETE(request: NextRequest) {
-  const { orgId, role: actorRole, isAdmin, error } = await requireAuth();
+  const { supabase, orgId, role: actorRole, isAdmin, user, error } = await requireAuth();
   if (error) return error;
   if (!isAdmin) return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
 
@@ -522,6 +567,17 @@ export async function DELETE(request: NextRequest) {
   if (!deletedMember) {
     return NextResponse.json({ error: "No se puede eliminar el owner" }, { status: 403 });
   }
+
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "delete",
+    entityType: "org_member",
+    entityId: userId,
+    entityName: null,
+    projectId: null,
+  });
 
   return NextResponse.json({ ok: true });
 }

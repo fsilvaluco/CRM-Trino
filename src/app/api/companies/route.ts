@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { getProjectPermissions, getProjectPermissionsForMany, canViewModule, canEditModule } from "@/lib/project-roles";
+import { logActivity } from "@/lib/activity-logs";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapCompany(row: any) {
@@ -161,6 +162,17 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "create",
+    entityType: "company",
+    entityId: data.id,
+    entityName: data.name,
+    projectId: targetProjectId,
+  });
 
   return NextResponse.json(mapCompany(data), { status: 201 });
 }

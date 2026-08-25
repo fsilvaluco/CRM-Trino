@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { getProjectPermissions, canViewModule, canEditModule, canDeleteModule } from "@/lib/project-roles";
+import { logActivity } from "@/lib/activity-logs";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapCompany(row: any) {
@@ -54,12 +56,34 @@ function mapDeal(row: any) {
   };
 }
 
+// Empresas sin proyecto asignado (`project_id`/`artist_project_id` ambos
+// null) no exigen chequeo de matriz -- caso legacy raro, mismo criterio
+// permisivo que se usó para Tareas sin proyecto (0.2.4).
+async function requireCompanyAccess(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  userId: string,
+  allowedProjectIds: string[],
+  companyProjectId: string | null,
+  check: (perm: Awaited<ReturnType<typeof getProjectPermissions>>) => boolean
+): Promise<NextResponse | null> {
+  if (!companyProjectId) return null;
+  if (!allowedProjectIds.includes(companyProjectId)) {
+    return NextResponse.json({ error: "Sin acceso a esta empresa" }, { status: 403 });
+  }
+  const perm = await getProjectPermissions(supabase, userId, companyProjectId);
+  if (!check(perm)) {
+    return NextResponse.json({ error: "Sin acceso a Empresas para tu rol" }, { status: 403 });
+  }
+  return null;
+}
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { data: company, error: compErr } = await supabase
@@ -72,6 +96,20 @@ export async function GET(
   if (compErr || !company) {
     return NextResponse.json({ error: "Empresa no encontrada" }, { status: 404 });
   }
+
+  // 25 ago 2026 (ROLES.md, hallazgo 9.1 / ítem 26 del rediseño de roles):
+  // este endpoint de detalle no tenía NINGÚN chequeo de proyecto -- se podía
+  // pedir cualquier empresa por ID directo aunque perteneciera a un
+  // proyecto ajeno.
+  const companyProjectId = company.project_id ?? company.artist_project_id ?? null;
+  const accessError = await requireCompanyAccess(
+    supabase,
+    user!.id,
+    allowedProjectIds,
+    companyProjectId,
+    (perm) => canViewModule(perm, "empresas")
+  );
+  if (accessError) return accessError;
 
   const [{ data: contacts }, { data: deals }, { data: projects }, { data: tasks }] =
     await Promise.all([
@@ -95,7 +133,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   let body;
@@ -107,7 +145,7 @@ export async function PUT(
 
   const { data: existing, error: findErr } = await supabase
     .from("companies")
-    .select("id")
+    .select("id, name, project_id, artist_project_id")
     .eq("id", id)
     .is("deleted_at", null)
     .single();
@@ -115,6 +153,16 @@ export async function PUT(
   if (findErr || !existing) {
     return NextResponse.json({ error: "Empresa no encontrada" }, { status: 404 });
   }
+
+  const existingProjectId = existing.project_id ?? existing.artist_project_id ?? null;
+  const accessError = await requireCompanyAccess(
+    supabase,
+    user!.id,
+    allowedProjectIds,
+    existingProjectId,
+    (perm) => canEditModule(perm, "empresas")
+  );
+  if (accessError) return accessError;
 
   const { name, industry, website, email, phone, address, notes, artistProjectId } = body;
 
@@ -142,6 +190,17 @@ export async function PUT(
     );
   }
 
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "update",
+    entityType: "company",
+    entityId: id,
+    entityName: data.name,
+    projectId: existingProjectId,
+  });
+
   return NextResponse.json(mapCompany(data));
 }
 
@@ -150,12 +209,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { data: existing, error: findErr } = await supabase
     .from("companies")
-    .select("id")
+    .select("id, name, project_id, artist_project_id")
     .eq("id", id)
     .is("deleted_at", null)
     .single();
@@ -163,6 +222,16 @@ export async function DELETE(
   if (findErr || !existing) {
     return NextResponse.json({ error: "Empresa no encontrada" }, { status: 404 });
   }
+
+  const existingProjectId = existing.project_id ?? existing.artist_project_id ?? null;
+  const accessError = await requireCompanyAccess(
+    supabase,
+    user!.id,
+    allowedProjectIds,
+    existingProjectId,
+    (perm) => canDeleteModule(perm, "empresas")
+  );
+  if (accessError) return accessError;
 
   // Soft delete
   const { error: dbError } = await supabase
@@ -176,6 +245,17 @@ export async function DELETE(
       { status: 500 }
     );
   }
+
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "delete",
+    entityType: "company",
+    entityId: id,
+    entityName: existing.name,
+    projectId: existingProjectId,
+  });
 
   return NextResponse.json({ success: true });
 }

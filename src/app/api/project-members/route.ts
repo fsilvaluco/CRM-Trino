@@ -8,6 +8,7 @@ import {
   wouldLeaveProjectWithoutManager,
   type ProjectRole,
 } from "@/lib/project-roles";
+import { logActivity } from "@/lib/activity-logs";
 
 // Gestión de gente (ROLES.md Prioridad 2, ítems 13-17): quien puede
 // invitar/dar de baja/editar a otros en un proyecto es quien tiene
@@ -174,6 +175,17 @@ export async function POST(request: NextRequest) {
     await seedTemplateMatrix(supabase, upserted.id, effectiveRole);
   }
 
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: existing ? "update" : "create",
+    entityType: "project_member",
+    entityId: upserted.id,
+    entityName: userId,
+    projectId,
+  });
+
   return NextResponse.json({ ok: true });
 }
 
@@ -239,6 +251,17 @@ export async function PATCH(request: NextRequest) {
 
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
 
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "update",
+    entityType: "project_member",
+    entityId: target.id,
+    entityName: userId,
+    projectId,
+  });
+
   return NextResponse.json({ ok: true });
 }
 
@@ -285,6 +308,17 @@ export async function DELETE(request: NextRequest) {
     .eq("id", target.id);
 
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
+
+  await logActivity({
+    supabase,
+    userId: user!.id,
+    userEmail: user!.email,
+    action: "delete",
+    entityType: "project_member",
+    entityId: target.id,
+    entityName: userId,
+    projectId,
+  });
 
   return NextResponse.json({ ok: true });
 }
