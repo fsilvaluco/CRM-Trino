@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { markEntityViewed } from "@/lib/entity-views";
 import { sendPushToUsers } from "@/lib/push";
+import { getProjectPermissions, canViewDeals } from "@/lib/project-roles";
 
 function siteUrl(path: string): string {
   const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -24,13 +25,25 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { data: deal, error: dealErr } = await supabase
-    .from("deals").select("id").eq("id", id).single();
+    .from("deals").select("id, project_id, artist_project_id").eq("id", id).single();
   if (dealErr || !deal) {
     return NextResponse.json({ error: "Deal no encontrado" }, { status: 404 });
+  }
+
+  // Comentar es independiente de Editar -- solo exige `puede_ver` en Deals
+  // (ROLES.md 0.2.4). Este endpoint no tenía NINGÚN chequeo de proyecto
+  // hasta acá, ni siquiera Ver.
+  const dealProjectId = deal.project_id || deal.artist_project_id || null;
+  if (!dealProjectId || !allowedProjectIds.includes(dealProjectId)) {
+    return NextResponse.json({ error: "No tienes acceso a este proyecto" }, { status: 403 });
+  }
+  const perm = await getProjectPermissions(supabase, user!.id, dealProjectId);
+  if (!canViewDeals(perm)) {
+    return NextResponse.json({ error: "Sin acceso a Deals para tu rol" }, { status: 403 });
   }
 
   const { data: comments, error: dbError } = await supabase
@@ -48,7 +61,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, user, orgId, error } = await requireAuth();
+  const { supabase, user, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
   if (!user || !orgId) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });
@@ -62,9 +75,20 @@ export async function POST(
   }
 
   const { data: deal, error: dealErr } = await supabase
-    .from("deals").select("id").eq("id", id).single();
+    .from("deals").select("id, project_id, artist_project_id").eq("id", id).single();
   if (dealErr || !deal) {
     return NextResponse.json({ error: "Deal no encontrado" }, { status: 404 });
+  }
+
+  // Comentar es independiente de Editar -- solo exige `puede_ver` en Deals
+  // (ROLES.md 0.2.4).
+  const dealProjectId = deal.project_id || deal.artist_project_id || null;
+  if (!dealProjectId || !allowedProjectIds.includes(dealProjectId)) {
+    return NextResponse.json({ error: "No tienes acceso a este proyecto" }, { status: 403 });
+  }
+  const perm = await getProjectPermissions(supabase, user.id, dealProjectId);
+  if (!canViewDeals(perm)) {
+    return NextResponse.json({ error: "Sin acceso a Deals para tu rol" }, { status: 403 });
   }
 
   // Si no viene un "author" explicito, usar el nombre real de quien esta

@@ -637,11 +637,13 @@ implementado todavía.
 
 ### Prioridad 1 -- base del modelo nuevo (sin esto, el resto no tiene dónde pararse)
 
-**Estado (25 ago 2026):** ítems 1, 2, 4, 7, 10, 11 y 12 implementados y aplicados en producción, más dos
-correcciones encontradas al probar (redacción de $ en Deals y aislamiento de `deals/[id]`, ver el bloque
-de "también corregido de paso" más abajo). Ítems 5 y 6 parciales (ver su propio detalle). Ítems 8, 9 siguen
-sin empezar. Ítem 3 resultó mucho más grande de lo que parecía en el papel -- ver nota al final de esta
-prioridad. Probado en producción contra 3 cuentas de prueba reales (Rodrick/Gonzalo/Daniela en el proyecto
+**Estado (25 ago 2026):** ítems 1, 2, 4, 7, 8, 9, 10, 11 y 12 implementados y aplicados en producción, más
+varias correcciones encontradas al probar/implementar (redacción de $ en Deals, aislamiento de
+`deals/[id]`, exportación CSV sin ningún chequeo de proyecto, comentarios de Deals/Tareas sin ningún
+chequeo de proyecto -- ver el detalle en cada ítem). Ítems 5 y 6 parciales (ver su propio detalle). **Solo
+queda pendiente el ítem 3** (el hallazgo grande de los 38 endpoints con `isAdmin`) para cerrar la
+Prioridad 1 por completo. Probado en producción contra 3 cuentas de prueba reales (Rodrick/Gonzalo/Daniela
+en el proyecto
 Prueba 2) vía login por API -- ver bitácora del 24-25 ago.
 
 1. ✅ **Crear la tabla de matriz de permisos** (0.2.2) -- migración `084_permission_matrix.sql`, aplicada.
@@ -690,11 +692,20 @@ Prueba 2) vía login por API -- ver bitácora del 24-25 ago.
    usaban las funciones viejas (`deals`, `eventos/[id]`, `eventos/[id]/costs/*`, `pipeline`) migrados y
    verificados con `tsc --noEmit` sin errores. `canEditEventCosts` ahora exige `puedeEditar && veCostos`
    del módulo Eventos (antes era solo rol admin/member) -- semántica equivalente, expresada en la matriz.
-8. **Comentarios como permiso independiente, y referencias sin exigir Ver** (0.2.4): el endpoint de
-   comentarios (`/api/tasks/[id]/comments`, `/api/deals/[id]/comments`) solo exige `puede_ver` del
-   módulo, no `puede_editar`; y crear/editar una Tarea con un `dealId`/`contactId`/`companyId` asociado
-   no debe exigir `puede_ver` en el módulo referenciado.
-9. ⏳ **Endpoints de exportación (`/api/export`)** -- pendiente, sigue sin aplicar la redacción de $.
+8. ✅ **Comentarios como permiso independiente** (0.2.4) -- **hallazgo al implementar: ninguno de los dos
+   endpoints (`deal_comments`, `task_comments`, GET y POST) tenía NINGÚN chequeo de proyecto**, ni
+   siquiera `puede_ver` -- no era "hay que relajar de Editar a Ver", era "no había nada que chequear".
+   Corregido: `deal_comments` exige `allowedProjectIds` + `canViewDeals`; `task_comments` exige
+   `allowedProjectIds` + `canViewModule(tareas)` cuando la tarea tiene proyecto asignado (las tareas sin
+   proyecto, permitido hoy a diferencia de otros módulos, quedan sin chequeo adicional para no romperlas).
+   **Referencias sin exigir Ver ya funcionaba así por defecto** -- crear una Tarea con `dealId`/
+   `contactId`/`companyId` nunca validó acceso al módulo referenciado, no hizo falta tocar nada ahí.
+9. ✅ **Endpoints de exportación (`/api/export`)** -- **hallazgo grave: no tenían NINGÚN chequeo de
+   proyecto**, exportaban TODOS los contactos/deals de la organización completa a cualquiera autenticado,
+   sin importar en qué proyectos tuviera fila. Corregido: ambos tipos (`contacts`, `deals`) ahora filtran
+   por `allowedProjectIds`, filtran por `canViewModule`/`canViewDeals` fila por fila (matriz de cada
+   proyecto, mismo patrón que listados agregados), y el CSV de Deals oculta el valor cuando
+   `ve_ingresos = no` -- antes el CSV se llevaba el monto completo aunque la pantalla lo ocultara.
 10. ✅ **Cerrada la brecha de `/api/finances`** (0.2.5) -- `GET`/`POST` de `finances/route.ts` y
     `PUT`/`PATCH`/`DELETE` de `finances/[id]/route.ts` **no tenían NINGÚN chequeo de proyecto ni de rol**
     (solo `organization_id`) -- se agregó el mismo patrón de aislamiento que Deals/Eventos

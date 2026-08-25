@@ -785,6 +785,38 @@ mano (crear una empresa en "Todos los proyectos" y confirmar el mensaje de error
 
 **Versión de la app subida a 2.57.**
 
+### 🔓 Exportación CSV y comentarios sin ningún chequeo de proyecto (25 ago 2026)
+
+Cierre de la Prioridad 1 (ítems 8 y 9 de `ROLES.md`) -- **dos hallazgos graves, del mismo tipo que
+Finanzas ayer: endpoints con cero chequeo de proyecto.**
+
+- **`/api/export` (`?type=contacts`, `?type=deals`) exportaba TODA la organización a cualquiera
+  autenticado** -- sin filtrar por `allowedProjectIds` en absoluto. Era la fuga más grande encontrada en
+  toda esta sesión: alguien con acceso a un solo proyecto podía descargar el CSV completo de contactos y
+  deals de TODOS los proyectos de la agencia, sin que ningún rol se lo impidiera. Corregido: ambos tipos
+  filtran por proyecto, filtran fila por fila según la matriz (`canViewModule`/`canViewDeals`), y el CSV
+  de Deals ahora oculta el monto cuando `ve_ingresos = no` -- antes se llevaba el valor completo aunque
+  la pantalla lo mostrara oculto.
+- **Los comentarios de Deals y Tareas (`deal_comments`, `task_comments`, GET y POST) no tenían NINGÚN
+  chequeo de proyecto** -- ni siquiera el permiso de Ver, no era un caso de "hay que relajar de Editar a
+  Ver" como se pensaba al planificar este ítem, sino que no había nada que chequear. Cualquiera de la
+  organización podía leer y escribir comentarios en el deal o la tarea de cualquier proyecto ajeno.
+  Corregido con el mismo patrón (`allowedProjectIds` + `canViewDeals`/`canViewModule`). Las tareas sin
+  proyecto asignado (permitido hoy, a diferencia de otros módulos) quedan sin este chequeo adicional para
+  no romper tareas sueltas existentes.
+- Confirmado que "referenciar sin exigir Ver" (crear una Tarea con `dealId`/`contactId`/`companyId`) ya
+  funcionaba así -- no hizo falta tocar nada.
+
+**Con esto, de los 12 ítems de la Prioridad 1 solo queda el ítem 3** (sacar `isAdmin` de 38 endpoints,
+el hallazgo grande del primer día) sin resolver -- y los ítems 5/6 quedaron parciales, documentados en
+detalle en `ROLES.md`.
+
+**Verificado:** `tsc --noEmit` limpio, `eslint` limpio, `npm run build` completo sin errores. **No
+probado en el navegador ni con las cuentas de prueba todavía** -- convendría un pase de verificación
+antes de dar la Prioridad 1 por cerrada del todo.
+
+**Versión de la app subida a 2.58.**
+
 ---
 
 ## 🔴 Crítico (arreglar primero)

@@ -2,6 +2,29 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { markEntityViewed } from "@/lib/entity-views";
 import { sendPushToUsers } from "@/lib/push";
+import { getProjectPermissions, canViewModule } from "@/lib/project-roles";
+
+// Comentar es independiente de Editar -- solo exige `puede_ver` en Tareas
+// (ROLES.md 0.2.4). Si la tarea no tiene proyecto asignado (permitido hoy,
+// a diferencia de otros módulos), no hay matriz que chequear -- se deja
+// pasar como antes, para no romper tareas "sueltas" existentes.
+async function checkTaskAccess(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  userId: string,
+  allowedProjectIds: string[],
+  taskProjectId: string | null
+): Promise<NextResponse | null> {
+  if (!taskProjectId) return null;
+  if (!allowedProjectIds.includes(taskProjectId)) {
+    return NextResponse.json({ error: "No tienes acceso a este proyecto" }, { status: 403 });
+  }
+  const perm = await getProjectPermissions(supabase, userId, taskProjectId);
+  if (!canViewModule(perm, "tareas")) {
+    return NextResponse.json({ error: "Sin acceso a Tareas para tu rol" }, { status: 403 });
+  }
+  return null;
+}
 
 function taskUrl(taskId: string): string {
   const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -24,14 +47,17 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { data: task, error: taskErr } = await supabase
-    .from("tasks").select("id").eq("id", id).single();
+    .from("tasks").select("id, project_id").eq("id", id).single();
   if (taskErr || !task) {
     return NextResponse.json({ error: "Tarea no encontrada" }, { status: 404 });
   }
+
+  const accessError = await checkTaskAccess(supabase, user!.id, allowedProjectIds, task.project_id);
+  if (accessError) return accessError;
 
   const { data: comments, error: dbError } = await supabase
     .from("task_comments")
@@ -48,7 +74,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, user, orgId, error } = await requireAuth();
+  const { supabase, user, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) {
     console.error("[task_comments POST] requireAuth error:", error);
     return error;
@@ -71,10 +97,13 @@ export async function POST(
   }
 
   const { data: task, error: taskErr } = await supabase
-    .from("tasks").select("id").eq("id", id).single();
+    .from("tasks").select("id, project_id").eq("id", id).single();
   if (taskErr || !task) {
     return NextResponse.json({ error: "Tarea no encontrada" }, { status: 404 });
   }
+
+  const accessError = await checkTaskAccess(supabase, user.id, allowedProjectIds, task.project_id);
+  if (accessError) return accessError;
 
   const trimmedContent = content.trim();
   // Si no viene un "author" explicito (lo manda el detector de leads para
