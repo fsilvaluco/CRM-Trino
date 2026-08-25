@@ -1,13 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { logActivity } from "@/lib/activity-logs";
+import {
+  getProjectPermissions,
+  getProjectPermissionsForMany,
+  canViewModule,
+  canEditModule,
+} from "@/lib/project-roles";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapTransaction(row: any) {
+function mapTransaction(row: any, veIngresos: boolean) {
   return {
     id: row.id,
     type: row.type as "income" | "expense",
-    amount: row.amount,
+    // Sin ve_ingresos en el módulo Finanzas de este proyecto: se oculta el
+    // monto en la respuesta misma (ROLES.md 0.2.5) -- Finanzas usa un solo
+    // flag de $ (no distingue ingreso/costo como Eventos).
+    amount: veIngresos ? row.amount : null,
     currency: row.currency ?? "CLP",
     description: row.description ?? null,
     category: row.category ?? null,
@@ -29,12 +38,25 @@ function mapTransaction(row: any) {
 }
 
 export async function GET(request: NextRequest) {
-  const { supabase, orgId, error } = await requireAuth();
+  const { supabase, user, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get("projectId");
   const type = searchParams.get("type"); // "income" | "expense"
+
+  // Aislamiento entre proyectos (24 ago 2026 -- este endpoint no tenía
+  // NINGÚN chequeo de proyecto ni de rol; ver ROLES.md 0.2.5, era del mismo
+  // nivel de urgencia que el bug del 23 ago). Nota: a diferencia de
+  // Deals/Eventos, Finanzas NO agrupa proyecto madre + hijos -- son libros
+  // separados (ROLES.md 0.2.5), por eso el filtro es `.eq` exacto, nunca
+  // se expande a hijos.
+  if (projectId && !allowedProjectIds.includes(projectId)) {
+    return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
+  }
+  if (!projectId && allowedProjectIds.length === 0) {
+    return NextResponse.json([]);
+  }
 
   let query = supabase
     .from("transactions")
@@ -43,13 +65,28 @@ export async function GET(request: NextRequest) {
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
-  if (projectId) query = query.eq("project_id", projectId);
+  query = projectId ? query.eq("project_id", projectId) : query.in("project_id", allowedProjectIds);
   if (type) query = query.eq("type", type);
 
   const { data, error: dbError } = await query;
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
 
-  const rows = data ?? [];
+  // Cada fila puede pertenecer a un proyecto distinto en modo agregado --
+  // la matriz se respeta por proyecto, no la del proyecto activo en el
+  // selector (ROLES.md 0.5). Se calcula por lote (una consulta por
+  // proyecto distinto, no por fila).
+  const allRows = data ?? [];
+  const permsByProject = await getProjectPermissionsForMany(
+    supabase,
+    user!.id,
+    allRows.map((r) => r.project_id)
+  );
+
+  if (projectId && !canViewModule(permsByProject.get(projectId) ?? null, "finanzas")) {
+    return NextResponse.json({ error: "Sin acceso a Finanzas para tu rol" }, { status: 403 });
+  }
+
+  const rows = allRows.filter((r) => canViewModule(permsByProject.get(r.project_id) ?? null, "finanzas"));
 
   // Comprobantes múltiples de todas las transacciones de una vez (evita
   // N+1 queries).
@@ -68,10 +105,14 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Generar signed URLs para los archivos (válidas 1 hora)
+  // Generar signed URLs para los archivos (válidas 1 hora) -- solo si
+  // ve_ingresos: sin eso, ni el monto ni el comprobante quedan visibles
+  // (ROLES.md 0.2.4, "los archivos adjuntos heredan el permiso de $").
   const withSignedUrls = await Promise.all(
     rows.map(async (row) => {
-      const mapped = mapTransaction(row);
+      const veIngresos = Boolean(permsByProject.get(row.project_id)?.modules.finanzas.veIngresos);
+      const mapped = mapTransaction(row, veIngresos);
+      if (!veIngresos) return mapped;
       if (row.file_path) {
         const { data: signed } = await supabase.storage
           .from("finances")
@@ -95,7 +136,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { supabase, user, orgId, error } = await requireAuth();
+  const { supabase, user, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const body = await request.json();
@@ -107,12 +148,24 @@ export async function POST(request: NextRequest) {
   if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
     return NextResponse.json({ error: "amount debe ser un número positivo" }, { status: 400 });
   }
+  // `transactions.project_id` es NOT NULL desde la migración 084 (ROLES.md
+  // 0.2.5) -- toda transacción pertenece a un proyecto, sin excepción.
+  if (!projectId) {
+    return NextResponse.json({ error: "projectId requerido" }, { status: 400 });
+  }
+  if (!allowedProjectIds.includes(projectId)) {
+    return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
+  }
+  const perm = await getProjectPermissions(supabase, user!.id, projectId);
+  if (!canEditModule(perm, "finanzas")) {
+    return NextResponse.json({ error: "Tu rol no puede crear movimientos en Finanzas de este proyecto" }, { status: 403 });
+  }
 
   const { data, error: dbError } = await supabase
     .from("transactions")
     .insert({
       organization_id: orgId,
-      project_id: projectId ?? null,
+      project_id: projectId,
       type,
       amount: Math.round(Number(amount)),
       currency,
@@ -144,5 +197,5 @@ export async function POST(request: NextRequest) {
     projectId: data.project_id,
   });
 
-  return NextResponse.json(mapTransaction(data), { status: 201 });
+  return NextResponse.json(mapTransaction(data, Boolean(perm?.modules.finanzas.veIngresos)), { status: 201 });
 }

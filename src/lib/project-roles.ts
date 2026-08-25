@@ -194,6 +194,27 @@ export function canEditEvent(perm: ProjectPermissions | null): boolean {
   return moduleOf(perm, "eventos").puedeEditar;
 }
 
+/**
+ * Trae la matriz de permisos del usuario para VARIOS proyectos a la vez --
+ * necesario para listados agregados (ej. Deals/Pipeline sin `?projectId=`,
+ * modo "Todos los proyectos") donde cada fila puede pertenecer a un
+ * proyecto distinto y por lo tanto tener un permiso distinto (ROLES.md 0.5:
+ * la vista agregada respeta la matriz de CADA proyecto individualmente, no
+ * es un resumen plano).
+ */
+export async function getProjectPermissionsForMany(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  userId: string,
+  projectIds: string[]
+): Promise<Map<string, ProjectPermissions | null>> {
+  const uniqueIds = Array.from(new Set(projectIds.filter(Boolean)));
+  const results = await Promise.all(
+    uniqueIds.map((id) => getProjectPermissions(supabase, userId, id))
+  );
+  return new Map(uniqueIds.map((id, i) => [id, results[i]]));
+}
+
 // ── Tareas / Campañas / Contactos / Empresas / Finanzas ────────────────────
 export function canViewModule(perm: ProjectPermissions | null, module: ModuleKey): boolean {
   return moduleOf(perm, module).puedeVer;

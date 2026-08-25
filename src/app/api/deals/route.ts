@@ -1,16 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { logActivity } from "@/lib/activity-logs";
-import { getProjectPermissions, canViewDeals, canEditDeals } from "@/lib/project-roles";
+import {
+  getProjectPermissions,
+  getProjectPermissionsForMany,
+  canViewDeals,
+  canEditDeals,
+  canViewModule,
+} from "@/lib/project-roles";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapDeal(row: any) {
+function mapDeal(row: any, veIngresos: boolean, veContactos: boolean) {
   return {
     id: row.id,
     title: row.title,
-    value: row.value,
+    // Sin ve_ingresos en el módulo Deals de este proyecto: se ocultan los
+    // montos (no solo en la UI -- acá, en la respuesta misma). "null" =
+    // "no autorizado a ver", distinto de "$0" (ROLES.md 0.2.2).
+    value: veIngresos ? row.value : null,
     valueType: row.value_type ?? "fixed",
-    percentageValue: row.percentage_value ?? null,
+    percentageValue: veIngresos ? (row.percentage_value ?? null) : null,
     taxType: row.tax_type ?? "afecto",
     stageId: row.stage_id,
     contactId: row.contact_id,
@@ -22,11 +31,14 @@ function mapDeal(row: any) {
     referenceUrl: row.reference_url ?? null,
     isShow: row.is_show ?? false,
     source: row.source ?? null,
-    commissionRate: row.commission_rate ?? null,
+    commissionRate: veIngresos ? (row.commission_rate ?? null) : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    // Visibilidad parcial entre módulos (ROLES.md 0.2.2): sin acceso a
+    // Contactos, se ve el NOMBRE (para saber con quién es el trato) pero no
+    // el resto del registro (acá, el email).
     contactName: row.contacts?.name ?? null,
-    contactEmail: row.contacts?.email ?? null,
+    contactEmail: veContactos ? (row.contacts?.email ?? null) : null,
     stageName: row.pipeline_stages?.name ?? null,
     stageColor: row.pipeline_stages?.color ?? null,
     stageOrder: row.pipeline_stages?.order ?? null,
@@ -109,7 +121,28 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: dbError.message }, { status: 500 });
   }
 
-  return NextResponse.json((data ?? []).map(mapDeal));
+  // Cada deal puede pertenecer a un proyecto distinto (agrupamiento por
+  // sello, o listado agregado sin `projectId`) -- la vista respeta la
+  // matriz de CADA proyecto individualmente, no la del proyecto
+  // seleccionado en el selector (ROLES.md 0.5). Se calcula por lote para no
+  // hacer una consulta por fila.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rows = (data ?? []) as any[];
+  const rowProjectIds = rows.map((r) => r.project_id ?? r.artist_project_id).filter(Boolean);
+  const permsByProject = await getProjectPermissionsForMany(supabase, user!.id, rowProjectIds);
+
+  const visible = rows.filter((r) => {
+    const rowProjectId = r.project_id ?? r.artist_project_id;
+    return canViewDeals(permsByProject.get(rowProjectId) ?? null);
+  });
+
+  return NextResponse.json(
+    visible.map((r) => {
+      const rowProjectId = r.project_id ?? r.artist_project_id;
+      const perm = permsByProject.get(rowProjectId) ?? null;
+      return mapDeal(r, Boolean(perm?.modules.deals.veIngresos), canViewModule(perm, "contactos"));
+    })
+  );
 }
 
 export async function POST(request: NextRequest) {
@@ -255,5 +288,8 @@ export async function POST(request: NextRequest) {
     projectId: data.project_id ?? data.artist_project_id ?? null,
   });
 
-  return NextResponse.json(mapDeal(data), { status: 201 });
+  return NextResponse.json(
+    mapDeal(data, Boolean(dealRole?.modules.deals.veIngresos), canViewModule(dealRole, "contactos")),
+    { status: 201 }
+  );
 }

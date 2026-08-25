@@ -3,18 +3,23 @@ import { requireAuth } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { markEntityViewed } from "@/lib/entity-views";
 import { logActivity } from "@/lib/activity-logs";
-import { getProjectPermissions, canEditDeals } from "@/lib/project-roles";
+import { getProjectPermissions, canViewDeals, canEditDeals, canViewModule } from "@/lib/project-roles";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapDeal(row: any) {
+function mapDeal(row: any, veIngresos: boolean) {
   return {
     id: row.id,
     title: row.title,
-    value: row.value,
+    // Sin ve_ingresos: se ocultan los montos en la respuesta misma, no solo
+    // en la UI (ROLES.md 0.2.2).
+    value: veIngresos ? row.value : null,
     valueType: row.value_type ?? "fixed",
-    percentageValue: row.percentage_value ?? null,
+    percentageValue: veIngresos ? (row.percentage_value ?? null) : null,
     taxType: row.tax_type ?? "afecto",
     stageId: row.stage_id,
+    // Nota: esta consulta no trae el nombre/email del contacto (a
+    // diferencia del listado en deals/route.ts) -- solo el ID crudo, así
+    // que no hay dato de Contactos que redactar acá todavía.
     contactId: row.contact_id,
     companyId: row.company_id ?? null,
     projectId: row.project_id ?? null,
@@ -25,7 +30,7 @@ function mapDeal(row: any) {
     referenceUrl: row.reference_url ?? null,
     isShow: row.is_show ?? false,
     source: row.source ?? null,
-    commissionRate: row.commission_rate ?? null,
+    commissionRate: veIngresos ? (row.commission_rate ?? null) : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     assignees: row.deal_assignees?.map((da: any) => ({
@@ -45,7 +50,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, user, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { data, error: dbError } = await supabase
@@ -66,6 +71,19 @@ export async function GET(
     return NextResponse.json({ error: "Deal no encontrado" }, { status: 404 });
   }
 
+  // Aislamiento entre proyectos (24 ago 2026 -- este endpoint no tenía
+  // NINGÚN chequeo, a diferencia de eventos/[id] que sí lo tiene desde el
+  // 23 ago; ver ROLES.md hallazgo 9.1, patrón extendido acá a Deals).
+  const dealProjectId = data.project_id || data.artist_project_id || null;
+  if (!dealProjectId || !allowedProjectIds.includes(dealProjectId)) {
+    return NextResponse.json({ error: "No tienes acceso a este proyecto" }, { status: 403 });
+  }
+  const perm = await getProjectPermissions(supabase, user!.id, dealProjectId);
+  if (!canViewDeals(perm)) {
+    return NextResponse.json({ error: "Sin acceso a Deals para tu rol" }, { status: 403 });
+  }
+  const veIngresos = Boolean(perm?.modules.deals.veIngresos);
+
   if (user) void markEntityViewed(supabase, user.id, "deal", id);
 
   const [{ data: project }, { data: linkedShow }] = await Promise.all([
@@ -75,11 +93,16 @@ export async function GET(
     supabase.from("shows").select("id, fee, ticket_income, expenses").eq("deal_id", id).limit(1).maybeSingle(),
   ]);
 
+  // La utilidad del evento vinculado es plata de Eventos, no de Deals --
+  // exige ver ingresos Y costos del módulo Eventos de este mismo proyecto,
+  // no `veIngresos` de Deals (son módulos distintos).
+  const veEventoUtilidad = canViewModule(perm, "eventos") && perm!.modules.eventos.veIngresos && perm!.modules.eventos.veCostos;
+
   return NextResponse.json({
-    ...mapDeal(data),
+    ...mapDeal(data, veIngresos),
     projectDefaultCommissionRate: project?.default_commission_rate ?? 30,
     linkedEventId: linkedShow?.id ?? null,
-    linkedEventUtilidad: linkedShow
+    linkedEventUtilidad: linkedShow && veEventoUtilidad
       ? (linkedShow.fee ?? 0) + (linkedShow.ticket_income ?? 0) - (linkedShow.expenses ?? 0)
       : null,
   });
@@ -254,7 +277,7 @@ export async function PUT(
     projectId: data.project_id ?? data.artist_project_id ?? null,
   });
 
-  return NextResponse.json(mapDeal(data));
+  return NextResponse.json(mapDeal(data, Boolean(dealRole?.modules.deals.veIngresos)));
 }
 
 export async function DELETE(

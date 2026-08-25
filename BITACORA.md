@@ -693,6 +693,66 @@ errores. Migración verificada en Supabase: 210 filas de matriz (30 personas × 
 
 **Versión de la app subida a 2.55.**
 
+### 🧪 Cuentas de prueba + validación real + brecha grande en Finanzas (25 ago 2026)
+
+Continuación de la sesión anterior. Francisco pidió probar la matriz con usuarios reales antes de seguir
+construyendo -- como no hay navegador interactivo disponible en esta sesión, se probó **la lógica real
+contra la API en producción** (login por API con `signInWithPassword`, cookie de sesión de
+`@supabase/ssr` armada a mano, `curl` directo a los endpoints).
+
+**Cuentas de prueba creadas** en el proyecto **Prueba 2** (sandbox, sin datos reales), con la matriz
+exacta de los 3 casos de `ROLES.md` 0.2.3:
+- `rodrick.test@artistpro.local`, `gonzalo.test@artistpro.local`, `daniela.test@artistpro.local` --
+  password compartida `TestMatriz2026!` (avisada a Francisco por chat, no queda en ningún archivo del
+  repo). Requirió que Francisco agregara `SUPABASE_SERVICE_ROLE_KEY` a su `.env.local` (nunca se sube a
+  git) para poder crear cuentas de auth directamente.
+- Quedan activas a pedido de Francisco, para seguir probando el resto de la Prioridad 1.
+
+**Resultado de las pruebas -- Deals:** Rodrick vio el deal (ver=sí) y el intento de editarlo devolvió
+403 (editar=no) -- correcto. **Pero el monto del deal (`$100.000.000`) quedó visible igual**, pese a que
+Rodrick no debería ver ingresos -- reveló que la redacción de $ dentro de Deals nunca se había
+implementado, solo el ver/editar del módulo completo.
+
+**Resultado de las pruebas -- Eventos** (evento descartable creado y borrado en Prueba 2 para probar):
+`canViewCosts`/`canEditCosts`/montos coincidieron exacto con el diseño para los 3 perfiles (Rodrick: todo
+false/null; Gonzalo: ve pero no edita; Daniela: ve y edita) -- incluido el intento real de `PUT` cambiando
+`fee`, que se ignoró en silencio para Gonzalo y se aplicó para Daniela.
+
+**Corregido a partir de lo encontrado:**
+- `GET /api/deals` (listado, incl. sin `projectId`) y `GET /api/deals/[id]`: ahora redactan
+  `value`/`percentageValue`/`commissionRate` a `null` cuando `ve_ingresos = no` del módulo Deals de ESE
+  proyecto -- no solo el total, el dato completo, en la respuesta misma (no algo que dependiera de la UI
+  para ocultarlo). También `contactEmail` en el listado se oculta si no hay acceso a Contactos (el nombre
+  se sigue mostrando -- visibilidad parcial entre módulos, ROLES.md 0.2.2).
+- **Hallazgo nuevo, no estaba en la lista**: `GET /api/deals/[id]` no tenía NINGÚN chequeo de aislamiento
+  entre proyectos -- ni `allowedProjectIds` ni `canViewDeals`, a diferencia de `eventos/[id]` que sí lo
+  tiene desde el 23 ago. Cualquier persona autenticada de la organización podía pedir cualquier deal de
+  cualquier proyecto por ID directo. Corregido con el mismo patrón que eventos. De paso, `linkedEventUtilidad`
+  (la plata de un evento vinculado a un deal) pasó a exigir ver ingresos Y costos del módulo Eventos, no
+  `ve_ingresos` de Deals -- son módulos distintos, estaba mal atribuido.
+- **`GET`/`POST /api/finances` y `PUT`/`PATCH`/`DELETE /api/finances/[id]`: no tenían NINGÚN chequeo de
+  proyecto ni de rol** -- solo `organization_id`. Era del mismo nivel de gravedad que el bug del 23 ago,
+  documentado ya como pendiente urgente en la sesión anterior (ítem 10 del roadmap). Corregido con el
+  mismo patrón (`allowedProjectIds` + matriz del módulo `finanzas`), más redacción de `amount` y
+  comprobantes/adjuntos cuando `ve_ingresos = no`. El listado agregado (sin `projectId`) ahora respeta la
+  matriz de cada proyecto individualmente, sin agrupar proyecto madre + hijos (Finanzas queda excluida de
+  ese agrupamiento a propósito, ROLES.md 0.2.5 -- son libros separados).
+- `POST /api/finances` y `POST /api/deals` ahora devuelven el registro recién creado ya redactado según
+  el permiso de quien lo creó (antes devolvían el dato crudo sin pasar por ningún filtro).
+
+**Verificado:** `tsc --noEmit` limpio, `eslint` limpio (mismos `no-explicit-any` preexistentes, sin
+tocar), `npm run build` completo sin errores. Probado en producción con las 3 cuentas de prueba antes y
+después del fix (Rodrick dejó de ver el monto del deal tras el deploy). Deploy confirmado con
+`buildId` nuevo + `/api/version` respondiendo 200.
+
+**Pendiente todavía de la Prioridad 1:** regla "sin proyecto seleccionado no se edita" en el frontend
+(ítem 5), vista agregada de Deals/Eventos respetando matriz por proyecto en el resto de los módulos que
+faltan (ítem 6 -- Finanzas y Deals ya quedaron resueltos hoy), comentarios independientes de Editar
+(ítem 8), exportación CSV con la misma redacción (ítem 9). El hallazgo grande de los 38 endpoints con
+`isAdmin` sigue sin tocar.
+
+**Versión de la app subida a 2.56.**
+
 ---
 
 ## 🔴 Crítico (arreglar primero)

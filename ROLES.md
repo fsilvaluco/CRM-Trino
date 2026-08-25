@@ -637,10 +637,12 @@ implementado todavía.
 
 ### Prioridad 1 -- base del modelo nuevo (sin esto, el resto no tiene dónde pararse)
 
-**Estado (24 ago 2026, tarde):** ítems 1, 2, 4 y 7 implementados y aplicados en producción. Ítems 5, 6,
-8, 9, 10, 12 siguen pendientes. Ítem 3 resultó mucho más grande de lo que parecía en el papel -- ver nota
-al final de esta prioridad. Ítem 11 se resolvió como parte del ítem 1 (no había transacciones existentes
-que migrar, así que la constraint se aplicó directo).
+**Estado (25 ago 2026):** ítems 1, 2, 4, 7, 10, 11 y 12 implementados y aplicados en producción, más dos
+correcciones encontradas al probar (redacción de $ en Deals y aislamiento de `deals/[id]`, ver el bloque
+de "también corregido de paso" más abajo). Ítems 5, 6, 8, 9 siguen pendientes. Ítem 3 resultó mucho más
+grande de lo que parecía en el papel -- ver nota al final de esta prioridad. Probado en producción contra
+3 cuentas de prueba reales (Rodrick/Gonzalo/Daniela en el proyecto Prueba 2) vía login por API -- ver
+bitácora del 24-25 ago.
 
 1. ✅ **Crear la tabla de matriz de permisos** (0.2.2) -- migración `084_permission_matrix.sql`, aplicada.
    `project_member_permissions`: una fila por persona × módulo (Contactos, Empresas, Deals, Tareas,
@@ -678,19 +680,35 @@ que migrar, así que la constraint se aplicó directo).
    comentarios (`/api/tasks/[id]/comments`, `/api/deals/[id]/comments`) solo exige `puede_ver` del
    módulo, no `puede_editar`; y crear/editar una Tarea con un `dealId`/`contactId`/`companyId` asociado
    no debe exigir `puede_ver` en el módulo referenciado.
-9. **Todos los endpoints de exportación (`/api/export`) tienen que aplicar la misma redacción de $ y de
-   módulos que la matriz** -- es la fuga más directa si se olvida: alguien sin `ve_ingresos` no ve el
-   monto en pantalla, pero si el CSV lo incluye igual, se lo lleva completo. Prioridad alta porque es
-   fácil de pasar por alto al construir la matriz mirando solo las pantallas principales.
-10. **Cerrar la brecha de `GET /api/finances`** (0.2.5) -- hoy no filtra por proyecto ni chequea rol en
-    absoluto si no se manda `?projectId=`. Del mismo nivel de urgencia que el bug del 23 ago, solo que en
-    un módulo que había quedado fuera de esa corrección.
+9. ⏳ **Endpoints de exportación (`/api/export`)** -- pendiente, sigue sin aplicar la redacción de $.
+10. ✅ **Cerrada la brecha de `/api/finances`** (0.2.5) -- `GET`/`POST` de `finances/route.ts` y
+    `PUT`/`PATCH`/`DELETE` de `finances/[id]/route.ts` **no tenían NINGÚN chequeo de proyecto ni de rol**
+    (solo `organization_id`) -- se agregó el mismo patrón de aislamiento que Deals/Eventos
+    (`allowedProjectIds` + `getProjectPermissions` + `canViewModule`/`canEditModule`/`canDeleteModule`
+    sobre el módulo `finanzas`), más redacción de `amount`/comprobantes/adjuntos línea por línea cuando
+    `ve_ingresos = no` (antes se veían igual, sin importar el rol). El listado agregado (sin
+    `?projectId=`) ahora respeta la matriz de cada proyecto individualmente (mismo patrón que se aplicó a
+    Deals, ver ítem 1 -- ver 0.5).
 11. ✅ **Migración de datos: `transactions.project_id` deja de aceptar nulos** (0.2.5) -- verificado antes
     de migrar: 0 transacciones existentes en la base (total y sin proyecto), así que la constraint
     `NOT NULL` se aplicó directo en la misma migración 084, sin backfill necesario.
-12. **Excluir Finanzas del agrupamiento de listas por sello** (0.2.5) -- el patrón que hoy junta
-    Deals/Eventos/Contactos/Empresas de la madre con los de sus hijos al seleccionar la madre (sección 4)
-    no debe aplicarse a Finanzas: son libros separados que no se suman ni se mezclan en ningún reporte.
+12. ✅ **Finanzas excluida del agrupamiento de listas por sello** (0.2.5) -- el filtro de proyecto en
+    `finances/route.ts` es `.eq("project_id", projectId)` exacto, nunca se expande a proyectos hijos como
+    sí hacen Deals/Eventos -- son libros separados, no se mezclan.
+
+**También corregido de paso, encontrado al hacer esto (no estaba en la lista original):**
+- **`GET /api/deals` (sin `projectId`, ej. Pipeline) y `GET /api/deals/[id]` no redactaban montos**
+  (`value`/`percentageValue`/`commissionRate`) según `ve_ingresos` -- se veían igual sin importar el rol.
+  Confirmado en vivo con la cuenta de prueba Rodrick antes de corregirlo (ver conversación). Corregido en
+  ambos endpoints + `POST /api/deals`; el listado sin `projectId` ahora también respeta la matriz de cada
+  proyecto individualmente (mismo patrón que ítem 6, aplicado primero acá).
+- **`GET /api/deals/[id]` no tenía NINGÚN chequeo de aislamiento entre proyectos** -- ni `allowedProjectIds`
+  ni `canViewDeals`, a diferencia de `eventos/[id]` que sí lo tenía desde el 23 ago. Cualquiera autenticado
+  en la organización podía pedir cualquier deal por ID. Corregido con el mismo patrón que eventos.
+  `linkedEventUtilidad` (plata de un evento vinculado) ahora exige ver ingresos Y costos del módulo
+  Eventos, no `ve_ingresos` de Deals -- son módulos distintos.
+- **Visibilidad parcial de Contactos dentro de Deals** (0.2.2): `contactEmail` en el listado de Deals
+  ahora se oculta si la persona no tiene `puede_ver` en Contactos -- el nombre se sigue mostrando.
 
 ### Prioridad 2 -- gestión de gente (nueva superficie que hoy no tiene reglas)
 

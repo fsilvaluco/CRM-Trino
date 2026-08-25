@@ -1,16 +1,59 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { logActivity } from "@/lib/activity-logs";
+import { getProjectPermissions, canEditModule, canDeleteModule } from "@/lib/project-roles";
+
+// Aislamiento entre proyectos (24 ago 2026 -- estos 3 endpoints no tenían
+// NINGÚN chequeo de proyecto ni de rol, solo `organization_id`; ver
+// ROLES.md 0.2.5, mismo nivel de urgencia que el bug del 23 ago). Cada uno
+// trae primero el `project_id` real de la transacción y valida contra la
+// matriz de ESE proyecto antes de tocar nada.
+async function checkAccess(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  userId: string,
+  orgId: string,
+  allowedProjectIds: string[],
+  transactionId: string,
+  action: "editar" | "eliminar"
+): Promise<NextResponse | null> {
+  const { data: existing, error: findErr } = await supabase
+    .from("transactions")
+    .select("id, project_id")
+    .eq("id", transactionId)
+    .eq("organization_id", orgId)
+    .single();
+
+  if (findErr || !existing) {
+    return NextResponse.json({ error: "Transacción no encontrada" }, { status: 404 });
+  }
+  if (!existing.project_id || !allowedProjectIds.includes(existing.project_id)) {
+    return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
+  }
+  const perm = await getProjectPermissions(supabase, userId, existing.project_id);
+  const allowed = action === "editar" ? canEditModule(perm, "finanzas") : canDeleteModule(perm, "finanzas");
+  if (!allowed) {
+    return NextResponse.json(
+      { error: `Tu rol no puede ${action} movimientos de Finanzas en este proyecto` },
+      { status: 403 }
+    );
+  }
+  return null;
+}
 
 // PUT /api/finances/[id] → editar transacción completa
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { supabase, user, orgId, error } = await requireAuth();
+  const { supabase, user, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { id } = await params;
+
+  const accessError = await checkAccess(supabase, user!.id, orgId!, allowedProjectIds, id, "editar");
+  if (accessError) return accessError;
+
   const body = await request.json();
 
   const updates: Record<string, unknown> = {};
@@ -91,10 +134,14 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { supabase, orgId, error } = await requireAuth();
+  const { supabase, user, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { id } = await params;
+
+  const accessError = await checkAccess(supabase, user!.id, orgId!, allowedProjectIds, id, "editar");
+  if (accessError) return accessError;
+
   const body = await request.json();
 
   const updates: Record<string, unknown> = {};
@@ -121,10 +168,13 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { supabase, user, orgId, error } = await requireAuth();
+  const { supabase, user, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { id } = await params;
+
+  const accessError = await checkAccess(supabase, user!.id, orgId!, allowedProjectIds, id, "eliminar");
+  if (accessError) return accessError;
 
   const { data, error: dbError } = await supabase
     .from("transactions")
