@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { getProjectPermissionsForMany, canEditModule } from "@/lib/project-roles";
 
 export async function POST(request: NextRequest) {
-  const { supabase, orgId, isAdmin, error } = await requireAuth();
+  const { supabase, user, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
-  if (!isAdmin) return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
 
   let body: { primaryContactId?: string; mergeContactIds?: string[] };
   try {
@@ -65,6 +65,21 @@ export async function POST(request: NextRequest) {
         error:
           "No se pueden fusionar contactos de proyectos sin relacion sello-artista (ej. Katarsis y Trino son independientes).",
       },
+      { status: 403 }
+    );
+  }
+
+  // Antes esto exigía "isAdmin" (rol de ORGANIZACIÓN) -- sin chequear el
+  // proyecto de los contactos en absoluto. Migrado a la matriz: exige
+  // acceso Y puede_editar en Contactos de TODOS los proyectos involucrados
+  // (ROLES.md, ítem 3 del rediseño de roles).
+  if (!involvedProjectIds.every((pid) => allowedProjectIds.includes(pid))) {
+    return NextResponse.json({ error: "Sin acceso a alguno de estos proyectos" }, { status: 403 });
+  }
+  const involvedPerms = await getProjectPermissionsForMany(supabase, user!.id, involvedProjectIds);
+  if (!involvedProjectIds.every((pid) => canEditModule(involvedPerms.get(pid) ?? null, "contactos"))) {
+    return NextResponse.json(
+      { error: "Tu rol no puede editar Contactos en alguno de estos proyectos" },
       { status: 403 }
     );
   }

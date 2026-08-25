@@ -817,6 +817,53 @@ antes de dar la Prioridad 1 por cerrada del todo.
 
 **Versión de la app subida a 2.58.**
 
+### 🧹 Ítem 3: sacar `isAdmin` de los 38 endpoints (25 ago 2026)
+
+Cierre del pendiente más grande que había quedado abierto en la Prioridad 1 (ROLES.md, ítem 3).
+
+**26 de 38 endpoints migrados** de `isAdmin` (rol de ORGANIZACIÓN) a `allowedProjectIds` + la matriz de
+proyecto, sin ningún bypass:
+
+- **Mecánico (16 archivos)**: el mismo patrón `!isAdmin && !allowedProjectIds.includes(...)` que ya se
+  había corregido en Deals/Eventos/Finanzas -- `webhook`, `loans` (4), `lead-candidates`, `smartlinks`
+  (3), `projects/[id]/theme`, `projects/[id]/avatar`, `qr` (3), `venues` (3), `loan-contributions` (2),
+  `import`.
+- **Con decisión propia (10 archivos)**:
+  - `eventos/[id]/signatures`: se sacó el bypass "admin de organización siempre puede firmar" del propio
+    `canSign` -- nadie tiene bypass, ni siquiera para firmar (consistente con la decisión del 23 ago).
+  - `eventos/[id]/cost-submissions` (2): revisar/aprobar un gasto reportado ahora exige `puede_editar` +
+    `ve_costos` de Eventos del proyecto del evento (no `isAdmin`); el aviso push ahora notifica a quien
+    puede revisar en ESE proyecto, no a "admins de organización" en general.
+  - `tasks/[id]` DELETE: exige `puede_eliminar` de Tareas del proyecto de la tarea -- antes ni siquiera
+    chequeaba a qué proyecto pertenecía.
+  - `contacts/merge`: exige `puede_editar` de Contactos en TODOS los proyectos involucrados en la fusión.
+  - `projects/[id]` PUT: exige `puede_gestionar_equipo` de ESE proyecto. DELETE: exige `owner`, mismo
+    criterio que crear un proyecto (0.3) -- es igual de destructivo.
+  - `projects` GET: el rol mostrado por proyecto ya no se fuerza a "admin" solo por ser admin de
+    organización -- el mismo hallazgo que motivó todo el trabajo del 23 ago, encontrado de nuevo acá.
+  - `activity-logs`: exige `puede_gestionar_equipo` en al menos un proyecto, no `isAdmin` de organización.
+
+**12 endpoints se dejan con `isAdmin` a propósito** -- son genuinamente de organización, no de un
+proyecto puntual: `billing` (2, billing es inherentemente de organización), `admin/broadcast`,
+`admin/import` (2, acciones administrativas de organización), `settings/alias-rules` (2, configuración de
+organización), `integrations/gmail/connections` (2, ya validan dueño de la conexión -- `isAdmin` es solo
+el caso de "un admin soluciona la conexión de otra persona"), y **`org-members` (2) + `org-members/
+profile` + `project-members`** -- estos 4 son gestión de gente, que sigue siendo trabajo pendiente de
+Prioridad 2 (ítems 13-17): hoy no existe el flujo de invitar/crear cuentas con `puede_gestionar_equipo`
+por proyecto, migrarlos ahora sin esa base rompería la única forma que existe hoy de agregar gente al
+sistema.
+
+**Con esto, de los 12 ítems de la Prioridad 1 solo quedan pendientes el 5 y 6 (parciales, ver su detalle
+en `ROLES.md`)** -- el resto está implementado y en producción.
+
+**Verificado:** `tsc --noEmit` limpio, `eslint` limpio (mismos 2 problemas preexistentes en
+`tasks/[id]/route.ts`, confirmados con `git stash` que ya estaban antes de esta sesión), `npm run build`
+completo sin errores. **No probado en el navegador ni con las cuentas de prueba todavía** -- convendría
+un pase de verificación antes de dar el ítem 3 por cerrado del todo (en particular `contacts/merge`,
+`projects/[id]`, y el flujo de aprobar/rechazar gastos reportados).
+
+**Versión de la app subida a 2.59.**
+
 ---
 
 ## 🔴 Crítico (arreglar primero)

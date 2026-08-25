@@ -168,7 +168,7 @@ async function getOrCreateCompanyId(params: {
 }
 
 export async function POST(request: NextRequest) {
-  const { supabase, user, orgId, isAdmin, allowedProjectIds, error: authError } = await requireAuth();
+  const { supabase, user, orgId, allowedProjectIds, error: authError } = await requireAuth();
   if (authError) return authError;
 
   // Auth check: if a webhook secret is stored, require it in the header
@@ -230,7 +230,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Members can only write into projects they explicitly belong to
-  if (!isAdmin && !allowedProjectIds?.includes(resolvedProjectId)) {
+  if (!allowedProjectIds.includes(resolvedProjectId)) {
     return NextResponse.json(
       { error: "Sin acceso al proyecto especificado para este webhook" },
       { status: 403 }

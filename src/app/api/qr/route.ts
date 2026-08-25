@@ -20,7 +20,7 @@ function mapQr(row: any) {
 // GET /api/qr?projectId=xxx -- lista los QR de un proyecto con su contador
 // de escaneos.
 export async function GET(request: NextRequest) {
-  const { supabase, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
   if (!projectId) {
     return NextResponse.json({ error: "projectId es requerido" }, { status: 400 });
   }
-  if (!isAdmin && (!allowedProjectIds || !allowedProjectIds.includes(projectId))) {
+  if (!allowedProjectIds.includes(projectId)) {
     return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
   }
 
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
 // mismo namespace de slugs porque ambos se resuelven desde la raiz del
 // dominio corto.
 export async function POST(request: NextRequest) {
-  const { supabase, user, orgId, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, user, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const body = await request.json().catch(() => ({}));
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: "El link de destino no es una URL válida (¿falta https://?)" }, { status: 400 });
   }
-  if (!isAdmin && (!allowedProjectIds || !allowedProjectIds.includes(projectId))) {
+  if (!allowedProjectIds.includes(projectId)) {
     return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
   }
 

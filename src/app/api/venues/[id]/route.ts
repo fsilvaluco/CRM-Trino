@@ -155,7 +155,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, orgId, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
@@ -171,7 +171,7 @@ export async function DELETE(
     .eq("organization_id", orgId!)
     .single();
   if (!proj) return NextResponse.json({ error: "Proyecto no encontrado" }, { status: 404 });
-  if (!isAdmin && allowedProjectIds && !allowedProjectIds.includes(projectId)) {
+  if (!allowedProjectIds.includes(projectId)) {
     return NextResponse.json({ error: "Sin acceso al proyecto" }, { status: 403 });
   }
 

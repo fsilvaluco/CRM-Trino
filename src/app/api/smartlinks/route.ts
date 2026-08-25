@@ -38,7 +38,7 @@ const SELECT = "*, smartlink_links ( id, platform, url, label, position ), smart
 
 // GET /api/smartlinks?projectId=xxx
 export async function GET(request: NextRequest) {
-  const { supabase, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
   if (!projectId) {
     return NextResponse.json({ error: "projectId es requerido" }, { status: 400 });
   }
-  if (!isAdmin && (!allowedProjectIds || !allowedProjectIds.includes(projectId))) {
+  if (!allowedProjectIds.includes(projectId)) {
     return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
   }
 
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
 // POST /api/smartlinks -- crea un smartlink con sus links de plataforma de
 // una. Mismo esquema de slug (random o personalizado) que /api/qr.
 export async function POST(request: NextRequest) {
-  const { supabase, user, orgId, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, user, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const body = await request.json().catch(() => ({}));
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
 
   if (!title) return NextResponse.json({ error: "El título (nombre de la canción) es requerido" }, { status: 400 });
   if (!projectId) return NextResponse.json({ error: "projectId es requerido" }, { status: 400 });
-  if (!isAdmin && (!allowedProjectIds || !allowedProjectIds.includes(projectId))) {
+  if (!allowedProjectIds.includes(projectId)) {
     return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
   }
 

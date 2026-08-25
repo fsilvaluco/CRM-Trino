@@ -637,13 +637,14 @@ implementado todavía.
 
 ### Prioridad 1 -- base del modelo nuevo (sin esto, el resto no tiene dónde pararse)
 
-**Estado (25 ago 2026):** ítems 1, 2, 4, 7, 8, 9, 10, 11 y 12 implementados y aplicados en producción, más
-varias correcciones encontradas al probar/implementar (redacción de $ en Deals, aislamiento de
+**Estado (25 ago 2026):** ítems 1, 2, 3, 4, 7, 8, 9, 10, 11 y 12 implementados y aplicados en producción,
+más varias correcciones encontradas al probar/implementar (redacción de $ en Deals, aislamiento de
 `deals/[id]`, exportación CSV sin ningún chequeo de proyecto, comentarios de Deals/Tareas sin ningún
-chequeo de proyecto -- ver el detalle en cada ítem). Ítems 5 y 6 parciales (ver su propio detalle). **Solo
-queda pendiente el ítem 3** (el hallazgo grande de los 38 endpoints con `isAdmin`) para cerrar la
-Prioridad 1 por completo. Probado en producción contra 3 cuentas de prueba reales (Rodrick/Gonzalo/Daniela
-en el proyecto
+chequeo de proyecto -- ver el detalle en cada ítem). Ítem 3: de 38 endpoints con `isAdmin`, 26 migrados a
+la matriz, 12 se dejan a propósito como acciones de organización (billing, integraciones, gestión de
+gente -- ver detalle del ítem). **Solo quedan pendientes los ítems 5 y 6 (parciales, ver su propio
+detalle)** para cerrar la Prioridad 1 por completo. Probado en producción contra 3 cuentas de prueba
+reales (Rodrick/Gonzalo/Daniela en el proyecto
 Prueba 2) vía login por API -- ver bitácora del 24-25 ago.
 
 1. ✅ **Crear la tabla de matriz de permisos** (0.2.2) -- migración `084_permission_matrix.sql`, aplicada.
@@ -658,14 +659,38 @@ Prueba 2) vía login por API -- ver bitácora del 24-25 ago.
 2. ✅ **Migrar las 4 plantillas actuales a filas precargadas** -- hecho como backfill de la misma
    migración: las 30 filas de `project_members` existentes (14 admin, 15 member, 1 artist) se
    convirtieron en 210 filas de matriz según la tabla de 0.2.3. `admin` recibió `puede_gestionar_equipo`.
-3. ⏳ **Sacar el rol de organización del cálculo de permisos** -- **hallazgo al ejecutar:** `isAdmin` se
-   usa en **38 endpoints distintos** (préstamos, venues, billing, QR, smartlinks, gestión de equipo,
-   importación, broadcasts, integraciones de Gmail, etc.), la gran mayoría de los cuales nunca se
-   mapearon a la matriz nueva en este documento -- solo Deals y Costos de eventos (ítem 7) estaban
-   realmente especificados. Migrar los 38 a ciegas es un trabajo aparte, con su propia revisión caso por
-   caso de qué reemplaza a `isAdmin` en cada uno (¿`puede_gestionar_equipo` del proyecto correspondiente?
-   ¿algo específico de organización que sí debería seguir existiendo, como billing?). Queda pendiente,
-   más grande de lo que parecía en el papel.
+3. ✅ **Sacar el rol de organización del cálculo de permisos** -- de los 38 endpoints encontrados, **26
+   migrados** a `allowedProjectIds` + la matriz de proyecto, sin ningún bypass de organización. **12
+   quedan con `isAdmin` a propósito** -- son acciones genuinamente de organización, no de un proyecto
+   puntual (billing, invitar/gestionar gente -- Prioridad 2 todavía no construye el flujo de
+   `puede_gestionar_equipo` para invitar/crear cuentas, así que este tramo sigue en `isAdmin` hasta que
+   se implemente --, importación/broadcast a nivel de organización, alias de email, conexiones de Gmail
+   con chequeo de dueño de la conexión). Detalle de los 26 migrados y los 12 que se dejaron:
+
+   **Migrados (bypass de `isAdmin` sacado, solo `allowedProjectIds` + matriz):** `webhook`, `loans` (4
+   archivos), `lead-candidates`, `smartlinks` (3), `projects/[id]/theme`, `projects/[id]/avatar`, `qr` (3),
+   `venues` (3), `loan-contributions` (2), `import`, `eventos/[id]/signatures` (además se sacó el bypass
+   "admin de organización siempre puede firmar" del propio `canSign` -- nadie tiene bypass, ni siquiera
+   para firmar), `eventos/[id]/cost-submissions` (2 -- revisar/aprobar gastos ahora exige `puede_editar` +
+   `ve_costos` de Eventos del proyecto del evento, no `isAdmin`; el push de aviso ahora notifica a quien
+   puede revisar en ESE proyecto, no a "admins de organización"), `tasks/[id]` (borrar tarea, exige
+   `puede_eliminar` de Tareas del proyecto), `contacts/merge` (exige `puede_editar` de Contactos en TODOS
+   los proyectos involucrados), `projects/[id]` (editar exige `puede_gestionar_equipo` de ESE proyecto;
+   eliminar exige `owner`, mismo criterio que crear -- 0.3), `projects` GET (el rol mostrado por proyecto
+   ya no se fuerza a "admin" solo por ser admin de organización -- mismo hallazgo que motivó todo esto el
+   23 ago, pero en el listado de proyectos), `activity-logs` (exige `puede_gestionar_equipo` en al menos
+   un proyecto, no `isAdmin` de organización).
+
+   **Se dejan con `isAdmin` a propósito, son de organización:** `billing/create-payment`,
+   `billing/payments` (billing es inherentemente de organización, no de proyecto), `admin/broadcast`,
+   `admin/import/commit`, `admin/import/parse` (acciones administrativas de organización), `settings/
+   alias-rules` (2 -- configuración de organización), `integrations/gmail/connections` (2 -- ya validan
+   dueño de la conexión, `isAdmin` es solo el caso de "un admin soluciona la conexión de otra persona"),
+   `org-members` (2), `org-members/profile`, `project-members` -- **estos 4 últimos son gestión de
+   gente**, que sigue siendo el trabajo pendiente de Prioridad 2 (ítems 13-17): hoy no existe todavía el
+   flujo de invitar/crear cuentas con `puede_gestionar_equipo` por proyecto, así que se mantienen en
+   `isAdmin` hasta que se construya esa pieza -- migrarlos ahora sin esa base rompería la única forma que
+   existe hoy de agregar gente nueva al sistema.
 4. ✅ **Gatear la creación de proyectos a solo `owner`** (0.3) -- `POST /api/projects` ahora exige
    `role === "owner"` en vez de `isAdmin`.
 5. 🔶 **"Sin proyecto seleccionado, no se edita"** en el frontend (0.5) -- parcial. Bloqueado (botón

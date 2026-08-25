@@ -29,7 +29,7 @@ function mapProject(row: any, myRole: ProjectRole | "admin" | null) {
 }
 
 export async function GET(request: NextRequest) {
-  const { supabase, user, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
@@ -54,8 +54,12 @@ export async function GET(request: NextRequest) {
   const { data, error: dbError } = await query;
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
 
+  // Rol real por proyecto -- sin bypass de organización (antes un admin de
+  // organización veía "admin" en todos, aunque no tuviera fila en
+  // project_members de ESE proyecto puntual; ROLES.md, ítem 3 del
+  // rediseño de roles).
   let roleByProjectId = new Map<string, ProjectRole>();
-  if (!isAdmin && data && data.length > 0) {
+  if (data && data.length > 0) {
     const { data: memberRows } = await supabase
       .from("project_members")
       .select("project_id, role")
@@ -67,7 +71,7 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json(
-    (data ?? []).map((p) => mapProject(p, isAdmin ? "admin" : roleByProjectId.get(p.id) ?? null))
+    (data ?? []).map((p) => mapProject(p, roleByProjectId.get(p.id) ?? null))
   );
 }
 

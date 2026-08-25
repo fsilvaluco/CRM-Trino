@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { sendPushToUsers } from "@/lib/push";
+import { getProjectPermissions, canEditEventCosts } from "@/lib/project-roles";
 
 function siteUrl(path: string): string {
   const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -22,11 +23,20 @@ export async function PUT(
   { params }: { params: Promise<{ id: string; subId: string }> }
 ) {
   const { id, subId } = await params;
-  const { supabase, user, isAdmin, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
-  if (!isAdmin) {
-    return NextResponse.json({ error: "Solo administradores pueden revisar gastos reportados" }, { status: 403 });
+  // Antes esto solo exigía "isAdmin" (rol de ORGANIZACIÓN) -- sin ni
+  // siquiera chequear a qué proyecto pertenece el evento. Migrado a la
+  // matriz de ESE proyecto puntual (ROLES.md, ítem 19 del rediseño de
+  // roles): revisar/aprobar exige puede_editar + ve_costos de Eventos.
+  const { data: show } = await supabase.from("shows").select("project_id, cost_sheet_closed_at").eq("id", id).single();
+  if (!show?.project_id || !allowedProjectIds.includes(show.project_id)) {
+    return NextResponse.json({ error: "Sin acceso a este evento" }, { status: 403 });
+  }
+  const perm = await getProjectPermissions(supabase, user!.id, show.project_id);
+  if (!canEditEventCosts(perm)) {
+    return NextResponse.json({ error: "Tu rol no puede revisar gastos reportados en este proyecto" }, { status: 403 });
   }
 
   const body = await request.json().catch(() => ({}));
@@ -61,8 +71,7 @@ export async function PUT(
     return NextResponse.json({ ok: true, deleted: true });
   }
 
-  const { data: show } = await supabase.from("shows").select("cost_sheet_closed_at").eq("id", id).single();
-  if (show?.cost_sheet_closed_at) {
+  if (show.cost_sheet_closed_at) {
     return NextResponse.json(
       { error: "La caja de este evento está cerrada -- reábrela primero para aprobar gastos nuevos." },
       { status: 409 }

@@ -7,13 +7,12 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
-  // Admin puede cambiar el color de cualquier proyecto de la organización.
-  // Un artista (member) solo puede cambiar el de un proyecto al que
-  // pertenece — no le da acceso a proyectos ajenos, solo a elegir su color.
-  const canEditThisProject = isAdmin || (allowedProjectIds !== null && allowedProjectIds.includes(id));
+  // Cambiar el color de un proyecto exige acceso a ESE proyecto puntual --
+  // sin bypass de organización (ROLES.md, ítem 3 del rediseño de roles).
+  const canEditThisProject = allowedProjectIds !== null && allowedProjectIds.includes(id);
   if (!canEditThisProject) {
     return NextResponse.json({ error: "Sin permisos sobre este proyecto" }, { status: 403 });
   }

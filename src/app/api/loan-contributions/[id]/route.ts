@@ -7,12 +7,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { data: contribution } = await supabase.from("loan_contributions").select("id, project_id").eq("id", id).single();
   if (!contribution) return NextResponse.json({ error: "Aporte no encontrado" }, { status: 404 });
-  if (!isAdmin && (!allowedProjectIds || !allowedProjectIds.includes(contribution.project_id))) {
+  if (!allowedProjectIds.includes(contribution.project_id)) {
     return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
   }
 

@@ -2,11 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 
 export async function GET(request: NextRequest) {
-  const { supabase, isAdmin, error } = await requireAuth();
+  const { supabase, user, error } = await requireAuth();
   if (error) return error;
-  if (!isAdmin) {
+
+  // Antes exigía "isAdmin" (rol de ORGANIZACIÓN). Migrado a
+  // `puede_gestionar_equipo` de proyecto -- puede ver el log quien
+  // gestiona equipo en al menos un proyecto (ROLES.md, ítem 18 del
+  // rediseño de roles). La tabla en sí no distingue por proyecto todavía.
+  const { data: managerRow } = await supabase
+    .from("project_members")
+    .select("id")
+    .eq("user_id", user!.id)
+    .eq("puede_gestionar_equipo", true)
+    .limit(1)
+    .maybeSingle();
+  if (!managerRow) {
     return NextResponse.json(
-      { error: "Solo administradores pueden ver activity logs" },
+      { error: "Solo quien gestiona equipo en algún proyecto puede ver activity logs" },
       { status: 403 }
     );
   }

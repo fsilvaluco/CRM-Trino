@@ -107,7 +107,7 @@ async function getOrCreateCompanyId(params: {
 }
 
 export async function POST(request: NextRequest) {
-  const { supabase, user, orgId, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, user, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   let body;
@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Members can only import into projects they explicitly belong to
-  if (!isAdmin && !allowedProjectIds?.includes(projectId)) {
+  if (!allowedProjectIds.includes(projectId)) {
     return NextResponse.json(
       { error: "Sin acceso al proyecto especificado" },
       { status: 403 }

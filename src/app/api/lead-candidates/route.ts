@@ -55,7 +55,7 @@ function mapLeadCandidate(row: any) {
 // GET: lista la bandeja de leads pendientes (o filtrada por estado/proyecto)
 // Usada por la pantalla de revisión en Artist Pro.
 export async function GET(request: NextRequest) {
-  const { supabase, orgId, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
@@ -86,8 +86,10 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Si no es admin, solo ve leads de sus proyectos asignados (o sin proyecto asignado aun)
-  if (!isAdmin && allowedProjectIds) {
+  // Solo ve leads de sus proyectos asignados (o sin proyecto asignado aun) --
+  // sin bypass de organización, mismo criterio que el resto de la app
+  // desde el 23 ago (ROLES.md, ítem 3 del rediseño de roles).
+  if (allowedProjectIds) {
     query = query.or(
       `project_id.is.null,project_id.in.(${allowedProjectIds.join(",") || "00000000-0000-0000-0000-000000000000"})`
     );

@@ -6,10 +6,12 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
-  const canEditThisProject = isAdmin || (allowedProjectIds !== null && allowedProjectIds.includes(id));
+  // Sin bypass de organización -- exige acceso a ESE proyecto puntual
+  // (ROLES.md, ítem 3 del rediseño de roles).
+  const canEditThisProject = allowedProjectIds !== null && allowedProjectIds.includes(id);
   if (!canEditThisProject) {
     return NextResponse.json({ error: "Sin permisos sobre este proyecto" }, { status: 403 });
   }

@@ -19,12 +19,12 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, user, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const projectId = await loadLoanProjectId(supabase, id);
   if (!projectId) return NextResponse.json({ error: "Préstamo no encontrado" }, { status: 404 });
-  if (!isAdmin && (!allowedProjectIds || !allowedProjectIds.includes(projectId))) {
+  if (!allowedProjectIds.includes(projectId)) {
     return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
   }
 
@@ -106,12 +106,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, user, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const projectId = await loadLoanProjectId(supabase, id);
   if (!projectId) return NextResponse.json({ error: "Préstamo no encontrado" }, { status: 404 });
-  if (!isAdmin && (!allowedProjectIds || !allowedProjectIds.includes(projectId))) {
+  if (!allowedProjectIds.includes(projectId)) {
     return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
   }
 

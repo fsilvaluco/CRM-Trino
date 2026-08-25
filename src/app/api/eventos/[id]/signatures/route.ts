@@ -19,7 +19,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, user, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { data: show, error: showErr } = await supabase
@@ -34,7 +34,7 @@ export async function GET(
   if (!show.project_id) {
     return NextResponse.json({ error: "El evento no tiene proyecto asignado" }, { status: 400 });
   }
-  if (!isAdmin && (!allowedProjectIds || !allowedProjectIds.includes(show.project_id))) {
+  if (!allowedProjectIds.includes(show.project_id)) {
     return NextResponse.json({ error: "Sin acceso a este evento" }, { status: 403 });
   }
 
@@ -51,11 +51,11 @@ export async function GET(
     signatures,
     allSigned,
     alreadySigned,
-    // Un admin de la organización siempre puede firmar aunque su rol en
-    // ESTE proyecto no sea Admin/Artista (ej. Francisco, dueño de la org,
-    // asignado como "Miembro" en Gamuza) -- pero no se le exige, no cuenta
-    // como uno de los requeridos.
-    canSign: Boolean(show.cost_sheet_closed_at) && (isRequiredSigner || isAdmin) && !alreadySigned,
+    // Sin bypass de organización (ROLES.md, ítem 3 del rediseño de roles --
+    // "nadie tiene bypass, ni siquiera el dueño") -- antes cualquier admin
+    // de la organización podía firmar aunque no fuera firmante requerido
+    // de ESTE proyecto. Solo firma quien está en `requiredSigners`.
+    canSign: Boolean(show.cost_sheet_closed_at) && isRequiredSigner && !alreadySigned,
   });
 }
 
@@ -68,7 +68,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, user, allowedProjectIds, isAdmin, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { data: show, error: showErr } = await supabase
@@ -86,13 +86,15 @@ export async function POST(
   if (!show.project_id) {
     return NextResponse.json({ error: "El evento no tiene proyecto asignado" }, { status: 400 });
   }
-  if (!isAdmin && (!allowedProjectIds || !allowedProjectIds.includes(show.project_id))) {
+  if (!allowedProjectIds.includes(show.project_id)) {
     return NextResponse.json({ error: "Sin acceso a este evento" }, { status: 403 });
   }
 
   const requiredSigners = await getRequiredSigners(supabase, show.project_id);
   const isRequiredSigner = requiredSigners.some((r) => r.userId === user!.id);
-  if (!isRequiredSigner && !isAdmin) {
+  // Sin bypass de organización -- solo firma quien es firmante requerido
+  // de ESTE proyecto (ROLES.md, ítem 3 del rediseño de roles).
+  if (!isRequiredSigner) {
     return NextResponse.json(
       { error: "Solo Admin/Artista del proyecto de este evento pueden firmar el cierre" },
       { status: 403 }

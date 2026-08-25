@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { sendPushToUsers } from "@/lib/push";
 import { isCostCategory } from "@/lib/cost-categories";
+import { getProjectPermissions, canEditEventCosts } from "@/lib/project-roles";
 
 function siteUrl(path: string): string {
   const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -57,14 +58,16 @@ function mapSubmission(r: SubmissionRow) {
 }
 
 // GET /api/eventos/[id]/cost-submissions -- lista de gastos reportados.
-// Admins ven todos (para revisar); un miembro del proyecto que no es admin
-// solo ve los suyos (para hacer seguimiento a su propio envío).
+// Quien puede revisar/aprobar (puede_editar + ve_costos de Eventos en ESE
+// proyecto) ve todos; el resto solo ve los suyos (para hacer seguimiento a
+// su propio envío). Antes esto era "isAdmin" (rol de ORGANIZACIÓN) -- se
+// migró a la matriz de proyecto (ROLES.md, ítem 19 del rediseño de roles).
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, user, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { data: show, error: showErr } = await supabase
@@ -78,9 +81,12 @@ export async function GET(
   if (!show.project_id) {
     return NextResponse.json({ error: "El evento no tiene proyecto asignado" }, { status: 400 });
   }
-  if (!isAdmin && (!allowedProjectIds || !allowedProjectIds.includes(show.project_id))) {
+  if (!allowedProjectIds.includes(show.project_id)) {
     return NextResponse.json({ error: "Sin acceso a este evento" }, { status: 403 });
   }
+
+  const perm = await getProjectPermissions(supabase, user!.id, show.project_id);
+  const canReview = canEditEventCosts(perm);
 
   let query = supabase
     .from("event_cost_submissions")
@@ -90,7 +96,7 @@ export async function GET(
     .eq("show_id", id)
     .order("created_at", { ascending: false });
 
-  if (!isAdmin) {
+  if (!canReview) {
     query = query.eq("submitted_by", user!.id);
   }
 
@@ -100,7 +106,7 @@ export async function GET(
   return NextResponse.json({
     submissions: ((data ?? []) as unknown as SubmissionRow[]).map(mapSubmission),
     costSheetClosed: Boolean(show.cost_sheet_closed_at),
-    canReview: isAdmin,
+    canReview,
     currentUser: {
       id: user!.id,
       fullName: (user!.user_metadata?.full_name as string | undefined) ?? null,
@@ -117,7 +123,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, user, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { data: show, error: showErr } = await supabase
@@ -131,7 +137,7 @@ export async function POST(
   if (!show.project_id) {
     return NextResponse.json({ error: "El evento no tiene proyecto asignado" }, { status: 400 });
   }
-  if (!isAdmin && (!allowedProjectIds || !allowedProjectIds.includes(show.project_id))) {
+  if (!allowedProjectIds.includes(show.project_id)) {
     return NextResponse.json({ error: "Sin acceso a este evento" }, { status: 403 });
   }
   if (show.cost_sheet_closed_at) {
@@ -196,15 +202,22 @@ export async function POST(
 
   if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
 
-  // Fire-and-forget: avisar a los admins de la org que hay un gasto nuevo
-  // por revisar.
-  const { data: admins } = await supabase
-    .from("organization_members")
+  // Fire-and-forget: avisar a quienes pueden revisar gastos en ESTE
+  // proyecto (puede_editar + ve_costos de Eventos) -- antes avisaba a
+  // "admins de organización" sin importar si tenían algo que ver con este
+  // proyecto puntual (ROLES.md, ítem 19 del rediseño de roles).
+  const { data: projectMembers } = await supabase
+    .from("project_members")
     .select("user_id")
-    .in("role", ["owner", "admin"]);
-  const adminIds = (admins ?? []).map((a: { user_id: string }) => a.user_id).filter((uid: string) => uid !== user!.id);
-  if (adminIds.length > 0) {
-    void sendPushToUsers(adminIds, {
+    .eq("project_id", show.project_id);
+  const reviewerIds: string[] = [];
+  for (const m of (projectMembers ?? []) as { user_id: string }[]) {
+    if (m.user_id === user!.id) continue;
+    const memberPerm = await getProjectPermissions(supabase, m.user_id, show.project_id);
+    if (canEditEventCosts(memberPerm)) reviewerIds.push(m.user_id);
+  }
+  if (reviewerIds.length > 0) {
+    void sendPushToUsers(reviewerIds, {
       title: "Nuevo gasto reportado",
       body: `${trimmedLabel} -- ${show.name}, pendiente de revisión`,
       url: siteUrl(`/eventos/${id}#costos`),

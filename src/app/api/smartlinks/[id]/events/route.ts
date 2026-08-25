@@ -8,12 +8,12 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { data: smartlink } = await supabase.from("smartlinks").select("project_id").eq("id", id).single();
   if (!smartlink) return NextResponse.json({ error: "Smartlink no encontrado" }, { status: 404 });
-  if (!isAdmin && (!allowedProjectIds || !allowedProjectIds.includes(smartlink.project_id))) {
+  if (!allowedProjectIds.includes(smartlink.project_id)) {
     return NextResponse.json({ error: "Sin acceso a este smartlink" }, { status: 403 });
   }
 

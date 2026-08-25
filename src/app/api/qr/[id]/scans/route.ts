@@ -10,12 +10,12 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { data: qr } = await supabase.from("qr_codes").select("project_id").eq("id", id).single();
   if (!qr) return NextResponse.json({ error: "QR no encontrado" }, { status: 404 });
-  if (!isAdmin && (!allowedProjectIds || !allowedProjectIds.includes(qr.project_id))) {
+  if (!allowedProjectIds.includes(qr.project_id)) {
     return NextResponse.json({ error: "Sin acceso a este QR" }, { status: 403 });
   }
 

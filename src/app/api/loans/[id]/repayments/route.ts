@@ -9,12 +9,12 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, user, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { data: loan } = await supabase.from("loans").select("id, project_id").eq("id", id).single();
   if (!loan) return NextResponse.json({ error: "Préstamo no encontrado" }, { status: 404 });
-  if (!isAdmin && (!allowedProjectIds || !allowedProjectIds.includes(loan.project_id))) {
+  if (!allowedProjectIds.includes(loan.project_id)) {
     return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
   }
 

@@ -44,13 +44,13 @@ function mapLoan(row: any) {
 // GET /api/loans?projectId=... -- lista de préstamos de un proyecto, con
 // sus abonos ya sumados (saldo pendiente calculado, nunca guardado).
 export async function GET(request: NextRequest) {
-  const { supabase, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get("projectId");
   if (!projectId) return NextResponse.json({ error: "projectId requerido" }, { status: 400 });
-  if (!isAdmin && (!allowedProjectIds || !allowedProjectIds.includes(projectId))) {
+  if (!allowedProjectIds.includes(projectId)) {
     return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
   }
 
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
 
 // POST /api/loans -- registra un prestamista nuevo.
 export async function POST(request: NextRequest) {
-  const { supabase, user, orgId, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, user, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const body = await request.json().catch(() => ({}));
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
   };
 
   if (!projectId) return NextResponse.json({ error: "projectId requerido" }, { status: 400 });
-  if (!isAdmin && (!allowedProjectIds || !allowedProjectIds.includes(projectId))) {
+  if (!allowedProjectIds.includes(projectId)) {
     return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
   }
   if (!lenderName?.trim()) return NextResponse.json({ error: "Falta el nombre del prestamista" }, { status: 400 });

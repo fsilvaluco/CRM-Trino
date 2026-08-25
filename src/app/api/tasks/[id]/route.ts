@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase-admin";
 import { markEntityViewed } from "@/lib/entity-views";
 import { sendPushToUsers } from "@/lib/push";
 import { logActivity } from "@/lib/activity-logs";
+import { getProjectPermissions, canDeleteModule } from "@/lib/project-roles";
 
 function taskUrl(taskId: string): string {
   const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -257,17 +258,29 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, user, isAdmin, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
-  if (!isAdmin) {
-    return NextResponse.json({ error: "Solo Admin o Propietario pueden eliminar tareas" }, { status: 403 });
-  }
 
   const { data: existing, error: findErr } = await supabase
     .from("tasks").select("id, title, project_id, artist_project_id").eq("id", id).single();
 
   if (findErr || !existing) {
     return NextResponse.json({ error: "Tarea no encontrada" }, { status: 404 });
+  }
+
+  // Antes esto exigía "isAdmin" (rol de ORGANIZACIÓN), sin chequear
+  // siquiera el proyecto de la tarea. Migrado a la matriz de ESE proyecto
+  // (ROLES.md, ítem 3 del rediseño de roles) -- si la tarea no tiene
+  // proyecto asignado (permitido hoy), se deja pasar como antes.
+  const taskProjectId = existing.project_id || existing.artist_project_id || null;
+  if (taskProjectId) {
+    if (!allowedProjectIds.includes(taskProjectId)) {
+      return NextResponse.json({ error: "No tienes acceso a este proyecto" }, { status: 403 });
+    }
+    const perm = await getProjectPermissions(supabase, user!.id, taskProjectId);
+    if (!canDeleteModule(perm, "tareas")) {
+      return NextResponse.json({ error: "Tu rol no puede eliminar tareas en este proyecto" }, { status: 403 });
+    }
   }
 
   const { error: dbError } = await createAdminClient()

@@ -59,7 +59,7 @@ function mapDetails(row: any) {
 //   usó (tiene fila en venue_project_details) -- así un proyecto no ve
 //   venues de otros proyectos que nunca ha tocado.
 export async function GET(request: NextRequest) {
-  const { supabase, orgId, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
     if (!proj) {
       return NextResponse.json({ error: "Proyecto no encontrado" }, { status: 404 });
     }
-    if (!isAdmin && allowedProjectIds && !allowedProjectIds.includes(projectIdParam)) {
+    if (!allowedProjectIds.includes(projectIdParam)) {
       return NextResponse.json({ error: "Sin acceso al proyecto" }, { status: 403 });
     }
   }

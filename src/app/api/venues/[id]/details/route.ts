@@ -28,7 +28,6 @@ function mapDetails(row: any) {
 async function checkProjectAccess(
   supabase: Awaited<ReturnType<typeof requireAuth>>["supabase"],
   orgId: string,
-  isAdmin: boolean,
   allowedProjectIds: string[] | null,
   projectId: string
 ) {
@@ -39,7 +38,8 @@ async function checkProjectAccess(
     .eq("organization_id", orgId)
     .single();
   if (!proj) return "Proyecto no encontrado";
-  if (!isAdmin && allowedProjectIds && !allowedProjectIds.includes(projectId)) return "Sin acceso al proyecto";
+  // Sin bypass de organización (ROLES.md, ítem 3 del rediseño de roles).
+  if (allowedProjectIds && !allowedProjectIds.includes(projectId)) return "Sin acceso al proyecto";
   return null;
 }
 
@@ -51,14 +51,14 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, orgId, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get("projectId");
   if (!projectId) return NextResponse.json({ error: "projectId es requerido" }, { status: 400 });
 
-  const accessError = await checkProjectAccess(supabase, orgId!, isAdmin, allowedProjectIds, projectId);
+  const accessError = await checkProjectAccess(supabase, orgId!, allowedProjectIds, projectId);
   if (accessError) return NextResponse.json({ error: accessError }, { status: accessError === "Proyecto no encontrado" ? 404 : 403 });
 
   const { data } = await supabase
@@ -80,7 +80,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, user, orgId, isAdmin, allowedProjectIds, error } = await requireAuth();
+  const { supabase, user, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   let body: Record<string, unknown>;
@@ -93,7 +93,7 @@ export async function PUT(
   const projectId = typeof body.projectId === "string" ? body.projectId : "";
   if (!projectId) return NextResponse.json({ error: "projectId es requerido" }, { status: 400 });
 
-  const accessError = await checkProjectAccess(supabase, orgId!, isAdmin, allowedProjectIds, projectId);
+  const accessError = await checkProjectAccess(supabase, orgId!, allowedProjectIds, projectId);
   if (accessError) return NextResponse.json({ error: accessError }, { status: accessError === "Proyecto no encontrado" ? 404 : 403 });
 
   const { data: venue } = await supabase

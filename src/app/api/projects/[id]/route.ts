@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { getProjectPermissions, canManageTeam } from "@/lib/project-roles";
 
 export async function GET(
   _request: NextRequest,
@@ -54,9 +55,18 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, isAdmin, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
-  if (!isAdmin) return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
+  // Editar la configuración de un proyecto exige poder gestionar SU
+  // equipo (0.2.1) -- antes era "isAdmin" de organización, sin chequear
+  // acceso a este proyecto en absoluto (ROLES.md, ítem 3 del rediseño).
+  if (!allowedProjectIds.includes(id)) {
+    return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
+  }
+  const editPerm = await getProjectPermissions(supabase, user!.id, id);
+  if (!canManageTeam(editPerm)) {
+    return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
+  }
 
   let body: Record<string, unknown>;
   try {
@@ -128,9 +138,14 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, isAdmin, error } = await requireAuth();
+  const { supabase, role, error } = await requireAuth();
   if (error) return error;
-  if (!isAdmin) return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
+  // Eliminar un proyecto es igual de destructivo que crearlo -- mismo
+  // criterio que POST /api/projects (0.3): solo `owner` (ROLES.md, ítem 3
+  // del rediseño de roles).
+  if (role !== "owner") {
+    return NextResponse.json({ error: "Solo el dueño de la cuenta puede eliminar proyectos" }, { status: 403 });
+  }
 
   const { data: existing, error: findErr } = await supabase
     .from("projects").select("id").eq("id", id).single();
