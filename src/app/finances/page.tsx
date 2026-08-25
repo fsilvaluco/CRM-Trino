@@ -216,6 +216,10 @@ export default function FinancesPage() {
   }, [loadTransactions]);
 
   const handleEdit = (transaction: Transaction) => {
+    if (isAllProjects) {
+      toast.warning("Selecciona el proyecto de este comprobante para editarlo");
+      return;
+    }
     setEditingTransaction(transaction);
     setShowForm(true);
   };
@@ -262,11 +266,34 @@ export default function FinancesPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setShowAttachReceipt(true)} className="cursor-pointer">
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (isAllProjects) {
+                toast.warning("Selecciona un proyecto para adjuntar un comprobante");
+                return;
+              }
+              setShowAttachReceipt(true);
+            }}
+            className="cursor-pointer"
+            disabled={isAllProjects}
+            title={isAllProjects ? "Selecciona un proyecto para adjuntar un comprobante" : undefined}
+          >
             <Sparkles className="h-4 w-4 mr-2" />
             Adjuntar comprobante (IA)
           </Button>
-          <Button onClick={() => setShowForm(true)} className="cursor-pointer">
+          <Button
+            onClick={() => {
+              if (isAllProjects) {
+                toast.warning("Selecciona un proyecto para crear un comprobante");
+                return;
+              }
+              setShowForm(true);
+            }}
+            className="cursor-pointer"
+            disabled={isAllProjects}
+            title={isAllProjects ? "Selecciona un proyecto para crear un comprobante" : undefined}
+          >
             <Plus className="h-4 w-4 mr-2" />
             Nuevo Comprobante
           </Button>

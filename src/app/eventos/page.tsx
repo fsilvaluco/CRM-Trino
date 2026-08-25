@@ -182,7 +182,13 @@ export default function EventosPage() {
           </Link>
           <Button
             className="cursor-pointer"
+            disabled={isAllProjects}
+            title={isAllProjects ? "Selecciona un proyecto para crear un evento" : undefined}
             onClick={() => {
+              if (isAllProjects) {
+                toast.warning("Selecciona un proyecto para crear un evento");
+                return;
+              }
               setEditingShow(null);
               setFormOpen(true);
             }}
@@ -372,11 +378,15 @@ export default function EventosPage() {
                     <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => {
+                          if (isAllProjects) {
+                            toast.warning("Selecciona el proyecto de este evento para editarlo");
+                            return;
+                          }
                           setEditingShow(show);
                           setFormOpen(true);
                         }}
                         className="text-muted-foreground hover:text-foreground cursor-pointer p-1.5"
-                        title="Editar"
+                        title={isAllProjects ? "Selecciona el proyecto de este evento para editarlo" : "Editar"}
                       >
                         <Pencil className="h-4 w-4" />
                       </button>

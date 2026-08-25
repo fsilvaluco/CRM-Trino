@@ -8,6 +8,7 @@ import { CrmTabs } from "@/components/crm/CrmTabs";
 import type { PipelineColumn } from "@/types";
 import { useProject } from "@/lib/project-context";
 import { useNotifications } from "@/lib/notifications-context";
+import { toast } from "sonner";
 
 // Shape returned by /api/pipeline per stage
 interface StageDeal {
@@ -75,7 +76,7 @@ export default function CrmPageClient() {
   const [showForm, setShowForm] = useState(false);
   const [addToStageId, setAddToStageId] = useState<string | undefined>();
   const [editingDealId, setEditingDealId] = useState<string | undefined>();
-  const { activeProject } = useProject();
+  const { activeProject, isAllProjects } = useProject();
   const latestRequestedProjectId = useRef<string | null>(null);
   const { markSeen } = useNotifications();
 
@@ -85,12 +86,22 @@ export default function CrmPageClient() {
   }, []);
 
   const handleAddDeal = (stageId: string) => {
+    // Regla del rediseño de roles (ROLES.md 0.5): en "Todos los proyectos"
+    // no se crea ni edita nada -- solo lectura, sin importar el rol.
+    if (isAllProjects) {
+      toast.warning("Selecciona un proyecto para crear un deal");
+      return;
+    }
     setAddToStageId(stageId);
     setEditingDealId(undefined);
     setShowForm(true);
   };
 
   const handleEditDeal = (dealId: string) => {
+    if (isAllProjects) {
+      toast.warning("Selecciona el proyecto de este deal para editarlo");
+      return;
+    }
     setEditingDealId(dealId);
     setAddToStageId(undefined);
     setShowForm(true);
@@ -205,7 +216,12 @@ export default function CrmPageClient() {
             <Download className="h-4 w-4 mr-2" />
             Exportar
           </Button>
-          <Button onClick={() => setShowForm(true)} className="cursor-pointer">
+          <Button
+            onClick={() => setShowForm(true)}
+            className="cursor-pointer"
+            disabled={isAllProjects}
+            title={isAllProjects ? "Selecciona un proyecto para crear un deal" : undefined}
+          >
             <Plus className="h-4 w-4 mr-2" />
             Nuevo Deal
           </Button>

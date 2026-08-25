@@ -639,10 +639,10 @@ implementado todavía.
 
 **Estado (25 ago 2026):** ítems 1, 2, 4, 7, 10, 11 y 12 implementados y aplicados en producción, más dos
 correcciones encontradas al probar (redacción de $ en Deals y aislamiento de `deals/[id]`, ver el bloque
-de "también corregido de paso" más abajo). Ítems 5, 6, 8, 9 siguen pendientes. Ítem 3 resultó mucho más
-grande de lo que parecía en el papel -- ver nota al final de esta prioridad. Probado en producción contra
-3 cuentas de prueba reales (Rodrick/Gonzalo/Daniela en el proyecto Prueba 2) vía login por API -- ver
-bitácora del 24-25 ago.
+de "también corregido de paso" más abajo). Ítems 5 y 6 parciales (ver su propio detalle). Ítems 8, 9 siguen
+sin empezar. Ítem 3 resultó mucho más grande de lo que parecía en el papel -- ver nota al final de esta
+prioridad. Probado en producción contra 3 cuentas de prueba reales (Rodrick/Gonzalo/Daniela en el proyecto
+Prueba 2) vía login por API -- ver bitácora del 24-25 ago.
 
 1. ✅ **Crear la tabla de matriz de permisos** (0.2.2) -- migración `084_permission_matrix.sql`, aplicada.
    `project_member_permissions`: una fila por persona × módulo (Contactos, Empresas, Deals, Tareas,
@@ -666,8 +666,22 @@ bitácora del 24-25 ago.
    más grande de lo que parecía en el papel.
 4. ✅ **Gatear la creación de proyectos a solo `owner`** (0.3) -- `POST /api/projects` ahora exige
    `role === "owner"` en vez de `isAdmin`.
-5. ⏳ **"Sin proyecto seleccionado, no se edita"** en el frontend (0.5) -- pendiente.
-6. ⏳ **Vista agregada respeta la matriz de cada proyecto individualmente** (0.5) -- pendiente.
+5. 🔶 **"Sin proyecto seleccionado, no se edita"** en el frontend (0.5) -- parcial. Bloqueado (botón
+   deshabilitado + advertencia) en: crear/editar Deal (`CrmPageClient.tsx`, incluye el "+" por columna),
+   crear/editar evento (`eventos/page.tsx`, botón y lápiz de editar), crear/adjuntar en Finanzas
+   (`finances/page.tsx`). Campañas ya lo tenía de antes. Contactos ya bloqueaba al guardar (no al
+   mostrar el botón); **se encontró y corrigió un bug real en el camino**: `CompanyForm` guardaba
+   `projectId: null` en silencio si no había proyecto activo -- exactamente el problema que motivó esta
+   regla -- ahora tira un error claro antes de guardar, igual que Contactos. **Sigue sin cubrir**: Tareas
+   (su formulario ya exige elegir proyecto adentro del form, así que no debería quedar nada sin proyecto,
+   pero no se verificó a fondo), el drag-and-drop entre etapas del Kanban de Deals (el servidor ya lo
+   bloquea con 403, pero la interfaz no lo previene antes de intentarlo), y los botones de crear/editar de
+   Contactos/Empresas en la lista (el guardado ya está protegido, falta deshabilitar el botón mismo para
+   mejor UX).
+6. 🔶 **Vista agregada respeta la matriz de cada proyecto individualmente** (0.5) -- resuelto para Deals y
+   Finanzas (parte del fix de la sesión anterior). Sigue pendiente para Tareas, Eventos (listado),
+   Campañas, Contactos y Empresas -- esos listados sin `projectId` todavía no filtran/redactan por
+   proyecto de cada fila.
 7. ✅ **`project-roles.ts` reescrito para leer la matriz** -- `getProjectRole()` reemplazado por
    `getProjectPermissions()` (misma herencia por sello, ahora trae la matriz completa en vez de un rol).
    `canViewDeals`/`canEditDeals`/`canViewEventCosts`/`canEditEventCosts` migrados a leer

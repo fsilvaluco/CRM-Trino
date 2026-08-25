@@ -753,6 +753,38 @@ faltan (ítem 6 -- Finanzas y Deals ya quedaron resueltos hoy), comentarios inde
 
 **Versión de la app subida a 2.56.**
 
+### 🖥️ "Sin proyecto no se edita" en el frontend + bug real encontrado (25 ago 2026)
+
+Continuación de la misma sesión -- ítem 5 del roadmap (ROLES.md): que en modo "Todos los proyectos" no
+se pueda crear ni editar nada, con advertencia clara en vez de fallar en silencio o dejar algo sin
+proyecto.
+
+**Agregado el bloqueo (botón deshabilitado + `toast.warning` si igual se intenta):**
+- `CrmPageClient.tsx` (Deals/Kanban): crear deal, el "+" por columna, y editar un deal existente.
+- `eventos/page.tsx`: crear evento y el lápiz de editar.
+- `finances/page.tsx`: crear comprobante, adjuntar comprobante con IA, y editar uno existente.
+- Campañas ya lo tenía de una sesión anterior.
+
+**Bug real encontrado al revisar Contactos/Empresas para el mismo fix:** `ContactForm` ya bloqueaba
+correctamente (tira error si no hay proyecto activo, antes de guardar) -- pero **`CompanyForm` no tenía
+ningún guard y mandaba `projectId: null` en silencio** si se creaba/editaba una empresa sin proyecto
+activo. Es exactamente el problema que Francisco describió como motivo de esta regla ("evitar que queden
+cosas sin proyecto"), encontrado en vivo mientras se implementaba la prevención. Corregido con el mismo
+guard que Contactos, más un mensaje de error específico en vez del genérico "Error al guardar".
+
+**Pendiente todavía dentro del ítem 5:** el drag-and-drop entre etapas del Kanban de Deals (el servidor
+ya lo bloquea con 403 si corresponde, pero la interfaz no previene el intento antes de que falle);
+deshabilitar visualmente los botones de crear/editar de Contactos/Empresas (el guardado ya está
+protegido, falta la mejora de UX); Tareas no se tocó -- su formulario ya exige elegir proyecto adentro
+del form mismo, pero no se verificó a fondo si eso cubre todos los casos.
+
+**Verificado:** `tsc --noEmit` limpio, `eslint` limpio (2 warnings preexistentes sin tocar, confirmado
+con `git diff` que no están en las líneas que se modificaron), `npm run build` completo sin errores.
+**No probado en el navegador todavía** -- el fix de `CompanyForm` en particular convendría probarlo a
+mano (crear una empresa en "Todos los proyectos" y confirmar el mensaje de error).
+
+**Versión de la app subida a 2.57.**
+
 ---
 
 ## 🔴 Crítico (arreglar primero)

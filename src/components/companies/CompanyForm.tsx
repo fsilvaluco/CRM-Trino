@@ -85,6 +85,14 @@ export function CompanyForm({ open, onClose, initialData }: CompanyFormProps) {
 
   const onSubmit = async (data: CompanyFormData) => {
     try {
+      // Regla del rediseño de roles (ROLES.md 0.5): sin proyecto
+      // seleccionado (modo "Todos los proyectos"), no se crea ni edita
+      // nada -- antes esto guardaba la empresa con projectId=null en
+      // silencio, exactamente el problema que motivó la regla.
+      if (!activeProject?.id) {
+        throw new Error("Selecciona un proyecto para poder guardar la empresa");
+      }
+
       const url = isEdit ? `/api/companies/${initialData!.id}` : "/api/companies";
       const method = isEdit ? "PUT" : "POST";
 
@@ -109,8 +117,8 @@ export function CompanyForm({ open, onClose, initialData }: CompanyFormProps) {
       toast.success(isEdit ? "Empresa actualizada" : "Empresa creada");
       reset();
       onClose();
-    } catch {
-      toast.error("Error al guardar la empresa");
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : "Error al guardar la empresa");
     }
   };
 
