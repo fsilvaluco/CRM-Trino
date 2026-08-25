@@ -5,7 +5,7 @@ import type { Temperature, LeadSource } from "@/types";
 // cada vez que se actualiza BITACORA.md (cualquier sesión de trabajo);
 // subir el número antes del punto (y volver el de después a 0) solo para
 // cambios grandes -- módulos nuevos, no ajustes/fixes puntuales.
-export const APP_VERSION = "2.59";
+export const APP_VERSION = "2.60";
 
 export const TEMPERATURE_CONFIG: Record<
   Temperature,

@@ -2,9 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { logActivity } from "@/lib/activity-logs";
 import type { ShowStatus } from "@/types/shows";
+import {
+  getProjectPermissions,
+  getProjectPermissionsForMany,
+  canViewEvent,
+  canEditEvent,
+  canViewEventCosts,
+  canEditEventCosts,
+} from "@/lib/project-roles";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapLiveShow(row: any) {
+function mapLiveShow(row: any, canViewCosts: boolean) {
   return {
     id: row.id,
     projectId: row.project_id ?? null,
@@ -18,9 +26,12 @@ function mapLiveShow(row: any) {
     city: row.city ?? null,
     status: (row.status ?? "confirmado") as ShowStatus,
     notes: row.notes ?? null,
-    fee: row.fee ?? null,
-    ticketIncome: row.ticket_income ?? null,
-    expenses: row.expenses ?? null,
+    // Sin ver costos (ve_ingresos || ve_costos de Eventos en este
+    // proyecto, mismo criterio que eventos/[id]): se ocultan los montos en
+    // la respuesta misma, no solo en la UI (ROLES.md 0.2.2).
+    fee: canViewCosts ? (row.fee ?? null) : null,
+    ticketIncome: canViewCosts ? (row.ticket_income ?? null) : null,
+    expenses: canViewCosts ? (row.expenses ?? null) : null,
     financialsUntracked: row.financials_untracked ?? false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -36,7 +47,7 @@ function mapLiveShow(row: any) {
 // /api/analytics/eventos, que es el dashboard financiero de solo lectura --
 // ambos leen la misma tabla `shows`.
 export async function GET(request: NextRequest) {
-  const { supabase, orgId, allowedProjectIds, error } = await requireAuth();
+  const { supabase, user, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
@@ -68,14 +79,29 @@ export async function GET(request: NextRequest) {
   const { data, error: dbError } = await query;
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
 
-  return NextResponse.json((data ?? []).map(mapLiveShow));
+  // Cada evento puede pertenecer a un proyecto distinto (agrupamiento por
+  // sello, o listado agregado) -- la vista respeta la matriz de CADA
+  // proyecto individualmente, no la del proyecto seleccionado (ROLES.md
+  // 0.5). Se calcula por lote para no hacer una consulta por fila.
+  const allRows = data ?? [];
+  const permsByProject = await getProjectPermissionsForMany(
+    supabase,
+    user!.id,
+    allRows.map((r) => r.project_id)
+  );
+
+  const visible = allRows.filter((r) => canViewEvent(permsByProject.get(r.project_id) ?? null));
+
+  return NextResponse.json(
+    visible.map((r) => mapLiveShow(r, canViewEventCosts(permsByProject.get(r.project_id) ?? null)))
+  );
 }
 
 // POST /api/eventos -- crea un evento: autogestionado (desde el modulo,
 // eligiendo proyecto a mano) o disparado por el popup "¿Armamos el
 // evento?" al ganar un deal marcado como evento.
 export async function POST(request: NextRequest) {
-  const { supabase, user, orgId, error } = await requireAuth();
+  const { supabase, user, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const body = await request.json().catch(() => ({}));
@@ -108,6 +134,19 @@ export async function POST(request: NextRequest) {
   if (!date) {
     return NextResponse.json({ error: "La fecha es requerida" }, { status: 400 });
   }
+
+  // Este endpoint no tenía NINGÚN chequeo de proyecto ni de permiso --
+  // cualquiera autenticado en la organización podía crear un evento (con
+  // cualquier monto) en cualquier proyecto ajeno. Corregido (ROLES.md,
+  // ítem 6 del rediseño de roles).
+  if (!allowedProjectIds.includes(projectId)) {
+    return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
+  }
+  const creatorPerm = await getProjectPermissions(supabase, user!.id, projectId);
+  if (!canEditEvent(creatorPerm)) {
+    return NextResponse.json({ error: "Tu rol no puede crear eventos en este proyecto" }, { status: 403 });
+  }
+  const canSetCosts = canEditEventCosts(creatorPerm);
 
   // El venue viene de un venue_id (lo normal, elegido en el combobox) o,
   // para casos viejos/uno-off, de un nombre de texto libre directo.
@@ -155,9 +194,11 @@ export async function POST(request: NextRequest) {
       event_link: eventLink || null,
       tour: tour || null,
       status: status || "cotizando",
-      fee: fee ?? 0,
-      ticket_income: ticketIncome ?? 0,
-      expenses: expenses ?? 0,
+      // Sin canEditEventCosts se ignoran en silencio, igual que en
+      // eventos/[id] PUT -- defensa en profundidad, la UI ni los muestra.
+      fee: canSetCosts ? (fee ?? 0) : 0,
+      ticket_income: canSetCosts ? (ticketIncome ?? 0) : 0,
+      expenses: canSetCosts ? (expenses ?? 0) : 0,
     })
     .select("*, projects ( name ), deals ( title )")
     .single();
@@ -177,5 +218,5 @@ export async function POST(request: NextRequest) {
     projectId: data.project_id,
   });
 
-  return NextResponse.json(mapLiveShow(data), { status: 201 });
+  return NextResponse.json(mapLiveShow(data, canSetCosts), { status: 201 });
 }

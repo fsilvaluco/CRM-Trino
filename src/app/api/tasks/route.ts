@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/supabase-server";
 import { getViewedAtMap, getLatestCommentAtMap, isUnseen, latestActivityAt } from "@/lib/entity-views";
 import { sendPushToUsers } from "@/lib/push";
 import { logActivity } from "@/lib/activity-logs";
+import { getProjectPermissions, getProjectPermissionsForMany, canViewModule, canEditModule } from "@/lib/project-roles";
 
 function taskUrl(taskId: string): string {
   const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -112,7 +113,18 @@ export async function GET(request: NextRequest) {
   const { data, error: dbError } = await query;
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
 
-  const tasks = data ?? [];
+  // Cada tarea puede pertenecer a un proyecto distinto en modo agregado --
+  // la matriz se respeta por proyecto (ROLES.md 0.5). Las tareas sin
+  // proyecto asignado (permitido hoy) quedan sin este filtro.
+  const allTasks = data ?? [];
+  const permsByProject = await getProjectPermissionsForMany(
+    supabase,
+    user!.id,
+    allTasks.map((t) => t.project_id).filter(Boolean)
+  );
+  const tasks = allTasks.filter(
+    (t) => !t.project_id || canViewModule(permsByProject.get(t.project_id) ?? null, "tareas")
+  );
 
   // El punto rojo depende de quien esta preguntando -- si no hay usuario
   // (no deberia pasar, requireAuth ya lo exige) simplemente no se calcula.
@@ -137,7 +149,7 @@ export async function GET(request: NextRequest) {
 
 
 export async function POST(request: NextRequest) {
-  const { supabase, user, orgId, error } = await requireAuth();
+  const { supabase, user, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   let body: Record<string, unknown>;
@@ -151,6 +163,21 @@ export async function POST(request: NextRequest) {
 
   if (!title || typeof title !== "string" || title.trim() === "") {
     return NextResponse.json({ error: "El titulo es requerido" }, { status: 400 });
+  }
+
+  // Este endpoint no tenía NINGÚN chequeo de proyecto -- cualquiera
+  // autenticado podía crear una tarea en cualquier proyecto ajeno.
+  // Corregido (ROLES.md, ítem 6 del rediseño de roles). Las tareas sin
+  // proyecto (permitido hoy) quedan sin este chequeo.
+  const taskProjectId = (typeof artistProjectId === "string" && artistProjectId) || (typeof projectId === "string" && projectId) || null;
+  if (taskProjectId) {
+    if (!allowedProjectIds.includes(taskProjectId)) {
+      return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
+    }
+    const creatorPerm = await getProjectPermissions(supabase, user!.id, taskProjectId);
+    if (!canEditModule(creatorPerm, "tareas")) {
+      return NextResponse.json({ error: "Tu rol no puede crear tareas en este proyecto" }, { status: 403 });
+    }
   }
 
   const { data, error: dbError } = await supabase

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { logActivity } from "@/lib/activity-logs";
 import { z } from "zod";
+import { getProjectPermissions, getProjectPermissionsForMany, canViewModule, canEditModule } from "@/lib/project-roles";
 
 const createContactSchema = z.object({
   name: z.string().trim().min(1, "El nombre es requerido"),
@@ -85,7 +86,7 @@ function mapContact(row: any) {
 }
 
 export async function GET(request: NextRequest) {
-  const { supabase, orgId, allowedProjectIds, error } = await requireAuth();
+  const { supabase, user, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
@@ -107,6 +108,10 @@ export async function GET(request: NextRequest) {
     }
     if (!allowedProjectIds.includes(projectIdParam)) {
       return errorResponse("Sin acceso al proyecto", 403);
+    }
+    const perm = await getProjectPermissions(supabase, user!.id, projectIdParam);
+    if (!canViewModule(perm, "contactos")) {
+      return errorResponse("Sin acceso a Contactos para tu rol", 403);
     }
   }
 
@@ -154,7 +159,26 @@ export async function GET(request: NextRequest) {
     return errorResponse("No se pudieron listar los contactos", 500, dbError.message);
   }
 
-  return NextResponse.json((data ?? []).map(mapContact));
+  const allRows = data ?? [];
+
+  // Modo agregado (sin projectId puntual): cada fila puede pertenecer a un
+  // proyecto distinto -- la matriz se respeta por proyecto (ROLES.md 0.5).
+  // Con projectId puntual ya se validó `canViewModule` arriba, aplica a
+  // todas las filas por igual (incluidos los hijos por sello).
+  if (!projectIdParam) {
+    const permsByProject = await getProjectPermissionsForMany(
+      supabase,
+      user!.id,
+      allRows.map((r) => r.project_id ?? r.artist_project_id).filter(Boolean)
+    );
+    const visible = allRows.filter((r) => {
+      const pid = r.project_id ?? r.artist_project_id;
+      return canViewModule(permsByProject.get(pid) ?? null, "contactos");
+    });
+    return NextResponse.json(visible.map(mapContact));
+  }
+
+  return NextResponse.json(allRows.map(mapContact));
 }
 
 export async function POST(request: NextRequest) {
@@ -178,6 +202,10 @@ export async function POST(request: NextRequest) {
 
   if (!allowedProjectIds.includes(String(projectId))) {
     return errorResponse("No tienes acceso al proyecto seleccionado", 403);
+  }
+  const creatorPerm = await getProjectPermissions(supabase, user!.id, String(projectId));
+  if (!canEditModule(creatorPerm, "contactos")) {
+    return errorResponse("Tu rol no puede crear contactos en este proyecto", 403);
   }
 
   if (companyId) {

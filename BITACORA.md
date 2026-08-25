@@ -864,6 +864,36 @@ un pase de verificación antes de dar el ítem 3 por cerrado del todo (en partic
 
 **Versión de la app subida a 2.59.**
 
+### 🔓 Ítem 6: vista agregada por matriz en los 6 módulos restantes (25 ago 2026)
+
+Cierre del ítem 6 de la Prioridad 1 (ROLES.md) -- Deals y Finanzas ya estaban resueltos de la sesión
+anterior, faltaban Eventos, Tareas, Campañas, Contactos y Empresas. **Otra vez el mismo patrón que
+Finanzas y `/api/export`: no era solo "falta filtrar la vista agregada", varios endpoints no tenían
+NINGÚN chequeo de proyecto en absoluto:**
+
+- **`POST /api/eventos` no tenía ningún chequeo de proyecto ni de permiso** -- cualquiera autenticado
+  podía crear un evento, con cualquier fee/ingreso/costo, en cualquier proyecto ajeno. El `GET` tampoco
+  redactaba plata por fila. Corregidos ambos, mismo criterio que `eventos/[id]`.
+- **`GET /api/subprojects` (Campañas) devolvía TODAS las campañas de la organización sin ningún
+  filtro** -- ni siquiera `allowedProjectIds`. El `POST` tampoco chequeaba nada. Corregidos ambos.
+- **`POST /api/tasks` no chequeaba proyecto en absoluto** -- cualquiera podía crear una tarea en
+  cualquier proyecto ajeno. El `GET` no filtraba por matriz en modo agregado (impacto bajo hoy porque
+  todas las plantillas dan Tareas abierto a todos, pero corregido igual para cuando alguien customice su
+  matriz).
+- **Contactos y Empresas** ya tenían aislamiento por proyecto (corregido 23 ago) -- les faltaba el
+  chequeo de módulo y el filtro por matriz en modo agregado. **De paso se cerró el hallazgo 9.3**:
+  `POST /api/companies` aceptaba `projectId = null` en silencio -- el mismo bug que se había corregido
+  ayer en `CompanyForm` del lado del cliente, ahora bloqueado también en el servidor (alguien podía
+  haberse saltado el formulario llamando a la API directo).
+
+**Con esto, de los 12 ítems de la Prioridad 1 solo queda pendiente el ítem 5** (parcial -- drag-and-drop
+del Kanban, botones de Contactos/Empresas, verificación de Tareas).
+
+**Verificado:** `tsc --noEmit` limpio, `eslint` limpio (mismo problema preexistente en `tasks/route.ts`,
+confirmado con `git stash`), `npm run build` completo sin errores.
+
+**Versión de la app subida a 2.60.**
+
 ---
 
 ## 🔴 Crítico (arreglar primero)

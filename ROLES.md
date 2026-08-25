@@ -637,13 +637,14 @@ implementado todavía.
 
 ### Prioridad 1 -- base del modelo nuevo (sin esto, el resto no tiene dónde pararse)
 
-**Estado (25 ago 2026):** ítems 1, 2, 3, 4, 7, 8, 9, 10, 11 y 12 implementados y aplicados en producción,
-más varias correcciones encontradas al probar/implementar (redacción de $ en Deals, aislamiento de
-`deals/[id]`, exportación CSV sin ningún chequeo de proyecto, comentarios de Deals/Tareas sin ningún
-chequeo de proyecto -- ver el detalle en cada ítem). Ítem 3: de 38 endpoints con `isAdmin`, 26 migrados a
-la matriz, 12 se dejan a propósito como acciones de organización (billing, integraciones, gestión de
-gente -- ver detalle del ítem). **Solo quedan pendientes los ítems 5 y 6 (parciales, ver su propio
-detalle)** para cerrar la Prioridad 1 por completo. Probado en producción contra 3 cuentas de prueba
+**Estado (25 ago 2026):** ítems 1, 2, 3, 4, 6, 7, 8, 9, 10, 11 y 12 implementados y aplicados en
+producción, más varias correcciones encontradas al probar/implementar (redacción de $ en Deals,
+aislamiento de `deals/[id]`, exportación CSV sin ningún chequeo de proyecto, comentarios de Deals/Tareas
+sin ningún chequeo de proyecto, `POST /api/eventos`/`subprojects`/`tasks`/`companies` sin ningún chequeo
+de proyecto -- ver el detalle en cada ítem). Ítem 3: de 38 endpoints con `isAdmin`, 26 migrados a la
+matriz, 12 se dejan a propósito como acciones de organización (billing, integraciones, gestión de gente
+-- ver detalle del ítem). **Solo queda pendiente el ítem 5 (parcial, ver su propio detalle)** para cerrar
+la Prioridad 1 por completo. Probado en producción contra 3 cuentas de prueba
 reales (Rodrick/Gonzalo/Daniela en el proyecto
 Prueba 2) vía login por API -- ver bitácora del 24-25 ago.
 
@@ -705,10 +706,26 @@ Prueba 2) vía login por API -- ver bitácora del 24-25 ago.
    bloquea con 403, pero la interfaz no lo previene antes de intentarlo), y los botones de crear/editar de
    Contactos/Empresas en la lista (el guardado ya está protegido, falta deshabilitar el botón mismo para
    mejor UX).
-6. 🔶 **Vista agregada respeta la matriz de cada proyecto individualmente** (0.5) -- resuelto para Deals y
-   Finanzas (parte del fix de la sesión anterior). Sigue pendiente para Tareas, Eventos (listado),
-   Campañas, Contactos y Empresas -- esos listados sin `projectId` todavía no filtran/redactan por
-   proyecto de cada fila.
+6. ✅ **Vista agregada respeta la matriz de cada proyecto individualmente** (0.5) -- resuelto para los 6
+   módulos restantes (Deals y Finanzas ya estaban resueltos de la sesión anterior). **Se encontraron
+   brechas graves al implementar, del mismo patrón que Finanzas -- endpoints sin ningún chequeo de
+   proyecto en absoluto**, no solo "falta filtrar la vista agregada":
+   - `GET`/`POST /api/eventos`: el `POST` **no tenía ningún chequeo de proyecto ni de permiso** --
+     cualquiera autenticado podía crear un evento (con cualquier monto de fee/ingreso/costo) en cualquier
+     proyecto ajeno. El `GET` no redactaba `fee`/`ticketIncome`/`expenses` por fila. Corregidos ambos,
+     mismo criterio que `eventos/[id]` (`canViewEventCosts`/`canEditEventCosts`).
+   - `GET`/`POST /api/subprojects` (Campañas): el `GET` **devolvía TODAS las campañas de la organización
+     sin ningún filtro**, y el `POST` no chequeaba proyecto en absoluto. Corregidos ambos.
+   - `GET`/`POST /api/tasks`: el `POST` no chequeaba proyecto en absoluto -- cualquiera podía crear una
+     tarea en cualquier proyecto ajeno. El `GET` no filtraba por matriz en modo agregado (impacto bajo
+     hoy porque las 4 plantillas dan `tareas.ver = sí` a todos, pero corregido para cuando alguien
+     customice su matriz).
+   - `GET`/`POST /api/contacts`, `GET`/`POST /api/companies`: ya tenían aislamiento por proyecto
+     (corregido 23 ago), les faltaba el chequeo de módulo (`canViewModule`/`canEditModule`) y el filtro
+     por matriz en modo agregado. **De paso, se cerró el hallazgo 9.3**: `POST /api/companies` aceptaba
+     `projectId = null` en silencio -- mismo bug que se había corregido en `CompanyForm` del lado del
+     cliente, ahora también bloqueado en el servidor (defensa en profundidad real: alguien podía haber
+     llamado a la API directo, saltándose el formulario).
 7. ✅ **`project-roles.ts` reescrito para leer la matriz** -- `getProjectRole()` reemplazado por
    `getProjectPermissions()` (misma herencia por sello, ahora trae la matriz completa en vez de un rol).
    `canViewDeals`/`canEditDeals`/`canViewEventCosts`/`canEditEventCosts` migrados a leer

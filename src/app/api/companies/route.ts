@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { getProjectPermissions, getProjectPermissionsForMany, canViewModule, canEditModule } from "@/lib/project-roles";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapCompany(row: any) {
@@ -21,7 +22,7 @@ function mapCompany(row: any) {
 }
 
 export async function GET(request: NextRequest) {
-  const { supabase, orgId, allowedProjectIds, error } = await requireAuth();
+  const { supabase, user, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
@@ -41,6 +42,10 @@ export async function GET(request: NextRequest) {
     }
     if (!allowedProjectIds.includes(projectIdParam)) {
       return NextResponse.json({ error: "Sin acceso al proyecto" }, { status: 403 });
+    }
+    const perm = await getProjectPermissions(supabase, user!.id, projectIdParam);
+    if (!canViewModule(perm, "empresas")) {
+      return NextResponse.json({ error: "Sin acceso a Empresas para tu rol" }, { status: 403 });
     }
   }
 
@@ -81,11 +86,28 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: dbError.message }, { status: 500 });
   }
 
-  return NextResponse.json((data ?? []).map(mapCompany));
+  const allRows = data ?? [];
+
+  // Modo agregado (sin projectId puntual): cada fila puede pertenecer a un
+  // proyecto distinto -- la matriz se respeta por proyecto (ROLES.md 0.5).
+  if (!projectIdParam) {
+    const permsByProject = await getProjectPermissionsForMany(
+      supabase,
+      user!.id,
+      allRows.map((r) => r.project_id ?? r.artist_project_id).filter(Boolean)
+    );
+    const visible = allRows.filter((r) => {
+      const pid = r.project_id ?? r.artist_project_id;
+      return canViewModule(permsByProject.get(pid) ?? null, "empresas");
+    });
+    return NextResponse.json(visible.map(mapCompany));
+  }
+
+  return NextResponse.json(allRows.map(mapCompany));
 }
 
 export async function POST(request: NextRequest) {
-  const { supabase, user, orgId, error } = await requireAuth();
+  const { supabase, user, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   let body;
@@ -99,6 +121,20 @@ export async function POST(request: NextRequest) {
 
   if (!name || name.trim() === "") {
     return NextResponse.json({ error: "El nombre es requerido" }, { status: 400 });
+  }
+  // Hallazgo 9.3 de ROLES.md: este endpoint no chequeaba proyecto en
+  // absoluto y aceptaba projectId=null en silencio -- corregido igual que
+  // se corrigió el mismo bug en CompanyForm del lado del cliente.
+  const targetProjectId = projectId || artistProjectId || null;
+  if (!targetProjectId) {
+    return NextResponse.json({ error: "El proyecto es requerido" }, { status: 400 });
+  }
+  if (!allowedProjectIds.includes(targetProjectId)) {
+    return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
+  }
+  const creatorPerm = await getProjectPermissions(supabase, user!.id, targetProjectId);
+  if (!canEditModule(creatorPerm, "empresas")) {
+    return NextResponse.json({ error: "Tu rol no puede crear empresas en este proyecto" }, { status: 403 });
   }
 
   const { data, error: dbError } = await supabase
