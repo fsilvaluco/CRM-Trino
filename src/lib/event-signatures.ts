@@ -1,6 +1,15 @@
 // ─── Firma virtual del cierre de caja -- lógica compartida ──────────────────
 // Extraído de signatures/route.ts (19 ago 2026) para poder reusarlo también
 // desde costs/inform/route.ts sin duplicar las mismas dos queries.
+//
+// 25 ago 2026 (ROLES.md 0.2.4 / ítem 20 del rediseño de roles): los
+// firmantes requeridos dejaron de calcularse por `role IN (admin, artist)`
+// -- eso todavía asumía el modelo viejo de 4 roles fijos. Ahora exige
+// `ve_ingresos && ve_costos` de Eventos en la matriz de cada persona --
+// nadie firma una aprobación de números que no puede revisar, sin importar
+// qué plantilla tenga.
+
+import { getProjectPermissions } from "@/lib/project-roles";
 
 export interface SignerProfile {
   userId: string;
@@ -20,16 +29,17 @@ export interface SignaturesState {
 }
 
 // Los firmantes requeridos son "los project_members del proyecto del
-// evento con rol Admin o Artista" (decisión explícita de Francisco, 19 ago
-// 2026 -- Miembro y Staff técnico no firman) -- no se guardan aparte, se
-// calculan en caliente cada vez.
+// evento que ven ingresos Y costos de Eventos en su matriz" -- no se
+// guardan aparte, se calculan en caliente cada vez. Antes (hasta el 24 ago
+// 2026) era "rol Admin o Artista" -- se migró a la matriz porque el rol ya
+// no gobierna el permiso, es solo una plantilla de partida (ROLES.md 0.2).
 //
-// Dos queries en vez de un embed (`profiles ( ... )`) a propósito:
-// `project_members.user_id` NO tiene foreign key hacia `profiles` (a
+// project_members.user_id NO tiene foreign key hacia `profiles` (a
 // diferencia de `organization_members`/`event_closing_signatures`, que sí
-// la tienen) -- PostgREST no puede resolver el embed sin esa FK, así que
+// la tienen) -- PostgREST no puede resolver un embed sin esa FK, así que
 // fallaba en silencio (`data` quedaba `null`, `data ?? []` lo escondía) y
-// siempre devolvía 0 firmantes requeridos. Bug encontrado el 19 ago 2026.
+// siempre devolvía 0 firmantes requeridos. Bug encontrado el 19 ago 2026 --
+// se resuelve con una query aparte a `profiles`, no con un embed.
 export async function getRequiredSigners(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
@@ -38,10 +48,19 @@ export async function getRequiredSigners(
   const { data: members } = await supabase
     .from("project_members")
     .select("user_id")
-    .eq("project_id", projectId)
-    .in("role", ["admin", "artist"]);
+    .eq("project_id", projectId);
 
-  const userIds: string[] = (members ?? []).map((m: { user_id: string }) => m.user_id);
+  const allMemberIds: string[] = (members ?? []).map((m: { user_id: string }) => m.user_id);
+  if (allMemberIds.length === 0) return [];
+
+  const signerFlags = await Promise.all(
+    allMemberIds.map(async (uid) => {
+      const perm = await getProjectPermissions(supabase, uid, projectId);
+      const m = perm?.modules.eventos;
+      return Boolean(m?.veIngresos && m?.veCostos);
+    })
+  );
+  const userIds = allMemberIds.filter((_, i) => signerFlags[i]);
   if (userIds.length === 0) return [];
 
   const { data: profiles } = await supabase

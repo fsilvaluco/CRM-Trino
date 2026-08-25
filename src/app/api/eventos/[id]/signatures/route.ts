@@ -10,10 +10,10 @@ function siteUrl(path: string): string {
 
 // GET /api/eventos/[id]/signatures -- estado de la firma virtual del cierre
 // de caja: quiénes deben firmar (project_members del proyecto del evento
-// con rol Admin/Artista), quiénes ya firmaron y cuándo, y si el usuario
-// actual puede firmar. Acceso restringido a project_members de ESE
-// proyecto (o admin) -- a diferencia de GET /api/eventos/[id], que hoy no
-// filtra por proyecto.
+// con ve_ingresos && ve_costos de Eventos en su matriz), quiénes ya
+// firmaron y cuándo, y si el usuario actual puede firmar. Acceso
+// restringido a project_members de ESE proyecto -- a diferencia de GET
+// /api/eventos/[id], que hoy no filtra por proyecto.
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -96,7 +96,7 @@ export async function POST(
   // de ESTE proyecto (ROLES.md, ítem 3 del rediseño de roles).
   if (!isRequiredSigner) {
     return NextResponse.json(
-      { error: "Solo Admin/Artista del proyecto de este evento pueden firmar el cierre" },
+      { error: "Solo quien ve ingresos y costos de Eventos en este proyecto puede firmar el cierre" },
       { status: 403 }
     );
   }

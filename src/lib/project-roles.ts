@@ -230,3 +230,128 @@ export function canDeleteModule(perm: ProjectPermissions | null, module: ModuleK
 export function canManageTeam(perm: ProjectPermissions | null): boolean {
   return perm?.puedeGestionarEquipo ?? false;
 }
+
+// ── Plantillas de partida (0.2.3) -- mismo mapeo que el backfill de la
+// migración 084_permission_matrix.sql. Se usa al AGREGAR a alguien nuevo a
+// un proyecto (project-members / org-members POST) para sembrar su matriz
+// inicial -- después de eso, la matriz se edita persona por persona desde
+// el Gestor de Integrantes (Prioridad 6, todavía no construido), sin volver
+// a tocar la plantilla.
+export function permissionsForTemplate(role: ProjectRole): Record<ModuleKey, ModulePermission> {
+  const fullAccess = (veIngresos: boolean, veCostos: boolean): ModulePermission => ({
+    puedeVer: true,
+    puedeEditar: true,
+    puedeEliminar: true,
+    veIngresos,
+    veCostos,
+  });
+  const viewOnly = (veIngresos: boolean, veCostos: boolean): ModulePermission => ({
+    puedeVer: true,
+    puedeEditar: false,
+    puedeEliminar: false,
+    veIngresos,
+    veCostos,
+  });
+
+  switch (role) {
+    case "admin":
+      return {
+        contactos: fullAccess(false, false),
+        empresas: fullAccess(false, false),
+        deals: fullAccess(true, false),
+        tareas: fullAccess(false, false),
+        eventos: fullAccess(true, true),
+        campanas: fullAccess(false, false),
+        finanzas: fullAccess(false, false),
+      };
+    case "member":
+      return {
+        contactos: fullAccess(false, false),
+        empresas: fullAccess(false, false),
+        deals: fullAccess(true, false),
+        tareas: fullAccess(false, false),
+        eventos: fullAccess(true, true),
+        campanas: fullAccess(false, false),
+        // Excepción (0.2.5): en Finanzas, member = artist (ve, no edita).
+        finanzas: viewOnly(false, false),
+      };
+    case "artist":
+      return {
+        contactos: viewOnly(false, false),
+        empresas: viewOnly(false, false),
+        deals: viewOnly(true, false),
+        tareas: fullAccess(false, false),
+        eventos: viewOnly(true, true),
+        campanas: fullAccess(false, false),
+        finanzas: viewOnly(false, false),
+      };
+    case "staff":
+      return {
+        contactos: SIN_ACCESO,
+        empresas: SIN_ACCESO,
+        deals: SIN_ACCESO,
+        tareas: fullAccess(false, false),
+        eventos: fullAccess(false, false),
+        campanas: fullAccess(false, false),
+        finanzas: SIN_ACCESO,
+      };
+  }
+}
+
+/**
+ * Siembra la matriz de módulos de un `project_members.id` recién creado
+ * según la plantilla de su rol -- sin esto, alguien agregado a un proyecto
+ * queda sin acceso a NINGÚN módulo hasta que alguien edite su matriz a mano
+ * (no hay editor visual todavía, ver ROLES.md Prioridad 6). No pisa filas
+ * existentes (`onConflict: ignore` vía verificación previa) -- solo se debe
+ * llamar al crear la fila de `project_members`, nunca al reasignar un rol
+ * ya existente, para no perder ediciones finas que alguien haya hecho.
+ */
+export async function seedTemplateMatrix(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  projectMemberId: string,
+  role: ProjectRole
+): Promise<void> {
+  const template = permissionsForTemplate(role);
+  const rows = MODULE_KEYS.map((module) => ({
+    project_member_id: projectMemberId,
+    module,
+    puede_ver: template[module].puedeVer,
+    puede_editar: template[module].puedeEditar,
+    puede_eliminar: template[module].puedeEliminar,
+    ve_ingresos: template[module].veIngresos,
+    ve_costos: template[module].veCostos,
+  }));
+  const { error } = await supabase
+    .from("project_member_permissions")
+    .upsert(rows, { onConflict: "project_member_id,module", ignoreDuplicates: true });
+  if (error) {
+    // No fatal: la fila de project_members ya existe: es preferible que la
+    // persona quede en el proyecto sin matriz sembrada (arreglable a mano)
+    // a que falle toda la operación de agregarla.
+    console.error("[seedTemplateMatrix] no se pudo sembrar la matriz (no bloqueante)", error);
+  }
+}
+
+/**
+ * `true` si, sacando al `project_member_id` indicado (o cambiándole
+ * `puede_gestionar_equipo` a false), el proyecto se quedaría sin NADIE que
+ * pueda gestionar equipo -- protección explícita de ROLES.md 0.2.4 / ítem
+ * 16: nunca se puede guardar un estado con cero gestores en un proyecto.
+ */
+export async function wouldLeaveProjectWithoutManager(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  projectId: string,
+  excludingProjectMemberId: string
+): Promise<boolean> {
+  const { data } = await supabase
+    .from("project_members")
+    .select("id")
+    .eq("project_id", projectId)
+    .eq("puede_gestionar_equipo", true)
+    .neq("id", excludingProjectMemberId)
+    .limit(1);
+  return (data ?? []).length === 0;
+}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { sendEmail, buildInviteEmailHtml } from "@/lib/resend";
+import { canManageTeam, getProjectPermissions, seedTemplateMatrix, type ProjectRole } from "@/lib/project-roles";
 
 type MemberStatus = "pending" | "active";
 type MemberRole = "owner" | "admin" | "member" | "artist" | "staff";
@@ -38,12 +39,24 @@ async function findAuthUserByEmail(admin: ReturnType<typeof createAdminClient>, 
 // ese proyecto especifico -- asi "Equipo y Acceso" refleja solo a quien
 // realmente trabaja en el proyecto activo, no a toda la organizacion.
 export async function GET(request: NextRequest) {
-  const { supabase, orgId, isAdmin, error } = await requireAuth();
+  const { supabase, orgId, isAdmin, user, error } = await requireAuth();
   if (error) return error;
-  if (!isAdmin) return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
 
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get("projectId");
+
+  // La lista completa de la organización (sin projectId) sigue siendo una
+  // acción de organización -- exige isAdmin. Pedida con projectId (el caso
+  // real: "Equipo y Acceso" mirando UN proyecto), alcanza con gestionar
+  // equipo en ESE proyecto puntual -- ya no hace falta ser admin de
+  // organización (ROLES.md, ítems 13/15 del rediseño de roles).
+  if (!isAdmin) {
+    if (!projectId) return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
+    const perm = await getProjectPermissions(supabase, user!.id, projectId);
+    if (!canManageTeam(perm)) {
+      return NextResponse.json({ error: "No gestionas equipo en este proyecto" }, { status: 403 });
+    }
+  }
 
   const admin = createAdminClient();
 
@@ -138,7 +151,6 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const { supabase, orgId, isAdmin, user, error } = await requireAuth();
   if (error) return error;
-  if (!isAdmin) return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
 
   const body = await request.json();
   const {
@@ -167,6 +179,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Nombre y apellido son requeridos" }, { status: 400 });
   }
   if (!allowedRoles.has(role)) return NextResponse.json({ error: "Rol inválido" }, { status: 400 });
+
+  // Invitar/crear cuenta con un proyecto ya alcanza con gestionar equipo en
+  // ESE proyecto -- ya no hace falta ser admin de organización. Sin
+  // projectId (alta pura de organización, sin asignar a ningún proyecto)
+  // sigue siendo una acción de organización -- exige isAdmin (ROLES.md,
+  // ítem 13 del rediseño de roles: "crear cuentas nuevas de cero" queda con
+  // alcance limitado a los proyectos donde quien invita ya gestiona equipo).
+  if (!isAdmin) {
+    if (!projectId) return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
+    const perm = await getProjectPermissions(supabase, user!.id, projectId);
+    if (!canManageTeam(perm)) {
+      return NextResponse.json({ error: "No gestionas equipo en este proyecto" }, { status: 403 });
+    }
+  }
 
   const admin = createAdminClient();
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin;
@@ -218,12 +244,31 @@ export async function POST(request: NextRequest) {
 
   async function assignProjectIfNeeded(userId: string) {
     if (!projectId) return;
-    await supabase
+    const { data: existing } = await supabase
+      .from("project_members")
+      .select("id")
+      .eq("project_id", projectId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    const { data: upserted, error: upsertError } = await supabase
       .from("project_members")
       .upsert(
         { project_id: projectId, user_id: userId, organization_id: orgId, role },
         { onConflict: "project_id,user_id" }
-      );
+      )
+      .select("id")
+      .single();
+
+    if (upsertError) {
+      console.error("[org-members] no se pudo asignar el proyecto (no bloqueante)", upsertError);
+      return;
+    }
+    // Solo sembrar la matriz de plantilla si es una fila NUEVA -- no pisar
+    // la matriz de alguien que ya estaba asignado a este proyecto.
+    if (!existing) {
+      await seedTemplateMatrix(supabase, upserted.id, role as ProjectRole);
+    }
   }
 
   const { user: existingUser, error: existingLookupError } = await findAuthUserByEmail(admin, normalizedEmail);

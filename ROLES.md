@@ -779,35 +779,66 @@ Prueba 2) vía login por API -- ver bitácora del 24-25 ago.
 
 ### Prioridad 2 -- gestión de gente (nueva superficie que hoy no tiene reglas)
 
-13. **Independizar `puede_gestionar_equipo` del resto de la matriz** (0.2.1) -- no depende de cuánto
-    acceso a módulos tenga la persona. Incluye poder invitar y **crear cuentas nuevas de cero**, con
-    alcance limitado a los proyectos donde esa persona ya tiene `puede_gestionar_equipo = sí` -- endpoint
-    nuevo o reescritura de `/api/project-members`.
-14. **Sin jerarquía especial entre personas con `puede_gestionar_equipo = sí`** del mismo proyecto
-    (0.2.1) -- cualquiera con este permiso puede gestionar a cualquier otra, incluidos otros con el mismo
-    permiso.
-15. **Aplicar el aislamiento por proyecto a la gestión de accesos en sí** (hallazgo 9.2, sigue vigente en
-    el modelo nuevo): alguien solo puede invitar/gestionar gente en proyectos donde él mismo tiene
-    `puede_gestionar_equipo`, nunca en proyectos ajenos.
-16. **Protección contra que un proyecto se quede sin nadie que pueda gestionar equipo** (0.2.4): validar
-    en el backend -- no solo advertir en el frontend -- antes de guardar cualquier cambio que deje a
-    `puede_gestionar_equipo = sí` en cero personas para un proyecto.
-17. **Restringir el "Gestor de Integrantes" (matriz completa del equipo) a quien tiene
-    `puede_gestionar_equipo = sí`** (0.2.4) -- el resto de la gente del proyecto no debería poder pedir
-    esa lista vía API tampoco, no solo que la UI no la muestre.
-18. **Completar la instrumentación de `activity_logs`** -- hoy solo 12 de los ~38 endpoints que
-    editan/borran algo llaman a `logActivity()` (Companies, Project-Members, Org-Members, Cost-Items,
-    Ticket-Tiers, Setlist y otros quedan sin registrar). Es la causa real de "el cuadro de logs no
-    funciona" -- no está roto, está incompleto. De paso, migrar `GET /api/activity-logs` de exigir
-    `isAdmin` (rol de organización, que se retira) a exigir `puede_gestionar_equipo` en al menos un
-    proyecto.
-19. **Migrar `/api/eventos/[id]/cost-submissions`** (0.2.4) de `isAdmin` (organización) a `puede_editar` +
-    `ve_costos` de proyecto, tanto para decidir quién puede revisar/aprobar un gasto reportado como para
-    decidir a quién avisar por push cuando llega uno nuevo (hoy notifica a "admins de organización").
-20. **Gatear la firma de cierre de caja a `ve_ingresos` + `ve_costos`** (0.2.4) y **el acceso a
-    comprobantes/archivos adjuntos de costos a `ve_costos`** (0.2.4) en
-    [`SignedFileLink.tsx`](src/components/finances/SignedFileLink.tsx) y el endpoint de attachment de
-    costos (`/api/eventos/[id]/costs/attachment`).
+**Estado (25 ago 2026): ítems 13, 14, 15, 16 y 20 implementados y verificados (`tsc`/`build` limpios).
+Ítem 19 resultó estar hecho de antes (migrado dentro del ítem 3 de Prioridad 1, sin saberlo en ese
+momento). Ítem 17 solo a nivel de API -- la UI de "Equipo y Acceso" sigue con `adminOnly: true` en la
+navegación (ver detalle abajo). Ítem 18 sigue pendiente completo (instrumentación de `activity_logs`).**
+
+13. ✅ **Independizar `puede_gestionar_equipo` del resto de la matriz** (0.2.1) -- reescrito
+    `/api/project-members` (POST/PATCH/DELETE) y `/api/org-members` (GET/POST) para exigir
+    `canManageTeam(projectId)` en vez de `isAdmin` de organización cuando la acción es sobre UN proyecto
+    puntual. `POST /api/org-members` sin `projectId` (alta pura de organización, sin proyecto) sigue
+    exigiendo `isAdmin` -- es la única acción que de verdad no tiene un proyecto al cual anclarse.
+    **Hallazgo al implementar, corregido de paso:** ni `/api/project-members` POST ni
+    `assignProjectIfNeeded` de `/api/org-members` sembraban la matriz de módulos (`project_member_permissions`)
+    al crear la fila -- alguien recién agregado a un proyecto quedaba con acceso CERO a todos los módulos
+    hasta que alguien editara su matriz a mano (y no existe todavía un editor visual, ver ítem 32). Se
+    agregó `seedTemplateMatrix()` en [`project-roles.ts`](src/lib/project-roles.ts) (mismo mapeo
+    plantilla→matriz que el backfill de la migración 084) y se llama al crear la fila en ambos endpoints
+    (nunca al reasignar un rol ya existente, para no pisar ediciones finas).
+    **Segundo hallazgo:** `POST /api/projects` no agregaba a quien crea el proyecto como `project_member`
+    -- el `owner` que acababa de crear un proyecto quedaba sin fila ahí y por lo tanto sin acceso a su
+    propio proyecto ni forma de agregar a nadie más (0.4: owner no tiene bypass). Corregido: se agrega
+    automáticamente como `admin` + `puede_gestionar_equipo = true`, con su matriz sembrada.
+14. ✅ **Sin jerarquía especial entre personas con `puede_gestionar_equipo = sí`** (0.2.1) -- el chequeo
+    (`canManageTeam`) es un booleano plano por persona × proyecto, sin ningún concepto de "quién se lo
+    dio a quién" ni de antigüedad -- satisfecho por diseño, sin código adicional.
+15. ✅ **Aplicar el aislamiento por proyecto a la gestión de accesos en sí** (hallazgo 9.2) -- las cuatro
+    operaciones de `/api/project-members` exigen `canManageTeam` del `projectId` específico de la
+    request, nunca "isAdmin en algún lado". `GET /api/project-members` sin `projectId` (antes: todos los
+    `project_members` de la organización, gateado por `isAdmin`) ahora se filtra a solo los proyectos
+    donde quien pregunta gestiona equipo.
+16. ✅ **Protección contra que un proyecto se quede sin nadie que pueda gestionar equipo** (0.2.4) --
+    `wouldLeaveProjectWithoutManager()` en `project-roles.ts`, verificada en el backend (no solo
+    advertencia de frontend) tanto en `PATCH /api/project-members` (al poner `puedeGestionarEquipo: false`)
+    como en `DELETE /api/project-members` (al sacar a alguien que sí lo tiene) -- responde 409 si dejaría
+    el proyecto en cero gestores. `PATCH` se extendió para aceptar `puedeGestionarEquipo` además de `role`
+    -- antes no existía forma de tocar esa columna desde ningún endpoint.
+17. **Parcial -- Restringir el "Gestor de Integrantes" a quien tiene `puede_gestionar_equipo = sí`**
+    (0.2.4): hecho a nivel de API (`GET /api/project-members` sin `projectId` y `GET /api/org-members` con
+    `projectId`, ver ítem 15). **Pendiente:** el link "Equipo y Acceso" en la navegación
+    ([`nav-config.ts`](src/components/layout/nav-config.ts)) sigue con `adminOnly: true` -- alguien que
+    gestiona equipo en un proyecto pero no es `isAdmin` de organización todavía no puede LLEGAR a la
+    pantalla desde la UI, aunque la API ya lo dejaría operar. Se deja así a propósito por alcance (tocar
+    la navegación entra en el mismo trabajo que el Gestor de Integrantes visual, ítem 32, Prioridad 6) --
+    documentado para no perderlo.
+18. **Pendiente -- Completar la instrumentación de `activity_logs`** -- sigue igual que estaba: solo
+    Deals/Eventos/Finanzas/Contacts/Loans/Tasks llaman a `logActivity()`; Companies, Cost-Items,
+    Ticket-Tiers, Setlist y otros quedan sin registrar. La migración de `GET /api/activity-logs` de
+    `isAdmin` a `puede_gestionar_equipo` **ya estaba hecha** (se hizo sin saberlo dentro del ítem 3 de
+    Prioridad 1) -- lo que falta de este ítem es solo la instrumentación en sí.
+19. ✅ **Ya estaba hecho.** `/api/eventos/[id]/cost-submissions` ya exigía `puede_editar` + `ve_costos` de
+    proyecto (migrado dentro del ítem 3 de Prioridad 1, sin que quedara marcado como cierre de este ítem
+    puntual -- confirmado leyendo el código el 25 ago).
+20. ✅ **Gatear la firma de cierre de caja a `ve_ingresos` + `ve_costos`** (0.2.4) -- `getRequiredSigners()`
+    en [`event-signatures.ts`](src/lib/event-signatures.ts) calculaba los firmantes requeridos con
+    `role IN (admin, artist)` (el modelo viejo de 4 roles fijos, seguía sin migrar pese a que el resto de
+    Eventos ya usaba la matriz). Migrado a `ve_ingresos && ve_costos` de Eventos por persona. **El acceso a
+    comprobantes/archivos adjuntos de costos ya heredaba `ve_costos`** sin necesitar cambios: `GET
+    /api/eventos/[id]` devuelve `costItems: []` completo (con todos los `comprobanteUrl`) cuando
+    `!canViewEventCosts` (que exige `veIngresos || veCostos`) -- confirmado leyendo el endpoint, no hacía
+    falta tocar `SignedFileLink.tsx` ni el endpoint de attachment (ya exigía `canEditEventCosts` para
+    escribir, ver ítem 3 de Prioridad 1).
 
 ### Prioridad 3 -- cerrar la brecha de seguridad en RLS (además queda más simple con el modelo nuevo)
 

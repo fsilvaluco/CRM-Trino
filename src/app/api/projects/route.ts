@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { DEFAULT_GOAL_TITLES, type GoalMetricType } from "@/lib/goals";
-import type { ProjectRole } from "@/lib/project-roles";
+import { seedTemplateMatrix, type ProjectRole } from "@/lib/project-roles";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapProject(row: any, myRole: ProjectRole | "admin" | null) {
@@ -120,6 +120,32 @@ export async function POST(request: NextRequest) {
 
   if (dbError) {
     return NextResponse.json({ error: `Error al crear proyecto: ${dbError.message}` }, { status: 500 });
+  }
+
+  // Agregar a quien crea el proyecto como project_member admin con
+  // puede_gestionar_equipo = true -- sin esto, el owner que acaba de crear
+  // el proyecto quedaría sin fila en `project_members` y por lo tanto sin
+  // acceso a su propio proyecto (0.4: owner no tiene bypass, se rige 100%
+  // por project_members igual que todos) ni forma de agregar a nadie más
+  // (ROLES.md, ítem 13 del rediseño de roles -- gestión de gente).
+  const { data: creatorMembership, error: memberSeedError } = await supabase
+    .from("project_members")
+    .insert({
+      project_id: data.id,
+      user_id: user!.id,
+      organization_id: orgId,
+      role: "admin",
+      puede_gestionar_equipo: true,
+    })
+    .select("id")
+    .single();
+  if (memberSeedError) {
+    // No fatal para la respuesta (el proyecto ya existe), pero se deja
+    // registrado -- sin esta fila, quien creó el proyecto no puede
+    // gestionarlo hasta que se corrija a mano.
+    console.error("[projects POST] fallo al agregar al creador como project_member:", memberSeedError);
+  } else {
+    await seedTemplateMatrix(supabase, creatorMembership.id, "admin");
   }
 
   // Sembrar las 5 metas por defecto -- mismo criterio que el backfill de

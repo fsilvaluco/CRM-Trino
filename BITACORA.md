@@ -933,6 +933,52 @@ trabajadores que motivó todo este trabajo (dashboard por proyecto, Gestor de In
 **Versión de la app subida a 3.0** (cambio grande -- cierre completo de la Prioridad 1 del rediseño de
 roles, convención de subir el número antes del punto).
 
+### 🧑‍🤝‍🧑 Prioridad 2, primer tramo: gestión de gente por proyecto (25 ago 2026)
+
+Arranque de la Prioridad 2 del rediseño de roles (`ROLES.md` sección 11) -- gestión de gente
+(`puede_gestionar_equipo`) sin depender del rol de organización.
+
+**Ítems 13/15/16 (gestión de gente en sí):** reescritos `POST/PATCH/DELETE /api/project-members` y
+`GET/POST /api/org-members` para exigir `canManageTeam(projectId)` (matriz de proyecto) en vez de
+`isAdmin` (rol de organización) cuando la acción es sobre un proyecto puntual. `PATCH
+/api/project-members` ganó soporte para tocar `puedeGestionarEquipo` -- antes no existía ningún endpoint
+que pudiera cambiar esa columna. Ambos endpoints de alta ahora exigen la protección explícita contra
+dejar un proyecto en cero gestores (`wouldLeaveProjectWithoutManager()`, 409 si aplica) al sacar el
+permiso o al remover a la persona.
+
+**Dos brechas funcionales reales encontradas al implementar (no estaban en la lista original):**
+- **Nadie sembraba la matriz de módulos al agregar a alguien a un proyecto.** `project_members` se creaba
+  con un `role` (plantilla), pero `project_member_permissions` quedaba vacía -- la persona recién
+  agregada no tenía acceso a NADA hasta que alguien editara su matriz a mano, y ese editor visual todavía
+  no existe (Prioridad 6). Se agregó `seedTemplateMatrix()` en `project-roles.ts` (mismo mapeo que el
+  backfill de la migración 084) y se llama en ambos endpoints de alta, solo en filas nuevas.
+- **`POST /api/projects` no agregaba a quien crea el proyecto como `project_member`.** El `owner` que
+  creaba un proyecto quedaba sin fila ahí -- sin acceso a su propio proyecto (0.4: sin bypass) ni forma
+  de agregar a nadie más. Corregido: se agrega automático como `admin` + `puede_gestionar_equipo = true`.
+
+**Ítem 17 (parcial):** restringido a nivel de API -- `GET /api/project-members` sin `projectId` ahora
+filtra a solo los proyectos donde quien pregunta gestiona equipo (antes: `isAdmin` veía TODOS los
+`project_members` de la organización). Queda pendiente el lado de UI: `/settings/team` sigue con
+`adminOnly: true` en la navegación, así que alguien que gestiona equipo pero no es `isAdmin` de
+organización todavía no puede llegar a la pantalla (documentado en `ROLES.md`, entra junto con el Gestor
+de Integrantes visual de Prioridad 6).
+
+**Ítem 19: resultó estar hecho de antes** -- `/api/eventos/[id]/cost-submissions` ya exigía `puede_editar`
++ `ve_costos` de proyecto, migrado sin saberlo dentro del ítem 3 de Prioridad 1.
+
+**Ítem 20:** `getRequiredSigners()` (firmantes del cierre de caja) todavía calculaba con `role IN (admin,
+artist)` -- el modelo viejo de 4 roles fijos, que no se había migrado pese a que el resto de Eventos ya
+usaba la matriz. Migrado a `ve_ingresos && ve_costos` de Eventos por persona. El acceso a comprobantes de
+costos ya heredaba `ve_costos` sin cambios (confirmado leyendo `GET /api/eventos/[id]`: `costItems` llega
+vacío completo, comprobantes incluidos, sin `canViewEventCosts`).
+
+**Ítem 18 (instrumentación de `activity_logs`) queda pendiente completo** -- no se tocó esta sesión.
+
+**Verificado:** `tsc --noEmit` limpio, `eslint` sin errores nuevos (los que aparecen son preexistentes,
+no tocan ningún archivo de esta sesión), `npm run build` completo sin errores.
+
+**Versión de la app subida a 3.1.**
+
 ---
 
 ## 🔴 Crítico (arreglar primero)
