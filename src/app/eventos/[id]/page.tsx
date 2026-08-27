@@ -222,7 +222,18 @@ export default function EventDetailPage() {
         return null;
       })
       .then((data: EventDetail | null) => {
-        if (!data) return;
+        if (!data) {
+          // Bug real encontrado el 27 ago 2026: si ya había un evento
+          // cargado en pantalla (ej. se cambió el selector de proyecto
+          // estando en esta misma página) y el refetch es rechazado por el
+          // aislamiento entre proyectos (wrongProject), este `return`
+          // temprano dejaba el evento VIEJO renderizado -- el backend
+          // bloqueaba bien, pero la UI seguía mostrando datos de un
+          // proyecto ajeno como si nada. Limpiar el estado para que se
+          // vea el mensaje "cambia el selector" en vez del evento stale.
+          setEvent(null);
+          return;
+        }
         setEvent(data);
         setSetlist(data.setlist ?? []);
         setTiming(data.timing ?? []);

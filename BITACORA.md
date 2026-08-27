@@ -1011,6 +1011,34 @@ completo sin errores.
 
 **Versión de la app subida a 3.2.**
 
+### 🐛 Bug real: evento de otro proyecto quedaba pegado en pantalla al cambiar el selector (27 ago 2026)
+
+Reportado por Francisco con evidencia visual: parado en el proyecto **Los Últimos Románticos**, la
+página de detalle seguía mostrando un evento de **Gamuza** (fee, entradas, egresos, setlist -- todo).
+Los Últimos Románticos y Gamuza son proyectos HERMANOS (ambos hijos de Trino, el sello madre) -- no hay
+herencia entre ellos, así que esto no era el caso legítimo de herencia madre→hijo (0.6).
+
+**Causa raíz encontrada en [`eventos/[id]/page.tsx`](src/app/eventos/[id]/page.tsx):** el backend
+(`/api/eventos/[id]`) SÍ rechaza correctamente el evento cuando no pertenece al proyecto activo del
+selector (chequeo agregado el 23 ago, `wrongProject: true`) -- el bug estaba 100% en el frontend. Al
+cambiar el selector de proyecto estando ya parado en la página de un evento, `load()` se vuelve a
+disparar (depende de `activeProject`), el fetch nuevo SÍ es rechazado por el servidor... pero el
+`.then()` que procesa la respuesta hacía `if (!data) return;` sin limpiar el `event` que ya estaba en
+pantalla del proyecto anterior. Resultado: el backend bloqueaba bien, pero la UI seguía mostrando el
+evento viejo como si nada, sin ningún mensaje de error visible (el mensaje "cambia el selector" solo se
+renderiza cuando `event` es `null`).
+
+**Corregido:** `setEvent(null)` explícito en la rama de error, para que se muestre el mensaje real en
+vez de datos obsoletos de otro proyecto.
+
+**Revisado si el mismo patrón se repetía en otras páginas de detalle** (`deals/[id]`, `contacts/[id]`,
+`companies/[id]`): ninguna de esas implementa el segundo chequeo de "proyecto activo" (`wrongProject`)
+-- solo `eventos/[id]` lo tiene, así que el bug era exclusivo de ahí.
+
+**Verificado:** `tsc --noEmit` limpio, `eslint` limpio, `npm run build` completo sin errores.
+
+**Versión de la app subida a 3.3.**
+
 ---
 
 ## 🔴 Crítico (arreglar primero)
