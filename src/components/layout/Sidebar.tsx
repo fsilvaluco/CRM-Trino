@@ -162,7 +162,14 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   // que el menu mostrara "Admin" cuando en realidad los botones de
   // eliminar (que si usan project-context) lo ocultaban correctamente.
   // Ahora ambos usan exactamente la misma fuente.
-  const { isAdmin, activeProject, canViewDealsModule } = useProject();
+  const { isAdmin, activeProject, canViewDealsModule, canManageTeamActiveProject } = useProject();
+  // Ítems marcados `managesTeamOnly` (Equipo y Acceso, Actividad) también
+  // son visibles para quien gestiona equipo del proyecto activo, sin ser
+  // admin de organización (ROLES.md, ítem 17 del rediseño de roles). El
+  // resto de la sección Admin sigue exclusivo de `isAdmin`.
+  const visibleSettingsConfig = settingsConfig.filter(
+    (item) => isAdmin || (item.managesTeamOnly && canManageTeamActiveProject)
+  );
 
   // Rol "staff" (sonidista, asistente de producción, etc.): el módulo de
   // Deals/CRM queda oculto por completo del menú -- ver src/lib/project-roles.ts.
@@ -238,7 +245,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           )
         )}
 
-        {isAdmin && (
+        {visibleSettingsConfig.length > 0 && (
           <>
             <div className={cn("pt-3 pb-1", collapsed ? "px-1" : "px-3")}>
               {collapsed ? (
@@ -249,7 +256,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 </p>
               )}
             </div>
-            {settingsConfig.map((item) => (
+            {visibleSettingsConfig.map((item) => (
               <LeafLink
                 key={item.href}
                 item={item}

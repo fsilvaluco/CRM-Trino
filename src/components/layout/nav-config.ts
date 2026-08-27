@@ -39,6 +39,13 @@ export interface NavLeaf {
   icon: LucideIcon;
   /** If set, this link only renders when the user satisfies the condition */
   adminOnly?: boolean;
+  /**
+   * Además de `isAdmin`, también visible para quien gestiona equipo
+   * (`puede_gestionar_equipo`) del proyecto activo -- sin ser admin de
+   * organización (ROLES.md, ítem 17 del rediseño de roles). Solo tiene
+   * sentido junto a `adminOnly: true`.
+   */
+  managesTeamOnly?: boolean;
   /** Si esta seteado, muestra un punto rojo cuando hay items nuevos sin ver en este modulo */
   moduleKey?: string;
 }
@@ -147,6 +154,7 @@ export const settingsConfig: NavLeaf[] = [
     label: "Equipo y Acceso",
     icon: ShieldCheck,
     adminOnly: true,
+    managesTeamOnly: true,
   },
   {
     type: "leaf",
@@ -174,6 +182,7 @@ export const settingsConfig: NavLeaf[] = [
     label: "Actividad",
     icon: History,
     adminOnly: true,
+    managesTeamOnly: true,
   },
 ];
 

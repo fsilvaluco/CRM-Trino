@@ -1039,6 +1039,33 @@ vez de datos obsoletos de otro proyecto.
 
 **Versión de la app subida a 3.3.**
 
+### 🧑‍🤝‍🧑 Prioridad 2, tercer tramo: ítem 17 (UI de "Equipo y Acceso") + redirect en evento ajeno (27 ago 2026)
+
+**Redirect en vez de mensaje muerto:** cuando un evento pertenece a otro proyecto (fix de más arriba),
+en vez de dejar a la persona mirando el texto "cambia el selector arriba" con un link a Eventos, ahora
+la manda directo a `/eventos` automáticamente (`router.replace`).
+
+**Ítem 17 cerrado (antes solo a nivel de API):** `ProjectOption` (`project-context.tsx`) ahora trae
+`puedeGestionarEquipo` del proyecto activo (se agregó al `select` de `project_members` que ya se hacía
+para el rol), expuesto como `canManageTeamActiveProject` en el contexto. `nav-config.ts` gana
+`managesTeamOnly` en "Equipo y Acceso" y "Actividad" -- `Sidebar.tsx`/`MobileNav.tsx` ya no gatean la
+sección Admin completa con `isAdmin` a secas: cada ítem se filtra individualmente, así que alguien que
+gestiona equipo del proyecto activo pero no es `isAdmin` de organización ahora sí ve y puede entrar a
+esas dos pantallas (el resto -- Configuración, Facturación, Notificaciones -- sigue exclusivo de
+`isAdmin`, son acciones de organización).
+
+**Hallazgo al implementar:** `/settings/activity/page.tsx` (server component) tenía su propio `if
+(!isAdmin) redirect("/settings")` -- un gestor de equipo hubiera visto el link nuevo en el menú y
+rebotado al hacer clic. Corregido con el mismo chequeo (`puede_gestionar_equipo` en al menos un
+proyecto) que ya usa `GET /api/activity-logs` desde Prioridad 1.
+
+Con esto, de los 8 ítems de Prioridad 2 (13-20), solo queda pendiente completar el ítem 18
+(instrumentación de `activity_logs` en los módulos que faltan).
+
+**Verificado:** `tsc --noEmit` limpio, `eslint` limpio, `npm run build` completo sin errores.
+
+**Versión de la app subida a 3.4.**
+
 ---
 
 ## 🔴 Crítico (arreglar primero)

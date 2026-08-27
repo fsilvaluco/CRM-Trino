@@ -71,7 +71,12 @@ function GroupNav({ item, activeHref }: { item: NavGroup; activeHref: string }) 
 export function MobileNav() {
   const pathname = usePathname();
   const activeHref = computeActiveHref(pathname);
-  const { isAdmin, activeProject } = useProject(); // fuente unica de isAdmin, igual que Sidebar
+  const { isAdmin, activeProject, canManageTeamActiveProject } = useProject(); // fuente unica de isAdmin, igual que Sidebar
+  // Mismo criterio que Sidebar.tsx: managesTeamOnly también visible para
+  // quien gestiona equipo del proyecto activo (ROLES.md, ítem 17).
+  const visibleSettingsConfig = settingsConfig.filter(
+    (item) => isAdmin || (item.managesTeamOnly && canManageTeamActiveProject)
+  );
 
   return (
     <div className="flex flex-col h-full bg-[var(--sidebar)] text-[var(--sidebar-foreground)]">
@@ -106,14 +111,14 @@ export function MobileNav() {
           )
         )}
 
-        {isAdmin && (
+        {visibleSettingsConfig.length > 0 && (
           <>
             <div className="pt-3 pb-1 px-3">
               <p className="text-xs font-semibold uppercase tracking-wider text-[var(--sidebar-foreground)]/40">
                 Admin
               </p>
             </div>
-            {settingsConfig.map((item) => (
+            {visibleSettingsConfig.map((item) => (
               <LeafLink key={item.href} item={item} activeHref={activeHref} />
             ))}
           </>

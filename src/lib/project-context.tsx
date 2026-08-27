@@ -13,12 +13,18 @@ export interface ProjectOption {
   avatarUrl?: string | null;
   avatarSource?: string | null;
   driveUrl?: string | null;
-  // Rol del usuario en ESTE proyecto -- "admin" siempre para owner/admin de
-  // la organización (bypass total), o el valor de `project_members.role`
-  // para el resto. `null` = sin restricciones conocidas (no debería pasar
-  // para un member real, pero por las dudas no se trata como restringido).
-  // Ver src/lib/project-roles.ts para qué puede ver/editar cada rol.
+  // Rol del usuario en ESTE proyecto -- valor de `project_members.role`
+  // (plantilla de partida, ROLES.md 0.2). Sin bypass de organización desde
+  // el 23 ago 2026: `null` = sin fila en `project_members` de este proyecto
+  // (no debería pasar para un member real que lo tiene en su lista, pero
+  // por las dudas no se trata como restringido). Ver src/lib/project-roles.ts
+  // para qué puede ver/editar cada rol.
   role?: ProjectRole | null;
+  // `project_members.puede_gestionar_equipo` de ESTE proyecto -- independiente
+  // del rol/matriz de módulos (ROLES.md 0.2.1, ítem 13-17 del rediseño de
+  // roles). Gatea el acceso a "Equipo y Acceso" en el menú sin depender de
+  // ser admin de organización.
+  puedeGestionarEquipo?: boolean;
 }
 
 export type OrgRole = "owner" | "admin" | "member";
@@ -38,6 +44,12 @@ interface ProjectContextValue {
   canViewDealsModule: boolean;
   canEditDeals: boolean;
   canViewEventCosts: boolean;
+  // `puede_gestionar_equipo` del proyecto activo (ROLES.md, ítem 17 del
+  // rediseño de roles) -- gatea "Equipo y Acceso"/"Actividad" del menú sin
+  // depender de `isAdmin` de organización. En "Todos los proyectos"
+  // (activeProject null) no hay un proyecto único al cual anclar el
+  // permiso -- queda `false`, `isAdmin` sigue cubriendo ese modo.
+  canManageTeamActiveProject: boolean;
 }
 
 const ProjectContext = createContext<ProjectContextValue | null>(null);
@@ -130,7 +142,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
       const { data: memberships, error: membershipsError } = await supabase
         .from("project_members")
-        .select("project_id, role")
+        .select("project_id, role, puede_gestionar_equipo")
         .eq("user_id", userId)
         .eq("organization_id", memberRow.organization_id);
 
@@ -141,6 +153,12 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       const projectIds = (memberships ?? []).map((m: { project_id: string }) => m.project_id);
       const roleByProjectId = new Map(
         (memberships ?? []).map((m: { project_id: string; role: string }) => [m.project_id, m.role as ProjectRole])
+      );
+      const managesTeamByProjectId = new Map(
+        (memberships ?? []).map((m: { project_id: string; puede_gestionar_equipo: boolean | null }) => [
+          m.project_id,
+          Boolean(m.puede_gestionar_equipo),
+        ])
       );
       if (projectIds.length === 0) {
         setProjects([]);
@@ -171,6 +189,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           avatarSource: p.avatar_source,
           driveUrl: p.drive_url,
           role: roleByProjectId.get(p.id) ?? null,
+          puedeGestionarEquipo: managesTeamByProjectId.get(p.id) ?? false,
         })
       );
 
@@ -279,6 +298,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const canViewDealsModule = activeProjectRole !== "staff" && activeProjectRole !== null;
   const canEditDeals = activeProjectRole === "admin" || activeProjectRole === "member";
   const canViewEventCosts = activeProjectRole === "admin" || activeProjectRole === "member";
+  const canManageTeamActiveProject = Boolean(activeProject?.puedeGestionarEquipo);
 
   const contextValue = useMemo(
     () => ({
@@ -295,6 +315,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       canViewDealsModule,
       canEditDeals,
       canViewEventCosts,
+      canManageTeamActiveProject,
     }),
     [
       activeProject,
@@ -308,6 +329,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       canViewDealsModule,
       canEditDeals,
       canViewEventCosts,
+      canManageTeamActiveProject,
     ]
   );
 

@@ -779,14 +779,14 @@ Prueba 2) vía login por API -- ver bitácora del 24-25 ago.
 
 ### Prioridad 2 -- gestión de gente (nueva superficie que hoy no tiene reglas)
 
-**Estado (25 ago 2026): ítems 13, 14, 15, 16 y 20 implementados y verificados (`tsc`/`build` limpios).
-Ítem 19 resultó estar hecho de antes (migrado dentro del ítem 3 de Prioridad 1, sin saberlo en ese
-momento). Ítem 17 solo a nivel de API -- la UI de "Equipo y Acceso" sigue con `adminOnly: true` en la
-navegación (ver detalle abajo). Ítem 18 avanzado: Companies, Project-Members, Org-Members, Setlist,
+**Estado (27 ago 2026): ítems 13, 14, 15, 16, 17, 19 y 20 completos y verificados (`tsc`/`build`
+limpios). Ítem 19 resultó estar hecho de antes (migrado dentro del ítem 3 de Prioridad 1, sin saberlo en
+ese momento). Ítem 18 avanzado (no completo): Companies, Project-Members, Org-Members, Setlist,
 Tickets, Timing, Contactos de Eventos y los endpoints financieros de Eventos (cost-items,
 cierre/reapertura de caja, aprobar/rechazar gastos) instrumentados. Quedan sin `logActivity` --
 `cost-submissions` (POST del reporte en sí, no la revisión), `costs/inform`, y los módulos que ya
-tenían instrumentación de antes no se tocaron (Deals/Eventos/Finanzas/Contacts/Loans/Tasks).
+tenían instrumentación de antes no se tocaron (Deals/Eventos/Finanzas/Contacts/Loans/Tasks). Solo
+queda pendiente completar el ítem 18 para cerrar toda la Prioridad 2.
 
 13. ✅ **Independizar `puede_gestionar_equipo` del resto de la matriz** (0.2.1) -- reescrito
     `/api/project-members` (POST/PATCH/DELETE) y `/api/org-members` (GET/POST) para exigir
@@ -818,14 +818,18 @@ tenían instrumentación de antes no se tocaron (Deals/Eventos/Finanzas/Contacts
     como en `DELETE /api/project-members` (al sacar a alguien que sí lo tiene) -- responde 409 si dejaría
     el proyecto en cero gestores. `PATCH` se extendió para aceptar `puedeGestionarEquipo` además de `role`
     -- antes no existía forma de tocar esa columna desde ningún endpoint.
-17. **Parcial -- Restringir el "Gestor de Integrantes" a quien tiene `puede_gestionar_equipo = sí`**
-    (0.2.4): hecho a nivel de API (`GET /api/project-members` sin `projectId` y `GET /api/org-members` con
-    `projectId`, ver ítem 15). **Pendiente:** el link "Equipo y Acceso" en la navegación
-    ([`nav-config.ts`](src/components/layout/nav-config.ts)) sigue con `adminOnly: true` -- alguien que
-    gestiona equipo en un proyecto pero no es `isAdmin` de organización todavía no puede LLEGAR a la
-    pantalla desde la UI, aunque la API ya lo dejaría operar. Se deja así a propósito por alcance (tocar
-    la navegación entra en el mismo trabajo que el Gestor de Integrantes visual, ítem 32, Prioridad 6) --
-    documentado para no perderlo.
+17. ✅ **Restringir el "Gestor de Integrantes" a quien tiene `puede_gestionar_equipo = sí`** (0.2.4) --
+    completado también del lado de UI (27 ago 2026). `ProjectOption` (`project-context.tsx`) ahora trae
+    `puedeGestionarEquipo` del proyecto activo, expuesto como `canManageTeamActiveProject` en el
+    contexto. `nav-config.ts` gana `managesTeamOnly` en "Equipo y Acceso" y "Actividad" -- `Sidebar.tsx`/
+    `MobileNav.tsx` ya no gatean la sección Admin completa con `isAdmin` a secas: cada ítem se filtra por
+    `isAdmin || (managesTeamOnly && canManageTeamActiveProject)`, así que alguien que gestiona equipo en
+    el proyecto activo pero no es `isAdmin` de organización ahora SÍ ve y puede entrar a esas dos
+    pantallas (el resto de la sección Admin -- Configuración, Facturación, Notificaciones -- sigue
+    exclusivo de `isAdmin`, son acciones de organización). **Hallazgo al implementar:**
+    `/settings/activity/page.tsx` (server component) tenía su propio `if (!isAdmin) redirect("/settings")`
+    -- un gestor de equipo hubiera visto el link en el menú pero rebotado al entrar. Corregido con el
+    mismo chequeo que ya usa `GET /api/activity-logs`.
 18. **Avanzado -- Completar la instrumentación de `activity_logs`.** Agregado `logActivity()` a:
     Companies (POST/PUT/DELETE de `/api/companies` y `/api/companies/[id]`), Project-Members
     (POST/PATCH/DELETE), Org-Members (invitar, cambiar rol, eliminar), y los endpoints financieros de

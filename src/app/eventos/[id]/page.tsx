@@ -296,6 +296,17 @@ export default function EventDetailPage() {
     loadCostSubmissions();
   }, [load, loadCostSubmissions]);
 
+  // Si el evento pertenece a otro proyecto (aislamiento entre proyectos --
+  // más común de lo que parece: cambiar el selector estando parado en la
+  // página de un evento de OTRO proyecto), no tiene sentido dejar a la
+  // persona mirando un mensaje de error -- se la manda directo al listado
+  // de Eventos del proyecto que sí tiene activo.
+  useEffect(() => {
+    if (loadError?.wrongProject) {
+      router.replace("/eventos");
+    }
+  }, [loadError, router]);
+
   async function reviewSubmission(submissionId: string, decision: "approve" | "reject", reviewNote?: string) {
     setReviewingSubmissionId(submissionId);
     try {
