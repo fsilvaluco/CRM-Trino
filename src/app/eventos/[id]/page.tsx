@@ -33,6 +33,7 @@ import { EventPrintFooter } from "@/components/events/EventPrintFooter";
 import { compressImage } from "@/lib/image-compress";
 import { supabase } from "@/lib/supabase";
 import { SignedFileLink } from "@/components/finances/SignedFileLink";
+import { extractAddressCandidate, mapsSearchUrl } from "@/lib/address-detect";
 
 const STATUS_CONFIG: Record<ShowStatus, { label: string; className: string }> = {
   cotizando: { label: "Cotizando", className: "bg-yellow-100 text-yellow-700" },
@@ -202,15 +203,62 @@ export default function EventDetailPage() {
   const [detailsDirty, setDetailsDirty] = useState(false);
   const [savingDetails, setSavingDetails] = useState(false);
 
+  // Bug real reportado por Francisco el 27 ago 2026 -- "se me ha borrado
+  // el timing 5-6 veces": cambiar de pestaña (ej. a Maps) y volver dispara
+  // en Supabase un refresh de sesión (evento SIGNED_IN re-emitido al
+  // recuperar el foco, ver auth-context.tsx) que hace que project-context
+  // vuelva a pedir la lista de proyectos. Eso genera un objeto `activeProject`
+  // NUEVO aunque sea el mismo proyecto -- y como `load` dependía de ese
+  // objeto completo (no de su id), se volvía a crear y disparaba un refetch
+  // que pisaba TODO lo que la persona estaba escribiendo, incluido mostrar
+  // el skeleton de carga encima del formulario a medio llenar.
+  // Dos capas de arreglo:
+  // 1. `load` depende de `activeProject?.id` (primitivo), no del objeto --
+  //    ya no se recrea/refetch solo porque project-context refrescó la
+  //    lista en segundo plano con el mismo proyecto.
+  // 2. Aun si algo más dispara un refetch, cada sección con su propio
+  //    "dirty" (setlist/timing/tickets/contactos/costos/detalles) protege
+  //    sus propios campos vía `dirtyRef` -- un refresh de fondo nunca pisa
+  //    una sección que la persona está editando y no ha guardado todavía.
+  const dirtyRef = useRef({
+    setlist: false,
+    timing: false,
+    tickets: false,
+    contacts: false,
+    costs: false,
+    details: false,
+  });
+  useEffect(() => {
+    dirtyRef.current = {
+      setlist: setlistDirty,
+      timing: timingDirty,
+      tickets: ticketsDirty,
+      contacts: contactsDirty,
+      costs: costsDirty,
+      details: detailsDirty,
+    };
+  }, [setlistDirty, timingDirty, ticketsDirty, contactsDirty, costsDirty, detailsDirty]);
+
+  const activeProjectId = activeProject?.id ?? null;
+  // Ref (no state) para saber si ya hubo una carga exitosa -- se necesita
+  // fuera de un closure obsoleto: `load` solo se recrea cuando cambia
+  // `id`/`activeProjectId`, así que leer `event` directamente adentro
+  // quedaría pegado al valor de cuando se creó el callback (null la
+  // primera vez, para siempre).
+  const hasLoadedRef = useRef(false);
+
   const load = useCallback(() => {
-    setLoading(true);
+    // Solo se muestra el skeleton de carga en la carga inicial -- un
+    // refetch de fondo con el evento ya en pantalla no debe hacer
+    // desaparecer el formulario que la persona está mirando/editando.
+    if (!hasLoadedRef.current) setLoading(true);
     setLoadError(null);
     // Se informa qué proyecto está activo en el selector -- la API rechaza
     // el evento si pertenece a otro proyecto (aislamiento entre proyectos,
     // ver /api/eventos/[id]/route.ts). "Todos los proyectos" (activeProject
     // null) no manda el parámetro, sin restricción -- ese modo es solo
     // para admins.
-    const url = activeProject ? `/api/eventos/${id}?projectId=${activeProject.id}` : `/api/eventos/${id}`;
+    const url = activeProjectId ? `/api/eventos/${id}?projectId=${activeProjectId}` : `/api/eventos/${id}`;
     fetch(url)
       .then(async (r) => {
         if (r.ok) return r.json();
@@ -234,31 +282,49 @@ export default function EventDetailPage() {
           setEvent(null);
           return;
         }
+        hasLoadedRef.current = true;
         setEvent(data);
-        setSetlist(data.setlist ?? []);
-        setTiming(data.timing ?? []);
-        setTicketTiers(data.ticketTiers ?? []);
-        setTicketIvaPct(data.ticketIvaPct != null ? String(data.ticketIvaPct) : "");
-        setTicketComisionPct(data.ticketComisionPct != null ? String(data.ticketComisionPct) : "");
-        setTicketScdPct(data.ticketScdPct != null ? String(data.ticketScdPct) : "");
-        setTicketSplitProjectPct(data.ticketSplitProjectPct != null ? String(data.ticketSplitProjectPct) : "");
-        setEventContacts(data.eventContacts ?? []);
-        setCostItems(data.costItems ?? []);
-        setProfitSplitNote(data.profitSplitNote ?? "");
-        setProfitSplitProjectPct(data.profitSplitProjectPct ?? null);
-        setProfitSplitTrinoPct(data.profitSplitTrinoPct ?? null);
-        setProfitSplitTransferProofUrl(data.profitSplitTransferProofUrl ?? null);
-        setProfitSplitTransferredAt(data.profitSplitTransferredAt ?? null);
-        setEventLink(data.eventLink ?? "");
-        setRiderLocal(data.riderLocal ?? "");
-        setRiderBanda(data.riderBanda ?? "");
-        setTicketSalesUrl(data.ticketSalesUrl ?? "");
-        setSetlistDirty(false);
-        setCostsDirty(false);
-        setTimingDirty(false);
-        setTicketsDirty(false);
-        setContactsDirty(false);
-        setDetailsDirty(false);
+
+        // Cada sección solo se pisa con lo que vino del servidor si NO
+        // tiene cambios sin guardar -- protege contra cualquier refetch de
+        // fondo (cambio de pestaña, refresh de sesión, etc.) que llegue
+        // mientras la persona sigue editando esa sección puntual.
+        if (!dirtyRef.current.setlist) {
+          setSetlist(data.setlist ?? []);
+          setSetlistDirty(false);
+        }
+        if (!dirtyRef.current.timing) {
+          setTiming(data.timing ?? []);
+          setTimingDirty(false);
+        }
+        if (!dirtyRef.current.tickets) {
+          setTicketTiers(data.ticketTiers ?? []);
+          setTicketIvaPct(data.ticketIvaPct != null ? String(data.ticketIvaPct) : "");
+          setTicketComisionPct(data.ticketComisionPct != null ? String(data.ticketComisionPct) : "");
+          setTicketScdPct(data.ticketScdPct != null ? String(data.ticketScdPct) : "");
+          setTicketSplitProjectPct(data.ticketSplitProjectPct != null ? String(data.ticketSplitProjectPct) : "");
+          setTicketsDirty(false);
+        }
+        if (!dirtyRef.current.contacts) {
+          setEventContacts(data.eventContacts ?? []);
+          setContactsDirty(false);
+        }
+        if (!dirtyRef.current.costs) {
+          setCostItems(data.costItems ?? []);
+          setProfitSplitNote(data.profitSplitNote ?? "");
+          setProfitSplitProjectPct(data.profitSplitProjectPct ?? null);
+          setProfitSplitTrinoPct(data.profitSplitTrinoPct ?? null);
+          setProfitSplitTransferProofUrl(data.profitSplitTransferProofUrl ?? null);
+          setProfitSplitTransferredAt(data.profitSplitTransferredAt ?? null);
+          setCostsDirty(false);
+        }
+        if (!dirtyRef.current.details) {
+          setEventLink(data.eventLink ?? "");
+          setRiderLocal(data.riderLocal ?? "");
+          setRiderBanda(data.riderBanda ?? "");
+          setTicketSalesUrl(data.ticketSalesUrl ?? "");
+          setDetailsDirty(false);
+        }
 
         if (data.costSheetClosedAt) {
           fetch(`/api/eventos/${id}/signatures`)
@@ -278,7 +344,7 @@ export default function EventDetailPage() {
       })
       .catch(() => setEvent(null))
       .finally(() => setLoading(false));
-  }, [id, activeProject]);
+  }, [id, activeProjectId]);
 
   const loadCostSubmissions = useCallback(() => {
     fetch(`/api/eventos/${id}/cost-submissions`)
@@ -1634,6 +1700,26 @@ export default function EventDetailPage() {
                         onChange={(e) => updateTimingItem({ notes: e.target.value })}
                         className="h-7 text-xs flex-1"
                       />
+                      {(() => {
+                        // Detección liviana de dirección dentro del texto
+                        // libre (ROLES.md/BITACORA.md, pedido de Francisco
+                        // 27 ago 2026) -- si el texto tiene pinta de "calle
+                        // + número", se muestra el pin para abrir Maps sin
+                        // tener que copiar/pegar a otra pestaña.
+                        const candidate = extractAddressCandidate(item.notes);
+                        if (!candidate) return null;
+                        return (
+                          <a
+                            href={mapsSearchUrl(candidate)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={`Ver "${candidate}" en Maps`}
+                            className="text-muted-foreground hover:text-primary shrink-0 p-1"
+                          >
+                            <MapPin className="h-3.5 w-3.5" />
+                          </a>
+                        );
+                      })()}
                     </div>
                   </div>
                 );
@@ -1671,6 +1757,21 @@ export default function EventDetailPage() {
                 onChange={(e) => setNewTimingNotes(e.target.value)}
                 className="h-7 text-xs flex-1"
               />
+              {(() => {
+                const candidate = extractAddressCandidate(newTimingNotes);
+                if (!candidate) return null;
+                return (
+                  <a
+                    href={mapsSearchUrl(candidate)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={`Ver "${candidate}" en Maps`}
+                    className="text-muted-foreground hover:text-primary shrink-0 p-1"
+                  >
+                    <MapPin className="h-3.5 w-3.5" />
+                  </a>
+                );
+              })()}
               <Button
                 size="sm"
                 variant="outline"

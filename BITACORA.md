@@ -1066,6 +1066,45 @@ Con esto, de los 8 ítems de Prioridad 2 (13-20), solo queda pendiente completar
 
 **Versión de la app subida a 3.4.**
 
+### 🐛 Bug crítico: se perdía el trabajo del Timing al cambiar de pestaña (27 ago 2026)
+
+Reportado por Francisco con detalle: llevaba ~6 intentos armando el Timing/Cronograma de un evento --
+cada vez que abría otra pestaña (Maps, para revisar una dirección o cuánto se demora en llegar) y
+volvía, la pantalla "hacía un refresh" y perdía todo lo que había escrito.
+
+**Causa raíz encontrada en [`eventos/[id]/page.tsx`](src/app/eventos/[id]/page.tsx):** al recuperar el
+foco de la pestaña, Supabase re-emite el evento `SIGNED_IN` (comportamiento documentado de supabase-js
+en ciclos de resume/focus, ver el propio comentario en `auth-context.tsx`). Eso hace que
+`project-context` vuelva a pedir la lista de proyectos (`reloadProjects()`), generando un objeto
+`activeProject` NUEVO aunque sea el mismo proyecto de siempre. El `load()` de la página de evento
+dependía de ESE OBJETO completo (`useCallback(..., [id, activeProject])`) -- al cambiar la referencia,
+se recreaba y disparaba un refetch completo, que: (a) mostraba el skeleton de carga encima del
+formulario a medio llenar, y (b) pisaba todos los campos (`setTiming(data.timing)`, etc.) con lo último
+guardado en el servidor, sin importar que hubiera cambios sin guardar en pantalla.
+
+**Corregido en dos capas:**
+1. `load` ahora depende de `activeProject?.id` (primitivo), no del objeto -- ya no se recrea ni
+   refetchea solo porque `project-context` refrescó en segundo plano con el mismo proyecto. El
+   skeleton de carga también deja de mostrarse en refetches de fondo (solo en la carga inicial).
+2. **Protección por sección, como red de seguridad adicional:** cada sección con su propio "dirty"
+   (Setlist, Timing, Tickets, Contactos, Costos, Detalles) ahora se protege con un `dirtyRef` -- un
+   refetch de fondo (por el motivo que sea, no solo el de arriba) nunca pisa una sección que la persona
+   está editando y no ha guardado todavía. Antes el `load()` sobreescribía y reseteaba el "dirty" de
+   TODAS las secciones sin excepción cada vez que corría, sin importar si alguna tenía cambios
+   pendientes.
+
+**De paso, pedido explícito:** el campo "Notas / detalles" del Timing ahora detecta cuando el texto
+tiene pinta de dirección (calle + numeración de 3+ dígitos, ej. "Irrarazaval 1989") y muestra un ícono
+de pin que abre esa dirección directo en Google Maps -- sin tener que copiar/pegar a otra pestaña.
+Heurística nueva en [`address-detect.ts`](src/lib/address-detect.ts) (no es un parser de direcciones
+real, es deliberadamente permisivo -- el costo de un falso positivo es solo un ícono de más).
+
+**Verificado:** `tsc --noEmit` limpio, `eslint` limpio, `npm run build` completo sin errores, heurística
+de dirección probada a mano contra 7 casos (incluidos los falsos positivos obvios de este mismo campo:
+"Llegar 15 min antes", "Piso 3").
+
+**Versión de la app subida a 3.5.**
+
 ---
 
 ## 🔴 Crítico (arreglar primero)
