@@ -36,6 +36,11 @@ interface ShopifyLineItem {
 
 interface ShopifyOrder {
   created_at: string;
+  // Fecha editable desde el admin de Shopify ("Editar fecha del pedido") --
+  // es la que se ve en la lista de Pedidos y la que el usuario espera que
+  // mande al reagrupar por mes/día. `created_at` es inmutable (timestamp
+  // real de creación del registro) y no refleja ese cambio manual.
+  processed_at: string | null;
   cancelled_at: string | null;
   financial_status: string | null;
   line_items: ShopifyLineItem[];
@@ -188,7 +193,7 @@ async function fetchOrdersSince(
   const orders: ShopifyOrder[] = [];
   let url: string | null = shopifyUrl(
     shopDomain,
-    `/orders.json?status=any&created_at_min=${encodeURIComponent(sinceIso)}&limit=250&fields=created_at,cancelled_at,financial_status,line_items`
+    `/orders.json?status=any&created_at_min=${encodeURIComponent(sinceIso)}&limit=250&fields=created_at,processed_at,cancelled_at,financial_status,line_items`
   );
 
   while (url) {
@@ -362,6 +367,12 @@ export async function syncShopify(
       return;
     }
 
+    // Fecha "efectiva" del pedido: processed_at es la que se ve y se puede
+    // editar en el admin de Shopify ("Editar fecha del pedido"); created_at
+    // es inmutable y no refleja ese cambio -- si processed_at no viene por
+    // algún motivo, created_at es el único fallback razonable.
+    const effectiveDate = order.processed_at ?? order.created_at;
+
     for (const item of order.line_items) {
       if (item.product_id == null || !productIds.has(item.product_id)) continue;
 
@@ -376,7 +387,7 @@ export async function syncShopify(
       );
       const netAmount = Math.round((listAmount - discountAmount) * 100); // CLP cents
 
-      const monthBucketKey = monthKey(order.created_at);
+      const monthBucketKey = monthKey(effectiveDate);
       const monthBucket = monthly.get(monthBucketKey) ?? { units: 0, total: 0, orderIds: new Set<number>() };
       monthBucket.units += item.quantity;
       monthBucket.total += netAmount;
@@ -384,7 +395,7 @@ export async function syncShopify(
       monthly.set(monthBucketKey, monthBucket);
 
       if (item.variant_id != null) {
-        const day = order.created_at.slice(0, 10); // YYYY-MM-DD, mismo criterio de timezone que monthKey
+        const day = effectiveDate.slice(0, 10); // YYYY-MM-DD, mismo criterio de timezone que monthKey
         const dayKey = `${day}|${item.variant_id}`;
         const dayBucket = daily.get(dayKey) ?? {
           day,
