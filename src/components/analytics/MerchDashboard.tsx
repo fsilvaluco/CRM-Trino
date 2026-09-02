@@ -49,6 +49,15 @@ const IVA_RATE = 0.19;
 // bruto, antes de sacar el IVA.
 const TBK_COMMISSION_RATE = 0.045;
 
+/** Mismo orden que la hoja de cálculo del usuario: comisión TBK y IVA se
+ * descuentan del bruto (ventas), lo que queda es la utilidad. */
+function splitFinancials(ventas: number) {
+  const comision = ventas * TBK_COMMISSION_RATE;
+  const iva = ventas * (IVA_RATE / (1 + IVA_RATE));
+  const utilidad = ventas - comision - iva;
+  return { comision, iva, utilidad };
+}
+
 const MONTH_LABELS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
 interface MerchDashboardProps {
@@ -202,18 +211,17 @@ export function MerchDashboard({ products, salesByMonth, projectId }: MerchDashb
     });
   }, [salesByMonth, selectedYear]);
 
-  const yearTotals = useMemo(
-    () =>
-      chartData.reduce(
-        (acc, m) => ({
-          ventas: acc.ventas + m.ventas,
-          unidades: acc.unidades + m.unidades,
-          pedidos: acc.pedidos + m.pedidos,
-        }),
-        { ventas: 0, unidades: 0, pedidos: 0 }
-      ),
-    [chartData]
-  );
+  const yearTotals = useMemo(() => {
+    const totals = chartData.reduce(
+      (acc, m) => ({
+        ventas: acc.ventas + m.ventas,
+        unidades: acc.unidades + m.unidades,
+        pedidos: acc.pedidos + m.pedidos,
+      }),
+      { ventas: 0, unidades: 0, pedidos: 0 }
+    );
+    return { ...totals, ...splitFinancials(totals.ventas) };
+  }, [chartData]);
 
   const monthsWithSales = chartData.filter((m) => m.ventas > 0 || m.unidades > 0);
   const hasAnySales = salesByMonth.length > 0;
@@ -269,7 +277,7 @@ export function MerchDashboard({ products, salesByMonth, projectId }: MerchDashb
         </div>
 
         {/* Totales del año seleccionado */}
-        <div className="grid grid-cols-3 gap-4 border-y py-3">
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-4 border-y py-3">
           <div>
             <p className="text-[11px] text-muted-foreground">Total {selectedYear}</p>
             <p className="text-base font-bold">{CLP.format(yearTotals.ventas)}</p>
@@ -281,6 +289,18 @@ export function MerchDashboard({ products, salesByMonth, projectId }: MerchDashb
           <div>
             <p className="text-[11px] text-muted-foreground">Pedidos</p>
             <p className="text-base font-bold">{NUM.format(yearTotals.pedidos)}</p>
+          </div>
+          <div>
+            <p className="text-[11px] text-muted-foreground">Comisión TBK</p>
+            <p className="text-base font-bold">{CLP.format(yearTotals.comision)}</p>
+          </div>
+          <div>
+            <p className="text-[11px] text-muted-foreground">IVA</p>
+            <p className="text-base font-bold">{CLP.format(yearTotals.iva)}</p>
+          </div>
+          <div>
+            <p className="text-[11px] text-muted-foreground">Utilidad</p>
+            <p className="text-base font-bold">{CLP.format(yearTotals.utilidad)}</p>
           </div>
         </div>
 
@@ -311,6 +331,9 @@ export function MerchDashboard({ products, salesByMonth, projectId }: MerchDashb
                 <TableHead className="text-right">Pedidos</TableHead>
                 <TableHead className="text-right">Unidades</TableHead>
                 <TableHead className="text-right">Ventas</TableHead>
+                <TableHead className="text-right">Comisión TBK</TableHead>
+                <TableHead className="text-right">IVA</TableHead>
+                <TableHead className="text-right">Utilidad</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -319,6 +342,7 @@ export function MerchDashboard({ products, salesByMonth, projectId }: MerchDashb
                 const expanded = expandedMonths.has(m.month);
                 const monthOrders = ordersByMonth[m.month];
                 const isLoading = loadingMonths.has(m.month);
+                const { comision, iva, utilidad } = splitFinancials(m.ventas);
                 return (
                   <Fragment key={m.label}>
                     <TableRow
@@ -343,10 +367,13 @@ export function MerchDashboard({ products, salesByMonth, projectId }: MerchDashb
                       <TableCell className="text-right">{NUM.format(m.pedidos)}</TableCell>
                       <TableCell className="text-right">{NUM.format(m.unidades)}</TableCell>
                       <TableCell className="text-right">{CLP.format(m.ventas)}</TableCell>
+                      <TableCell className="text-right text-muted-foreground">{CLP.format(comision)}</TableCell>
+                      <TableCell className="text-right text-muted-foreground">{CLP.format(iva)}</TableCell>
+                      <TableCell className="text-right font-medium">{CLP.format(utilidad)}</TableCell>
                     </TableRow>
                     {expanded && isLoading && (
                       <TableRow className="bg-muted/30">
-                        <TableCell colSpan={4} className="text-center text-xs text-muted-foreground py-3">
+                        <TableCell colSpan={7} className="text-center text-xs text-muted-foreground py-3">
                           Cargando pedidos…
                         </TableCell>
                       </TableRow>
@@ -400,42 +427,6 @@ export function MerchDashboard({ products, salesByMonth, projectId }: MerchDashb
                             </Fragment>
                           );
                         })}
-                    {expanded && !isLoading && monthOrders && monthOrders.length > 0 && (() => {
-                      // Mismo orden que la hoja de cálculo: comisión TBK y
-                      // IVA se descuentan del bruto (Ingresos), lo que queda
-                      // es la Utilidad.
-                      const comision = m.ventas * TBK_COMMISSION_RATE;
-                      const iva = m.ventas * (IVA_RATE / (1 + IVA_RATE));
-                      const utilidad = m.ventas - comision - iva;
-                      return (
-                        <Fragment>
-                          <TableRow className="border-t">
-                            <TableCell colSpan={3} className="pl-9 text-xs text-muted-foreground">
-                              Comisión TBK (4,5%)
-                            </TableCell>
-                            <TableCell className="text-right text-xs text-muted-foreground">
-                              {CLP.format(comision)}
-                            </TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell colSpan={3} className="pl-9 text-xs text-muted-foreground">
-                              IVA (19%)
-                            </TableCell>
-                            <TableCell className="text-right text-xs text-muted-foreground">
-                              {CLP.format(iva)}
-                            </TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell colSpan={3} className="pl-9 text-sm font-medium">
-                              Utilidad
-                            </TableCell>
-                            <TableCell className="text-right text-sm font-medium">
-                              {CLP.format(utilidad)}
-                            </TableCell>
-                          </TableRow>
-                        </Fragment>
-                      );
-                    })()}
                   </Fragment>
                 );
               })}
