@@ -422,6 +422,18 @@ export async function syncShopify(
     updated_at: new Date().toISOString(),
   }));
 
+  // Delete-then-insert acotado a la ventana recalculada (since -> hoy),
+  // igual que shopify_sales_daily más abajo: un upsert solo no alcanza
+  // porque un pedido puede migrar de mes entre syncs (ej. al usar
+  // processed_at en vez de created_at, o si se edita la fecha en Shopify) --
+  // sin este delete, el mes viejo queda con el total duplicado.
+  await supabase
+    .from("shopify_sales_monthly")
+    .delete()
+    .eq("organization_id", organizationId)
+    .eq("project_id", projectId)
+    .gte("month", monthKey(since.toISOString()));
+
   if (monthlyRows.length > 0) {
     const { error: salesError } = await supabase
       .from("shopify_sales_monthly")
