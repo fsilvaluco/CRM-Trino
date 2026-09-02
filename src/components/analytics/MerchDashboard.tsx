@@ -50,11 +50,14 @@ const IVA_RATE = 0.19;
 const TBK_COMMISSION_RATE = 0.045;
 
 /** Mismo orden que la hoja de cálculo del usuario: comisión TBK y IVA se
- * descuentan del bruto (ventas), lo que queda es la utilidad. */
+ * descuentan del bruto (ventas), lo que queda es la utilidad. Comisión e
+ * IVA se redondean primero y la utilidad se calcula como el resto exacto,
+ * para que las tres columnas siempre sumen justo el total de Ventas (sin
+ * decimales, y sin que cada valor arrastre su propio redondeo). */
 function splitFinancials(ventas: number) {
-  const comision = ventas * TBK_COMMISSION_RATE;
-  const iva = ventas * (IVA_RATE / (1 + IVA_RATE));
-  const utilidad = ventas - comision - iva;
+  const comision = Math.round(ventas * TBK_COMMISSION_RATE);
+  const iva = Math.round(ventas * (IVA_RATE / (1 + IVA_RATE)));
+  const utilidad = Math.round(ventas) - comision - iva;
   return { comision, iva, utilidad };
 }
 
