@@ -38,6 +38,11 @@ const CLP = new Intl.NumberFormat("es-CL", {
 });
 const NUM = new Intl.NumberFormat("es-CL");
 
+// El total que trae Shopify (m.ventas) es el precio de venta, que en Chile
+// ya incluye IVA -- no es un cargo aparte. Para desglosar Neto/IVA hay que
+// "sacar" el IVA del bruto, no sumarlo: neto = bruto / 1.19.
+const IVA_RATE = 0.19;
+
 const MONTH_LABELS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
 interface MerchDashboardProps {
@@ -86,6 +91,24 @@ export function MerchDashboard({ products, salesByMonth, projectId }: MerchDashb
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
   const [ordersByMonth, setOrdersByMonth] = useState<Record<string, ShopifyOrder[] | undefined>>({});
   const [loadingMonths, setLoadingMonths] = useState<Set<string>>(new Set());
+  // Los items de un pedido solo se muestran si se hace click en ese pedido
+  // puntual -- lo que importa a simple vista es el monto de cada pedido.
+  const [expandedOrderIds, setExpandedOrderIds] = useState<Set<string>>(new Set());
+
+  function toggleOrderExpanded(id: string) {
+    setExpandedOrderIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  // Número de pedido tal como lo entrega Shopify (ej. "#1292") -- se ordena
+  // por el número, no por texto, para que #1289 no quede después de #1290.
+  function orderNumberValue(orderNumber: string): number {
+    return Number(orderNumber.replace(/[^\d]/g, "")) || 0;
+  }
 
   async function toggleMonthExpanded(month: string) {
     const willExpand = !expandedMonths.has(month);
@@ -324,28 +347,77 @@ export function MerchDashboard({ products, salesByMonth, projectId }: MerchDashb
                     )}
                     {expanded &&
                       !isLoading &&
-                      monthOrders?.map((order) => (
-                        <TableRow key={order.id} className="bg-muted/30">
-                          <TableCell className="pl-9 text-sm">
-                            <span className="font-medium">{order.orderNumber}</span>{" "}
-                            <span className="text-xs text-muted-foreground">
-                              ·{" "}
-                              {order.items
-                                .map((it) => `${it.quantity}× ${it.title}${it.variant ? ` (${it.variant})` : ""}`)
-                                .join(", ")}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right text-sm text-muted-foreground">
-                            {format(new Date(`${order.day}T00:00:00`), "d MMM")}
-                          </TableCell>
-                          <TableCell className="text-right text-sm text-muted-foreground">
-                            {NUM.format(order.items.reduce((sum, it) => sum + it.quantity, 0))}
-                          </TableCell>
-                          <TableCell className="text-right text-sm font-medium">
-                            {CLP.format(order.totalSales / 100)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      [...(monthOrders ?? [])]
+                        .sort((a, b) => orderNumberValue(a.orderNumber) - orderNumberValue(b.orderNumber))
+                        .map((order) => {
+                          const orderExpanded = expandedOrderIds.has(order.id);
+                          const units = order.items.reduce((sum, it) => sum + it.quantity, 0);
+                          return (
+                            <Fragment key={order.id}>
+                              <TableRow className="bg-muted/30 cursor-pointer" onClick={() => toggleOrderExpanded(order.id)}>
+                                <TableCell className="pl-9 text-sm">
+                                  <div className="flex items-center gap-1.5">
+                                    <ChevronRight
+                                      className={cn(
+                                        "h-3 w-3 text-muted-foreground transition-transform shrink-0",
+                                        orderExpanded && "rotate-90"
+                                      )}
+                                    />
+                                    <span className="font-medium">{order.orderNumber}</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-right text-sm text-muted-foreground">
+                                  {format(new Date(`${order.day}T00:00:00`), "d MMM")}
+                                </TableCell>
+                                <TableCell className="text-right text-sm text-muted-foreground">
+                                  {NUM.format(units)}
+                                </TableCell>
+                                <TableCell className="text-right text-sm font-medium">
+                                  {CLP.format(order.totalSales / 100)}
+                                </TableCell>
+                              </TableRow>
+                              {orderExpanded &&
+                                order.items.map((it, idx) => (
+                                  <TableRow key={idx} className="bg-muted/10">
+                                    <TableCell colSpan={2} className="pl-16 text-xs text-muted-foreground">
+                                      {it.title}
+                                      {it.variant ? ` (${it.variant})` : ""}
+                                    </TableCell>
+                                    <TableCell className="text-right text-xs text-muted-foreground">
+                                      {NUM.format(it.quantity)}
+                                    </TableCell>
+                                    <TableCell className="text-right text-xs text-muted-foreground">
+                                      {CLP.format(it.totalSales / 100)}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                            </Fragment>
+                          );
+                        })}
+                    {expanded && !isLoading && monthOrders && monthOrders.length > 0 && (() => {
+                      const neto = m.ventas / (1 + IVA_RATE);
+                      const iva = m.ventas - neto;
+                      return (
+                        <Fragment>
+                          <TableRow className="border-t">
+                            <TableCell colSpan={3} className="pl-9 text-xs text-muted-foreground">
+                              IVA (19%)
+                            </TableCell>
+                            <TableCell className="text-right text-xs text-muted-foreground">
+                              {CLP.format(iva)}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell colSpan={3} className="pl-9 text-sm font-medium">
+                              Neto
+                            </TableCell>
+                            <TableCell className="text-right text-sm font-medium">
+                              {CLP.format(neto)}
+                            </TableCell>
+                          </TableRow>
+                        </Fragment>
+                      );
+                    })()}
                   </Fragment>
                 );
               })}
