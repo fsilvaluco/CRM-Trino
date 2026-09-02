@@ -43,6 +43,12 @@ const NUM = new Intl.NumberFormat("es-CL");
 // "sacar" el IVA del bruto, no sumarlo: neto = bruto / 1.19.
 const IVA_RATE = 0.19;
 
+// Comisión de Transbank por venta con tarjeta -- tasa fija asumida (no viene
+// de Shopify, es un costo externo). Si cambia el % que cobra TBK, ajustar
+// acá. Mismo criterio que la hoja de cálculo del usuario: se cobra sobre el
+// bruto, antes de sacar el IVA.
+const TBK_COMMISSION_RATE = 0.045;
+
 const MONTH_LABELS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
 interface MerchDashboardProps {
@@ -395,11 +401,23 @@ export function MerchDashboard({ products, salesByMonth, projectId }: MerchDashb
                           );
                         })}
                     {expanded && !isLoading && monthOrders && monthOrders.length > 0 && (() => {
-                      const neto = m.ventas / (1 + IVA_RATE);
-                      const iva = m.ventas - neto;
+                      // Mismo orden que la hoja de cálculo: comisión TBK y
+                      // IVA se descuentan del bruto (Ingresos), lo que queda
+                      // es la Utilidad.
+                      const comision = m.ventas * TBK_COMMISSION_RATE;
+                      const iva = m.ventas * (IVA_RATE / (1 + IVA_RATE));
+                      const utilidad = m.ventas - comision - iva;
                       return (
                         <Fragment>
                           <TableRow className="border-t">
+                            <TableCell colSpan={3} className="pl-9 text-xs text-muted-foreground">
+                              Comisión TBK (4,5%)
+                            </TableCell>
+                            <TableCell className="text-right text-xs text-muted-foreground">
+                              {CLP.format(comision)}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
                             <TableCell colSpan={3} className="pl-9 text-xs text-muted-foreground">
                               IVA (19%)
                             </TableCell>
@@ -409,10 +427,10 @@ export function MerchDashboard({ products, salesByMonth, projectId }: MerchDashb
                           </TableRow>
                           <TableRow>
                             <TableCell colSpan={3} className="pl-9 text-sm font-medium">
-                              Neto
+                              Utilidad
                             </TableCell>
                             <TableCell className="text-right text-sm font-medium">
-                              {CLP.format(neto)}
+                              {CLP.format(utilidad)}
                             </TableCell>
                           </TableRow>
                         </Fragment>
