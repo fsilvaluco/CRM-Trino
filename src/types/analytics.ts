@@ -117,6 +117,29 @@ export interface ShopifySalesDay {
   totalSales: number;
 }
 
+export interface ShopifyOrderItem {
+  title: string;
+  variant: string | null;
+  sku: string | null;
+  quantity: number;
+  /** CLP cents, ya con descuento restado */
+  totalSales: number;
+}
+
+/** Un pedido individual -- a propósito no incluye nada del cliente (nombre,
+ * email, dirección), solo lo necesario para ver qué se vendió. */
+export interface ShopifyOrder {
+  id: string;
+  shopifyOrderId: number;
+  /** ej. "#1292" */
+  orderNumber: string;
+  /** YYYY-MM-DD, fecha efectiva (processed_at con fallback a created_at) */
+  day: string;
+  /** CLP cents, suma de solo los items de la colección conectada */
+  totalSales: number;
+  items: ShopifyOrderItem[];
+}
+
 // ── Spotify (estadísticas detalladas) ────────────────────────────────────────
 // Complementa SocialMetric (que solo guarda seguidores). Siempre pasa por
 // confirmación del usuario antes de guardarse, sea de pantallazo o manual.

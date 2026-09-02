@@ -28,6 +28,8 @@ interface ShopifyDiscountAllocation {
 interface ShopifyLineItem {
   product_id: number | null;
   variant_id: number | null;
+  title: string; // título del producto, tal como venía en el pedido
+  variant_title: string | null;
   sku: string | null;
   quantity: number;
   price: string; // precio de LISTA por unidad, sin descuento -- no usar directo para totales
@@ -35,6 +37,8 @@ interface ShopifyLineItem {
 }
 
 interface ShopifyOrder {
+  id: number;
+  name: string; // ej. "#1292" -- el número de pedido tal como se ve en el admin
   created_at: string;
   // Fecha editable desde el admin de Shopify ("Editar fecha del pedido") --
   // es la que se ve en la lista de Pedidos y la que el usuario espera que
@@ -193,7 +197,7 @@ async function fetchOrdersSince(
   const orders: ShopifyOrder[] = [];
   let url: string | null = shopifyUrl(
     shopDomain,
-    `/orders.json?status=any&created_at_min=${encodeURIComponent(sinceIso)}&limit=250&fields=created_at,processed_at,cancelled_at,financial_status,line_items`
+    `/orders.json?status=any&created_at_min=${encodeURIComponent(sinceIso)}&limit=250&fields=id,name,created_at,processed_at,cancelled_at,financial_status,line_items`
   );
 
   while (url) {
@@ -358,6 +362,13 @@ export async function syncShopify(
     string,
     { day: string; productId: number; variantId: number; sku: string | null; units: number; total: number }
   >();
+  // Un renglón por pedido -- a diferencia de monthly/daily, acá SÍ importa
+  // el pedido individual (no se puede agregar por mes/día/variante). Nunca
+  // guarda nada del cliente, solo lo necesario para listar qué se vendió.
+  const ordersByShopifyId = new Map<
+    number,
+    { orderNumber: string; day: string; total: number; items: { title: string; variant: string | null; sku: string | null; quantity: number; totalSales: number }[] }
+  >();
 
   orders.forEach((order, orderIdx) => {
     // Ventas "reales": excluimos canceladas; contamos pagadas y
@@ -394,8 +405,9 @@ export async function syncShopify(
       monthBucket.orderIds.add(orderIdx); // índice local basta, solo se usa para contar
       monthly.set(monthBucketKey, monthBucket);
 
+      const day = effectiveDate.slice(0, 10); // YYYY-MM-DD, mismo criterio de timezone que monthKey
+
       if (item.variant_id != null) {
-        const day = effectiveDate.slice(0, 10); // YYYY-MM-DD, mismo criterio de timezone que monthKey
         const dayKey = `${day}|${item.variant_id}`;
         const dayBucket = daily.get(dayKey) ?? {
           day,
@@ -409,6 +421,22 @@ export async function syncShopify(
         dayBucket.total += netAmount;
         daily.set(dayKey, dayBucket);
       }
+
+      const orderBucket = ordersByShopifyId.get(order.id) ?? {
+        orderNumber: order.name,
+        day,
+        total: 0,
+        items: [],
+      };
+      orderBucket.total += netAmount;
+      orderBucket.items.push({
+        title: item.title,
+        variant: item.variant_title ?? null,
+        sku: item.sku ?? null,
+        quantity: item.quantity,
+        totalSales: netAmount,
+      });
+      ordersByShopifyId.set(order.id, orderBucket);
     }
   });
 
@@ -471,6 +499,33 @@ export async function syncShopify(
     const { error: dailyError } = await supabase.from("shopify_sales_daily").insert(dailyRows);
     if (dailyError) {
       throw new Error(`No se pudieron guardar las ventas diarias: ${dailyError.message}`);
+    }
+  }
+
+  // ── Pedidos individuales (detalle por mes) ──────────────────────────────
+  const orderRows = Array.from(ordersByShopifyId.entries()).map(([shopifyOrderId, agg]) => ({
+    organization_id: organizationId,
+    project_id: projectId,
+    shopify_order_id: shopifyOrderId,
+    order_number: agg.orderNumber,
+    day: agg.day,
+    total_sales: agg.total,
+    items: agg.items,
+    updated_at: new Date().toISOString(),
+  }));
+
+  // Mismo criterio delete-then-insert que las tablas de arriba.
+  await supabase
+    .from("shopify_orders")
+    .delete()
+    .eq("organization_id", organizationId)
+    .eq("project_id", projectId)
+    .gte("day", since.toISOString().slice(0, 10));
+
+  if (orderRows.length > 0) {
+    const { error: ordersError } = await supabase.from("shopify_orders").insert(orderRows);
+    if (ordersError) {
+      throw new Error(`No se pudieron guardar los pedidos: ${ordersError.message}`);
     }
   }
 

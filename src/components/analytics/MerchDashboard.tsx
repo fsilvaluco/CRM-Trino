@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { ShopifyProduct, ShopifySalesMonth } from "@/types/analytics";
+import type { ShopifyProduct, ShopifySalesMonth, ShopifyOrder } from "@/types/analytics";
 
 const CLP = new Intl.NumberFormat("es-CL", {
   style: "currency",
@@ -43,9 +43,10 @@ const MONTH_LABELS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "S
 interface MerchDashboardProps {
   products: ShopifyProduct[];
   salesByMonth: ShopifySalesMonth[];
+  projectId?: string;
 }
 
-export function MerchDashboard({ products, salesByMonth }: MerchDashboardProps) {
+export function MerchDashboard({ products, salesByMonth, projectId }: MerchDashboardProps) {
   const availableCount = products.filter((p) => p.available).length;
   const totalInventory = products.reduce((sum, p) => sum + p.inventoryQuantity, 0);
 
@@ -77,6 +78,40 @@ export function MerchDashboard({ products, salesByMonth }: MerchDashboardProps) 
       else next.add(id);
       return next;
     });
+  }
+
+  // ── Histórico de ventas: expandir un mes muestra sus pedidos individuales,
+  // pedidos on-demand (no se cargan todos los meses de una) y cacheados por
+  // mes en este mismo state para no repetir el fetch al volver a expandir. ──
+  const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
+  const [ordersByMonth, setOrdersByMonth] = useState<Record<string, ShopifyOrder[] | undefined>>({});
+  const [loadingMonths, setLoadingMonths] = useState<Set<string>>(new Set());
+
+  async function toggleMonthExpanded(month: string) {
+    const willExpand = !expandedMonths.has(month);
+    setExpandedMonths((prev) => {
+      const next = new Set(prev);
+      if (willExpand) next.add(month);
+      else next.delete(month);
+      return next;
+    });
+    if (!willExpand || !projectId || ordersByMonth[month] !== undefined) return;
+
+    setLoadingMonths((prev) => new Set(prev).add(month));
+    try {
+      const [year, mon] = month.split("-").map(Number);
+      const to = new Date(year, mon, 0).toISOString().slice(0, 10); // último día del mes
+      const params = new URLSearchParams({ projectId, from: month, to });
+      const res = await fetch(`/api/analytics/shopify/orders?${params.toString()}`);
+      const data = res.ok ? await res.json() : { orders: [] };
+      setOrdersByMonth((prev) => ({ ...prev, [month]: Array.isArray(data?.orders) ? data.orders : [] }));
+    } finally {
+      setLoadingMonths((prev) => {
+        const next = new Set(prev);
+        next.delete(month);
+        return next;
+      });
+    }
   }
 
   function toggleSort(key: SortKey) {
@@ -130,6 +165,7 @@ export function MerchDashboard({ products, salesByMonth }: MerchDashboardProps) 
       const found = byMonth.get(idx + 1);
       return {
         label,
+        month: `${selectedYear}-${String(idx + 1).padStart(2, "0")}-01`,
         ventas: found ? found.totalSales / 100 : 0,
         unidades: found?.unitsSold ?? 0,
         pedidos: found?.ordersCount ?? 0,
@@ -249,16 +285,70 @@ export function MerchDashboard({ products, salesByMonth }: MerchDashboardProps) 
               </TableRow>
             </TableHeader>
             <TableBody>
-              {monthsWithSales.map((m) => (
-                <TableRow key={m.label}>
-                  <TableCell className="font-medium">
-                    {m.label} {selectedYear}
-                  </TableCell>
-                  <TableCell className="text-right">{NUM.format(m.pedidos)}</TableCell>
-                  <TableCell className="text-right">{NUM.format(m.unidades)}</TableCell>
-                  <TableCell className="text-right">{CLP.format(m.ventas)}</TableCell>
-                </TableRow>
-              ))}
+              {monthsWithSales.map((m) => {
+                const canExpand = m.pedidos > 0 && !!projectId;
+                const expanded = expandedMonths.has(m.month);
+                const monthOrders = ordersByMonth[m.month];
+                const isLoading = loadingMonths.has(m.month);
+                return (
+                  <Fragment key={m.label}>
+                    <TableRow
+                      className={canExpand ? "cursor-pointer" : undefined}
+                      onClick={canExpand ? () => toggleMonthExpanded(m.month) : undefined}
+                    >
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-1.5">
+                          {canExpand ? (
+                            <ChevronRight
+                              className={cn(
+                                "h-3.5 w-3.5 text-muted-foreground transition-transform shrink-0",
+                                expanded && "rotate-90"
+                              )}
+                            />
+                          ) : (
+                            <span className="w-3.5 shrink-0" />
+                          )}
+                          {m.label} {selectedYear}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">{NUM.format(m.pedidos)}</TableCell>
+                      <TableCell className="text-right">{NUM.format(m.unidades)}</TableCell>
+                      <TableCell className="text-right">{CLP.format(m.ventas)}</TableCell>
+                    </TableRow>
+                    {expanded && isLoading && (
+                      <TableRow className="bg-muted/30">
+                        <TableCell colSpan={4} className="text-center text-xs text-muted-foreground py-3">
+                          Cargando pedidos…
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {expanded &&
+                      !isLoading &&
+                      monthOrders?.map((order) => (
+                        <TableRow key={order.id} className="bg-muted/30">
+                          <TableCell className="pl-9 text-sm">
+                            <span className="font-medium">{order.orderNumber}</span>{" "}
+                            <span className="text-xs text-muted-foreground">
+                              ·{" "}
+                              {order.items
+                                .map((it) => `${it.quantity}× ${it.title}${it.variant ? ` (${it.variant})` : ""}`)
+                                .join(", ")}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right text-sm text-muted-foreground">
+                            {format(new Date(`${order.day}T00:00:00`), "d MMM")}
+                          </TableCell>
+                          <TableCell className="text-right text-sm text-muted-foreground">
+                            {NUM.format(order.items.reduce((sum, it) => sum + it.quantity, 0))}
+                          </TableCell>
+                          <TableCell className="text-right text-sm font-medium">
+                            {CLP.format(order.totalSales / 100)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </Fragment>
+                );
+              })}
             </TableBody>
           </Table>
         ) : (

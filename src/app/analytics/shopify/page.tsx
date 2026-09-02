@@ -49,7 +49,7 @@ export default function AnalyticsMerchPage() {
         <div className="space-y-6">
           <ShopifyIntegrationCard integration={shopifyIntegration} onRefresh={refresh} projectId={activeProject?.id} />
           {shopifyIntegration.connected && (
-            <MerchDashboard products={shopifyProducts} salesByMonth={shopifySales} />
+            <MerchDashboard products={shopifyProducts} salesByMonth={shopifySales} projectId={activeProject?.id} />
           )}
         </div>
       ) : null}
