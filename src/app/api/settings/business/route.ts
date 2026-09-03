@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import type { CrmConfig } from "@/types";
+import { requireAuth } from "@/lib/supabase-server";
 
 function getConfigPath() {
   return join(process.cwd(), "crm-config.json");
@@ -34,6 +35,15 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
+  // Config de negocio global (nombre, industria, tema) -- sin este check
+  // cualquiera podia sobreescribirla sin sesion (CN-007, auditoria 3 sep
+  // 2026). Solo owner/admin de la organizacion puede modificarla.
+  const { isAdmin, error } = await requireAuth();
+  if (error) return error;
+  if (!isAdmin) {
+    return NextResponse.json({ error: "Solo administradores pueden modificar esta configuración" }, { status: 403 });
+  }
+
   try {
     const body = await request.json() as {
       business?: Partial<CrmConfig["business"]>;

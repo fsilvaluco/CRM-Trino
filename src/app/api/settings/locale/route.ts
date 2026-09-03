@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLocaleSettings, saveLocaleSettings } from "@/lib/locale-server";
 import { DEFAULT_LOCALE, COUNTRY_PRESETS, type LocaleSettings } from "@/lib/locale";
+import { requireAuth } from "@/lib/supabase-server";
 
 export async function GET() {
   const settings = getLocaleSettings();
@@ -8,6 +9,15 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
+  // Config de pais/moneda/zona horaria global -- sin este check cualquiera
+  // podia cambiarla sin sesion (CN-007, auditoria 3 sep 2026). Solo
+  // owner/admin de la organizacion puede modificarla.
+  const { isAdmin, error } = await requireAuth();
+  if (error) return error;
+  if (!isAdmin) {
+    return NextResponse.json({ error: "Solo administradores pueden modificar esta configuración" }, { status: 403 });
+  }
+
   let body: Partial<LocaleSettings>;
   try {
     body = await request.json();
