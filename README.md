@@ -2,7 +2,7 @@
 
 # Auto-CRM
 
-### Tu CRM Local con Inteligencia Artificial | Your Local AI-Powered CRM
+### Tu CRM con Inteligencia Artificial | Your AI-Powered CRM
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict-3178C6?logo=typescript)](https://www.typescriptlang.org/)
@@ -11,9 +11,9 @@
 [![Claude Code](https://img.shields.io/badge/Claude_Code-Ready-DA7756)](https://claude.ai/code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Un CRM completo que corre 100% en tu maquina. Sin Salesforce. Sin HubSpot. Sin suscripciones.**
+**Un CRM completo, personalizable con Claude Code. Sin Salesforce. Sin HubSpot. Sin suscripciones.**
 
-**A complete CRM that runs 100% on your machine. No Salesforce. No HubSpot. No subscriptions.**
+**A complete CRM, customizable with Claude Code. No Salesforce. No HubSpot. No subscriptions.**
 
 [Espanol](#espanol) | [English](#english)
 
@@ -25,11 +25,11 @@
 
 ## Que es Auto-CRM?
 
-Auto-CRM es un CRM open-source que se personaliza automaticamente a tu negocio. Abrelo con Claude Code, ejecuta `/setup`, y el CRM se adapta a tu industria, tu pipeline, y tu forma de trabajar. Todo corre en tu computadora — tus datos nunca salen de tu maquina.
+Auto-CRM es un CRM open-source que se personaliza automaticamente a tu negocio. Abrelo con Claude Code, ejecuta `/setup`, y el CRM se adapta a tu industria, tu pipeline, y tu forma de trabajar. Puede correr 100% local en tu maquina (SQLite) o desplegado con Supabase (Postgres + Auth) para acceso multi-usuario, como esta instancia (CRM-Trino), que corre en Railway.
 
 ## Por que Auto-CRM?
 
-- **100% local** — Base de datos SQLite en tu computadora. Cero servicios externos. Tus datos son tuyos.
+- **Tus datos, tus reglas** — Modo local con SQLite (cero servicios externos) o modo desplegado con Supabase para equipos. Tú eliges.
 - **Se personaliza solo** — Ejecuta `/setup` y Claude adapta el pipeline, fuentes de leads, idioma y tema a tu negocio.
 - **IA incluida** — Clasifica leads, analiza tu pipeline, sugiere proximos pasos. Sin necesidad de API key.
 - **Gratis para siempre** — Open source. Sin suscripciones. Sin limites de contactos o deals.
@@ -174,7 +174,7 @@ Ahora puedes decirle a Claude: *"Muestrame mis leads calientes"* o *"Agrega un c
 |-----------|-----------|
 | Frontend | Next.js 16 + React 19 + TypeScript |
 | Estilos | Tailwind CSS v4 + shadcn/ui |
-| Base de datos | SQLite + Drizzle ORM |
+| Base de datos | Supabase (Postgres) en produccion · SQLite + Drizzle ORM en modo local |
 | Drag & Drop | @dnd-kit |
 | Graficos | Recharts |
 | IA | Claude API (opcional) |
@@ -267,11 +267,11 @@ npm run lint       # Verificar codigo
 
 ## What is Auto-CRM?
 
-Auto-CRM is an open-source CRM that automatically customizes itself to your business. Open it with Claude Code, run `/setup`, and the CRM adapts to your industry, pipeline, and workflow. Everything runs on your computer — your data never leaves your machine.
+Auto-CRM is an open-source CRM that automatically customizes itself to your business. Open it with Claude Code, run `/setup`, and the CRM adapts to your industry, pipeline, and workflow. It can run 100% locally on your machine (SQLite) or deployed with Supabase (Postgres + Auth) for multi-user access, like this instance (CRM-Trino), which runs on Railway.
 
 ## Why Auto-CRM?
 
-- **100% local** — SQLite database on your computer. Zero external services. Your data stays yours.
+- **Your data, your rules** — Local mode with SQLite (zero external services) or deployed mode with Supabase for teams. You choose.
 - **Self-customizing** — Run `/setup` and Claude adapts the pipeline, lead sources, language, and theme to your business.
 - **AI included** — Classifies leads, analyzes your pipeline, suggests next steps. No API key required.
 - **Free forever** — Open source. No subscriptions. No limits on contacts or deals.
@@ -398,7 +398,7 @@ Now you can tell Claude: *"Show me my hot leads"* or *"Add a new contact"* from 
 |-----------|-----------|
 | Frontend | Next.js 16 + React 19 + TypeScript |
 | Styling | Tailwind CSS v4 + shadcn/ui |
-| Database | SQLite + Drizzle ORM |
+| Database | Supabase (Postgres) in production · SQLite + Drizzle ORM in local mode |
 | Drag & Drop | @dnd-kit |
 | Charts | Recharts |
 | AI | Claude API (optional) |
