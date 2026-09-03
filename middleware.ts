@@ -1,6 +1,19 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
+import { checkRateLimit } from "@/lib/rate-limit";
+
+// Rutas publicas/anonimas -- el vector de abuso mas directo (spam de leads,
+// fuerza bruta de login). Limite mas estricto que el resto de /api/*.
+const STRICT_RATE_LIMIT_PREFIXES = ["/api/webhook", "/api/auth"];
+
+function clientIp(request: NextRequest): string {
+  // Railway (y la mayoria de PaaS) llegan detras de un proxy -- el IP real
+  // del cliente va en x-forwarded-for, no en request headers estandar.
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  if (forwardedFor) return forwardedFor.split(",")[0].trim();
+  return request.headers.get("x-real-ip") ?? "unknown";
+}
 
 const PUBLIC_PATHS = new Set([
   "/login",
@@ -51,6 +64,24 @@ export async function middleware(request: NextRequest) {
     const prefix = (await resolveShortSlugPrefix(slug)) ?? "/q";
     url.pathname = `${prefix}${url.pathname}`;
     return NextResponse.rewrite(url);
+  }
+
+  const pathnameForRateLimit = request.nextUrl.pathname;
+  if (pathnameForRateLimit.startsWith("/api")) {
+    const isStrict = STRICT_RATE_LIMIT_PREFIXES.some((prefix) => pathnameForRateLimit.startsWith(prefix));
+    const ip = clientIp(request);
+    const result = await checkRateLimit(`${ip}:${isStrict ? "strict" : "default"}`, isStrict);
+    if (!result.success) {
+      return NextResponse.json(
+        { success: false, error: "Demasiadas solicitudes. Intenta de nuevo en un momento." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": Math.max(0, Math.ceil((result.reset - Date.now()) / 1000)).toString(),
+          },
+        }
+      );
+    }
   }
 
   const response = NextResponse.next({ request });

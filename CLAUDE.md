@@ -42,9 +42,9 @@ npm run mcp          # Iniciar servidor MCP (para Claude Desktop/Web)
 
 ## Arquitectura
 
-**Stack**: Next.js 16 (App Router) · React 19 · TypeScript (strict) · Tailwind CSS v4 · shadcn/ui · SQLite + Drizzle ORM · @dnd-kit (kanban)
+**Stack**: Next.js 16 (App Router) · React 19 · TypeScript (strict) · Tailwind CSS v4 · shadcn/ui · Supabase (Postgres + Auth) · @dnd-kit (kanban)
 
-**100% local**: SQLite como base de datos (archivo en `data/crm.db`). No requiere ningun servicio externo.
+**Desplegado en Railway, con Supabase como base de datos (Postgres) y autenticacion.** El proyecto se origino desde un template que corria SQLite local (`src/db/schema.ts` con Drizzle todavia existe para ese modo), pero esta instancia (CRM-Trino) ya no es 100% local: usa Supabase para datos multi-tenant (organizaciones, proyectos, RLS) y esta publicada en `https://crm-trino-production.up.railway.app`.
 
 **Alias**: `@/*` → `./src/*`
 
