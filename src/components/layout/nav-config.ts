@@ -29,6 +29,7 @@ import {
   Wrench,
   Link2,
   History,
+  FileCheck2,
 } from "lucide-react";
 import { type LucideIcon } from "lucide-react";
 
@@ -126,10 +127,13 @@ export const navConfig: NavItem[] = [
     moduleKey: "tasks",
   },
   {
-    type: "leaf",
-    href: "/finances",
+    type: "group",
     label: "Finanzas",
     icon: Wallet,
+    children: [
+      { type: "leaf", href: "/finances", label: "Transacciones", icon: Wallet },
+      { type: "leaf", href: "/finances/comprobantes", label: "Comprobantes", icon: FileCheck2 },
+    ],
   },
   {
     type: "leaf",
