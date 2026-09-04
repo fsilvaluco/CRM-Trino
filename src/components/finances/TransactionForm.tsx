@@ -28,6 +28,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth-context";
 import { useProject } from "@/lib/project-context";
 import { SignedFileLink } from "@/components/finances/SignedFileLink";
+import { MoneyInput } from "@/components/shared/MoneyInput";
 
 // Exportadas -- BulkReceiptDialog (carga masiva) usa la misma lista de
 // categorías para que ambos formularios queden consistentes.
@@ -353,7 +354,7 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
           {/* Monto */}
           <div className="space-y-1.5">
             <Label>Monto (CLP)</Label>
-            <Input {...register("amount")} placeholder="ej. 50000" inputMode="numeric" />
+            <MoneyInput value={watch("amount")} onChange={(v) => setValue("amount", v)} />
             {errors.amount && <p className="text-xs text-destructive">{errors.amount.message}</p>}
           </div>
 

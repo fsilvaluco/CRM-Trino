@@ -22,6 +22,7 @@ import { Upload, Loader2, X, Check, AlertCircle, Sparkles } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth-context";
 import { fileToBase64, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from "@/components/finances/TransactionForm";
+import { MoneyInput } from "@/components/shared/MoneyInput";
 
 const MAX_FILES = 25;
 const CONCURRENCY = 3;
@@ -278,9 +279,9 @@ export function BulkReceiptDialog({
                           <SelectItem value="income">Ingreso</SelectItem>
                         </SelectContent>
                       </Select>
-                      <Input
-                        className="h-8 text-xs" placeholder="Monto" inputMode="numeric" disabled={row.status === "saving"}
-                        value={row.amount} onChange={(e) => updateRow(row.localId, { amount: e.target.value.replace(/\D/g, "") })}
+                      <MoneyInput
+                        className="h-8 text-xs" disabled={row.status === "saving"}
+                        value={row.amount} onChange={(v) => updateRow(row.localId, { amount: v })}
                       />
                       <Input
                         className="h-8 text-xs" type="date" disabled={row.status === "saving"}
