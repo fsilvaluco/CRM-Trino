@@ -318,7 +318,7 @@ export default function FirmarClient() {
                       <p className="font-semibold">{formatCents(projectSplitCents)}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">{resolvedTrinoPct}% Trino</p>
+                      <p className="text-xs text-muted-foreground">{resolvedTrinoPct}% Sello</p>
                       <p className="font-semibold">{formatCents(trinoSplitCents)}</p>
                     </div>
                   </div>

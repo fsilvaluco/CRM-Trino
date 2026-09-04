@@ -183,7 +183,7 @@ export function buildCostSheetSummaryEmailHtml(params: {
       <p style="font-size:13px;font-weight:600;color:#14162B;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;border-top:1px solid #E5E7EB;padding-top:16px;">Reparto de utilidad</p>
       <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:${profitSplitNote ? "8px" : "20px"};">
         ${row(`${projectPct}% ${projectName || "Proyecto"}`, formatCentsForEmail(projectSplit))}
-        ${row(`${trinoPct}% Trino`, formatCentsForEmail(trinoSplit))}
+        ${row(`${trinoPct}% Sello`, formatCentsForEmail(trinoSplit))}
       </table>
       ${profitSplitNote ? `
       <p style="font-size:13px;color:#14162B;line-height:1.5;margin-bottom:20px;">

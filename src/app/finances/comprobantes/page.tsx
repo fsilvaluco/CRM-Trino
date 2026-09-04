@@ -162,7 +162,7 @@ function EventReceiptFolder({ receipt }: { receipt: EventReceipt }) {
         {receipt.transferProofPath && (
           <SignedFileLink path={receipt.transferProofPath} className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-md border hover:bg-muted/50">
             <ExternalLink className="h-3 w-3" />
-            Reparto {receipt.trinoPct != null ? `(Trino ${receipt.trinoPct}%)` : ""}
+            Reparto {receipt.trinoPct != null ? `(Sello ${receipt.trinoPct}%)` : ""}
           </SignedFileLink>
         )}
         {!receipt.closingFilePath && !receipt.transferProofPath && (

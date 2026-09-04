@@ -2759,7 +2759,7 @@ export default function EventDetailPage() {
                   }}
                   className="h-8 w-16 text-sm"
                 />
-                <span className="text-sm text-muted-foreground">% Trino = </span>
+                <span className="text-sm text-muted-foreground">% Sello = </span>
                 <span className="text-sm font-semibold">{formatCents(trinoSplitCents)}</span>
               </div>
             </div>
@@ -2818,7 +2818,7 @@ export default function EventDetailPage() {
           <p className="hidden print:block text-sm pt-2">
             <span className="font-medium">Reparto de utilidad ({formatCents(utilidadCents)}):</span>{" "}
             {resolvedProjectPct}% {event.projectName || "Proyecto"} = {formatCents(projectSplitCents)} ·{" "}
-            {resolvedTrinoPct}% Trino = {formatCents(trinoSplitCents)}
+            {resolvedTrinoPct}% Sello = {formatCents(trinoSplitCents)}
             {profitSplitNote.trim() && (
               <>
                 <br /><span className="font-medium">Nota:</span> {profitSplitNote.trim()}
@@ -2828,7 +2828,7 @@ export default function EventDetailPage() {
 
           <div className="hidden print:grid grid-cols-2 gap-8 pt-12">
             <div className="text-center text-sm">
-              <div className="border-t border-foreground pt-1">Firma Trino</div>
+              <div className="border-t border-foreground pt-1">Firma Sello</div>
             </div>
             <div className="text-center text-sm">
               <div className="border-t border-foreground pt-1">

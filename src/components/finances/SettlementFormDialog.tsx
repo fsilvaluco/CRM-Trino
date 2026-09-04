@@ -30,9 +30,13 @@ const MONTHS = [
 
 type SettlementType = "regalias" | "merch" | "otro";
 
+// Sin nombres de parte hardcodeados -- quién paga y quién recibe varía por
+// proyecto (un artista puede depender de una agencia distinta a la de
+// otro), así que el usuario los escribe cada vez. Solo el % queda vacío
+// por defecto en todos los tipos, mismo motivo.
 const TYPE_DEFAULTS: Record<SettlementType, { payer: string; payee: string; pct: string }> = {
-  regalias: { payer: "Gamuza", payee: "Trino", pct: "20" },
-  merch: { payer: "Trino", payee: "Gamuza", pct: "70" },
+  regalias: { payer: "", payee: "", pct: "" },
+  merch: { payer: "", payee: "", pct: "" },
   otro: { payer: "", payee: "", pct: "" },
 };
 
@@ -177,8 +181,8 @@ export function SettlementFormDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="regalias">Regalías (distribuidora → Gamuza → Trino)</SelectItem>
-                <SelectItem value="merch">Merchandising mensual (Trino → Gamuza)</SelectItem>
+                <SelectItem value="regalias">Regalías</SelectItem>
+                <SelectItem value="merch">Merchandising mensual</SelectItem>
                 <SelectItem value="otro">Otro</SelectItem>
               </SelectContent>
             </Select>
@@ -205,11 +209,11 @@ export function SettlementFormDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Quién paga</Label>
-              <Input value={payerName} onChange={(e) => setPayerName(e.target.value)} placeholder="Gamuza" />
+              <Input value={payerName} onChange={(e) => setPayerName(e.target.value)} placeholder="Nombre de quién paga" />
             </div>
             <div className="space-y-1.5">
               <Label>Quién recibe</Label>
-              <Input value={payeeName} onChange={(e) => setPayeeName(e.target.value)} placeholder="Trino" />
+              <Input value={payeeName} onChange={(e) => setPayeeName(e.target.value)} placeholder="Nombre de quién recibe" />
             </div>
           </div>
 
