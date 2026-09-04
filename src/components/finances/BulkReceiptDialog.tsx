@@ -18,7 +18,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Upload, Loader2, X, Check, AlertCircle, Sparkles } from "lucide-react";
+import { Upload, Loader2, X, Check, AlertCircle, Sparkles, Eye } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth-context";
 import { fileToBase64, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from "@/components/finances/TransactionForm";
@@ -33,6 +33,9 @@ type TxType = "expense" | "income";
 interface DraftRow {
   localId: string;
   file: File;
+  /** blob: URL local para previsualizar el archivo sin subirlo aún -- se
+   * revoca al sacar la fila o cerrar el diálogo (ver revokePreview). */
+  previewUrl: string;
   status: RowStatus;
   errorMessage?: string;
   type: TxType;
@@ -73,11 +76,18 @@ export function BulkReceiptDialog({
   };
 
   const removeRow = (localId: string) => {
-    setRows((prev) => prev.filter((r) => r.localId !== localId));
+    setRows((prev) => {
+      const row = prev.find((r) => r.localId === localId);
+      if (row) URL.revokeObjectURL(row.previewUrl);
+      return prev.filter((r) => r.localId !== localId);
+    });
   };
 
   const reset = () => {
-    setRows([]);
+    setRows((prev) => {
+      prev.forEach((r) => URL.revokeObjectURL(r.previewUrl));
+      return [];
+    });
     setSavedCount(0);
   };
 
@@ -97,6 +107,7 @@ export function BulkReceiptDialog({
     const newRows: DraftRow[] = files.map((file) => ({
       localId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       file,
+      previewUrl: URL.createObjectURL(file),
       status: "reading",
       type: "expense",
       amount: "",
@@ -252,6 +263,25 @@ export function BulkReceiptDialog({
               {rows.map((row) => (
                 <div key={row.localId} className="rounded-lg border p-3 space-y-2">
                   <div className="flex items-center gap-2">
+                    {row.file.type.startsWith("image/") ? (
+                      <button
+                        type="button"
+                        onClick={() => window.open(row.previewUrl, "_blank", "noopener,noreferrer")}
+                        className="shrink-0 cursor-pointer"
+                        title="Ver comprobante"
+                      >
+                        <img src={row.previewUrl} alt="" className="h-8 w-8 rounded object-cover border" />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => window.open(row.previewUrl, "_blank", "noopener,noreferrer")}
+                        className="shrink-0 cursor-pointer text-muted-foreground hover:text-foreground"
+                        title="Ver comprobante"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                    )}
                     {row.status === "reading" && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />}
                     {row.status === "saving" && <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600 shrink-0" />}
                     {row.status === "saved" && <Check className="h-3.5 w-3.5 text-green-600 shrink-0" />}
@@ -259,6 +289,15 @@ export function BulkReceiptDialog({
                       <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
                     )}
                     <span className="text-sm font-medium truncate flex-1">{row.file.name}</span>
+                    {row.file.type.startsWith("image/") && (
+                      <button
+                        type="button"
+                        onClick={() => window.open(row.previewUrl, "_blank", "noopener,noreferrer")}
+                        className="cursor-pointer text-xs text-primary hover:underline shrink-0"
+                      >
+                        Ver
+                      </button>
+                    )}
                     {row.status !== "saving" && row.status !== "saved" && (
                       <button type="button" onClick={() => removeRow(row.localId)} className="cursor-pointer text-muted-foreground hover:text-destructive">
                         <X className="h-3.5 w-3.5" />
