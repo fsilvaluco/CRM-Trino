@@ -30,6 +30,15 @@ const MONTHS = [
 
 type SettlementType = "regalias" | "merch" | "otro";
 
+// SelectValue (Base UI) muestra el `value` crudo del item seleccionado, no
+// su texto -- hay que pasarle el label como children a mano (mismo caso ya
+// resuelto en DealForm para su selector de "Fuente").
+const TYPE_LABELS: Record<SettlementType, string> = {
+  regalias: "Regalías",
+  merch: "Merchandising mensual",
+  otro: "Otro",
+};
+
 // Sin nombres de parte hardcodeados -- quién paga y quién recibe varía por
 // proyecto (un artista puede depender de una agencia distinta a la de
 // otro), así que el usuario los escribe cada vez. Solo el % queda vacío
@@ -178,7 +187,7 @@ export function SettlementFormDialog({
             <Label>Tipo</Label>
             <Select value={type} onValueChange={(v) => v && setType(v as SettlementType)}>
               <SelectTrigger className="cursor-pointer w-full">
-                <SelectValue />
+                <SelectValue>{TYPE_LABELS[type]}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="regalias">Regalías</SelectItem>
@@ -192,7 +201,9 @@ export function SettlementFormDialog({
             <div className="space-y-1.5">
               <Label>Mes</Label>
               <Select value={periodMonth} onValueChange={(v) => v && setPeriodMonth(v)}>
-                <SelectTrigger className="cursor-pointer w-full"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="cursor-pointer w-full">
+                  <SelectValue>{MONTHS[Number(periodMonth) - 1] ?? ""}</SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   {MONTHS.map((m, i) => (
                     <SelectItem key={m} value={String(i + 1)}>{m}</SelectItem>
