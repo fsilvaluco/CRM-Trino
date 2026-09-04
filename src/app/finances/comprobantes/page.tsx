@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Plus, FolderOpen, Music2, Check, PenLine, Loader2, ExternalLink, Link2 } from "lucide-react";
+import { Plus, FolderOpen, Music2, Check, PenLine, Loader2, ExternalLink, Link2, Pencil, Trash2 } from "lucide-react";
 import { useProject } from "@/lib/project-context";
 import { useAuth } from "@/lib/auth-context";
 import { SettlementFormDialog } from "@/components/finances/SettlementFormDialog";
@@ -79,7 +79,15 @@ function typeLabel(type: Settlement["type"]) {
   return "Otro";
 }
 
-function SettlementCard({ settlement, userId, onSign }: { settlement: Settlement; userId: string | undefined; onSign: (id: string) => void }) {
+function SettlementCard({
+  settlement, userId, onSign, onEdit, onDelete,
+}: {
+  settlement: Settlement;
+  userId: string | undefined;
+  onSign: (id: string) => void;
+  onEdit: (settlement: Settlement) => void;
+  onDelete: (id: string) => void;
+}) {
   const alreadySigned = settlement.signatures.some((s) => s.userId === userId);
   // Si se eligieron firmantes a mano, solo ellos pueden firmar -- mismo
   // criterio que /api/settlements/[id]/sign.
@@ -110,9 +118,17 @@ function SettlementCard({ settlement, userId, onSign }: { settlement: Settlement
           </div>
           <p className="text-sm font-medium mt-1">{settlement.payerName} → {settlement.payeeName}</p>
         </div>
-        {settlement.paid && (
-          <Badge className="bg-green-600 text-white text-[10px]"><Check className="h-2.5 w-2.5 mr-1" />Pagado</Badge>
-        )}
+        <div className="flex items-center gap-1 shrink-0">
+          {settlement.paid && (
+            <Badge className="bg-green-600 text-white text-[10px]"><Check className="h-2.5 w-2.5 mr-1" />Pagado</Badge>
+          )}
+          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" title="Editar" onClick={() => onEdit(settlement)}>
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" title="Eliminar" onClick={() => onDelete(settlement.id)}>
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 text-sm">
@@ -218,6 +234,7 @@ export default function ComprobantesPage() {
   const [eventReceipts, setEventReceipts] = useState<EventReceipt[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingSettlement, setEditingSettlement] = useState<Settlement | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -255,6 +272,28 @@ export default function ComprobantesPage() {
     await load();
   };
 
+  const handleEdit = (settlement: Settlement) => {
+    setEditingSettlement(settlement);
+    setShowForm(true);
+  };
+
+  const handleCloseForm = () => {
+    setShowForm(false);
+    setEditingSettlement(null);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("¿Eliminar esta liquidación?")) return;
+    const res = await fetch(`/api/settlements/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      toast.error(body.error || "Error al eliminar");
+      return;
+    }
+    toast.success("Liquidación eliminada");
+    await load();
+  };
+
   const regalias = settlements.filter((s) => s.type === "regalias");
   const merch = settlements.filter((s) => s.type === "merch");
   const otros = settlements.filter((s) => s.type === "otro");
@@ -271,6 +310,7 @@ export default function ComprobantesPage() {
         <Button
           onClick={() => {
             if (isAllProjects) { toast.warning("Selecciona un proyecto para crear una liquidación"); return; }
+            setEditingSettlement(null);
             setShowForm(true);
           }}
           className="cursor-pointer"
@@ -304,7 +344,7 @@ export default function ComprobantesPage() {
                   <div className="space-y-2">
                     <h2 className="text-sm font-semibold text-muted-foreground">Regalías</h2>
                     <div className="grid sm:grid-cols-2 gap-3">
-                      {regalias.map((s) => <SettlementCard key={s.id} settlement={s} userId={user?.id} onSign={handleSign} />)}
+                      {regalias.map((s) => <SettlementCard key={s.id} settlement={s} userId={user?.id} onSign={handleSign} onEdit={handleEdit} onDelete={handleDelete} />)}
                     </div>
                   </div>
                 )}
@@ -312,7 +352,7 @@ export default function ComprobantesPage() {
                   <div className="space-y-2">
                     <h2 className="text-sm font-semibold text-muted-foreground">Merchandising</h2>
                     <div className="grid sm:grid-cols-2 gap-3">
-                      {merch.map((s) => <SettlementCard key={s.id} settlement={s} userId={user?.id} onSign={handleSign} />)}
+                      {merch.map((s) => <SettlementCard key={s.id} settlement={s} userId={user?.id} onSign={handleSign} onEdit={handleEdit} onDelete={handleDelete} />)}
                     </div>
                   </div>
                 )}
@@ -320,7 +360,7 @@ export default function ComprobantesPage() {
                   <div className="space-y-2">
                     <h2 className="text-sm font-semibold text-muted-foreground">Otros</h2>
                     <div className="grid sm:grid-cols-2 gap-3">
-                      {otros.map((s) => <SettlementCard key={s.id} settlement={s} userId={user?.id} onSign={handleSign} />)}
+                      {otros.map((s) => <SettlementCard key={s.id} settlement={s} userId={user?.id} onSign={handleSign} onEdit={handleEdit} onDelete={handleDelete} />)}
                     </div>
                   </div>
                 )}
@@ -345,9 +385,25 @@ export default function ComprobantesPage() {
 
       <SettlementFormDialog
         open={showForm}
-        onClose={() => setShowForm(false)}
+        onClose={handleCloseForm}
         onCreated={load}
-        projectId={activeProjectId}
+        projectId={editingSettlement ? editingSettlement.projectId : activeProjectId}
+        initialData={editingSettlement ? {
+          id: editingSettlement.id,
+          type: editingSettlement.type,
+          periodMonth: editingSettlement.periodMonth,
+          periodYear: editingSettlement.periodYear,
+          payerName: editingSettlement.payerName,
+          payeeName: editingSettlement.payeeName,
+          sourceAmount: editingSettlement.sourceAmount,
+          sourceProofPath: editingSettlement.sourceProofPath,
+          sourceProofName: editingSettlement.sourceProofName,
+          percentage: editingSettlement.percentage,
+          payoutAmount: editingSettlement.payoutAmount,
+          payoutProofPath: editingSettlement.payoutProofPath,
+          payoutProofName: editingSettlement.payoutProofName,
+          notes: editingSettlement.notes,
+        } : null}
       />
     </div>
   );

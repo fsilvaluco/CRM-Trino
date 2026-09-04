@@ -70,17 +70,38 @@ async function uploadProof(file: File, prefix: string): Promise<{ path: string; 
   return { path, name: file.name };
 }
 
+export interface SettlementInitialData {
+  id: string;
+  type: SettlementType;
+  periodMonth: number | null;
+  periodYear: number | null;
+  payerName: string;
+  payeeName: string;
+  sourceAmount: number;
+  sourceProofPath: string | null;
+  sourceProofName: string | null;
+  percentage: number;
+  payoutAmount: number;
+  payoutProofPath: string | null;
+  payoutProofName: string | null;
+  notes: string | null;
+}
+
 export function SettlementFormDialog({
   open,
   onClose,
   onCreated,
   projectId,
+  initialData,
 }: {
   open: boolean;
   onClose: () => void;
   onCreated: () => void;
   projectId: string | null;
+  /** Si viene seteado, el diálogo edita esta liquidación (PUT) en vez de crear una nueva (POST). */
+  initialData?: SettlementInitialData | null;
 }) {
+  const isEdit = Boolean(initialData);
   const [type, setType] = useState<SettlementType>("regalias");
   const [periodMonth, setPeriodMonth] = useState(String(new Date().getMonth() + 1));
   const [periodYear, setPeriodYear] = useState(String(new Date().getFullYear()));
@@ -99,13 +120,45 @@ export function SettlementFormDialog({
   const [projectMembers, setProjectMembers] = useState<ProjectMemberOption[]>([]);
   const [requiredSignerIds, setRequiredSignerIds] = useState<string[]>([]);
 
+  // Precarga al editar -- no toca los defaults por tipo (esos son solo
+  // para cuando se está creando de cero).
   useEffect(() => {
-    if (!open) return;
+    if (!open || !initialData) return;
+    setType(initialData.type);
+    setPeriodMonth(initialData.periodMonth ? String(initialData.periodMonth) : String(new Date().getMonth() + 1));
+    setPeriodYear(initialData.periodYear ? String(initialData.periodYear) : String(new Date().getFullYear()));
+    setPayerName(initialData.payerName);
+    setPayeeName(initialData.payeeName);
+    setSourceAmount(initialData.sourceAmount ? String(initialData.sourceAmount) : "");
+    setPercentage(initialData.percentage ? String(initialData.percentage) : "");
+    setPayoutAmount(initialData.payoutAmount ? String(initialData.payoutAmount) : "");
+    setPayoutOverridden(true); // no recalcular solo mientras se edita algo ya guardado
+    setNotes(initialData.notes ?? "");
+    setSourceProof(
+      initialData.sourceProofPath ? { path: initialData.sourceProofPath, name: initialData.sourceProofName ?? "Comprobante" } : null
+    );
+    setPayoutProof(
+      initialData.payoutProofPath ? { path: initialData.payoutProofPath, name: initialData.payoutProofName ?? "Comprobante" } : null
+    );
+  }, [open, initialData]);
+
+  // Limpia cualquier resto de una edición anterior al abrir en modo
+  // "crear" -- sin esto, cancelar una edición y después abrir "Nueva
+  // liquidación" arrastraría monto/comprobantes/notas de lo editado antes.
+  useEffect(() => {
+    if (!open || initialData) return;
+    reset();
+  }, [open, initialData]);
+
+  // Solo aplica al crear de cero -- al editar, initialData ya dejó los
+  // campos como estaban guardados (ver efecto de arriba).
+  useEffect(() => {
+    if (!open || isEdit) return;
     const d = TYPE_DEFAULTS[type];
     setPayerName(d.payer);
     setPayeeName(d.payee);
     setPercentage(d.pct);
-  }, [type, open]);
+  }, [type, open, isEdit]);
 
   // Gente del proyecto para elegir quién tiene que firmar -- se recarga
   // cada vez que se abre el diálogo o cambia el proyecto activo.
@@ -174,33 +227,38 @@ export function SettlementFormDialog({
     }
     setSaving(true);
     try {
-      const res = await fetch("/api/settlements", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          projectId,
-          type,
-          periodMonth: Number(periodMonth) || null,
-          periodYear: Number(periodYear) || null,
-          payerName,
-          payeeName,
-          sourceAmount: Number(sourceAmount) || 0,
-          sourceProofPath: sourceProof?.path ?? null,
-          sourceProofName: sourceProof?.name ?? null,
-          percentage: Number(percentage) || 0,
-          payoutAmount: Number(payoutAmount) || 0,
-          payoutProofPath: payoutProof?.path ?? null,
-          payoutProofName: payoutProof?.name ?? null,
-          notes: notes || null,
-          requiredSignerIds,
-        }),
-      });
+      const commonBody = {
+        type,
+        periodMonth: Number(periodMonth) || null,
+        periodYear: Number(periodYear) || null,
+        payerName,
+        payeeName,
+        sourceAmount: Number(sourceAmount) || 0,
+        sourceProofPath: sourceProof?.path ?? null,
+        sourceProofName: sourceProof?.name ?? null,
+        percentage: Number(percentage) || 0,
+        payoutAmount: Number(payoutAmount) || 0,
+        payoutProofPath: payoutProof?.path ?? null,
+        payoutProofName: payoutProof?.name ?? null,
+        notes: notes || null,
+      };
+      const res = isEdit
+        ? await fetch(`/api/settlements/${initialData!.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(commonBody),
+          })
+        : await fetch("/api/settlements", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...commonBody, projectId, requiredSignerIds }),
+          });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        toast.error(body.error || "Error al crear la liquidación");
+        toast.error(body.error || `Error al ${isEdit ? "editar" : "crear"} la liquidación`);
         return;
       }
-      toast.success("Liquidación creada");
+      toast.success(isEdit ? "Liquidación actualizada" : "Liquidación creada");
       reset();
       onCreated();
       onClose();
@@ -213,7 +271,7 @@ export function SettlementFormDialog({
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nueva liquidación</DialogTitle>
+          <DialogTitle>{isEdit ? "Editar liquidación" : "Nueva liquidación"}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
@@ -325,28 +383,30 @@ export function SettlementFormDialog({
             </Button>
           </div>
 
-          <div className="space-y-1.5">
-            <Label>Quién debe firmar</Label>
-            {projectMembers.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Sin otras personas en este proyecto todavía.</p>
-            ) : (
-              <div className="rounded-md border p-2 space-y-1.5 max-h-36 overflow-y-auto">
-                {projectMembers.map((m) => (
-                  <label key={m.userId} className="flex items-center gap-2 text-sm cursor-pointer">
-                    <Checkbox
-                      checked={requiredSignerIds.includes(m.userId)}
-                      onCheckedChange={(v) => toggleSigner(m.userId, v === true)}
-                    />
-                    {m.name}
-                  </label>
-                ))}
-              </div>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Cada firmante recibe un correo con un botón para revisar y aprobar. Si no eliges a nadie,
-              cualquiera con acceso a Finanzas de este proyecto puede firmarla.
-            </p>
-          </div>
+          {!isEdit && (
+            <div className="space-y-1.5">
+              <Label>Quién debe firmar</Label>
+              {projectMembers.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Sin otras personas en este proyecto todavía.</p>
+              ) : (
+                <div className="rounded-md border p-2 space-y-1.5 max-h-36 overflow-y-auto">
+                  {projectMembers.map((m) => (
+                    <label key={m.userId} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <Checkbox
+                        checked={requiredSignerIds.includes(m.userId)}
+                        onCheckedChange={(v) => toggleSigner(m.userId, v === true)}
+                      />
+                      {m.name}
+                    </label>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Cada firmante recibe un correo con un botón para revisar y aprobar. Si no eliges a nadie,
+                cualquiera con acceso a Finanzas de este proyecto puede firmarla.
+              </p>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label>Notas</Label>
@@ -358,7 +418,7 @@ export function SettlementFormDialog({
           <Button variant="outline" onClick={onClose} className="cursor-pointer">Cancelar</Button>
           <Button onClick={handleSubmit} disabled={saving} className="cursor-pointer">
             {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Crear liquidación
+            {isEdit ? "Guardar cambios" : "Crear liquidación"}
           </Button>
         </DialogFooter>
       </DialogContent>
