@@ -21,6 +21,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { ModulePermissionsEditor } from "@/components/settings/ModulePermissionsEditor";
+import { ChevronDown as ChevronDownIcon, Settings2 } from "lucide-react";
 
 export interface MemberAccessTarget {
   user_id: string;
@@ -77,6 +79,7 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
   const [projectRoles, setProjectRoles] = useState<Record<string, "admin" | "member" | "artist" | "staff">>({});
   const [initialProjectRoles, setInitialProjectRoles] = useState<Record<string, string>>({});
   const [projectSearch, setProjectSearch] = useState("");
+  const [expandedPermissionsProjectId, setExpandedPermissionsProjectId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -105,6 +108,7 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
     setEmail(initial.email);
     setPhone(initial.phone);
     setInitialContact(initial);
+    setExpandedPermissionsProjectId(null);
   }, [open, member]);
 
   const selectedSet = useMemo(() => new Set(selectedProjectIds), [selectedProjectIds]);
@@ -394,33 +398,63 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
                           filteredProjects.map((project) => {
                             const checked = selectedSet.has(project.id);
                             const role = projectRoles[project.id] ?? "member";
+                            // Los permisos finos (project_member_permissions)
+                            // solo existen para una fila YA guardada -- si
+                            // recién se está por agregar en este mismo
+                            // guardado, todavía no hay project_member_id que
+                            // editar (se siembra por plantilla al guardar).
+                            const hasSavedRow = initialSet.has(project.id);
+                            const isExpanded = expandedPermissionsProjectId === project.id;
                             return (
                               <div
                                 key={project.id}
-                                className="flex items-center gap-3 rounded-md border border-border/60 px-3 py-2 text-sm hover:bg-muted/40"
+                                className="rounded-md border border-border/60 hover:bg-muted/40"
                               >
-                                <Checkbox
-                                  checked={checked}
-                                  disabled={saving}
-                                  onCheckedChange={(value) => toggleProject(project.id, value === true)}
-                                />
-                                <span className="flex-1">{project.name}</span>
-                                {checked && (
-                                  <Select
-                                    value={role}
+                                <div className="flex items-center gap-3 px-3 py-2 text-sm">
+                                  <Checkbox
+                                    checked={checked}
                                     disabled={saving}
-                                    onValueChange={(v) => v && setProjectRole(project.id, v as "admin" | "member" | "artist" | "staff")}
-                                  >
-                                    <SelectTrigger className="h-7 text-xs w-28 cursor-pointer">
-                                      <SelectValue>{ROLE_LABELS[role]}</SelectValue>
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="admin">Admin</SelectItem>
-                                      <SelectItem value="member">Miembro</SelectItem>
-                                      <SelectItem value="artist">Artista</SelectItem>
-                                      <SelectItem value="staff">Staff técnico</SelectItem>
-                                    </SelectContent>
-                                  </Select>
+                                    onCheckedChange={(value) => toggleProject(project.id, value === true)}
+                                  />
+                                  <span className="flex-1">{project.name}</span>
+                                  {checked && (
+                                    <Select
+                                      value={role}
+                                      disabled={saving}
+                                      onValueChange={(v) => v && setProjectRole(project.id, v as "admin" | "member" | "artist" | "staff")}
+                                    >
+                                      <SelectTrigger className="h-7 text-xs w-28 cursor-pointer">
+                                        <SelectValue>{ROLE_LABELS[role]}</SelectValue>
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="admin">Admin</SelectItem>
+                                        <SelectItem value="member">Miembro</SelectItem>
+                                        <SelectItem value="artist">Artista</SelectItem>
+                                        <SelectItem value="staff">Staff técnico</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  )}
+                                  {checked && hasSavedRow && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 shrink-0 cursor-pointer"
+                                      title="Editar permisos finos por módulo"
+                                      onClick={() => setExpandedPermissionsProjectId(isExpanded ? null : project.id)}
+                                    >
+                                      {isExpanded ? (
+                                        <ChevronDownIcon className="h-3.5 w-3.5" />
+                                      ) : (
+                                        <Settings2 className="h-3.5 w-3.5" />
+                                      )}
+                                    </Button>
+                                  )}
+                                </div>
+                                {checked && hasSavedRow && isExpanded && member && (
+                                  <div className="px-3 pb-3">
+                                    <ModulePermissionsEditor projectId={project.id} userId={member.user_id} />
+                                  </div>
                                 )}
                               </div>
                             );
