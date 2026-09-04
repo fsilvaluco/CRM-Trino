@@ -20,6 +20,7 @@ export interface SignerProfile {
 
 export interface SignatureRecord extends SignerProfile {
   signedAt: string;
+  ipAddress: string | null;
 }
 
 export interface SignaturesState {
@@ -95,7 +96,7 @@ export async function getSignaturesState(
 
   const { data: sigRows } = await supabase
     .from("event_closing_signatures")
-    .select("user_id, signed_at, profiles ( full_name, email, avatar_url )")
+    .select("user_id, signed_at, ip_address, profiles ( full_name, email, avatar_url )")
     .eq("show_id", showId)
     .order("signed_at", { ascending: true });
 
@@ -104,6 +105,7 @@ export async function getSignaturesState(
     (s: any) => ({
       userId: s.user_id,
       signedAt: s.signed_at,
+      ipAddress: s.ip_address ?? null,
       fullName: s.profiles?.full_name ?? null,
       email: s.profiles?.email ?? null,
       avatarUrl: s.profiles?.avatar_url ?? null,

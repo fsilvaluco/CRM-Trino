@@ -32,7 +32,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const [{ data: sigRows }, { data: requiredProfiles }] = await Promise.all([
     supabase
       .from("settlement_signatures")
-      .select("user_id, signed_at, profiles ( full_name, email )")
+      .select("user_id, signed_at, ip_address, profiles ( full_name, email )")
       .eq("settlement_id", id),
     row.required_signer_ids?.length
       ? supabase.from("profiles").select("id, full_name, email").in("id", row.required_signer_ids)
@@ -42,8 +42,14 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const signatures = ((sigRows ?? []) as unknown as {
     user_id: string;
     signed_at: string;
+    ip_address: string | null;
     profiles: { full_name: string | null; email: string | null } | null;
-  }[]).map((s) => ({ userId: s.user_id, signedAt: s.signed_at, name: s.profiles?.full_name ?? s.profiles?.email ?? null }));
+  }[]).map((s) => ({
+    userId: s.user_id,
+    signedAt: s.signed_at,
+    ipAddress: s.ip_address ?? null,
+    name: s.profiles?.full_name ?? s.profiles?.email ?? null,
+  }));
 
   const requiredSigners = ((requiredProfiles ?? []) as { id: string; full_name: string | null; email: string | null }[]).map(
     (p) => ({ userId: p.id, name: p.full_name ?? p.email ?? "Alguien" })

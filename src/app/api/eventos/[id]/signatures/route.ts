@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { sendPushToUsers } from "@/lib/push";
 import { getRequiredSigners, getSignaturesState } from "@/lib/event-signatures";
+import { getClientIp } from "@/lib/client-ip";
 
 function siteUrl(path: string): string {
   const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -64,7 +65,7 @@ export async function GET(
 // sacar una firma es reabrir la caja, que las borra todas (ver
 // costs/reopen/route.ts).
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
@@ -103,7 +104,7 @@ export async function POST(
 
   const { error: insertError } = await supabase
     .from("event_closing_signatures")
-    .insert({ show_id: id, user_id: user!.id });
+    .insert({ show_id: id, user_id: user!.id, ip_address: getClientIp(request) });
 
   if (insertError) {
     if (insertError.code === "23505") {

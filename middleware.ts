@@ -2,18 +2,11 @@ import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { getClientIp as clientIp } from "@/lib/client-ip";
 
 // Rutas publicas/anonimas -- el vector de abuso mas directo (spam de leads,
 // fuerza bruta de login). Limite mas estricto que el resto de /api/*.
 const STRICT_RATE_LIMIT_PREFIXES = ["/api/webhook", "/api/auth"];
-
-function clientIp(request: NextRequest): string {
-  // Railway (y la mayoria de PaaS) llegan detras de un proxy -- el IP real
-  // del cliente va en x-forwarded-for, no en request headers estandar.
-  const forwardedFor = request.headers.get("x-forwarded-for");
-  if (forwardedFor) return forwardedFor.split(",")[0].trim();
-  return request.headers.get("x-real-ip") ?? "unknown";
-}
 
 const PUBLIC_PATHS = new Set([
   "/login",

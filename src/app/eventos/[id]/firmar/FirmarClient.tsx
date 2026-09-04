@@ -46,6 +46,7 @@ interface Signer {
 
 interface Signature extends Signer {
   signedAt: string;
+  ipAddress: string | null;
 }
 
 interface SignaturesData {
@@ -371,7 +372,10 @@ export default function FirmarClient() {
                         <span>{r.fullName || r.email || "Usuario"}</span>
                       </div>
                       {signature && (
-                        <span className="text-xs text-muted-foreground">{formatSignedAt(signature.signedAt)}</span>
+                        <span className="text-xs text-muted-foreground text-right">
+                          {formatSignedAt(signature.signedAt)}
+                          {signature.ipAddress && <span className="block text-[10px] opacity-70">IP {signature.ipAddress}</span>}
+                        </span>
                       )}
                     </div>
                   );
@@ -387,7 +391,10 @@ export default function FirmarClient() {
                         <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
                         <span>{s.fullName || s.email || "Usuario"}</span>
                       </div>
-                      <span className="text-xs text-muted-foreground">{formatSignedAt(s.signedAt)}</span>
+                      <span className="text-xs text-muted-foreground text-right">
+                        {formatSignedAt(s.signedAt)}
+                        {s.ipAddress && <span className="block text-[10px] opacity-70">IP {s.ipAddress}</span>}
+                      </span>
                     </div>
                   ))}
               </div>

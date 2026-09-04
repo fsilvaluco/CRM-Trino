@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { CheckCircle2, Circle, Loader2, ArrowLeft, ExternalLink } from "lucide-react";
 import { SignedFileLink } from "@/components/finances/SignedFileLink";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 
 function formatCLP(amount: number) {
   return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(amount);
@@ -34,6 +36,7 @@ interface Signer {
 
 interface Signature extends Signer {
   signedAt: string;
+  ipAddress: string | null;
 }
 
 interface SettlementDetail {
@@ -146,11 +149,19 @@ export default function FirmarLiquidacionPage() {
                 <p className="text-xs text-muted-foreground">Sin firmantes elegidos -- cualquiera con acceso puede aprobarla.</p>
               ) : (
                 data.requiredSigners.map((s) => {
-                  const signed = data.signatures.some((sig) => sig.userId === s.userId);
+                  const signature = data.signatures.find((sig) => sig.userId === s.userId);
                   return (
-                    <div key={s.userId} className="flex items-center gap-2 text-sm">
-                      {signed ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <Circle className="h-4 w-4 text-muted-foreground/40" />}
-                      {s.name}
+                    <div key={s.userId} className="flex items-center justify-between gap-2 text-sm">
+                      <div className="flex items-center gap-2">
+                        {signature ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <Circle className="h-4 w-4 text-muted-foreground/40" />}
+                        {s.name}
+                      </div>
+                      {signature && (
+                        <span className="text-[11px] text-muted-foreground text-right">
+                          {format(new Date(signature.signedAt), "d MMM yyyy, HH:mm", { locale: es })}
+                          {signature.ipAddress && <span className="block opacity-70">IP {signature.ipAddress}</span>}
+                        </span>
+                      )}
                     </div>
                   );
                 })

@@ -20,7 +20,7 @@ type SettlementType = (typeof SETTLEMENT_TYPES)[number];
 function mapSettlement(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   row: any,
-  signatures: { userId: string; signedAt: string; name: string | null }[],
+  signatures: { userId: string; signedAt: string; ipAddress: string | null; name: string | null }[],
   requiredSigners: { userId: string; name: string | null }[] = []
 ) {
   return {
@@ -87,22 +87,24 @@ export async function GET(request: NextRequest) {
 
   // Firmas de todas las liquidaciones visibles, de una vez (evita N+1).
   const ids = rows.map((r) => r.id);
-  const signaturesBySettlement = new Map<string, { userId: string; signedAt: string; name: string | null }[]>();
+  const signaturesBySettlement = new Map<string, { userId: string; signedAt: string; ipAddress: string | null; name: string | null }[]>();
   if (ids.length > 0) {
     const { data: sigRows } = await supabase
       .from("settlement_signatures")
-      .select("settlement_id, user_id, signed_at, profiles ( full_name, email )")
+      .select("settlement_id, user_id, signed_at, ip_address, profiles ( full_name, email )")
       .in("settlement_id", ids);
     for (const s of (sigRows ?? []) as unknown as {
       settlement_id: string;
       user_id: string;
       signed_at: string;
+      ip_address: string | null;
       profiles: { full_name: string | null; email: string | null } | null;
     }[]) {
       const list = signaturesBySettlement.get(s.settlement_id) ?? [];
       list.push({
         userId: s.user_id,
         signedAt: s.signed_at,
+        ipAddress: s.ip_address ?? null,
         name: s.profiles?.full_name ?? s.profiles?.email ?? null,
       });
       signaturesBySettlement.set(s.settlement_id, list);

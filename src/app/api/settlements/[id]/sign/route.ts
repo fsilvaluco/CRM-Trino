@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { getProjectPermissions, canViewModule } from "@/lib/project-roles";
+import { getClientIp } from "@/lib/client-ip";
 
 // POST /api/settlements/[id]/sign -- aprobación simple (mismo espíritu que
 // el cierre de caja de eventos, ver event_closing_signatures). Si la
@@ -9,7 +10,7 @@ import { getProjectPermissions, canViewModule } from "@/lib/project-roles";
 // (liquidaciones viejas, o quien la creó no marcó firmantes), cae al
 // criterio general: cualquiera que vea Finanzas en el proyecto.
 // Irreversible -- no hay endpoint de "des-firmar".
-export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
@@ -41,7 +42,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
 
   const { error: insertError } = await supabase
     .from("settlement_signatures")
-    .insert({ settlement_id: id, user_id: user!.id });
+    .insert({ settlement_id: id, user_id: user!.id, ip_address: getClientIp(request) });
 
   if (insertError) {
     if (insertError.code === "23505") {

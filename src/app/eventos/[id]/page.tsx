@@ -94,6 +94,7 @@ interface Signer {
 
 interface Signature extends Signer {
   signedAt: string;
+  ipAddress: string | null;
 }
 
 interface SignatureData {
@@ -2874,8 +2875,9 @@ export default function EventDetailPage() {
                     <span>{r.fullName || r.email || "Usuario"}</span>
                   </div>
                   {signature && (
-                    <span className="text-muted-foreground">
+                    <span className="text-muted-foreground text-right">
                       {format(new Date(signature.signedAt), "d MMM yyyy, HH:mm", { locale: es })}
+                      {signature.ipAddress && <span className="block text-[10px] opacity-70">IP {signature.ipAddress}</span>}
                     </span>
                   )}
                 </div>
@@ -2893,8 +2895,9 @@ export default function EventDetailPage() {
                     <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
                     <span>{s.fullName || s.email || "Usuario"}</span>
                   </div>
-                  <span className="text-muted-foreground">
+                  <span className="text-muted-foreground text-right">
                     {format(new Date(s.signedAt), "d MMM yyyy, HH:mm", { locale: es })}
+                    {s.ipAddress && <span className="block text-[10px] opacity-70">IP {s.ipAddress}</span>}
                   </span>
                 </div>
               ))}

@@ -29,6 +29,7 @@ interface Signer {
 
 interface Signature extends Signer {
   signedAt: string;
+  ipAddress: string | null;
 }
 
 interface Settlement {
@@ -154,41 +155,59 @@ function SettlementCard({
 
       {settlement.notes && <p className="text-xs text-muted-foreground">{settlement.notes}</p>}
 
-      <div className="flex items-center justify-between border-t pt-2 gap-2 flex-wrap">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {settlement.requiredSigners.length > 0 ? (
-            settlement.requiredSigners.map((s) => {
-              const signed = settlement.signatures.some((sig) => sig.userId === s.userId);
-              return (
-                <Badge
-                  key={s.userId}
-                  variant="outline"
-                  className={`text-[10px] gap-1 ${signed ? "border-green-600/40 text-green-700 dark:text-green-400" : "text-muted-foreground border-dashed"}`}
-                >
-                  {signed ? <Check className="h-2.5 w-2.5" /> : <PenLine className="h-2.5 w-2.5" />} {s.name ?? "Alguien"}
+      <div className="border-t pt-2 space-y-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {settlement.requiredSigners.length > 0 ? (
+              settlement.requiredSigners.map((s) => {
+                const signed = settlement.signatures.some((sig) => sig.userId === s.userId);
+                return (
+                  <Badge
+                    key={s.userId}
+                    variant="outline"
+                    className={`text-[10px] gap-1 ${signed ? "border-green-600/40 text-green-700 dark:text-green-400" : "text-muted-foreground border-dashed"}`}
+                  >
+                    {signed ? <Check className="h-2.5 w-2.5" /> : <PenLine className="h-2.5 w-2.5" />} {s.name ?? "Alguien"}
+                  </Badge>
+                );
+              })
+            ) : settlement.signatures.length === 0 ? (
+              <span className="text-xs text-muted-foreground">Sin firmas todavía</span>
+            ) : (
+              settlement.signatures.map((s) => (
+                <Badge key={s.userId} variant="outline" className="text-[10px] gap-1">
+                  <PenLine className="h-2.5 w-2.5" /> {s.name ?? "Alguien"}
                 </Badge>
-              );
-            })
-          ) : settlement.signatures.length === 0 ? (
-            <span className="text-xs text-muted-foreground">Sin firmas todavía</span>
-          ) : (
-            settlement.signatures.map((s) => (
-              <Badge key={s.userId} variant="outline" className="text-[10px] gap-1">
-                <PenLine className="h-2.5 w-2.5" /> {s.name ?? "Alguien"}
-              </Badge>
-            ))
-          )}
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <Button size="sm" variant="ghost" className="cursor-pointer h-7 text-xs" onClick={copySignLink} title="Copiar link para compartir">
-            <Link2 className="h-3 w-3 mr-1" /> Link
-          </Button>
-          {canSign && (
-            <Button size="sm" variant="outline" className="cursor-pointer h-7 text-xs" onClick={() => onSign(settlement.id)}>
-              <PenLine className="h-3 w-3 mr-1" /> Firmar
+              ))
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Button size="sm" variant="ghost" className="cursor-pointer h-7 text-xs" onClick={copySignLink} title="Copiar link para compartir">
+              <Link2 className="h-3 w-3 mr-1" /> Link
             </Button>
-          )}
+            {canSign && (
+              <Button size="sm" variant="outline" className="cursor-pointer h-7 text-xs" onClick={() => onSign(settlement.id)}>
+                <PenLine className="h-3 w-3 mr-1" /> Firmar
+              </Button>
+            )}
+          </div>
         </div>
+
+        {/* Registro de firmas -- fecha/hora + IP de cada firma, respaldo de
+            identidad además del login (ver migración 089). */}
+        {settlement.signatures.length > 0 && (
+          <div className="space-y-0.5">
+            {settlement.signatures.map((s) => (
+              <div key={s.userId} className="flex items-center justify-between text-[11px] text-muted-foreground">
+                <span>{s.name ?? "Alguien"}</span>
+                <span className="text-right">
+                  {format(new Date(s.signedAt), "d MMM yyyy, HH:mm", { locale: es })}
+                  {s.ipAddress && <span className="ml-1.5 opacity-70">IP {s.ipAddress}</span>}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
