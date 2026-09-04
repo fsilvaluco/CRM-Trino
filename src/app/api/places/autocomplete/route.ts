@@ -7,9 +7,8 @@ import { requireAuth } from "@/lib/supabase-server";
 // { configured: false } en vez de un error -- el frontend usa eso para
 // caer de vuelta a un input de texto normal, sin mostrar ningun error.
 //
-// Restringido a Chile (includedRegionCodes) porque todos los venues de
-// Trino/Katarsis son chilenos -- si algun día se necesita otro país, sacar
-// esa linea.
+// Sin restriccion de pais: los proyectos hacen giras fuera de Chile (ej.
+// Peru), asi que el autocompletado busca en cualquier pais.
 export async function POST(request: NextRequest) {
   const { error } = await requireAuth();
   if (error) return error;
@@ -36,7 +35,6 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         input,
         sessionToken,
-        includedRegionCodes: ["cl"],
         languageCode: "es",
       }),
     });
