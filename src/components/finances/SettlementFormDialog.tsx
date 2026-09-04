@@ -19,9 +19,15 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Paperclip, Check } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+
+interface ProjectMemberOption {
+  userId: string;
+  name: string;
+}
 
 const MONTHS = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -90,6 +96,8 @@ export function SettlementFormDialog({
   const [uploadingSource, setUploadingSource] = useState(false);
   const [uploadingPayout, setUploadingPayout] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [projectMembers, setProjectMembers] = useState<ProjectMemberOption[]>([]);
+  const [requiredSignerIds, setRequiredSignerIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -98,6 +106,26 @@ export function SettlementFormDialog({
     setPayeeName(d.payee);
     setPercentage(d.pct);
   }, [type, open]);
+
+  // Gente del proyecto para elegir quién tiene que firmar -- se recarga
+  // cada vez que se abre el diálogo o cambia el proyecto activo.
+  useEffect(() => {
+    if (!open || !projectId) { setProjectMembers([]); return; }
+    let cancelled = false;
+    fetch(`/api/project-members?projectId=${projectId}`)
+      .then((r) => r.json())
+      .then((rows) => {
+        if (cancelled || !Array.isArray(rows)) return;
+        setProjectMembers(
+          rows.map((r: { user_id: string; profiles: { full_name: string | null; email: string | null } | null }) => ({
+            userId: r.user_id,
+            name: r.profiles?.full_name ?? r.profiles?.email ?? "Alguien",
+          }))
+        );
+      })
+      .catch(() => { if (!cancelled) setProjectMembers([]); });
+    return () => { cancelled = true; };
+  }, [open, projectId]);
 
   // Monto a pagar = source * % / 100, salvo que el usuario ya lo haya
   // tocado a mano (ej. para ajustar redondeos de la transferencia real).
@@ -117,6 +145,11 @@ export function SettlementFormDialog({
     setNotes("");
     setSourceProof(null);
     setPayoutProof(null);
+    setRequiredSignerIds([]);
+  };
+
+  const toggleSigner = (userId: string, checked: boolean) => {
+    setRequiredSignerIds((prev) => (checked ? [...prev, userId] : prev.filter((id) => id !== userId)));
   };
 
   const handleUploadSource = async (file: File) => {
@@ -159,6 +192,7 @@ export function SettlementFormDialog({
           payoutProofPath: payoutProof?.path ?? null,
           payoutProofName: payoutProof?.name ?? null,
           notes: notes || null,
+          requiredSignerIds,
         }),
       });
       if (!res.ok) {
@@ -289,6 +323,29 @@ export function SettlementFormDialog({
               {uploadingPayout ? <Loader2 className="h-4 w-4 animate-spin" /> : payoutProof ? <Check className="h-4 w-4 text-green-600" /> : <Paperclip className="h-4 w-4" />}
               {payoutProof ? payoutProof.name : "Subir comprobante (opcional por ahora)"}
             </Button>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Quién debe firmar</Label>
+            {projectMembers.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Sin otras personas en este proyecto todavía.</p>
+            ) : (
+              <div className="rounded-md border p-2 space-y-1.5 max-h-36 overflow-y-auto">
+                {projectMembers.map((m) => (
+                  <label key={m.userId} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <Checkbox
+                      checked={requiredSignerIds.includes(m.userId)}
+                      onCheckedChange={(v) => toggleSigner(m.userId, v === true)}
+                    />
+                    {m.name}
+                  </label>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Cada firmante recibe un correo con un botón para revisar y aprobar. Si no eliges a nadie,
+              cualquiera con acceso a Finanzas de este proyecto puede firmarla.
+            </p>
           </div>
 
           <div className="space-y-1.5">

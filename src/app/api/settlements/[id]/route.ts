@@ -1,7 +1,82 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { logActivity } from "@/lib/activity-logs";
-import { getProjectPermissions, canEditModule, canDeleteModule } from "@/lib/project-roles";
+import { getProjectPermissions, canEditModule, canDeleteModule, canViewModule } from "@/lib/project-roles";
+
+// GET /api/settlements/[id] -- detalle de una liquidación (usado por la
+// pantalla de firma, que necesita cargar UNA sin traer la lista completa).
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const { supabase, user, orgId, allowedProjectIds, error } = await requireAuth();
+  if (error) return error;
+
+  const { data: row, error: findErr } = await supabase
+    .from("settlements")
+    .select("*")
+    .eq("id", id)
+    .eq("organization_id", orgId!)
+    .is("deleted_at", null)
+    .single();
+
+  if (findErr || !row) {
+    return NextResponse.json({ error: "Liquidación no encontrada" }, { status: 404 });
+  }
+  if (!allowedProjectIds.includes(row.project_id)) {
+    return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
+  }
+  const perm = await getProjectPermissions(supabase, user!.id, row.project_id);
+  if (!canViewModule(perm, "finanzas")) {
+    return NextResponse.json({ error: "Sin acceso a Finanzas para tu rol" }, { status: 403 });
+  }
+
+  const [{ data: sigRows }, { data: requiredProfiles }] = await Promise.all([
+    supabase
+      .from("settlement_signatures")
+      .select("user_id, signed_at, profiles ( full_name, email )")
+      .eq("settlement_id", id),
+    row.required_signer_ids?.length
+      ? supabase.from("profiles").select("id, full_name, email").in("id", row.required_signer_ids)
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  const signatures = ((sigRows ?? []) as unknown as {
+    user_id: string;
+    signed_at: string;
+    profiles: { full_name: string | null; email: string | null } | null;
+  }[]).map((s) => ({ userId: s.user_id, signedAt: s.signed_at, name: s.profiles?.full_name ?? s.profiles?.email ?? null }));
+
+  const requiredSigners = ((requiredProfiles ?? []) as { id: string; full_name: string | null; email: string | null }[]).map(
+    (p) => ({ userId: p.id, name: p.full_name ?? p.email ?? "Alguien" })
+  );
+
+  const signedIds = new Set(signatures.map((s) => s.userId));
+  const isRequiredSigner = (row.required_signer_ids ?? []).includes(user!.id);
+  const alreadySigned = signedIds.has(user!.id);
+
+  return NextResponse.json({
+    id: row.id,
+    projectId: row.project_id,
+    type: row.type,
+    periodMonth: row.period_month ?? null,
+    periodYear: row.period_year ?? null,
+    payerName: row.payer_name,
+    payeeName: row.payee_name,
+    sourceAmount: row.source_amount,
+    sourceProofPath: row.source_proof_path ?? null,
+    percentage: Number(row.percentage),
+    payoutAmount: row.payout_amount,
+    payoutProofPath: row.payout_proof_path ?? null,
+    paid: row.paid ?? false,
+    notes: row.notes ?? null,
+    requiredSigners,
+    signatures,
+    allSigned: requiredSigners.length > 0 && requiredSigners.every((r) => signedIds.has(r.userId)),
+    // Si no se eligió a nadie en particular, cae al criterio general
+    // (cualquiera que vea Finanzas puede firmar) -- mismo fallback que el
+    // endpoint de firma.
+    canSign: (row.required_signer_ids?.length ? isRequiredSigner : canViewModule(perm, "finanzas")) && !alreadySigned,
+  });
+}
 
 async function checkAccess(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

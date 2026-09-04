@@ -203,3 +203,48 @@ export function buildCostSheetSummaryEmailHtml(params: {
     </div>
   `;
 }
+
+function settlementTypeLabelForEmail(type: string): string {
+  if (type === "regalias") return "Regalías";
+  if (type === "merch") return "Merchandising";
+  return "Liquidación";
+}
+
+/**
+ * Correo de "Pendiente de firma" -- se manda a cada firmante elegido a
+ * mano al crear una liquidación (regalías/merch, ver
+ * scripts/migrations/088_settlement_required_signers.sql), con un botón
+ * directo a la pantalla donde puede firmarla.
+ */
+export function buildSettlementPendingSignatureEmailHtml(params: {
+  signerName: string | null;
+  type: string;
+  payerName: string;
+  payeeName: string;
+  sourceAmount: number;
+  payoutAmount: number;
+  percentage: number;
+  signUrl: string;
+}): string {
+  const { signerName, type, payerName, payeeName, sourceAmount, payoutAmount, percentage, signUrl } = params;
+  const greeting = signerName ? `<p style="font-size: 16px; color: #14162B; margin-bottom: 4px;">Hola ${signerName},</p>` : "";
+
+  return `
+    <div style="font-family: -apple-system, Inter, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
+      <img src="https://artistpro.app/logo-black.png" alt="Artist Pro" style="width: 120px; height: auto; margin-bottom: 20px;" />
+      ${greeting}
+      <p style="font-size: 16px; color: #14162B; line-height: 1.5;">
+        Hay una nueva liquidación de <strong>${settlementTypeLabelForEmail(type)}</strong> pendiente de tu firma:
+      </p>
+      <p style="font-size: 14px; color: #14162B; line-height: 1.6; background:#F4F4F8; border-radius:12px; padding:14px 16px; margin: 16px 0;">
+        <strong>${payerName} → ${payeeName}</strong><br/>
+        Origen: ${CLP_FMT.format(sourceAmount)}<br/>
+        A pagar (${percentage}%): ${CLP_FMT.format(payoutAmount)}
+      </p>
+      <a href="${signUrl}" target="_blank" rel="noopener noreferrer"
+        style="display: inline-block; margin-top: 4px; padding: 12px 24px; background: #4338CA; color: white; text-decoration: none; border-radius: 100px; font-size: 14px; font-weight: 600;">
+        Revisar y firmar
+      </a>
+    </div>
+  `;
+}

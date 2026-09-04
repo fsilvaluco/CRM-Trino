@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Plus, FolderOpen, Music2, Check, PenLine, Loader2, ExternalLink } from "lucide-react";
+import { Plus, FolderOpen, Music2, Check, PenLine, Loader2, ExternalLink, Link2 } from "lucide-react";
 import { useProject } from "@/lib/project-context";
 import { useAuth } from "@/lib/auth-context";
 import { SettlementFormDialog } from "@/components/finances/SettlementFormDialog";
@@ -22,10 +22,13 @@ import { SignedFileLink } from "@/components/finances/SignedFileLink";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
-interface Signature {
+interface Signer {
   userId: string;
-  signedAt: string;
   name: string | null;
+}
+
+interface Signature extends Signer {
+  signedAt: string;
 }
 
 interface Settlement {
@@ -46,6 +49,7 @@ interface Settlement {
   paid: boolean;
   notes: string | null;
   createdAt: string;
+  requiredSigners: Signer[];
   signatures: Signature[];
 }
 
@@ -77,9 +81,24 @@ function typeLabel(type: Settlement["type"]) {
 
 function SettlementCard({ settlement, userId, onSign }: { settlement: Settlement; userId: string | undefined; onSign: (id: string) => void }) {
   const alreadySigned = settlement.signatures.some((s) => s.userId === userId);
+  // Si se eligieron firmantes a mano, solo ellos pueden firmar -- mismo
+  // criterio que /api/settlements/[id]/sign.
+  const canSign = settlement.requiredSigners.length > 0
+    ? settlement.requiredSigners.some((s) => s.userId === userId) && !alreadySigned
+    : !alreadySigned;
   const period = settlement.periodMonth && settlement.periodYear
     ? `${MONTHS[settlement.periodMonth - 1]} ${settlement.periodYear}`
     : null;
+
+  const copySignLink = async () => {
+    const url = `${window.location.origin}/finances/comprobantes/${settlement.id}/firmar`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copiado");
+    } catch {
+      toast.error("No se pudo copiar el link");
+    }
+  };
 
   return (
     <div className="rounded-lg border p-4 space-y-3">
@@ -119,9 +138,22 @@ function SettlementCard({ settlement, userId, onSign }: { settlement: Settlement
 
       {settlement.notes && <p className="text-xs text-muted-foreground">{settlement.notes}</p>}
 
-      <div className="flex items-center justify-between border-t pt-2">
+      <div className="flex items-center justify-between border-t pt-2 gap-2 flex-wrap">
         <div className="flex items-center gap-1.5 flex-wrap">
-          {settlement.signatures.length === 0 ? (
+          {settlement.requiredSigners.length > 0 ? (
+            settlement.requiredSigners.map((s) => {
+              const signed = settlement.signatures.some((sig) => sig.userId === s.userId);
+              return (
+                <Badge
+                  key={s.userId}
+                  variant="outline"
+                  className={`text-[10px] gap-1 ${signed ? "border-green-600/40 text-green-700 dark:text-green-400" : "text-muted-foreground border-dashed"}`}
+                >
+                  {signed ? <Check className="h-2.5 w-2.5" /> : <PenLine className="h-2.5 w-2.5" />} {s.name ?? "Alguien"}
+                </Badge>
+              );
+            })
+          ) : settlement.signatures.length === 0 ? (
             <span className="text-xs text-muted-foreground">Sin firmas todavía</span>
           ) : (
             settlement.signatures.map((s) => (
@@ -131,11 +163,16 @@ function SettlementCard({ settlement, userId, onSign }: { settlement: Settlement
             ))
           )}
         </div>
-        {!alreadySigned && (
-          <Button size="sm" variant="outline" className="cursor-pointer h-7 text-xs" onClick={() => onSign(settlement.id)}>
-            <PenLine className="h-3 w-3 mr-1" /> Firmar
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Button size="sm" variant="ghost" className="cursor-pointer h-7 text-xs" onClick={copySignLink} title="Copiar link para compartir">
+            <Link2 className="h-3 w-3 mr-1" /> Link
           </Button>
-        )}
+          {canSign && (
+            <Button size="sm" variant="outline" className="cursor-pointer h-7 text-xs" onClick={() => onSign(settlement.id)}>
+              <PenLine className="h-3 w-3 mr-1" /> Firmar
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

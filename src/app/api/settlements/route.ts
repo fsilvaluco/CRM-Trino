@@ -7,12 +7,22 @@ import {
   canViewModule,
   canEditModule,
 } from "@/lib/project-roles";
+import { sendEmail, buildSettlementPendingSignatureEmailHtml, isResendEnabled } from "@/lib/resend";
+
+function siteUrl(path: string): string {
+  const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  return `${base}${path}`;
+}
 
 const SETTLEMENT_TYPES = ["regalias", "merch", "otro"] as const;
 type SettlementType = (typeof SETTLEMENT_TYPES)[number];
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapSettlement(row: any, signatures: { userId: string; signedAt: string; name: string | null }[]) {
+function mapSettlement(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  row: any,
+  signatures: { userId: string; signedAt: string; name: string | null }[],
+  requiredSigners: { userId: string; name: string | null }[] = []
+) {
   return {
     id: row.id,
     projectId: row.project_id,
@@ -36,6 +46,8 @@ function mapSettlement(row: any, signatures: { userId: string; signedAt: string;
     notes: row.notes ?? null,
     createdBy: row.created_by,
     createdAt: row.created_at,
+    requiredSignerIds: row.required_signer_ids ?? [],
+    requiredSigners,
     signatures,
   };
 }
@@ -97,7 +109,28 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.json(rows.map((row) => mapSettlement(row, signaturesBySettlement.get(row.id) ?? [])));
+  // Nombres de los firmantes elegidos a mano (todas las filas de una vez).
+  const allSignerIds = Array.from(new Set(rows.flatMap((r) => (r.required_signer_ids ?? []) as string[])));
+  const profileById = new Map<string, { full_name: string | null; email: string | null }>();
+  if (allSignerIds.length > 0) {
+    const { data: profileRows } = await supabase
+      .from("profiles")
+      .select("id, full_name, email")
+      .in("id", allSignerIds);
+    for (const p of (profileRows ?? []) as { id: string; full_name: string | null; email: string | null }[]) {
+      profileById.set(p.id, p);
+    }
+  }
+
+  return NextResponse.json(
+    rows.map((row) => {
+      const requiredSigners = ((row.required_signer_ids ?? []) as string[]).map((userId) => ({
+        userId,
+        name: profileById.get(userId)?.full_name ?? profileById.get(userId)?.email ?? "Alguien",
+      }));
+      return mapSettlement(row, signaturesBySettlement.get(row.id) ?? [], requiredSigners);
+    })
+  );
 }
 
 // POST /api/settlements -- crea una liquidación
@@ -121,6 +154,7 @@ export async function POST(request: NextRequest) {
     payoutProofPath,
     payoutProofName,
     notes,
+    requiredSignerIds,
   } = body as {
     projectId?: string;
     type?: string;
@@ -136,6 +170,7 @@ export async function POST(request: NextRequest) {
     payoutProofPath?: string | null;
     payoutProofName?: string | null;
     notes?: string | null;
+    requiredSignerIds?: string[];
   };
 
   if (!projectId || !allowedProjectIds.includes(projectId)) {
@@ -151,6 +186,19 @@ export async function POST(request: NextRequest) {
   const perm = await getProjectPermissions(supabase, user!.id, projectId);
   if (!canEditModule(perm, "finanzas")) {
     return NextResponse.json({ error: "Tu rol no puede crear liquidaciones en este proyecto" }, { status: 403 });
+  }
+
+  // Solo se puede elegir como firmante a alguien que de verdad tiene
+  // acceso a este proyecto -- nunca un userId arbitrario que mande el
+  // cliente.
+  let validSignerIds: string[] = [];
+  if (requiredSignerIds?.length) {
+    const { data: memberRows } = await supabase
+      .from("project_members")
+      .select("user_id")
+      .eq("project_id", projectId)
+      .in("user_id", requiredSignerIds);
+    validSignerIds = (memberRows ?? []).map((m: { user_id: string }) => m.user_id);
   }
 
   const { data, error: dbError } = await supabase
@@ -172,6 +220,7 @@ export async function POST(request: NextRequest) {
       payout_proof_name: payoutProofName ?? null,
       notes: notes ?? null,
       created_by: user!.id,
+      required_signer_ids: validSignerIds,
     })
     .select()
     .single();
@@ -188,6 +237,33 @@ export async function POST(request: NextRequest) {
     entityName: `${data.type === "regalias" ? "Regalías" : data.type === "merch" ? "Merch" : "Liquidación"} ${data.payer_name} → ${data.payee_name}`,
     projectId: data.project_id,
   });
+
+  // Fire-and-forget: avisar por correo a cada firmante elegido, con link
+  // directo a la pantalla de firma. No bloquea la respuesta ni falla la
+  // creación si el correo no está configurado o algún envío falla.
+  if (validSignerIds.length > 0 && isResendEnabled()) {
+    const { data: signerProfiles } = await supabase
+      .from("profiles")
+      .select("id, full_name, email")
+      .in("id", validSignerIds);
+    const signUrl = siteUrl(`/finances/comprobantes/${data.id}/firmar`);
+    for (const p of (signerProfiles ?? []) as { id: string; full_name: string | null; email: string | null }[]) {
+      if (!p.email) continue;
+      const html = buildSettlementPendingSignatureEmailHtml({
+        signerName: p.full_name,
+        type: data.type,
+        payerName: data.payer_name,
+        payeeName: data.payee_name,
+        sourceAmount: data.source_amount,
+        payoutAmount: data.payout_amount,
+        percentage: Number(data.percentage),
+        signUrl,
+      });
+      sendEmail({ to: p.email, subject: `Nueva liquidación pendiente de firmar -- ${data.payer_name} → ${data.payee_name}`, html }).catch(
+        (err) => console.error("[settlements] fallo enviando aviso de firma a", p.email, err)
+      );
+    }
+  }
 
   return NextResponse.json(mapSettlement(data, []), { status: 201 });
 }
