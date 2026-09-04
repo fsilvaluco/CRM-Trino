@@ -1052,8 +1052,14 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
                   <SelectValue placeholder="Sin definir">
                     {
                       {
-                        trino: "Trino",
-                        trino_nuevo: "Trino Nuevo",
+                        // Valores internos ("trino"/"trino_nuevo") sin
+                        // cambiar -- son el CHECK constraint de
+                        // deals.source ya guardado en tratos existentes
+                        // (migración 058). Solo el label visible es
+                        // genérico ("Sello"), no depende de qué agencia
+                        // opere este CRM.
+                        trino: "Sello",
+                        trino_nuevo: "Sello (cliente nuevo)",
                         artista_antiguo: "Artista (antiguo)",
                         artista_nuevo: "Artista (nuevo)",
                       }[watch("source")]
@@ -1061,8 +1067,8 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="trino">Trino</SelectItem>
-                  <SelectItem value="trino_nuevo">Trino Nuevo</SelectItem>
+                  <SelectItem value="trino">Sello</SelectItem>
+                  <SelectItem value="trino_nuevo">Sello (cliente nuevo)</SelectItem>
                   <SelectItem value="artista_antiguo">Artista (antiguo)</SelectItem>
                   <SelectItem value="artista_nuevo">Artista (nuevo)</SelectItem>
                 </SelectContent>
@@ -1094,7 +1100,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
             if (baseCents == null) {
               return (
                 <p className="text-xs text-muted-foreground">
-                  Comisión ({rate}% Trino / {artistRate}% artista, sobre {baseLabel}): se calculará una vez que
+                  Comisión ({rate}% Sello / {artistRate}% artista, sobre {baseLabel}): se calculará una vez que
                   este trato tenga un evento vinculado con datos financieros.
                 </p>
               );
@@ -1106,7 +1112,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
             const artistCents = baseCents - trinoCents;
             return (
               <p className="text-xs text-muted-foreground">
-                Sobre {baseLabel}: Trino ({rate}%) <span className="font-medium text-foreground">{clp(trinoCents)}</span>
+                Sobre {baseLabel}: Sello ({rate}%) <span className="font-medium text-foreground">{clp(trinoCents)}</span>
                 {" · "}Artista ({artistRate}%) <span className="font-medium text-foreground">{clp(artistCents)}</span>
               </p>
             );

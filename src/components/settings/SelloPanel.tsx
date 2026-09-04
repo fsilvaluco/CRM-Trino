@@ -79,7 +79,7 @@ export function SelloPanel() {
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
         Si <span className="font-medium">{activeProject.name}</span> es un artista que depende de una
-        agencia/sello (ej. Gamuza depende de Trino), elígelo aquí. Sus tratos y tareas van a seguir
+        agencia/sello, elígelo aquí. Sus tratos y tareas van a seguir
         gestionándose desde el sello, pero {activeProject.name} también los va a ver.
       </p>
 

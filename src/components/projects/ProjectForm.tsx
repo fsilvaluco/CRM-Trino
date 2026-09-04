@@ -199,7 +199,7 @@ export function ProjectForm({ open, onClose, initialData }: ProjectFormProps) {
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Si este proyecto es un artista gestionado por una agencia (ej: Trino), selecciona
+              Si este proyecto es un artista gestionado por un sello o agencia, selecciona
               cual. Sus tratos y tareas quedaran visibles en el pipeline del sello.
             </p>
           </div>
@@ -216,7 +216,7 @@ export function ProjectForm({ open, onClose, initialData }: ProjectFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="project-commission-rate">Comisión Trino por defecto (%)</Label>
+            <Label htmlFor="project-commission-rate">Comisión del sello por defecto (%)</Label>
             <Input
               id="project-commission-rate"
               type="number"
