@@ -29,7 +29,9 @@ import { useAuth } from "@/lib/auth-context";
 import { useProject } from "@/lib/project-context";
 import { SignedFileLink } from "@/components/finances/SignedFileLink";
 
-const EXPENSE_CATEGORIES = [
+// Exportadas -- BulkReceiptDialog (carga masiva) usa la misma lista de
+// categorías para que ambos formularios queden consistentes.
+export const EXPENSE_CATEGORIES = [
   "Transporte", "Alimentación", "Equipamiento", "Producción",
   "Marketing", "Servicios", "Arriendo",
   // Producción musical (masters/singles/LP) -- agregadas 19 ago 2026 para
@@ -38,7 +40,7 @@ const EXPENSE_CATEGORIES = [
   "Pago de préstamo",
   "Otro",
 ];
-const INCOME_CATEGORIES = ["Venta", "Patrocinio", "Subsidio", "Transferencia", "Préstamo", "Otro"];
+export const INCOME_CATEGORIES = ["Venta", "Patrocinio", "Subsidio", "Transferencia", "Préstamo", "Otro"];
 
 const schema = z.object({
   type: z.enum(["income", "expense"]),
@@ -73,8 +75,9 @@ interface InitialTransaction {
 
 // Convierte un File a base64 puro (sin el prefijo data:...;base64,) --
 // mismo helper que AttachReceiptDialog, para mandarlo a
-// /api/finances/match-receipt y leer el comprobante con IA.
-function fileToBase64(file: File): Promise<string> {
+// /api/finances/match-receipt y leer el comprobante con IA. Exportado --
+// BulkReceiptDialog (carga masiva) lo reusa para no duplicarlo otra vez.
+export function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {

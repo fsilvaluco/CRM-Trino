@@ -6,10 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
-  Plus, FileText, ExternalLink, Check, Trash2, Loader2, TrendingUp, TrendingDown, DollarSign, User, Pencil, Sparkles
+  Plus, FileText, ExternalLink, Check, Trash2, Loader2, TrendingUp, TrendingDown, DollarSign, User, Pencil, Sparkles, Layers
 } from "lucide-react";
 import { TransactionForm } from "@/components/finances/TransactionForm";
 import { AttachReceiptDialog } from "@/components/finances/AttachReceiptDialog";
+import { BulkReceiptDialog } from "@/components/finances/BulkReceiptDialog";
 import { useProject } from "@/lib/project-context";
 import { useAuth } from "@/lib/auth-context";
 import { format } from "date-fns";
@@ -192,6 +193,7 @@ export default function FinancesPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [showAttachReceipt, setShowAttachReceipt] = useState(false);
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
 
   const loadTransactions = useCallback(async () => {
     setLoading(true);
@@ -283,6 +285,22 @@ export default function FinancesPage() {
           >
             <Sparkles className="h-4 w-4 mr-2" />
             Adjuntar comprobante (IA)
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (isAllProjects) {
+                toast.warning("Selecciona un proyecto para hacer una carga masiva");
+                return;
+              }
+              setShowBulkUpload(true);
+            }}
+            className="cursor-pointer"
+            disabled={isAllProjects}
+            title={isAllProjects ? "Selecciona un proyecto para hacer una carga masiva" : undefined}
+          >
+            <Layers className="h-4 w-4 mr-2" />
+            Carga masiva
           </Button>
           <Button
             onClick={() => {
@@ -388,6 +406,13 @@ export default function FinancesPage() {
       <AttachReceiptDialog
         open={showAttachReceipt}
         onClose={() => setShowAttachReceipt(false)}
+        onDone={loadTransactions}
+        projectId={activeProjectId}
+      />
+
+      <BulkReceiptDialog
+        open={showBulkUpload}
+        onClose={() => setShowBulkUpload(false)}
         onDone={loadTransactions}
         projectId={activeProjectId}
       />
