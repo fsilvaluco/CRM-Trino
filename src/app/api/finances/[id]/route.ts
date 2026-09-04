@@ -75,6 +75,12 @@ export async function PUT(
   if (body.description !== undefined) {
     updates.description = body.description ?? null;
   }
+  if (body.emisor !== undefined) {
+    updates.emisor = body.emisor ?? null;
+  }
+  if (body.receptor !== undefined) {
+    updates.receptor = body.receptor ?? null;
+  }
   if (body.category !== undefined) {
     updates.category = body.category ?? null;
   }

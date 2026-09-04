@@ -242,9 +242,13 @@ export interface ReceiptExtraction {
   amount: number | null;
   vendor: string | null;
   description: string | null;
+  /** Quién envió/pagó la plata (persona/cuenta de origen). null si no aplica o no se puede leer. */
+  payer: string | null;
+  /** Fecha del comprobante en formato ISO (yyyy-mm-dd). null si no se puede leer. */
+  date: string | null;
 }
 
-const FALLBACK_RECEIPT: ReceiptExtraction = { amount: null, vendor: null, description: null };
+const FALLBACK_RECEIPT: ReceiptExtraction = { amount: null, vendor: null, description: null, payer: null, date: null };
 
 const RECEIPT_SCHEMA = {
   name: "receipt_extraction",
@@ -255,8 +259,10 @@ const RECEIPT_SCHEMA = {
       amount: { type: ["number", "null"] },
       vendor: { type: ["string", "null"] },
       description: { type: ["string", "null"] },
+      payer: { type: ["string", "null"] },
+      date: { type: ["string", "null"] },
     },
-    required: ["amount", "vendor", "description"],
+    required: ["amount", "vendor", "description", "payer", "date"],
     additionalProperties: false,
   },
 };
@@ -265,13 +271,15 @@ const RECEIPT_PROMPT = `Este es un comprobante de un gasto (boleta, factura, rec
 
 Extrae:
 - "amount": el MONTO TOTAL pagado (el total final, no un subtotal ni un ítem individual dentro del comprobante). Como número, sin símbolo de moneda ni puntos/comas de miles (ej. $45.000 -> 45000).
-- "vendor": a quién se le pagó -- el proveedor, comercio o persona que RECIBIÓ la plata.
+- "vendor" (Receptor): a quién se le pagó -- el proveedor, comercio o persona que RECIBIÓ la plata.
+- "payer" (Emisor): quién envió/pagó la plata -- la persona o cuenta de ORIGEN. Si es una boleta/factura de un comercio (no una transferencia entre personas), normalmente no hay emisor identificable -- usa null.
+- "date": la fecha del comprobante (de la transacción/pago, no la fecha en que se sube), en formato ISO "yyyy-mm-dd". Si no se puede leer con certeza, null.
 - "description": una descripción corta de qué es el gasto, si se puede inferir (ej. "Arriendo de sonido", "Transporte equipo"). Si no se puede inferir nada razonable, null.
 
-Reglas para "vendor":
-- Si es un COMPROBANTE DE TRANSFERENCIA (tiene "Origen" y "Destino", o "De"/"Para", dos cuentas bancarias): "vendor" es SIEMPRE la persona/cuenta de DESTINO (quien recibe la plata) -- NUNCA la persona de origen (quien envía/paga), aunque el origen aparezca primero o más destacado en el comprobante.
-- Si es una boleta/factura de un comercio: "vendor" es el comercio que emitió el documento.
-- Nunca uses como "vendor" a quien está pagando/enviando el dinero.
+Reglas para "vendor" (Receptor) y "payer" (Emisor):
+- Si es un COMPROBANTE DE TRANSFERENCIA (tiene "Origen" y "Destino", o "De"/"Para", dos cuentas bancarias): "vendor" es SIEMPRE la persona/cuenta de DESTINO (quien recibe la plata), y "payer" es SIEMPRE la persona/cuenta de ORIGEN (quien envía) -- nunca los confundas, aunque el origen aparezca primero o más destacado en el comprobante.
+- Si es una boleta/factura de un comercio: "vendor" es el comercio que emitió el documento, y "payer" es null (salvo que el documento identifique explícitamente a quién se le cobró).
+- Nunca uses como "vendor" a quien está pagando/enviando el dinero, ni como "payer" a quien lo recibió.
 
 Reglas para "amount":
 - Si el monto total no se puede leer con certeza, usa null -- nunca inventes un número.

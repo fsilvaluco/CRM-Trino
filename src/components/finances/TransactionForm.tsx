@@ -23,7 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Upload, Loader2, File, X, ExternalLink } from "lucide-react";
+import { Upload, Loader2, File, X, ExternalLink, Sparkles } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth-context";
 import { useProject } from "@/lib/project-context";
@@ -43,7 +43,9 @@ const INCOME_CATEGORIES = ["Venta", "Patrocinio", "Subsidio", "Transferencia", "
 const schema = z.object({
   type: z.enum(["income", "expense"]),
   amount: z.string().min(1, "Ingresa un monto"),
-  description: z.string().min(1, "Agrega una descripción"),
+  description: z.string().min(1, "Agrega una glosa o comentario"),
+  emisor: z.string().optional(),
+  receptor: z.string().optional(),
   category: z.string().min(1, "Selecciona una categoría"),
   transactionDate: z.string().optional(),
   responsibleExternal: z.string().optional(), // Nombre de otra persona si el gasto lo pagó alguien más
@@ -57,6 +59,8 @@ interface InitialTransaction {
   type: "income" | "expense";
   amount: number;
   description: string | null;
+  emisor: string | null;
+  receptor: string | null;
   category: string | null;
   transactionDate: string | null;
   responsibleUserId: string | null;
@@ -65,6 +69,21 @@ interface InitialTransaction {
   filePath: string | null;
   fileUrl: string | null;
   fileName: string | null;
+}
+
+// Convierte un File a base64 puro (sin el prefijo data:...;base64,) --
+// mismo helper que AttachReceiptDialog, para mandarlo a
+// /api/finances/match-receipt y leer el comprobante con IA.
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result.split(",")[1] ?? "");
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 interface TransactionFormProps {
@@ -79,6 +98,7 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
   const { activeProject } = useProject();
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
 
   const isEditMode = !!initialData;
 
@@ -95,6 +115,8 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
       type: "expense",
       amount: "",
       description: "",
+      emisor: "",
+      receptor: "",
       category: "",
       transactionDate: "",
       responsibleExternal: "",
@@ -108,6 +130,8 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
       setValue("type", initialData.type);
       setValue("amount", initialData.amount.toString());
       setValue("description", initialData.description ?? "");
+      setValue("emisor", initialData.emisor ?? "");
+      setValue("receptor", initialData.receptor ?? "");
       setValue("category", initialData.category ?? "");
       setValue("transactionDate", initialData.transactionDate ?? "");
       setValue("reimbursed", initialData.reimbursed);
@@ -128,11 +152,54 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
   const watchedReimbursed = watch("reimbursed");
   const categories = watchedType === "expense" ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
     if (f.size > 10 * 1024 * 1024) { toast.error("El archivo no puede superar 10 MB"); return; }
     setFile(f);
+    await analyzeWithAI(f);
+  };
+
+  // Lee el comprobante con IA y autocompleta el formulario -- mismo
+  // extractor que ya usa "Adjuntar comprobante (IA)" (ver
+  // /api/finances/match-receipt), solo que acá se ignoran los candidatos
+  // (esto crea un comprobante nuevo, no busca uno existente para pegarle
+  // el archivo). Nunca falla el flujo si la IA no está disponible o no
+  // logra leer algo -- solo no autocompleta, se sigue a mano.
+  const analyzeWithAI = async (f: File) => {
+    setAnalyzing(true);
+    try {
+      const isPdf = f.type === "application/pdf";
+      const base64 = await fileToBase64(f);
+      const res = await fetch("/api/finances/match-receipt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          isPdf
+            ? { mode: "pdf", pdfBase64: base64 }
+            : { mode: "image", imageBase64: base64, mediaType: f.type || "image/jpeg" }
+        ),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) return; // sin IA configurada, o falló la lectura -- se sigue a mano
+      const extraction = body.extraction as {
+        amount: number | null; vendor: string | null; payer: string | null; date: string | null; description: string | null;
+      } | undefined;
+      if (!extraction) return;
+
+      if (extraction.amount) setValue("amount", String(extraction.amount));
+      if (extraction.date) setValue("transactionDate", extraction.date);
+      if (extraction.payer) setValue("emisor", extraction.payer);
+      if (extraction.vendor) setValue("receptor", extraction.vendor);
+      if (extraction.description) setValue("description", extraction.description);
+      if (extraction.amount || extraction.date || extraction.payer || extraction.vendor || extraction.description) {
+        toast.success("Comprobante leído -- revisa los datos antes de guardar");
+      }
+    } catch {
+      // silencioso -- la lectura con IA es un extra, no un requisito
+    } finally {
+      setAnalyzing(false);
+    }
   };
 
   const onSubmit = async (data: FormData) => {
@@ -195,6 +262,8 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
             type: data.type,
             amount,
             description: data.description,
+            emisor: data.emisor || null,
+            receptor: data.receptor || null,
             category: data.category,
             transactionDate: data.transactionDate || null,
             responsibleUserId,
@@ -218,6 +287,8 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
             type: data.type,
             amount,
             description: data.description,
+            emisor: data.emisor || null,
+            receptor: data.receptor || null,
             category: data.category,
             responsibleName,
             responsibleUserId,
@@ -290,9 +361,23 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
             <p className="text-xs text-muted-foreground">Cuándo ocurrió realmente el gasto (puede diferir de hoy)</p>
           </div>
 
-          {/* Descripción */}
+          {/* Emisor / Receptor -- separado de la glosa libre, se pueden
+              llenar a mano o autocompletar leyendo el comprobante con IA
+              (ver Comprobante más abajo). */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1.5">
+              <Label>Emisor</Label>
+              <Input {...register("emisor")} placeholder="Quién envió/pagó" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Receptor</Label>
+              <Input {...register("receptor")} placeholder="Quién recibió" />
+            </div>
+          </div>
+
+          {/* Glosa / comentario */}
           <div className="space-y-1.5">
-            <Label>Descripción *</Label>
+            <Label>Glosa o comentario *</Label>
             <Textarea {...register("description")} placeholder="¿En qué se gastó / de dónde vino?" rows={2} />
             {errors.description && <p className="text-xs text-destructive">{errors.description.message}</p>}
           </div>
@@ -349,11 +434,13 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
               <Label>Comprobante (opcional)</Label>
               {file ? (
                 <div className="flex items-center gap-2 p-2.5 rounded-lg border bg-muted/30">
-                  <File className="h-4 w-4 text-muted-foreground shrink-0" />
+                  {analyzing ? <Loader2 className="h-4 w-4 text-muted-foreground shrink-0 animate-spin" /> : <File className="h-4 w-4 text-muted-foreground shrink-0" />}
                   <span className="text-sm flex-1 truncate">{file.name}</span>
-                  <button type="button" onClick={() => setFile(null)} className="cursor-pointer text-muted-foreground hover:text-destructive">
-                    <X className="h-4 w-4" />
-                  </button>
+                  {!analyzing && (
+                    <button type="button" onClick={() => setFile(null)} className="cursor-pointer text-muted-foreground hover:text-destructive">
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               ) : (
                 <label className="flex flex-col items-center gap-2 p-6 rounded-lg border-2 border-dashed border-muted-foreground/30 hover:border-muted-foreground/50 transition-colors cursor-pointer">
@@ -365,6 +452,10 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
                   <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={handleFileChange} />
                 </label>
               )}
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Sparkles className="h-3 w-3" />
+                {analyzing ? "Leyendo el comprobante con IA..." : "Al subirlo intentamos completar monto, fecha, emisor, receptor y glosa -- siempre revisa antes de guardar."}
+              </p>
             </div>
           )}
 

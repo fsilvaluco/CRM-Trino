@@ -19,6 +19,12 @@ function mapTransaction(row: any, veIngresos: boolean) {
     amount: veIngresos ? row.amount : null,
     currency: row.currency ?? "CLP",
     description: row.description ?? null,
+    // Quién envió/recibió la plata -- separado de la descripción libre,
+    // llenado a mano o autocompletado leyendo el comprobante con IA (ver
+    // /api/finances/match-receipt, mismo extractor ya usado por "Adjuntar
+    // comprobante (IA)").
+    emisor: row.emisor ?? null,
+    receptor: row.receptor ?? null,
     category: row.category ?? null,
     filePath: row.file_path ?? null,  // storage path, not public URL (legacy -- ver attachments)
     fileUrl: row.file_url ?? null,    // signed URL (populada al leer)
@@ -140,7 +146,7 @@ export async function POST(request: NextRequest) {
   if (error) return error;
 
   const body = await request.json();
-  const { type, amount, currency = "CLP", description, category, filePath, fileName, responsibleUserId, responsibleName, reimbursed, transactionDate, projectId } = body;
+  const { type, amount, currency = "CLP", description, emisor, receptor, category, filePath, fileName, responsibleUserId, responsibleName, reimbursed, transactionDate, projectId } = body;
 
   if (!type || !["income", "expense"].includes(type)) {
     return NextResponse.json({ error: "type debe ser 'income' o 'expense'" }, { status: 400 });
@@ -170,6 +176,8 @@ export async function POST(request: NextRequest) {
       amount: Math.round(Number(amount)),
       currency,
       description: description ?? null,
+      emisor: emisor ?? null,
+      receptor: receptor ?? null,
       category: category ?? null,
       file_path: filePath ?? null,         // storage path
       file_url: null,                       // not stored, generated at read time

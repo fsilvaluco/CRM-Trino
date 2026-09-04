@@ -21,6 +21,8 @@ interface Transaction {
   amount: number;
   currency: string;
   description: string | null;
+  emisor: string | null;
+  receptor: string | null;
   category: string | null;
   filePath: string | null;
   fileUrl: string | null;
@@ -370,6 +372,8 @@ export default function FinancesPage() {
           type: editingTransaction.type,
           amount: editingTransaction.amount,
           description: editingTransaction.description,
+          emisor: editingTransaction.emisor,
+          receptor: editingTransaction.receptor,
           category: editingTransaction.category,
           transactionDate: editingTransaction.transactionDate,
           responsibleUserId: editingTransaction.responsibleUserId ?? null,
