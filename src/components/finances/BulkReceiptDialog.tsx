@@ -8,7 +8,7 @@
 // tanda -- más que eso se vuelve difícil de revisar de un vistazo y
 // empieza a acercarse al límite general de la API (60 req/min por IP).
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -70,6 +70,15 @@ export function BulkReceiptDialog({
   const [rows, setRows] = useState<DraftRow[]>([]);
   const [saving, setSaving] = useState(false);
   const [savedCount, setSavedCount] = useState(0);
+  const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const scrollToRow = (localId: string) => {
+    const el = rowRefs.current[localId];
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("ring-2", "ring-destructive");
+    window.setTimeout(() => el.classList.remove("ring-2", "ring-destructive"), 1500);
+  };
 
   const updateRow = (localId: string, patch: Partial<DraftRow>) => {
     setRows((prev) => prev.map((r) => (r.localId === localId ? { ...r, ...patch } : r)));
@@ -156,8 +165,18 @@ export function BulkReceiptDialog({
 
   const categoriesFor = (type: TxType) => (type === "expense" ? EXPENSE_CATEGORIES : INCOME_CATEGORIES);
 
+  const rowMissingAmount = (r: DraftRow) => !(Number(r.amount) > 0);
+  const rowMissingCategory = (r: DraftRow) => !r.category;
+  const rowIsIncomplete = (r: DraftRow) => rowMissingAmount(r) || rowMissingCategory(r);
+
   const readyRows = rows.filter((r) => r.status !== "saving" && r.status !== "saved");
-  const canSave = readyRows.length > 0 && readyRows.every((r) => Number(r.amount) > 0 && r.category);
+  // Filas todavía leyéndose con IA no cuentan como "incompletas" para el
+  // resumen (son transitorias) pero SÍ bloquean el guardado -- listarlas
+  // aparte evita un resumen confuso tipo "falta monto" en una fila que en
+  // realidad solo está esperando la lectura.
+  const stillReading = readyRows.some((r) => r.status === "reading");
+  const incompleteRows = readyRows.filter((r) => r.status !== "reading" && rowIsIncomplete(r));
+  const canSave = readyRows.length > 0 && !stillReading && incompleteRows.length === 0;
 
   const handleSaveAll = async () => {
     if (!projectId || !user) return;
@@ -261,7 +280,11 @@ export function BulkReceiptDialog({
 
             <div className="space-y-2">
               {rows.map((row) => (
-                <div key={row.localId} className="rounded-lg border p-3 space-y-2">
+                <div
+                  key={row.localId}
+                  ref={(el) => { rowRefs.current[row.localId] = el; }}
+                  className="rounded-lg border p-3 space-y-2 scroll-mt-4"
+                >
                   <div className="flex items-center gap-2">
                     {row.file.type.startsWith("image/") ? (
                       <button
@@ -318,22 +341,36 @@ export function BulkReceiptDialog({
                           <SelectItem value="income">Ingreso</SelectItem>
                         </SelectContent>
                       </Select>
-                      <MoneyInput
-                        className="h-8 text-xs" disabled={row.status === "saving"}
-                        value={row.amount} onChange={(v) => updateRow(row.localId, { amount: v })}
-                      />
+                      <div>
+                        <MoneyInput
+                          className={`h-8 text-xs ${row.status !== "reading" && rowMissingAmount(row) ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                          disabled={row.status === "saving"}
+                          value={row.amount} onChange={(v) => updateRow(row.localId, { amount: v })}
+                        />
+                        {row.status !== "reading" && rowMissingAmount(row) && (
+                          <p className="text-[10px] text-destructive mt-0.5">Falta el monto</p>
+                        )}
+                      </div>
                       <Input
                         className="h-8 text-xs" type="date" disabled={row.status === "saving"}
                         value={row.transactionDate} onChange={(e) => updateRow(row.localId, { transactionDate: e.target.value })}
                       />
-                      <Select value={row.category || undefined} onValueChange={(v) => v && updateRow(row.localId, { category: v })}>
-                        <SelectTrigger className="h-8 text-xs cursor-pointer" disabled={row.status === "saving"}>
-                          <SelectValue placeholder="Categoría">{row.category || undefined}</SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {categoriesFor(row.type).map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      <div>
+                        <Select value={row.category || undefined} onValueChange={(v) => v && updateRow(row.localId, { category: v })}>
+                          <SelectTrigger
+                            className={`h-8 text-xs cursor-pointer w-full ${row.status !== "reading" && rowMissingCategory(row) ? "border-destructive" : ""}`}
+                            disabled={row.status === "saving"}
+                          >
+                            <SelectValue placeholder="Categoría">{row.category || undefined}</SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {categoriesFor(row.type).map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        {row.status !== "reading" && rowMissingCategory(row) && (
+                          <p className="text-[10px] text-destructive mt-0.5">Falta la categoría</p>
+                        )}
+                      </div>
                       <Input
                         className="h-8 text-xs" placeholder="Emisor" disabled={row.status === "saving"}
                         value={row.emisor} onChange={(e) => updateRow(row.localId, { emisor: e.target.value })}
@@ -368,10 +405,31 @@ export function BulkReceiptDialog({
             </Button>
           </DialogFooter>
         )}
-        {!canSave && rows.length > 0 && !saving && (
+        {!saving && stillReading && (
           <p className="text-xs text-muted-foreground text-right -mt-2">
-            Falta monto o categoría en alguna fila -- complétalos para poder guardar.
+            Esperando a que la IA termine de leer los archivos...
           </p>
+        )}
+        {!saving && !stillReading && incompleteRows.length > 0 && (
+          <div className="text-xs text-right -mt-2 space-y-1">
+            <p className="text-destructive font-medium">
+              Falta completar {incompleteRows.length} comprobante{incompleteRows.length === 1 ? "" : "s"}:
+            </p>
+            <div className="flex flex-wrap justify-end gap-x-1 gap-y-0.5">
+              {incompleteRows.map((r, i) => (
+                <span key={r.localId}>
+                  <button
+                    type="button"
+                    onClick={() => scrollToRow(r.localId)}
+                    className="cursor-pointer text-destructive underline underline-offset-2 hover:opacity-80"
+                  >
+                    {r.file.name} ({[rowMissingAmount(r) && "monto", rowMissingCategory(r) && "categoría"].filter(Boolean).join(" y ")})
+                  </button>
+                  {i < incompleteRows.length - 1 ? "," : ""}
+                </span>
+              ))}
+            </div>
+          </div>
         )}
       </DialogContent>
     </Dialog>
