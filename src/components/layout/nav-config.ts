@@ -30,6 +30,7 @@ import {
   Link2,
   History,
   FileCheck2,
+  KeyRound,
 } from "lucide-react";
 import { type LucideIcon } from "lucide-react";
 
@@ -159,6 +160,13 @@ export const settingsConfig: NavLeaf[] = [
     icon: ShieldCheck,
     adminOnly: true,
     managesTeamOnly: true,
+  },
+  {
+    type: "leaf",
+    href: "/settings/permissions",
+    label: "Panel de Permisos",
+    icon: KeyRound,
+    adminOnly: true,
   },
   {
     type: "leaf",

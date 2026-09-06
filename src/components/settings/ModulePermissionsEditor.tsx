@@ -14,9 +14,9 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Save } from "lucide-react";
 
-type ModuleKey = "contactos" | "empresas" | "deals" | "tareas" | "eventos" | "campanas" | "finanzas";
+export type ModuleKey = "contactos" | "empresas" | "deals" | "tareas" | "eventos" | "campanas" | "finanzas";
 
-interface ModulePermission {
+export interface ModulePermission {
   puedeVer: boolean;
   puedeEditar: boolean;
   puedeEliminar: boolean;
@@ -45,12 +45,30 @@ function hasMoneyColumns(module: ModuleKey): boolean {
   return module === "deals" || module === "eventos";
 }
 
-export function ModulePermissionsEditor({ projectId, userId }: { projectId: string; userId: string }) {
-  const [modules, setModules] = useState<Record<ModuleKey, ModulePermission> | null>(null);
-  const [loading, setLoading] = useState(true);
+export interface ModulePermissionsEditorProps {
+  projectId: string;
+  userId: string;
+  /**
+   * Si viene seteado, edita esta fila de project_members vía las rutas
+   * /api/admin/project-members/permissions (autorizado por ser
+   * Propietario/Admin de la organización, sin necesidad de ser miembro de
+   * ESE proyecto) en vez de /api/project-members/permissions (autorizado
+   * por gestionar equipo en ese proyecto puntual). Ver Panel de Permisos
+   * (Prioridad "intranet").
+   */
+  adminProjectMemberId?: string;
+  /** Matriz ya conocida (ej. el Panel de Permisos ya la trae de una sola
+   * carga general) -- evita el GET individual si viene seteada. */
+  initialModules?: Record<ModuleKey, ModulePermission>;
+}
+
+export function ModulePermissionsEditor({ projectId, userId, adminProjectMemberId, initialModules }: ModulePermissionsEditorProps) {
+  const [modules, setModules] = useState<Record<ModuleKey, ModulePermission> | null>(initialModules ?? null);
+  const [loading, setLoading] = useState(!initialModules);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    if (initialModules) return;
     let cancelled = false;
     setLoading(true);
     fetch(`/api/project-members/permissions?projectId=${projectId}&userId=${userId}`)
@@ -63,6 +81,7 @@ export function ModulePermissionsEditor({ projectId, userId }: { projectId: stri
       .catch(() => { if (!cancelled) toast.error("No se pudo cargar la matriz de permisos"); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, userId]);
 
   const toggle = (module: ModuleKey, field: keyof ModulePermission, value: boolean) => {
@@ -85,11 +104,17 @@ export function ModulePermissionsEditor({ projectId, userId }: { projectId: stri
     if (!modules) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/project-members/permissions", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, userId, modules }),
-      });
+      const res = adminProjectMemberId
+        ? await fetch("/api/admin/project-members/permissions", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ projectMemberId: adminProjectMemberId, modules }),
+          })
+        : await fetch("/api/project-members/permissions", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ projectId, userId, modules }),
+          });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         toast.error(data.error ?? "No se pudo guardar la matriz de permisos");
