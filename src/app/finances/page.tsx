@@ -1,12 +1,17 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
-  Plus, FileText, ExternalLink, Check, Trash2, Loader2, TrendingUp, TrendingDown, DollarSign, User, Pencil, Sparkles, Layers
+  Plus, FileText, ExternalLink, Check, Trash2, Loader2, TrendingUp, TrendingDown, DollarSign, User, Pencil, Sparkles, Layers, Filter, X
 } from "lucide-react";
 import { TransactionForm } from "@/components/finances/TransactionForm";
 import { AttachReceiptDialog } from "@/components/finances/AttachReceiptDialog";
@@ -40,6 +45,20 @@ interface Transaction {
 
 function formatCLP(amount: number) {
   return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(amount);
+}
+
+// Fecha real de la transacción para ordenar/filtrar: la del gasto si se
+// cargó, si no la de creación del registro (mismo criterio que ya usa
+// TransactionList para mostrarla).
+function effectiveDate(t: Transaction): Date {
+  if (t.transactionDate) return new Date(t.transactionDate);
+  return typeof t.createdAt === "number"
+    ? new Date(t.createdAt < 1e12 ? t.createdAt * 1000 : t.createdAt)
+    : new Date(t.createdAt);
+}
+
+function toDateInputValue(d: Date): string {
+  return d.toISOString().slice(0, 10);
 }
 
 function TransactionList({
@@ -194,6 +213,12 @@ export default function FinancesPage() {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [showAttachReceipt, setShowAttachReceipt] = useState(false);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterEmisor, setFilterEmisor] = useState("");
+  const [filterReceptor, setFilterReceptor] = useState("");
+  const [filterCategory, setFilterCategory] = useState("");
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
 
   const loadTransactions = useCallback(async () => {
     setLoading(true);
@@ -252,8 +277,44 @@ export default function FinancesPage() {
     await loadTransactions();
   };
 
-  const incomes = transactions.filter((t) => t.type === "income");
-  const expenses = transactions.filter((t) => t.type === "expense");
+  // Categorías presentes en los datos reales (no la lista fija de
+  // TransactionForm) -- así el filtro solo ofrece lo que de verdad se usó.
+  const categoryOptions = useMemo(
+    () => Array.from(new Set(transactions.map((t) => t.category).filter((c): c is string => Boolean(c)))).sort(),
+    [transactions]
+  );
+  const emisorOptions = useMemo(
+    () => Array.from(new Set(transactions.map((t) => t.emisor).filter((v): v is string => Boolean(v)))).sort(),
+    [transactions]
+  );
+  const receptorOptions = useMemo(
+    () => Array.from(new Set(transactions.map((t) => t.receptor).filter((v): v is string => Boolean(v)))).sort(),
+    [transactions]
+  );
+
+  const hasActiveFilters = Boolean(filterEmisor || filterReceptor || filterCategory || filterDateFrom || filterDateTo);
+  const clearFilters = () => {
+    setFilterEmisor(""); setFilterReceptor(""); setFilterCategory(""); setFilterDateFrom(""); setFilterDateTo("");
+  };
+
+  // Filtrado + orden por fecha (más reciente primero) -- se aplica antes
+  // de separar por tipo, así KPIs y pestañas reflejan siempre lo filtrado.
+  const filteredTransactions = useMemo(() => {
+    return transactions
+      .filter((t) => {
+        if (filterEmisor && !(t.emisor ?? "").toLowerCase().includes(filterEmisor.toLowerCase())) return false;
+        if (filterReceptor && !(t.receptor ?? "").toLowerCase().includes(filterReceptor.toLowerCase())) return false;
+        if (filterCategory && t.category !== filterCategory) return false;
+        const dateStr = toDateInputValue(effectiveDate(t));
+        if (filterDateFrom && dateStr < filterDateFrom) return false;
+        if (filterDateTo && dateStr > filterDateTo) return false;
+        return true;
+      })
+      .sort((a, b) => effectiveDate(b).getTime() - effectiveDate(a).getTime());
+  }, [transactions, filterEmisor, filterReceptor, filterCategory, filterDateFrom, filterDateTo]);
+
+  const incomes = filteredTransactions.filter((t) => t.type === "income");
+  const expenses = filteredTransactions.filter((t) => t.type === "expense");
   const totalIncome = incomes.reduce((s, t) => s + t.amount, 0);
   const totalExpense = expenses.reduce((s, t) => s + t.amount, 0);
   const balance = totalIncome - totalExpense;
@@ -270,6 +331,14 @@ export default function FinancesPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant={hasActiveFilters ? "default" : "outline"}
+            onClick={() => setShowFilters((v) => !v)}
+            className="cursor-pointer"
+          >
+            <Filter className="h-4 w-4 mr-2" />
+            Filtros{hasActiveFilters ? ` (${[filterEmisor, filterReceptor, filterCategory, filterDateFrom, filterDateTo].filter(Boolean).length})` : ""}
+          </Button>
           <Button
             variant="outline"
             onClick={() => {
@@ -320,6 +389,69 @@ export default function FinancesPage() {
         </div>
       </div>
 
+      {/* Filtros -- tipo tabla dinámica: emisor/receptor (texto libre con
+          sugerencias de lo ya cargado), categoría, rango de fecha. Se
+          aplican sobre la fecha efectiva (la del gasto, o si no la de
+          creación) antes de separar por tipo, así KPIs/pestañas siempre
+          reflejan lo filtrado. */}
+      {showFilters && (
+        <div className="rounded-xl border bg-card p-4 grid grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Emisor</Label>
+            <Input
+              list="finances-emisor-options"
+              value={filterEmisor}
+              onChange={(e) => setFilterEmisor(e.target.value)}
+              placeholder="Quién envió"
+              className="h-9"
+            />
+            <datalist id="finances-emisor-options">
+              {emisorOptions.map((v) => <option key={v} value={v} />)}
+            </datalist>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Receptor</Label>
+            <Input
+              list="finances-receptor-options"
+              value={filterReceptor}
+              onChange={(e) => setFilterReceptor(e.target.value)}
+              placeholder="Quién recibió"
+              className="h-9"
+            />
+            <datalist id="finances-receptor-options">
+              {receptorOptions.map((v) => <option key={v} value={v} />)}
+            </datalist>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Categoría</Label>
+            <Select value={filterCategory || "__all__"} onValueChange={(v) => setFilterCategory(!v || v === "__all__" ? "" : v)}>
+              <SelectTrigger className="h-9 cursor-pointer w-full">
+                <SelectValue>{filterCategory || "Todas"}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">Todas</SelectItem>
+                {categoryOptions.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Desde</Label>
+            <Input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="h-9" />
+          </div>
+          <div className="space-y-1.5 flex gap-2">
+            <div className="flex-1 space-y-1.5">
+              <Label className="text-xs">Hasta</Label>
+              <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="h-9" />
+            </div>
+            {hasActiveFilters && (
+              <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 cursor-pointer text-muted-foreground hover:text-destructive" title="Limpiar filtros" onClick={clearFilters}>
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="rounded-xl border bg-card p-4">
@@ -357,7 +489,7 @@ export default function FinancesPage() {
       ) : (
         <Tabs defaultValue="all">
           <TabsList>
-            <TabsTrigger value="all">Todos ({transactions.length})</TabsTrigger>
+            <TabsTrigger value="all">Todos ({filteredTransactions.length})</TabsTrigger>
             <TabsTrigger value="expense">Gastos ({expenses.length})</TabsTrigger>
             <TabsTrigger value="income">Ingresos ({incomes.length})</TabsTrigger>
             {pendingReimbursements.length > 0 && (
@@ -367,7 +499,7 @@ export default function FinancesPage() {
             )}
           </TabsList>
           <TabsContent value="all" className="mt-4">
-            <TransactionList transactions={transactions} onEdit={handleEdit} onReimburse={handleReimburse} onDelete={handleDelete} />
+            <TransactionList transactions={filteredTransactions} onEdit={handleEdit} onReimburse={handleReimburse} onDelete={handleDelete} />
           </TabsContent>
           <TabsContent value="expense" className="mt-4">
             <TransactionList transactions={expenses} onEdit={handleEdit} onReimburse={handleReimburse} onDelete={handleDelete} />
