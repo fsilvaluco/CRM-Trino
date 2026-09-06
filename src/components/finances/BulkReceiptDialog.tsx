@@ -11,6 +11,7 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -45,6 +46,10 @@ interface DraftRow {
   receptor: string;
   description: string;
   category: string;
+  /** "Por pagar" -- si está marcado, la fila queda Pendiente aunque
+   * siempre traiga comprobante (ej. facturas/cotizaciones que todavía no
+   * se pagan, no proof de un pago ya hecho). */
+  pendingPayment: boolean;
 }
 
 async function mapWithConcurrency<T>(items: T[], limit: number, fn: (item: T, index: number) => Promise<void>) {
@@ -125,6 +130,7 @@ export function BulkReceiptDialog({
       receptor: "",
       description: "",
       category: "",
+      pendingPayment: false,
     }));
     setRows((prev) => [...prev, ...newRows]);
 
@@ -211,9 +217,9 @@ export function BulkReceiptDialog({
             responsibleName: user.user_metadata?.full_name || user.email || null,
             responsibleUserId: user.id,
             // Cada fila siempre trae su propio comprobante -- esa es la
-            // prueba de pago, se marca "Listo" solo (mismo criterio que
-            // Nuevo Comprobante).
-            reimbursed: true,
+            // prueba de pago, se marca "Listo" solo, salvo que se haya
+            // marcado "Por pagar" (mismo criterio que Nuevo Comprobante).
+            reimbursed: !row.pendingPayment,
             transactionDate: row.transactionDate || null,
             filePath: storagePath,
             fileName: row.file.name,
@@ -387,6 +393,14 @@ export function BulkReceiptDialog({
                         className="h-8 text-xs col-span-2" placeholder="Glosa o comentario" disabled={row.status === "saving"}
                         value={row.description} onChange={(e) => updateRow(row.localId, { description: e.target.value })}
                       />
+                      <label className="flex items-center gap-1.5 text-xs text-muted-foreground col-span-2 cursor-pointer">
+                        <Checkbox
+                          checked={row.pendingPayment}
+                          disabled={row.status === "saving"}
+                          onCheckedChange={(v) => updateRow(row.localId, { pendingPayment: v === true })}
+                        />
+                        Por pagar -- todavía no se ha pagado (queda Pendiente aunque tenga comprobante)
+                      </label>
                     </div>
                   )}
                 </div>

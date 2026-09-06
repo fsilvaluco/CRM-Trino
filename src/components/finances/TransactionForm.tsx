@@ -53,6 +53,7 @@ const schema = z.object({
   transactionDate: z.string().optional(),
   responsibleExternal: z.string().optional(), // Nombre de otra persona si el gasto lo pagó alguien más
   reimbursed: z.boolean().optional(),
+  pendingPayment: z.boolean().optional(), // "Por pagar" -- fuerza Pendiente aunque haya comprobante (ej. una factura que aún no se paga)
 });
 
 type FormData = z.infer<typeof schema>;
@@ -125,6 +126,7 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
       transactionDate: "",
       responsibleExternal: "",
       reimbursed: false,
+      pendingPayment: false,
     },
   });
 
@@ -139,6 +141,7 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
       setValue("category", initialData.category ?? "");
       setValue("transactionDate", initialData.transactionDate ?? "");
       setValue("reimbursed", initialData.reimbursed);
+      setValue("pendingPayment", !initialData.reimbursed);
 
       // Si el responsable no es un usuario registrado (es externo), cargar el nombre
       if (initialData.responsibleName && !initialData.responsibleUserId) {
@@ -154,6 +157,7 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
   const watchedType = watch("type");
   const watchedExternal = watch("responsibleExternal");
   const watchedReimbursed = watch("reimbursed");
+  const watchedPendingPayment = watch("pendingPayment");
   const categories = watchedType === "expense" ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -272,7 +276,9 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
             transactionDate: data.transactionDate || null,
             responsibleUserId,
             responsibleName,
-            reimbursed: data.reimbursed === true,
+            // "Por pagar" manda: si está marcado, queda Pendiente pase lo
+            // que pase con el checkbox de reembolso.
+            reimbursed: data.pendingPayment === true ? false : data.reimbursed === true,
           }),
         });
 
@@ -298,9 +304,10 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
             responsibleUserId,
             // Si ya se adjuntó comprobante, ese archivo ES la prueba de
             // pago -- se marca "Listo" solo, sin esperar a que alguien lo
-            // tilde a mano después (el checkbox de arriba sigue pudiendo
-            // forzar el estado si hiciera falta).
-            reimbursed: data.reimbursed === true || Boolean(fileUrl),
+            // tilde a mano después. "Por pagar" es la salida manual para
+            // el caso contrario (ej. una factura/cotización de algo que
+            // todavía no se paga) -- si está marcado, gana siempre.
+            reimbursed: data.pendingPayment === true ? false : (data.reimbursed === true || Boolean(fileUrl)),
             transactionDate: data.transactionDate || null,
             filePath: fileUrl,
             fileName,
@@ -404,6 +411,21 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
               </SelectContent>
             </Select>
             {errors.category && <p className="text-xs text-destructive">{errors.category.message}</p>}
+          </div>
+
+          {/* Por pagar -- para subir de una vez el comprobante/factura de
+              algo que todavía no se paga, sin que quede marcado "Listo"
+              solo por tener un archivo adjunto. */}
+          <div className="flex items-center gap-2.5 rounded-lg border px-3 py-2.5 bg-muted/30">
+            <Checkbox
+              id="pendingPayment"
+              checked={watchedPendingPayment === true}
+              onCheckedChange={(checked) => setValue("pendingPayment", checked === true)}
+              className="cursor-pointer"
+            />
+            <label htmlFor="pendingPayment" className="text-sm cursor-pointer select-none">
+              Por pagar — todavía no se ha pagado (queda como Pendiente aunque subas el comprobante)
+            </label>
           </div>
 
           {/* Responsable (solo para gastos) */}
