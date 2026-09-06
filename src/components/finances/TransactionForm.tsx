@@ -297,9 +297,9 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
             responsibleName,
             responsibleUserId,
             // Si ya se adjuntó comprobante, ese archivo ES la prueba de
-            // pago -- se marca "Reembolsado" solo, sin esperar a que
-            // alguien lo tilde a mano después (el checkbox de arriba
-            // sigue pudiendo forzar el estado si hiciera falta).
+            // pago -- se marca "Listo" solo, sin esperar a que alguien lo
+            // tilde a mano después (el checkbox de arriba sigue pudiendo
+            // forzar el estado si hiciera falta).
             reimbursed: data.reimbursed === true || Boolean(fileUrl),
             transactionDate: data.transactionDate || null,
             filePath: fileUrl,
@@ -421,7 +421,7 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
             </div>
           )}
 
-          {/* Reembolsado */}
+          {/* Listo (antes "Reembolsado") */}
           {watchedType === "expense" && watchedExternal && watchedExternal.trim() !== "" && (
             <div className="flex items-center gap-2.5 rounded-lg border px-3 py-2.5 bg-muted/30">
               <Checkbox
@@ -431,7 +431,7 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
                 className="cursor-pointer"
               />
               <label htmlFor="reimbursed" className="text-sm cursor-pointer select-none">
-                Pagado / Reembolsado — el dinero ya fue devuelto a {watchedExternal}
+                Listo — el dinero ya fue devuelto a {watchedExternal}
               </label>
             </div>
           )}

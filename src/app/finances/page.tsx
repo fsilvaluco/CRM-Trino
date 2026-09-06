@@ -107,7 +107,7 @@ function TransactionList({
                     <User className="h-3 w-3" />{t.responsibleName}
                     {t.reimbursed ? (
                       <Badge className="text-[10px] px-1.5 py-0 ml-1 bg-green-600 text-white flex items-center gap-0.5">
-                        <Check className="h-2.5 w-2.5" /> Reembolsado
+                        <Check className="h-2.5 w-2.5" /> Listo
                       </Badge>
                     ) : (
                       <Badge variant="outline" className="text-[10px] px-1.5 py-0 ml-1 text-muted-foreground border-dashed">
@@ -161,7 +161,7 @@ function TransactionList({
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7 text-green-600 hover:text-green-700"
-                  title="Marcar como reembolsado"
+                  title="Marcar como listo"
                   onClick={() => onReimburse(t.id, true)}
                 >
                   <Check className="h-3.5 w-3.5" />
@@ -240,7 +240,7 @@ export default function FinancesPage() {
       body: JSON.stringify({ reimbursed }),
     });
     if (!res.ok) { toast.error("Error al actualizar"); return; }
-    toast.success("Marcado como reembolsado");
+    toast.success("Marcado como listo");
     await loadTransactions();
   };
 
@@ -338,7 +338,7 @@ export default function FinancesPage() {
         </div>
         <div className="rounded-xl border bg-card p-4">
           <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-            <DollarSign className="h-3 w-3" /> Devoluciones pendientes
+            <DollarSign className="h-3 w-3" /> Pendientes
           </p>
           <p className="text-lg font-bold">{pendingReimbursements.length}</p>
           {pendingReimbursements.length > 0 && (
@@ -362,7 +362,7 @@ export default function FinancesPage() {
             <TabsTrigger value="income">Ingresos ({incomes.length})</TabsTrigger>
             {pendingReimbursements.length > 0 && (
               <TabsTrigger value="pending">
-                Devoluciones pendientes ({pendingReimbursements.length})
+                Pendientes ({pendingReimbursements.length})
               </TabsTrigger>
             )}
           </TabsList>
