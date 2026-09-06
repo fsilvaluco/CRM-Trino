@@ -24,17 +24,37 @@ export async function GET() {
     .order("name");
   if (projectsError) return NextResponse.json({ error: projectsError.message }, { status: 500 });
 
+  // organization_members tiene DOS foreign keys hacia profiles (user_id e
+  // invited_by) -- un embed `profiles ( ... )` sin más queda ambiguo para
+  // PostgREST ("more than one relationship was found"), hay que apuntar
+  // la FK exacta.
   const { data: orgMembers, error: orgMembersError } = await supabase
     .from("organization_members")
-    .select("user_id, role, profiles ( full_name, email )")
+    .select("user_id, role, profiles!organization_members_user_id_fkey ( full_name, email )")
     .eq("organization_id", orgId!);
   if (orgMembersError) return NextResponse.json({ error: orgMembersError.message }, { status: 500 });
 
+  // project_members.user_id NO tiene foreign key hacia profiles (a
+  // diferencia de organization_members) -- PostgREST no puede resolver un
+  // embed sin esa FK (mismo gotcha documentado en event-signatures.ts), así
+  // que acá se resuelve con una query aparte a profiles, no con un embed.
   const { data: memberRows, error: memberRowsError } = await supabase
     .from("project_members")
-    .select("id, project_id, user_id, role, puede_gestionar_equipo, profiles ( full_name, email )")
+    .select("id, project_id, user_id, role, puede_gestionar_equipo")
     .eq("organization_id", orgId!);
   if (memberRowsError) return NextResponse.json({ error: memberRowsError.message }, { status: 500 });
+
+  const memberUserIds = Array.from(new Set((memberRows ?? []).map((m) => m.user_id)));
+  const profileByUserId = new Map<string, { full_name: string | null; email: string | null }>();
+  if (memberUserIds.length > 0) {
+    const { data: memberProfiles } = await supabase
+      .from("profiles")
+      .select("id, full_name, email")
+      .in("id", memberUserIds);
+    for (const p of (memberProfiles ?? []) as { id: string; full_name: string | null; email: string | null }[]) {
+      profileByUserId.set(p.id, p);
+    }
+  }
 
   const memberIds = (memberRows ?? []).map((m) => m.id);
   const permsByMemberId = new Map<string, Record<ModuleKey, ModulePermission>>();
@@ -78,18 +98,18 @@ export async function GET() {
       name: m.profiles?.full_name ?? m.profiles?.email ?? "Usuario",
       email: m.profiles?.email ?? null,
     })),
-    memberships: ((memberRows ?? []) as unknown as {
-      id: string; project_id: string; user_id: string; role: string; puede_gestionar_equipo: boolean;
-      profiles: { full_name: string | null; email: string | null } | null;
-    }[]).map((m) => ({
-      id: m.id,
-      projectId: m.project_id,
-      userId: m.user_id,
-      role: m.role,
-      puedeGestionarEquipo: Boolean(m.puede_gestionar_equipo),
-      name: m.profiles?.full_name ?? m.profiles?.email ?? "Usuario",
-      email: m.profiles?.email ?? null,
-      modules: permsByMemberId.get(m.id) ?? null,
-    })),
+    memberships: (memberRows ?? []).map((m) => {
+      const profile = profileByUserId.get(m.user_id);
+      return {
+        id: m.id,
+        projectId: m.project_id,
+        userId: m.user_id,
+        role: m.role,
+        puedeGestionarEquipo: Boolean(m.puede_gestionar_equipo),
+        name: profile?.full_name ?? profile?.email ?? "Usuario",
+        email: profile?.email ?? null,
+        modules: permsByMemberId.get(m.id) ?? null,
+      };
+    }),
   });
 }
