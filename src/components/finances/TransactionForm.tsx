@@ -296,7 +296,11 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
             category: data.category,
             responsibleName,
             responsibleUserId,
-            reimbursed: data.reimbursed === true,
+            // Si ya se adjuntó comprobante, ese archivo ES la prueba de
+            // pago -- se marca "Reembolsado" solo, sin esperar a que
+            // alguien lo tilde a mano después (el checkbox de arriba
+            // sigue pudiendo forzar el estado si hiciera falta).
+            reimbursed: data.reimbursed === true || Boolean(fileUrl),
             transactionDate: data.transactionDate || null,
             filePath: fileUrl,
             fileName,

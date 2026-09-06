@@ -210,6 +210,10 @@ export function BulkReceiptDialog({
             category: row.category,
             responsibleName: user.user_metadata?.full_name || user.email || null,
             responsibleUserId: user.id,
+            // Cada fila siempre trae su propio comprobante -- esa es la
+            // prueba de pago, se marca "Reembolsado" solo (mismo criterio
+            // que Nuevo Comprobante).
+            reimbursed: true,
             transactionDate: row.transactionDate || null,
             filePath: storagePath,
             fileName: row.file.name,
