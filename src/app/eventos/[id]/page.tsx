@@ -23,7 +23,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Pencil, MapPin, Clock, Music4, Wallet, FileText, Link as LinkIcon,
   Plus, Trash2, Star, ExternalLink, Loader2, Lock, LockOpen, Printer, Receipt,
-  Ticket, Upload, Paperclip, Share2, Users, RefreshCw, BellRing, Banknote, CheckCircle2, Circle, Mail,
+  Ticket, Upload, Paperclip, Share2, Users, RefreshCw, BellRing, Banknote, CheckCircle2, Circle, Mail, Sparkles,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -33,6 +33,7 @@ import { EventPrintFooter } from "@/components/events/EventPrintFooter";
 import { compressImage } from "@/lib/image-compress";
 import { supabase } from "@/lib/supabase";
 import { SignedFileLink } from "@/components/finances/SignedFileLink";
+import { fileToBase64 } from "@/components/finances/TransactionForm";
 import { extractAddressCandidate, mapsSearchUrl } from "@/lib/address-detect";
 
 const STATUS_CONFIG: Record<ShowStatus, { label: string; className: string }> = {
@@ -184,8 +185,8 @@ export default function EventDetailPage() {
   const [newCostKmRate, setNewCostKmRate] = useState<number | null>(null);
   const [closingCosts, setClosingCosts] = useState(false);
   const [informingClosing, setInformingClosing] = useState(false);
-  const [uploadingAttachment, setUploadingAttachment] = useState(false);
-  const closingFileInputRef = useRef<HTMLInputElement>(null);
+  const [addingCostFromFile, setAddingCostFromFile] = useState(false);
+  const costAttachmentFileInputRef = useRef<HTMLInputElement>(null);
 
   const [costSubmissions, setCostSubmissions] = useState<CostSubmission[]>([]);
   const [canReviewSubmissions, setCanReviewSubmissions] = useState(false);
@@ -1070,35 +1071,6 @@ export default function EventDetailPage() {
     }
   }
 
-  async function handleClosingAttachmentUpload(file: File) {
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("El archivo no puede superar 10 MB");
-      return;
-    }
-    setUploadingAttachment(true);
-    try {
-      const ext = file.name.split(".").pop();
-      const storagePath = `event-closings/${id}/${Date.now()}.${ext}`;
-      const uploadResult = await supabase.storage.from("finances").upload(storagePath, file, { upsert: false });
-      if (uploadResult.error) {
-        toast.error("Error subiendo el archivo: " + uploadResult.error.message);
-        return;
-      }
-      const res = await fetch(`/api/eventos/${id}/costs/attachment`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filePath: storagePath, fileName: file.name }),
-      });
-      if (!res.ok) throw new Error();
-      toast.success("Documento adjuntado");
-      load();
-    } catch {
-      toast.error("No se pudo adjuntar el documento");
-    } finally {
-      setUploadingAttachment(false);
-    }
-  }
-
   async function handleRemoveClosingAttachment() {
     if (!confirm("¿Quitar el documento adjunto del cierre?")) return;
     try {
@@ -1108,6 +1080,79 @@ export default function EventDetailPage() {
       load();
     } catch {
       toast.error("No se pudo quitar el documento");
+    }
+  }
+
+  // "Adjuntar costo": sube una boleta/factura/cotización y la lee con IA
+  // (mismo extractor que /api/finances/match-receipt) para crear un ítem
+  // nuevo de la planilla ya con monto, detalle y responsable rellenados --
+  // reemplaza al viejo "Adjuntar documento" (que solo guardaba un archivo
+  // suelto sin asociarlo a ningún gasto). Si la IA no logra leer el
+  // archivo, igual se agrega el ítem con el comprobante adjunto para
+  // completarlo a mano.
+  async function handleAddCostFromFile(file: File) {
+    if (file.size > 25 * 1024 * 1024) {
+      toast.error("El archivo no puede superar 25 MB");
+      return;
+    }
+    setAddingCostFromFile(true);
+    try {
+      const itemId = `tmp-${newId()}`;
+      const ext = file.name.split(".").pop();
+      const storagePath = `cost-items/${id}/${itemId}-${Date.now()}.${ext}`;
+      const uploadResult = await supabase.storage.from("finances").upload(storagePath, file, { upsert: false });
+      if (uploadResult.error) {
+        toast.error("Error subiendo el archivo: " + uploadResult.error.message);
+        return;
+      }
+      const { data: publicUrlData } = supabase.storage.from("finances").getPublicUrl(storagePath);
+
+      let extraction: { amount: number | null; vendor: string | null; payer: string | null; date: string | null; description: string | null } | null = null;
+      try {
+        const isPdf = file.type === "application/pdf";
+        const base64 = await fileToBase64(file);
+        const res = await fetch("/api/finances/match-receipt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(
+            isPdf
+              ? { mode: "pdf", pdfBase64: base64 }
+              : { mode: "image", imageBase64: base64, mediaType: file.type || "image/jpeg" }
+          ),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (res.ok) extraction = body.extraction ?? null;
+      } catch {
+        // silencioso -- sin lectura IA se agrega igual, para completar a mano
+      }
+
+      const amountCents = extraction?.amount ? Math.round(extraction.amount) * 100 : 0;
+      setCostItems((prev) => [
+        ...prev,
+        {
+          id: itemId,
+          position: prev.length,
+          label: extraction?.description || extraction?.vendor || file.name.replace(/\.[^.]+$/, ""),
+          category: null,
+          amount: amountCents,
+          liquidoAmount: null,
+          esBhe: false,
+          responsable: extraction?.vendor ?? null,
+          responsableContactId: null,
+          comprobanteUrl: publicUrlData.publicUrl,
+          pagado: false,
+          comprobantePagoUrl: null,
+          notes: null,
+          km: null,
+          kmRate: null,
+        },
+      ]);
+      setCostsDirty(true);
+      toast.success(extraction ? "Costo agregado -- revisa los datos leídos antes de guardar" : "Costo agregado -- no se pudo leer con IA, complétalo a mano");
+    } catch {
+      toast.error("No se pudo agregar el costo");
+    } finally {
+      setAddingCostFromFile(false);
     }
   }
 
@@ -2169,16 +2214,16 @@ export default function EventDetailPage() {
                 {savingCosts ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Guardar costos"}
               </Button>
             )}
-            {canEditCosts && (
+            {canEditCosts && !costSheetClosed && (
               <>
                 <input
-                  ref={closingFileInputRef}
+                  ref={costAttachmentFileInputRef}
                   type="file"
                   accept=".pdf,.jpg,.jpeg,.png,.webp"
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) void handleClosingAttachmentUpload(file);
+                    if (file) void handleAddCostFromFile(file);
                     e.target.value = "";
                   }}
                 />
@@ -2186,12 +2231,12 @@ export default function EventDetailPage() {
                   size="sm"
                   variant="outline"
                   className="h-7 text-xs cursor-pointer"
-                  disabled={uploadingAttachment}
-                  onClick={() => closingFileInputRef.current?.click()}
-                  title="Adjuntar documento"
+                  disabled={addingCostFromFile}
+                  onClick={() => costAttachmentFileInputRef.current?.click()}
+                  title="Adjuntar boleta/factura y crear el ítem de costo automáticamente con IA"
                 >
-                  {uploadingAttachment ? <Loader2 className="h-3.5 w-3.5 animate-spin sm:mr-1" /> : <Paperclip className="h-3.5 w-3.5 sm:mr-1" />}
-                  <span className="hidden sm:inline">{uploadingAttachment ? "Subiendo..." : "Adjuntar documento"}</span>
+                  {addingCostFromFile ? <Loader2 className="h-3.5 w-3.5 animate-spin sm:mr-1" /> : <Sparkles className="h-3.5 w-3.5 sm:mr-1" />}
+                  <span className="hidden sm:inline">{addingCostFromFile ? "Leyendo..." : "Adjuntar costo"}</span>
                 </Button>
               </>
             )}
