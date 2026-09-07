@@ -1,6 +1,6 @@
 # Bitácora de Trabajo — Artist Pro
-_Checkpoint v1.5 — 23 de agosto de 2026 (sesión Auditoría de Seguridad)_
-_Checkpoint anterior: v1.4 — 18 de agosto de 2026_
+_Checkpoint v1.6 — 7 de septiembre de 2026 (Comprobantes, Panel de Permisos, Finanzas con IA)_
+_Checkpoint anterior: v1.5 — 23 de agosto de 2026 (sesión Auditoría de Seguridad)_
 
 > **Formato de tracking:** Registro histórico de trabajo realizado + pendientes actuales.  
 > Cada entrada incluye fecha, estado (🔨 En Progreso / ✅ Hecho), y notas de implementación detalladas.
@@ -1104,6 +1104,110 @@ de dirección probada a mano contra 7 casos (incluidos los falsos positivos obvi
 "Llegar 15 min antes", "Piso 3").
 
 **Versión de la app subida a 3.5.**
+
+---
+
+## 📦 Comprobantes, Panel de Permisos, Finanzas con IA (27 ago - 7 sep 2026) — resumen ejecutivo
+
+Varias sesiones seguidas sin actualizar esta bitácora (última entrada: 27 ago) -- se junta acá todo lo
+construido desde entonces. Es la tanda de trabajo más grande desde el rediseño de roles.
+
+**Módulo nuevo: Comprobantes (liquidaciones de regalías/merch)** -- `/finances/comprobantes`:
+- Pensado para pagos entre partes (ej. Gamuza↔Sello) que NO están atados a un evento específico:
+  regalías o merch de un período (mes/año), con % de reparto, comprobante del monto de origen y
+  comprobante del pago ya hecho. Tabla nueva `settlements` (`087_settlements.sql`).
+- Firma/aprobación con firmantes elegidos a mano (`required_signer_ids`, `088_...sql`) -- no calculados
+  en tiempo real como en el cierre de caja de Eventos. Link de firma dedicado
+  (`/finances/comprobantes/[id]/firmar`, requiere login) + aviso por correo a los firmantes pendientes.
+- La pestaña "Eventos" del mismo módulo es una VISTA de solo lectura sobre `shows.cost_sheet_closing_*` /
+  `profit_split_transfer_proof_url` -- no duplica datos, solo junta en un solo lugar todo lo que ya se
+  subió como respaldo de plata (liquidaciones nuevas + comprobantes de cierre de caja por evento).
+- Se puede editar y eliminar una liquidación después de creada (antes no se podía).
+- **Registro de IP en las firmas** (`089_signatures_ip_address.sql`, `src/lib/client-ip.ts`): tanto el
+  cierre de caja de Eventos como las liquidaciones de Comprobantes ahora guardan la IP de quien firma
+  junto a la fecha/hora, para más trazabilidad de quién aprobó qué.
+
+**Panel de Permisos -- intranet de administración sin acceso a datos de negocio** (`/settings/permissions`):
+Pedido explícito de Francisco tras confirmar (de nuevo) la regla dura del proyecto: **el owner de la
+organización NO debe tener acceso automático a los datos de otros proyectos** -- ni siquiera Francisco --
+por privacidad, en caso de que a futuro existan proyectos de otros clientes en la misma organización. En
+vez de un bypass, se construyó un panel separado que solo administra **roles y permisos** de todos los
+proyectos (agregar/quitar integrantes, cambiar rol, editar matriz de permisos por módulo) sin poder ver
+ni un contacto, deal, o monto de ningún proyecto ajeno. Endpoints nuevos bajo `/api/admin/*`, gateados por
+`isAdmin` (que sigue sin dar acceso a datos, solo a esta gestión). De paso: editor de permisos finos por
+persona/proyecto (`ModulePermissionsEditor`) reusado tanto en el Gestor de Integrantes normal como en este
+panel admin.
+  - Bug encontrado al probarlo: "no me da acceso" -- error de PostgREST por **embed ambiguo**
+    (`organization_members` tiene 2 FKs a `profiles`) y por un embed que fallaba en silencio
+    (`project_members.user_id` nunca tuvo FK real hacia `profiles`, distinto del caso de FK ambigua).
+    Corregido nombrando la FK exacta en un caso y haciendo join manual en memoria en el otro -- mismo
+    patrón que el ya documentado más arriba en esta bitácora para `event-signatures.ts`.
+
+**Finanzas: lectura de comprobantes con IA + carga masiva:**
+- "Nuevo Comprobante" ahora lee el archivo adjunto con IA (mismo extractor de OpenAI ya usado en otras
+  partes) y rellena Fecha / Emisor / Receptor / Monto / Glosa automáticamente -- se revisa antes de
+  guardar, nunca se guarda solo.
+- **Carga masiva**: subir varios comprobantes de una vez, cada uno leído con IA en paralelo (máx. 25
+  archivos, 3 en simultáneo para no saturar), con un popup para revisar/editar todos los borradores antes
+  de guardar. Preview de cada archivo (imagen inline o ícono para PDF) para completar a mano lo que la IA
+  no pudo leer. La validación de "faltan datos" ahora indica exactamente **qué fila y qué campo** falta
+  (texto en rojo bajo el campo + resumen clickeable que hace scroll a la fila), en vez de un mensaje
+  genérico que confundía cuando había muchas filas cargadas.
+- Montos en Finanzas (normal y carga masiva) ahora se muestran con formato de precio (`$X.XXX`).
+- **"Adjuntar costo" (Planilla de costos de Eventos)** reemplaza al viejo "Adjuntar documento" (que solo
+  guardaba un archivo suelto sin asociarlo a ningún gasto): ahora sube la boleta/factura, la lee con IA, y
+  crea automáticamente un ítem nuevo en la planilla con detalle/monto/responsable ya rellenados y el
+  archivo como comprobante del ítem.
+
+**Finanzas: "Listo" en vez de "Reembolsado", filtros, y "Por pagar":**
+- Al adjuntar un comprobante a una transacción, ahora se marca automáticamente como resuelta (antes
+  quedaba "Pendiente" a mano). Se aplicó también retroactivo a 16 transacciones existentes que ya tenían
+  comprobante. El concepto se renombró de "Reembolsado" a **"Listo"** en toda la UI (identificadores
+  internos como `reimbursed`/`handleReimburse` no se tocaron, solo las etiquetas visibles).
+- Nuevo checkbox explícito **"Por pagar"**, independiente de "¿lo pagó otra persona?": permite cargar de
+  una vez facturas/cotizaciones de gastos que se van a pagar en el futuro sin que el sistema las marque
+  "Listo" solo porque tienen un archivo adjunto -- este checkbox le gana a cualquier otra lógica y fuerza
+  "Pendiente". Aplica tanto a Nuevo Comprobante como a Carga masiva.
+- La lista de Transacciones ahora ordena siempre por fecha (más reciente primero) y tiene un panel de
+  filtros tipo tabla dinámica: Emisor / Receptor (con sugerencias de lo ya cargado) / Categoría / rango de
+  fecha. Los KPIs (Ingresos/Gastos/Balance/Pendientes) reflejan siempre lo filtrado.
+
+**Sincronización con la ticketera -- tramos duplicados (dos fixes distintos, mismo síntoma reportado):**
+1. La IA que lee la página de estadísticas a veces devolvía el mismo tramo dos veces (la página muestra
+   un resumen y luego la tabla detallada) -- a veces con el precio mal leído (separador de miles
+   confundido con decimal, "10.000" leído como 10). Reforzado el prompt + agregada una limpieza en código
+   que, si igual llegan nombres repetidos, deja el de precio más alto (un ticket real en CLP nunca cuesta
+   menos de $100).
+2. El bug real que seguía duplicando después del fix anterior: **"Subir pantallazo"** (a diferencia de
+   "Sincronizar" por link, que reemplaza toda la lista) siempre AGREGABA los tramos leídos al final --
+   pensado para cargas incrementales, pero en la práctica lo normal es volver a subir una foto más
+   reciente de la MISMA tabla para refrescar cantidades vendidas. Ahora actualiza por nombre de tramo
+   (case-insensitive) en vez de agregar a ciegas.
+
+**Bug de fechas "un día antes" (evento, gasto, red social, tareas):** en timezones detrás de UTC (Chile),
+`new Date("2026-09-02")` se parsea como medianoche UTC y al formatear en hora local cae en el día
+anterior -- mismo problema con fechas guardadas como medianoche UTC (`<input type="date">` convertido a
+`.toISOString()` en tareas/deals). `formatDate`/`formatRelativeDate` (`src/lib/constants.ts`) ahora usan
+`parseFlexibleDate` (exportada para reuso), que reconoce una fecha "pura" y la arma por año/mes/día
+directo en vez de pasar por un instante UTC. Reemplazados los `new Date(dateString)` sueltos que tenían el
+mismo problema en Finanzas, Comprobantes, la página pública de calificación, el resumen de Eventos de
+Métricas, Resumen de redes sociales, y el campo "Vence" de tareas. Préstamos y Prensa ya usaban el patrón
+correcto (`` `${date}T00:00:00` ``) y no se tocaron.
+
+**Otros cambios de este período (commits sueltos, sin sesión dedicada acá):**
+- Direcciones de venues: sacada la restricción del autocompletado de Google Places a solo Chile (hacía
+  falta para giras internacionales, ej. Perú).
+- Nombres de marca (Gamuza/Trino) sacados de labels hardcodeados en UI y emails -- ahora dice "Sello"
+  genérico (los valores internos de enum `trino`/`trino_nuevo` no se tocaron, para no migrar datos).
+- Rate limiting con Upstash Redis en rutas `/api/*`; auth de admin exigida en `PUT /api/settings/business`
+  y `/locale`; README corregido (ya no afirma que la app es 100% local, ahora usa Supabase).
+- Merch/Shopify: detalle de pedidos individuales por mes, Comisión TBK + IVA + Utilidad siempre visibles
+  en la tabla mensual y el resumen del año, fix de `shopify_sales_monthly` duplicando meses al recalcular.
+
+**Verificado en cada cambio:** `tsc --noEmit` + `eslint` de los archivos tocados limpios antes de cada
+commit y push directo a `main` (sin PR, como de costumbre en este proyecto).
+
+**Versión de la app subida a 4.0** (varios módulos nuevos: Comprobantes, Panel de Permisos, Carga masiva).
 
 ---
 
