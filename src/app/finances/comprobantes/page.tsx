@@ -21,6 +21,7 @@ import { SettlementFormDialog } from "@/components/finances/SettlementFormDialog
 import { SignedFileLink } from "@/components/finances/SignedFileLink";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { parseFlexibleDate } from "@/lib/constants";
 
 interface Signer {
   userId: string;
@@ -222,7 +223,7 @@ function EventReceiptFolder({ receipt }: { receipt: EventReceipt }) {
           {receipt.name}
         </Link>
         <span className="text-xs text-muted-foreground shrink-0">
-          {format(new Date(receipt.date), "d MMM yyyy", { locale: es })}
+          {format(parseFlexibleDate(receipt.date), "d MMM yyyy", { locale: es })}
         </span>
       </div>
       <div className="flex flex-wrap gap-2">

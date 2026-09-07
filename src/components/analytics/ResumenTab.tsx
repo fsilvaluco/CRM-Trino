@@ -16,6 +16,7 @@ import { format, subDays, startOfDay } from "date-fns";
 import { es } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { parseFlexibleDate } from "@/lib/constants";
 import type { SocialMetric } from "@/types/analytics";
 import { RegisterSnapshotSheet } from "@/components/analytics/RegisterSnapshotSheet";
 
@@ -55,7 +56,7 @@ function buildChartData(metrics: SocialMetric[]) {
     // año, y sin el año un punto de "27 jul 2024" y otro de "27 jul 2026"
     // se ven idénticos en el eje/tooltip, prestándose a pensar que hay un
     // punto "mal ubicado" cuando en realidad son fechas distintas.
-    label: format(new Date(date), "d MMM yyyy", { locale: es }),
+    label: format(parseFlexibleDate(date), "d MMM yyyy", { locale: es }),
     ...platforms,
   }));
 }
@@ -67,7 +68,7 @@ export function ResumenTab({ metrics, onRefresh }: ResumenTabProps) {
   const metricsInPeriod = useMemo(() => {
     if (period.days == null) return metrics;
     const cutoff = startOfDay(subDays(new Date(), period.days - 1));
-    return metrics.filter((m) => new Date(m.recordedAt) >= cutoff);
+    return metrics.filter((m) => parseFlexibleDate(m.recordedAt) >= cutoff);
   }, [metrics, period]);
 
   const chartData = useMemo(() => buildChartData(metricsInPeriod), [metricsInPeriod]);

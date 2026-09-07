@@ -16,6 +16,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { parseFlexibleDate } from "@/lib/constants";
 import type { Show } from "@/types/analytics";
 
 const CLP = new Intl.NumberFormat("es-CL", {
@@ -58,7 +59,7 @@ export function EventsSummaryTab({ shows }: EventsSummaryTabProps) {
     if (period.months == null) return shows;
     const cutoff = new Date();
     cutoff.setMonth(cutoff.getMonth() - period.months);
-    return shows.filter((s) => new Date(s.date) >= cutoff);
+    return shows.filter((s) => parseFlexibleDate(s.date) >= cutoff);
   }, [shows, period]);
 
   // El grafico agrupa por mes (no un bloque por evento individual) -- con
@@ -71,7 +72,7 @@ export function EventsSummaryTab({ shows }: EventsSummaryTabProps) {
     const byMonth = new Map<string, { label: string; utilidad: number; sortKey: string }>();
     for (const s of filteredShows) {
       if (s.financialsUntracked || s.utility == null) continue;
-      const d = new Date(`${s.date}T00:00:00`);
+      const d = parseFlexibleDate(s.date);
       const sortKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       const label = format(d, "MMM yyyy", { locale: es });
       const utilidad = s.utility / 100;
@@ -83,7 +84,7 @@ export function EventsSummaryTab({ shows }: EventsSummaryTabProps) {
   }, [filteredShows]);
 
   const sortedShows = useMemo(
-    () => [...filteredShows].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+    () => [...filteredShows].sort((a, b) => parseFlexibleDate(b.date).getTime() - parseFlexibleDate(a.date).getTime()),
     [filteredShows]
   );
 
@@ -168,7 +169,7 @@ export function EventsSummaryTab({ shows }: EventsSummaryTabProps) {
                 return (
                   <tr key={show.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-2 whitespace-nowrap">
-                      {format(new Date(show.date), "d MMM yyyy", { locale: es })}
+                      {format(parseFlexibleDate(show.date), "d MMM yyyy", { locale: es })}
                     </td>
                     <td className="px-4 py-2 font-medium">{show.venue}</td>
                     <td className="px-4 py-2 text-muted-foreground">{show.city ?? "—"}</td>

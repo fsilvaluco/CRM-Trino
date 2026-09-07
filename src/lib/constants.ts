@@ -42,15 +42,36 @@ export function cleanPhoneForWhatsApp(phone: string): string {
   return phone.replace(/[\s\-\(\)]/g, "").replace(/^\+/, "");
 }
 
-function toDate(date: Date | number): Date {
+// Fecha "pura" (sin hora, ej. "2026-09-02" -- lo que devuelve una columna
+// `date` de Postgres) o guardada como medianoche UTC (típico de
+// <input type="date"> en tareas/deals/subproyectos/campañas, que no
+// tienen una hora real que importe -- solo un día calendario).
+const DATE_ONLY_RE = /^(\d{4})-(\d{2})-(\d{2})(?:T00:00:00(?:\.\d+)?(?:Z|[+-]00:?00)?)?$/;
+
+// Exportada para que otras pantallas con el mismo problema (listas de
+// finanzas, eventos, etc. que hacían `new Date(dateString)` directo) usen
+// el mismo parseo seguro en vez de duplicar la lógica.
+export function parseFlexibleDate(date: Date | string | number): Date {
   if (date instanceof Date) return date;
+  if (typeof date === "string") {
+    // Se interpreta como el mismo día calendario en la zona horaria local,
+    // no como un instante UTC -- si no, en timezones detrás de UTC (ej.
+    // Chile) el día se corre uno hacia atrás al mostrarlo (bug reportado:
+    // "siempre se pone como un día antes", en tareas, deals y finanzas).
+    const match = date.match(DATE_ONLY_RE);
+    if (match) {
+      const [, y, m, d] = match;
+      return new Date(Number(y), Number(m) - 1, Number(d));
+    }
+    return new Date(date);
+  }
   // If number is less than 1e12, it's in seconds; otherwise milliseconds
   return new Date(date < 1e12 ? date * 1000 : date);
 }
 
-export function formatDate(date: Date | number | null): string {
+export function formatDate(date: Date | string | number | null): string {
   if (!date) return "-";
-  const d = toDate(date);
+  const d = parseFlexibleDate(date);
   return new Intl.DateTimeFormat("es-MX", {
     day: "numeric",
     month: "short",
@@ -58,8 +79,8 @@ export function formatDate(date: Date | number | null): string {
   }).format(d);
 }
 
-export function formatRelativeDate(date: Date | number): string {
-  const d = toDate(date);
+export function formatRelativeDate(date: Date | string | number): string {
+  const d = parseFlexibleDate(date);
   const now = new Date();
   const diffMs = now.getTime() - d.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));

@@ -27,6 +27,7 @@ import { es } from "date-fns/locale";
 import type { TaskStatus, TaskPriority, TaskComment } from "@/types";
 import { STATUS_LABELS } from "@/components/tasks/TaskKanbanBoard";
 import { useProject } from "@/lib/project-context";
+import { parseFlexibleDate } from "@/lib/constants";
 import { CommentsWithMentions } from "@/components/shared/CommentsWithMentions";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -492,9 +493,7 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, p
 
   const formatDueDate = (val: string | number | null) => {
     if (!val) return "";
-    const d = typeof val === "number"
-      ? new Date(val < 1e12 ? val * 1000 : val)
-      : new Date(val);
+    const d = parseFlexibleDate(val);
     if (Number.isNaN(d.getTime())) return "";
     return format(d, "yyyy-MM-dd");
   };

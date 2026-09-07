@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Loader2, CheckCircle2, Music2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { parseFlexibleDate } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -126,7 +127,7 @@ export default function RatePage({
   }
 
   const formattedDate = show
-    ? format(new Date(show.date), "d 'de' MMMM yyyy", { locale: es })
+    ? format(parseFlexibleDate(show.date), "d 'de' MMMM yyyy", { locale: es })
     : "";
 
   return (

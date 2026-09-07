@@ -20,6 +20,7 @@ import { useProject } from "@/lib/project-context";
 import { useAuth } from "@/lib/auth-context";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { parseFlexibleDate } from "@/lib/constants";
 
 interface Transaction {
   id: string;
@@ -51,14 +52,22 @@ function formatCLP(amount: number) {
 // cargó, si no la de creación del registro (mismo criterio que ya usa
 // TransactionList para mostrarla).
 function effectiveDate(t: Transaction): Date {
-  if (t.transactionDate) return new Date(t.transactionDate);
-  return typeof t.createdAt === "number"
-    ? new Date(t.createdAt < 1e12 ? t.createdAt * 1000 : t.createdAt)
-    : new Date(t.createdAt);
+  // transactionDate es una fecha "pura" (columna `date`, ej. "2026-09-02") --
+  // parseFlexibleDate evita que se corra un día hacia atrás en timezones
+  // detrás de UTC (ej. Chile). Ver también src/lib/constants.ts.
+  if (t.transactionDate) return parseFlexibleDate(t.transactionDate);
+  return parseFlexibleDate(t.createdAt);
 }
 
+// Arma el string "YYYY-MM-DD" a partir de los componentes LOCALES de la
+// fecha, no de toISOString() (que convierte a UTC primero y en timezones
+// adelantados a UTC puede correr el día -- mismo tipo de bug que el de
+// parseFlexibleDate, solo que en la dirección contraria).
 function toDateInputValue(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function TransactionList({
@@ -84,13 +93,9 @@ function TransactionList({
   return (
     <div className="space-y-2">
       {transactions.map((t) => {
-        const date = typeof t.createdAt === "number"
-          ? new Date(t.createdAt < 1e12 ? t.createdAt * 1000 : t.createdAt)
-          : new Date(t.createdAt);
-
         const displayDate = t.transactionDate
-          ? new Date(t.transactionDate)
-          : date;
+          ? parseFlexibleDate(t.transactionDate)
+          : parseFlexibleDate(t.createdAt);
 
         return (
           <div key={t.id} className="flex items-start gap-3 p-3 rounded-lg border hover:bg-muted/30 transition-colors">
