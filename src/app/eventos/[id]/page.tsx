@@ -737,20 +737,40 @@ export default function EventDetailPage() {
         toast.info("No se encontraron tramos en la imagen -- revisa que se vea la tabla completa");
         return;
       }
-      setTicketTiers((prev) => [
-        ...prev,
-        ...tiers.map((t: { label: string; unitPrice: number | null; quantitySold: number | null; capacity: number | null; statusLabel: string | null }, i: number) => ({
-          id: `tmp-${newId()}`,
-          position: prev.length + i,
-          label: t.label || "Tramo",
-          unitPrice: t.unitPrice != null ? Math.round(t.unitPrice * 100) : 0,
-          quantitySold: t.quantitySold ?? 0,
-          capacity: t.capacity ?? null,
-          statusLabel: t.statusLabel ?? null,
-        })),
-      ]);
+      // Se actualiza por nombre de tramo en vez de agregar a ciegas: la
+      // mayoría de las veces el pantallazo es una foto MÁS RECIENTE de la
+      // misma tabla (para refrescar cantidades vendidas), no tramos nuevos
+      // -- si se agregara siempre, cada re-subida duplicaba todo lo que ya
+      // estaba (bug reportado: "de nuevo se duplicó").
+      setTicketTiers((prev) => {
+        const next = [...prev];
+        let added = 0;
+        for (const t of tiers as { label: string; unitPrice: number | null; quantitySold: number | null; capacity: number | null; statusLabel: string | null }[]) {
+          const label = t.label || "Tramo";
+          const normalized = label.trim().toLowerCase();
+          const existingIndex = next.findIndex((item) => item.label.trim().toLowerCase() === normalized);
+          const patch = {
+            label,
+            unitPrice: t.unitPrice != null ? Math.round(t.unitPrice * 100) : 0,
+            quantitySold: t.quantitySold ?? 0,
+            capacity: t.capacity ?? null,
+            statusLabel: t.statusLabel ?? null,
+          };
+          if (existingIndex >= 0) {
+            next[existingIndex] = { ...next[existingIndex], ...patch };
+          } else {
+            next.push({ id: `tmp-${newId()}`, position: next.length, ...patch });
+            added += 1;
+          }
+        }
+        toast.success(
+          added === tiers.length
+            ? `${tiers.length} tramo(s) leídos -- revisa los números antes de guardar`
+            : `${tiers.length} tramo(s) leídos (${added} nuevo(s), el resto actualizado) -- revisa antes de guardar`
+        );
+        return next;
+      });
       setTicketsDirty(true);
-      toast.success(`${tiers.length} tramo(s) leídos -- revisa los números antes de guardar`);
     } catch {
       toast.error("Error al procesar la imagen");
     } finally {
