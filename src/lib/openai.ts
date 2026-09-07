@@ -187,7 +187,36 @@ Reglas:
 - Un tramo con precio $0 y algún ticket vendido probablemente sea de cortesía -- aún así extráelo con unitPrice 0, no lo omitas.
 - Si un número no se puede leer con certeza, usa null para ese campo específico -- nunca inventes.
 - Ignora filas que sean claramente encabezados o totales generales, no tramos individuales.
+- Los precios en pesos chilenos usan el punto como separador de miles, no como decimal: "10.000" es diez mil (10000), NUNCA lo interpretes ni lo devuelvas como 10.
+- Si el mismo tramo (mismo nombre) aparece más de una vez en el texto/imagen -- por ejemplo un resumen y después una tabla detallada con los mismos tipos de entrada -- devuélvelo UNA SOLA VEZ, usando los datos de la tabla más detallada. Nunca repitas un tramo.
 - Devuelve los tramos en el mismo orden en que aparecen en la imagen.`;
+
+// Red de seguridad ante el modelo: si la página de la ticketera repite la
+// misma tabla dos veces (ej. una vista resumen y otra detallada, o versión
+// desktop/mobile), a veces el modelo igual devuelve el tramo duplicado --
+// normalmente con un precio mal leído (típicamente el separador de miles
+// interpretado como decimal, ej. "10.000" leído como 10). Se agrupa por
+// nombre de tramo y, si hay más de una fila para el mismo nombre, se deja
+// solo la de precio unitario más alto -- un ticket real en pesos chilenos
+// nunca cuesta menos de $100, así que la lectura más grande es casi
+// siempre la correcta.
+function dedupeTicketTiers(tiers: TicketTierExtraction[]): TicketTierExtraction[] {
+  const byLabel = new Map<string, TicketTierExtraction>();
+  const order: string[] = [];
+  for (const tier of tiers) {
+    const key = (tier.label || "").trim().toLowerCase();
+    const existing = byLabel.get(key);
+    if (!existing) {
+      byLabel.set(key, tier);
+      order.push(key);
+      continue;
+    }
+    if ((tier.unitPrice ?? 0) > (existing.unitPrice ?? 0)) {
+      byLabel.set(key, tier);
+    }
+  }
+  return order.map((key) => byLabel.get(key)!);
+}
 
 /**
  * Lee un pantallazo de una plataforma de venta de entradas y extrae los
@@ -231,7 +260,7 @@ export async function extractTicketTiersFromScreenshot(
 
   try {
     const parsed = JSON.parse(text);
-    return Array.isArray(parsed.tiers) ? parsed.tiers : [];
+    return dedupeTicketTiers(Array.isArray(parsed.tiers) ? parsed.tiers : []);
   } catch (err) {
     console.error("[openai] failed to parse ticket tiers JSON", { text, err });
     return [];
@@ -672,7 +701,7 @@ export async function extractTicketTiersFromText(rawText: string): Promise<Ticke
 
   try {
     const parsed = JSON.parse(text);
-    return Array.isArray(parsed.tiers) ? parsed.tiers : [];
+    return dedupeTicketTiers(Array.isArray(parsed.tiers) ? parsed.tiers : []);
   } catch (err) {
     console.error("[openai] failed to parse ticket tiers text JSON", { text, err });
     return [];
