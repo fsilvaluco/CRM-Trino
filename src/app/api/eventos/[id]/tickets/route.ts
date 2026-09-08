@@ -80,6 +80,11 @@ export async function PUT(
 
   const body = await request.json().catch(() => ({}));
   const items = Array.isArray(body.items) ? body.items : [];
+  // De donde vienen estos numeros: pantallazo leido con IA, sincronizacion
+  // del link de la ticketera, o tipeados a mano. Se guarda junto con la
+  // fecha para poder mostrar "actualizado hace X" en el evento.
+  const ALLOWED_SOURCES = ["pantallazo", "link", "manual"] as const;
+  const source = ALLOWED_SOURCES.includes(body.source) ? (body.source as string) : "manual";
 
   const { data: existing } = await supabase
     .from("event_ticket_tiers")
@@ -123,6 +128,14 @@ export async function PUT(
     const { error: upsertError } = await supabase.from("event_ticket_tiers").upsert(rows);
     if (upsertError) return NextResponse.json({ error: upsertError.message }, { status: 500 });
   }
+
+  // Marca de frescura: se escribe siempre que se guarden tramos, aunque la
+  // lista quede vacia (tambien es informacion: alguien la reviso hoy).
+  const { error: stampError } = await supabase
+    .from("shows")
+    .update({ tickets_updated_at: new Date().toISOString(), tickets_updated_source: source })
+    .eq("id", id);
+  if (stampError) console.error("[eventos/tickets] no se pudo guardar la marca de actualizacion", stampError);
 
   await logActivity({
     supabase,

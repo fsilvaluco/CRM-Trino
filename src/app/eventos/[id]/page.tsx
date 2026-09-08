@@ -25,7 +25,7 @@ import {
   Plus, Trash2, Star, ExternalLink, Loader2, Lock, LockOpen, Printer, Receipt,
   Ticket, Upload, Paperclip, Share2, Users, RefreshCw, BellRing, Banknote, CheckCircle2, Circle, Mail, Sparkles,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import type { LiveShow, ShowStatus, SetlistItem, CostItem, TimingItem, TicketTier, EventContact } from "@/types/shows";
 import { EventPrintHeader } from "@/components/events/EventPrintHeader";
@@ -35,6 +35,25 @@ import { supabase } from "@/lib/supabase";
 import { SignedFileLink } from "@/components/finances/SignedFileLink";
 import { fileToBase64 } from "@/components/finances/TransactionForm";
 import { extractAddressCandidate, mapsSearchUrl } from "@/lib/address-detect";
+
+// Vía por la que se actualizaron por última vez los tramos de venta
+// (migración 094). Se muestra junto a la fecha para saber si los números
+// vienen de un pantallazo leído con IA, del link de la ticketera, o a mano.
+type TicketsSource = "pantallazo" | "link" | "manual";
+
+const TICKETS_SOURCE_LABEL: Record<TicketsSource, string> = {
+  pantallazo: "pantallazo leído con IA",
+  link: "sincronizado del link",
+  manual: "cargado a mano",
+};
+
+function normalizeTicketsSource(value: unknown): TicketsSource {
+  return value === "pantallazo" || value === "link" ? value : "manual";
+}
+
+// Después de una semana sin tocarse, los números de entradas vendidas ya no
+// sirven para tomar decisiones -- se avisa en ámbar.
+const TICKETS_STALE_DAYS = 7;
 
 const STATUS_CONFIG: Record<ShowStatus, { label: string; className: string }> = {
   cotizando: { label: "Cotizando", className: "bg-yellow-100 text-yellow-700" },
@@ -154,6 +173,11 @@ export default function EventDetailPage() {
   const [newTierQty, setNewTierQty] = useState("");
   const [newTierCapacity, setNewTierCapacity] = useState("");
   const ticketFileInputRef = useRef<HTMLInputElement>(null);
+  // Marca de frescura (migración 094): cuándo se actualizaron por última vez
+  // los tramos y por qué vía. Sin esto la tabla se veía igual de "al día"
+  // tuviera datos de hoy o de hace dos semanas.
+  const [ticketsUpdatedAt, setTicketsUpdatedAt] = useState<string | null>(null);
+  const [ticketsSource, setTicketsSource] = useState<TicketsSource>("manual");
   // Descuentos sobre la venta bruta de entradas (IVA/SCD/comisión) + % que
   // le corresponde al proyecto sobre el neto -- ver migración 083. Se
   // guardan como string en el input para permitir "" mientras se edita
@@ -305,6 +329,8 @@ export default function EventDetailPage() {
           setTicketComisionPct(data.ticketComisionPct != null ? String(data.ticketComisionPct) : "");
           setTicketScdPct(data.ticketScdPct != null ? String(data.ticketScdPct) : "");
           setTicketSplitProjectPct(data.ticketSplitProjectPct != null ? String(data.ticketSplitProjectPct) : "");
+          setTicketsUpdatedAt(data.ticketsUpdatedAt ?? null);
+          setTicketsSource(normalizeTicketsSource(data.ticketsUpdatedSource));
           setTicketsDirty(false);
         }
         if (!dirtyRef.current.contacts) {
@@ -652,6 +678,13 @@ export default function EventDetailPage() {
     }
   }
 
+  // Cualquier edición a mano deja la marca como "manual": los números ya no
+  // son tal cual los que leyó la IA del pantallazo.
+  function markTicketsEdited() {
+    setTicketsSource("manual");
+    setTicketsDirty(true);
+  }
+
   async function saveTickets() {
     setSavingTickets(true);
     try {
@@ -667,9 +700,11 @@ export default function EventDetailPage() {
             capacity: t.capacity,
             statusLabel: t.statusLabel,
           })),
+          source: ticketsSource,
         }),
       });
       if (!res.ok) throw new Error();
+      setTicketsUpdatedAt(new Date().toISOString());
       toast.success("Entradas guardadas");
       load();
     } catch {
@@ -695,6 +730,13 @@ export default function EventDetailPage() {
     const hasDescuentos = ivaPct > 0 || comisionPct > 0 || scdPct > 0 || ticketSplitProjectPct.trim() !== "";
     return { bruto, ivaPct, comisionPct, scdPct, splitPct, descuentos, neto, montoProyecto, hasDescuentos };
   }, [ticketTiers, ticketIvaPct, ticketComisionPct, ticketScdPct, ticketSplitProjectPct]);
+
+  // Más de una semana sin actualizar = los números ya no son confiables.
+  const ticketsStale = useMemo(() => {
+    if (!ticketsUpdatedAt) return false;
+    const ms = Date.now() - new Date(ticketsUpdatedAt).getTime();
+    return ms > TICKETS_STALE_DAYS * 24 * 60 * 60 * 1000;
+  }, [ticketsUpdatedAt]);
 
   async function applyTicketsToIncome() {
     const { montoProyecto } = ticketBreakdown;
@@ -770,6 +812,7 @@ export default function EventDetailPage() {
         );
         return next;
       });
+      setTicketsSource("pantallazo");
       setTicketsDirty(true);
     } catch {
       toast.error("Error al procesar la imagen");
@@ -824,6 +867,7 @@ export default function EventDetailPage() {
           statusLabel: t.statusLabel ?? null,
         }))
       );
+      setTicketsSource("link");
       setTicketsDirty(true);
       toast.success(`${tiers.length} tramo(s) sincronizados -- revisa antes de guardar`);
     } catch {
@@ -1941,6 +1985,26 @@ export default function EventDetailPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
+          {/* Marca de frescura: fecha y hora de la última actualización de los
+              tramos y por qué vía. Sale también en la impresión, para que quien
+              lea la planilla sepa a qué momento corresponden los números. */}
+          {ticketsUpdatedAt ? (
+            <p className={`text-xs flex items-center gap-1.5 ${ticketsStale ? "text-amber-600" : "text-muted-foreground"}`}>
+              <Clock className="h-3 w-3 shrink-0" />
+              <span>
+                Última actualización: {format(new Date(ticketsUpdatedAt), "d MMM yyyy, HH:mm", { locale: es })} hrs
+                {" · "}
+                {formatDistanceToNow(new Date(ticketsUpdatedAt), { locale: es, addSuffix: true })}
+                {" · "}
+                {TICKETS_SOURCE_LABEL[ticketsSource]}
+              </span>
+            </p>
+          ) : ticketTiers.length > 0 ? (
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <Clock className="h-3 w-3 shrink-0" />
+              <span>Sin registro de actualización todavía — se marca al guardar las entradas.</span>
+            </p>
+          ) : null}
           <div className="flex items-center gap-2 no-print">
             <Input
               placeholder="Link de estadísticas de la ticketera (PortalTickets, etc.)"
@@ -1993,11 +2057,11 @@ export default function EventDetailPage() {
           ) : (
             <SortableList
               items={ticketTiers}
-              onReorder={(items) => { setTicketTiers(items); setTicketsDirty(true); }}
+              onReorder={(items) => { setTicketTiers(items); markTicketsEdited(); }}
               renderItem={(tier) => {
                 function updateTier(patch: Partial<TicketTier>) {
                   setTicketTiers((prev) => prev.map((t) => (t.id === tier.id ? { ...t, ...patch } : t)));
-                  setTicketsDirty(true);
+                  markTicketsEdited();
                 }
                 return (
                   <div className="flex items-center gap-2 flex-wrap">
@@ -2040,7 +2104,7 @@ export default function EventDetailPage() {
                     <button
                       onClick={() => {
                         setTicketTiers((prev) => prev.filter((t) => t.id !== tier.id));
-                        setTicketsDirty(true);
+                        markTicketsEdited();
                       }}
                       className="text-muted-foreground hover:text-destructive cursor-pointer p-1 shrink-0"
                     >
@@ -2100,7 +2164,7 @@ export default function EventDetailPage() {
                 setNewTierPrice("");
                 setNewTierQty("");
                 setNewTierCapacity("");
-                setTicketsDirty(true);
+                markTicketsEdited();
               }}
             >
               <Plus className="h-4 w-4" />

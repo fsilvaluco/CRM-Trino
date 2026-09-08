@@ -88,6 +88,10 @@ export interface LiveShow {
   costSheetClosingFileName: string | null;
   costSheetInformedAt: string | null;
   ticketSalesUrl: string | null;
+  // Cuando se actualizaron por ultima vez los tramos de venta y por que via
+  // (pantallazo leido con IA, link de la ticketera, o a mano) -- migracion 094.
+  ticketsUpdatedAt?: string | null;
+  ticketsUpdatedSource?: "pantallazo" | "link" | "manual" | string | null;
   tour: string | null;
   // Descuentos sobre la venta bruta de entradas (todos % editables,
   // siempre manuales por evento) + % de esa venta neta que le corresponde
