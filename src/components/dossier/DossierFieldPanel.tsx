@@ -9,11 +9,12 @@ import {
 } from "@/components/ui/select";
 import { Trash2, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
 import { DOSSIER_DATA_SOURCES } from "@/lib/dossier-data-sources";
-import { DOSSIER_FONTS } from "@/lib/dossier-fonts";
 import type { EditableDossierField } from "./DossierFieldOverlay";
 
 interface DossierFieldPanelProps {
   field: EditableDossierField;
+  /** Google Fonts + tipografías propias del proyecto, ya combinadas. */
+  fonts: string[];
   onChange: (patch: Partial<EditableDossierField>) => void;
   onDelete: () => void;
 }
@@ -26,7 +27,7 @@ const ALIGN_OPTIONS: { value: EditableDossierField["textAlign"]; icon: typeof Al
   { value: "right", icon: AlignRight },
 ];
 
-export function DossierFieldPanel({ field, onChange, onDelete }: DossierFieldPanelProps) {
+export function DossierFieldPanel({ field, fonts, onChange, onDelete }: DossierFieldPanelProps) {
   const currentSource = DOSSIER_DATA_SOURCES.find((d) => d.key === field.dataSource);
 
   return (
@@ -65,7 +66,7 @@ export function DossierFieldPanel({ field, onChange, onDelete }: DossierFieldPan
               <SelectValue>{field.fontFamily}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {DOSSIER_FONTS.map((f) => (
+              {fonts.map((f) => (
                 <SelectItem key={f} value={f} style={{ fontFamily: f }}>{f}</SelectItem>
               ))}
             </SelectContent>

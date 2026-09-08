@@ -27,6 +27,11 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     .eq("dossier_id", id)
     .order("page_number");
 
+  const { data: fontRows } = await admin
+    .from("project_fonts")
+    .select("name, file_path, format")
+    .eq("project_id", dossier.project_id);
+
   const values = await resolveDossierValues(admin, dossier.organization_id, dossier.project_id);
 
   const { data: pdfUrlData } = admin.storage.from("dossiers").getPublicUrl(dossier.pdf_path);
@@ -35,6 +40,13 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     name: dossier.name,
     pdfUrl: pdfUrlData.publicUrl,
     pdfPageCount: dossier.pdf_page_count,
+    // Tipografías propias del proyecto -- la página pública también las
+    // necesita cargar (@font-face) si algún campo las usa.
+    fonts: (fontRows ?? []).map((f) => ({
+      name: f.name,
+      format: f.format,
+      url: admin.storage.from("fonts").getPublicUrl(f.file_path).data.publicUrl,
+    })),
     fields: (fieldRows ?? []).map((r) => {
       const source = DOSSIER_DATA_SOURCE_MAP.get(r.data_source);
       return {

@@ -296,3 +296,36 @@ export const updateDossierFieldsSchema = z.object({
 });
 
 export type UpdateDossierFieldsInput = z.infer<typeof updateDossierFieldsSchema>;
+
+// ── Tipografías propias por proyecto ────────────────────────────────────────
+// Para usar en los campos del Dossier junto a las de Google Fonts -- ej.
+// una fuente de marca como "New Spirit" que no está en Google Fonts.
+
+export type FontFormat = "woff2" | "woff" | "truetype" | "opentype";
+
+export interface ProjectFont {
+  id: string;
+  projectId: string;
+  name: string;
+  url: string;
+  format: FontFormat;
+  createdAt: string;
+}
+
+export const createProjectFontSchema = z.object({
+  projectId: z.string().uuid("El proyecto es requerido"),
+  // Restringido a letras/números/espacios/guiones -- este valor se usa
+  // literal como font-family en un @font-face inyectado como CSS (ver
+  // CustomFontFaces.tsx), así que no puede llevar comillas ni otros
+  // caracteres que rompan ese contexto.
+  name: z
+    .string()
+    .trim()
+    .min(1, "El nombre es requerido")
+    .max(60, "Máximo 60 caracteres")
+    .regex(/^[a-zA-Z0-9À-ÿ ._-]+$/, "Solo letras, números, espacios y guiones"),
+  filePath: z.string().min(1, "Falta el archivo"),
+  format: z.enum(["woff2", "woff", "truetype", "opentype"]),
+});
+
+export type CreateProjectFontInput = z.infer<typeof createProjectFontSchema>;

@@ -6,15 +6,17 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, Loader2, MousePointerClick } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, Loader2, MousePointerClick, Type } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { usePdfDocument } from "@/components/dossier/usePdfDocument";
 import { PdfPageCanvas } from "@/components/dossier/PdfPageCanvas";
 import { DossierFieldOverlay, type EditableDossierField } from "@/components/dossier/DossierFieldOverlay";
 import { DossierFieldPanel } from "@/components/dossier/DossierFieldPanel";
+import { CustomFontFaces } from "@/components/dossier/CustomFontFaces";
+import { UploadFontDialog } from "@/components/dossier/UploadFontDialog";
 import { DOSSIER_DATA_SOURCES } from "@/lib/dossier-data-sources";
-import { GOOGLE_FONTS_HREF } from "@/lib/dossier-fonts";
-import type { Dossier } from "@/types/analytics";
+import { DOSSIER_FONTS, GOOGLE_FONTS_HREF } from "@/lib/dossier-fonts";
+import type { Dossier, ProjectFont } from "@/types/analytics";
 
 const CANVAS_WIDTH = 720;
 
@@ -36,6 +38,8 @@ export default function DossierEditorPage() {
   const [selectedLocalId, setSelectedLocalId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [renderedSize, setRenderedSize] = useState({ width: CANVAS_WIDTH, height: CANVAS_WIDTH * 1.41 });
+  const [projectFonts, setProjectFonts] = useState<ProjectFont[]>([]);
+  const [uploadFontOpen, setUploadFontOpen] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef<string | null>(null);
@@ -73,6 +77,24 @@ export default function DossierEditorPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const loadFonts = useCallback(async (projectId: string) => {
+    try {
+      const res = await fetch(`/api/project-fonts?projectId=${projectId}`);
+      if (res.ok) setProjectFonts(await res.json());
+    } catch {
+      // silencioso -- solo afecta el selector de tipografía, no bloquea el editor
+    }
+  }, []);
+
+  useEffect(() => {
+    if (dossier?.projectId) loadFonts(dossier.projectId);
+  }, [dossier?.projectId, loadFonts]);
+
+  const fontOptions = useMemo(
+    () => [...DOSSIER_FONTS, ...projectFonts.map((f) => f.name)],
+    [projectFonts]
+  );
 
   // Preview indexado por data_source (no por field id) -- así un campo
   // recién agregado (sin guardar) también puede mostrar el valor actual,
@@ -209,6 +231,7 @@ export default function DossierEditorPage() {
   return (
     <div className="space-y-3">
       <link rel="stylesheet" href={GOOGLE_FONTS_HREF} />
+      <CustomFontFaces fonts={projectFonts} />
 
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2 min-w-0">
@@ -223,6 +246,9 @@ export default function DossierEditorPage() {
           />
         </div>
         <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => setUploadFontOpen(true)}>
+            <Type className="h-3.5 w-3.5 mr-1.5" /> Subir tipografía
+          </Button>
           <a href={`/d/${dossierId}`} target="_blank" rel="noopener noreferrer">
             <Button size="sm" variant="outline" className="cursor-pointer">
               <ExternalLink className="h-3.5 w-3.5 mr-1.5" /> Ver público
@@ -286,6 +312,7 @@ export default function DossierEditorPage() {
           {selectedField ? (
             <DossierFieldPanel
               field={selectedField}
+              fonts={fontOptions}
               onChange={(patch) => updateField(selectedField.localId, patch)}
               onDelete={() => deleteField(selectedField.localId)}
             />
@@ -297,6 +324,13 @@ export default function DossierEditorPage() {
           )}
         </div>
       </div>
+
+      <UploadFontDialog
+        open={uploadFontOpen}
+        onOpenChange={setUploadFontOpen}
+        projectId={dossier.projectId}
+        onUploaded={() => loadFonts(dossier.projectId)}
+      />
     </div>
   );
 }

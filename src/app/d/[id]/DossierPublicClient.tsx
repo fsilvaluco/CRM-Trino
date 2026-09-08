@@ -5,6 +5,7 @@ import { usePdfDocument } from "@/components/dossier/usePdfDocument";
 import { PdfPageCanvas } from "@/components/dossier/PdfPageCanvas";
 import { formatDossierValue, type DossierDataFormat } from "@/lib/dossier-data-sources";
 import { GOOGLE_FONTS_HREF } from "@/lib/dossier-fonts";
+import { CustomFontFaces } from "@/components/dossier/CustomFontFaces";
 import { Loader2 } from "lucide-react";
 
 const CANVAS_WIDTH = 800;
@@ -23,10 +24,17 @@ interface PublicField {
   format: DossierDataFormat;
 }
 
+interface PublicFont {
+  name: string;
+  url: string;
+  format: "woff2" | "woff" | "truetype" | "opentype";
+}
+
 interface PublicDossier {
   name: string;
   pdfUrl: string;
   pdfPageCount: number;
+  fonts: PublicFont[];
   fields: PublicField[];
 }
 
@@ -76,6 +84,7 @@ export function DossierPublicClient({ id }: { id: string }) {
   return (
     <div className="min-h-screen bg-slate-100 py-8 flex flex-col items-center gap-6">
       <link rel="stylesheet" href={GOOGLE_FONTS_HREF} />
+      <CustomFontFaces fonts={data.fonts} />
       <h1 className="text-lg font-semibold text-slate-800">{data.name}</h1>
       {pdf ? (
         pages.map((pageNumber) => (
