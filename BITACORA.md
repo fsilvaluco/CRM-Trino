@@ -1302,6 +1302,12 @@ nombre de la tipografía queda restringido a letras/números/espacios/guiones en
 se usa literal como `font-family` dentro de un CSS inyectado con `dangerouslySetInnerHTML`, así que no
 puede llevar comillas ni otros caracteres que rompan ese contexto.
 
+**Cierre del bug de `project-avatars` que había quedado anotado como pendiente** (mismo día): el mismo
+patrón de `name` sin calificar (ver punto 1 de arriba) también estaba en `project_avatars_insert/update/
+delete` (015_projects_avatar.sql) -- corregido igual, calificando `storage.foldername(storage.objects.name)`.
+Aplicado directo en producción vía Supabase MCP; no requirió deploy de código (es un cambio solo de policy
+RLS).
+
 **Versión de la app subida a 5.1.**
 
 ---
