@@ -1,6 +1,6 @@
 # Bitácora de Trabajo — Artist Pro
-_Checkpoint v1.7 — 8 de septiembre de 2026 (módulo Dossier)_
-_Checkpoint anterior: v1.6 — 7 de septiembre de 2026 (Comprobantes, Panel de Permisos, Finanzas con IA)_
+_Checkpoint v1.8 — 8 de septiembre de 2026 (Dossier: fixes en vivo + tipografías propias)_
+_Checkpoint anterior: v1.7 — 8 de septiembre de 2026 (módulo Dossier)_
 
 > **Formato de tracking:** Registro histórico de trabajo realizado + pendientes actuales.  
 > Cada entrada incluye fecha, estado (🔨 En Progreso / ✅ Hecho), y notas de implementación detalladas.
@@ -1271,6 +1271,38 @@ como Francisco** (necesita su sesión) -- falta que él suba un dossier real y p
 para confirmar el flujo completo.
 
 **Versión de la app subida a 5.0** (módulo nuevo).
+
+### Seguimiento en producción: 2 bugs reales de Francisco probando en vivo (8 sep 2026)
+
+1. **"Subir PDF" tiraba "Error subiendo el archivo: new row violates row-level security policy".**
+   Causa: dentro del `EXISTS` de las policies `dossiers_insert`/`dossiers_delete` (storage.objects),
+   `(storage.foldername(name))[1]` con `name` SIN calificar -- como el `FROM` de esa subquery es
+   `projects p` y `projects` también tiene columna `name`, Postgres resuelve el `name` ambiguo al scope
+   más interno (`p.name`, el NOMBRE del proyecto) en vez de `storage.objects.name` (el path del archivo
+   subido) -- sin error de ambigüedad, lo resuelve mal en silencio. Corregido calificando explícito
+   `storage.foldername(storage.objects.name)`. Mismo bug encontrado (sin corregir todavía, quedó anotado
+   con `spawn_task`) en `project_avatars_insert/update/delete` (015_projects_avatar.sql) -- viene de ahí
+   el patrón, copiado sin darse cuenta al escribir `dossiers`.
+2. **Clic sobre un dato existente en el editor lo duplicaba, y "borrar" parecía fallar a veces.**
+   Causa: el overlay del dato frenaba la propagación del `pointerdown`, pero el evento "click" que el
+   navegador dispara después (al soltar) es DISTINTO y seguía burbujeando hasta el contenedor de la
+   página -- que interpreta cualquier click como "agregar un dato nuevo ahí". Cada intento de
+   seleccionar/mover un dato creaba uno nuevo apilado encima con los valores por defecto -- por eso
+   "borrar" parecía fallar a veces (borraba bien, pero quedaba otro duplicado exacto tapando el mismo
+   lugar). Fix: frenar también la propagación del evento `click`, no solo `pointerdown`.
+
+**Tipografías propias por proyecto** (mismo día, pedido de Francisco: "uso New Spirit y no está"): cada
+proyecto puede subir sus propias fuentes (`.woff2/.woff/.ttf/.otf`, hasta 10 MB) desde el botón "Subir
+tipografía" (en `/dossier` y dentro del editor) y usarlas en los campos del Dossier junto a las de Google
+Fonts. Tabla `project_fonts` (093) + bucket público `fonts` (con la calificación de columna correcta desde
+el vamos, aprendida del bug de arriba). `CustomFontFaces.tsx` inyecta un `<style>` con `@font-face` por
+cada tipografía -- reusado en el editor Y en la página pública (`/api/public/dossiers/[id]` ahora también
+devuelve las fuentes del proyecto), para que un campo con fuente propia se vea igual en los dos lados. El
+nombre de la tipografía queda restringido a letras/números/espacios/guiones en el schema de creación --
+se usa literal como `font-family` dentro de un CSS inyectado con `dangerouslySetInnerHTML`, así que no
+puede llevar comillas ni otros caracteres que rompan ese contexto.
+
+**Versión de la app subida a 5.1.**
 
 ---
 
