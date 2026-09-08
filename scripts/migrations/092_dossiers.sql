@@ -122,7 +122,7 @@ BEGIN
           SELECT 1 FROM projects p
           JOIN organization_members om
             ON om.organization_id = p.organization_id AND om.user_id = auth.uid()
-          WHERE p.id::text = (storage.foldername(name))[1]
+          WHERE p.id::text = (storage.foldername(storage.objects.name))[1]
         )
       );
   END IF;
@@ -140,7 +140,7 @@ BEGIN
           SELECT 1 FROM projects p
           JOIN organization_members om
             ON om.organization_id = p.organization_id AND om.user_id = auth.uid()
-          WHERE p.id::text = (storage.foldername(name))[1]
+          WHERE p.id::text = (storage.foldername(storage.objects.name))[1]
         )
       );
   END IF;
