@@ -1,6 +1,6 @@
 # Bitácora de Trabajo — Artist Pro
-_Checkpoint v1.8 — 8 de septiembre de 2026 (Dossier: fixes en vivo + tipografías propias)_
-_Checkpoint anterior: v1.7 — 8 de septiembre de 2026 (módulo Dossier)_
+_Checkpoint v1.9 — 8 de septiembre de 2026 (marca de última actualización en venta de entradas)_
+_Checkpoint anterior: v1.8 — 8 de septiembre de 2026 (Dossier: fixes en vivo + tipografías propias)_
 
 > **Formato de tracking:** Registro histórico de trabajo realizado + pendientes actuales.  
 > Cada entrada incluye fecha, estado (🔨 En Progreso / ✅ Hecho), y notas de implementación detalladas.
@@ -1309,6 +1309,36 @@ Aplicado directo en producción vía Supabase MCP; no requirió deploy de códig
 RLS).
 
 **Versión de la app subida a 5.1.**
+
+---
+
+## 🎟️ Marca de última actualización en la venta de entradas (8 sep 2026)
+
+**Pedido de Francisco:** "para cuando meta un pantallazo de IA en el tema de entradas, ponle una marca
+de cuándo fue la última vez que se subió, para que la gente pueda saber qué tan actualizado está" —
+con **fecha y hora**.
+
+El problema real: la tabla de tramos de venta se veía exactamente igual tuviera datos leídos hace 10
+minutos o hace dos semanas. Nadie que abriera el evento (ni el mánager, ni la banda al revisar la
+planilla) podía saber a qué momento correspondían las entradas vendidas.
+
+**Qué se hizo:**
+- **Migración 094** (aplicada en producción vía MCP): `shows.tickets_updated_at` (timestamptz) y
+  `shows.tickets_updated_source` (`'pantallazo' | 'link' | 'manual'`).
+- `PUT /api/eventos/[id]/tickets` sella fecha/hora en cada guardado y guarda la vía que manda el
+  cliente (validada contra la lista permitida; cualquier otra cosa cae en `manual`).
+- En la página del evento la fuente se marca sola: subir un pantallazo deja `pantallazo`, sincronizar
+  el link de la ticketera deja `link`, y **cualquier edición a mano posterior la baja a `manual`**
+  (`markTicketsEdited()`) — porque los números ya no son tal cual los que leyó la IA.
+- La tarjeta "Venta de entradas" muestra: `Última actualización: 8 sep 2026, 14:32 hrs · hace 2 horas ·
+  pantallazo leído con IA`. Sale también en la impresión de la planilla, para que quien la lea sepa a
+  qué momento corresponden los números.
+- Si pasaron más de **7 días** sin actualizar, la línea se pone en ámbar (`TICKETS_STALE_DAYS`).
+- Si hay tramos pero nunca se guardaron desde este cambio, se avisa "Sin registro de actualización
+  todavía — se marca al guardar las entradas" (eventos viejos, sin backfill: no hay forma honesta de
+  saber cuándo se cargaron).
+
+**Versión de la app subida a 5.2.**
 
 ---
 
