@@ -10,7 +10,7 @@ import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { AutoRequestPushPermission } from "@/components/layout/AutoRequestPushPermission";
 
 const PUBLIC_PATHS = ["/login", "/auth/activate", "/forgot-password", "/reset-password"];
-const PUBLIC_PREFIXES = ["/rate/", "/embed/", "/e/"];
+const PUBLIC_PREFIXES = ["/rate/", "/embed/", "/e/", "/d/"];
 const GUEST_ONLY_PATHS = ["/login", "/forgot-password"];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

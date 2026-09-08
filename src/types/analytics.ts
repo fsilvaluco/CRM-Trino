@@ -210,3 +210,89 @@ export const createSpotifyStatsSchema = z.object({
 });
 
 export type CreateSpotifyStatsInput = z.infer<typeof createSpotifyStatsSchema>;
+
+// ── TikTok / YouTube (estadísticas manuales) ─────────────────────────────────
+// Sin integración en vivo todavía (ver migración 091) -- métricas como
+// key/value libre porque TikTok y YouTube no comparten el mismo set de
+// campos. Las claves válidas por plataforma viven en
+// src/lib/dossier-data-sources.ts (MANUAL_PLATFORM_METRIC_KEYS).
+
+export type ManualStatsPlatform = "tiktok" | "youtube";
+
+export interface ManualPlatformStats {
+  id: string;
+  projectId: string;
+  platform: ManualStatsPlatform;
+  periodStart: string;
+  periodEnd: string;
+  metrics: Record<string, number>;
+  source: string;
+  createdAt: string;
+}
+
+export const createManualPlatformStatsSchema = z.object({
+  projectId: z.string().uuid("El proyecto es requerido"),
+  platform: z.enum(["tiktok", "youtube"], { error: "La plataforma debe ser tiktok o youtube" }),
+  periodStart: z.string().min(1, "La fecha de inicio es requerida"),
+  periodEnd: z.string().min(1, "La fecha de fin es requerida"),
+  metrics: z.record(z.string(), z.coerce.number()),
+});
+
+export type CreateManualPlatformStatsInput = z.infer<typeof createManualPlatformStatsSchema>;
+
+// ── Dossier ───────────────────────────────────────────────────────────────────
+// PDF de dossier (diseñado en Canva u otra herramienta, sin los números) +
+// campos posicionados a mano que se rellenan con datos en vivo de
+// ArtistPro. Ver migración 092 y src/lib/dossier-data-sources.ts.
+
+export interface DossierField {
+  id: string;
+  pageNumber: number;
+  xPct: number;
+  yPct: number;
+  dataSource: string;
+  fontFamily: string;
+  fontSize: number;
+  color: string;
+  bold: boolean;
+  textAlign: "left" | "center" | "right";
+}
+
+export interface Dossier {
+  id: string;
+  projectId: string;
+  name: string;
+  pdfPath: string;
+  pdfPageCount: number;
+  createdAt: string;
+  updatedAt: string;
+  fields: DossierField[];
+}
+
+export const createDossierSchema = z.object({
+  projectId: z.string().uuid("El proyecto es requerido"),
+  name: z.string().trim().min(1, "El nombre es requerido"),
+  pdfPath: z.string().min(1, "Falta el archivo"),
+  pdfPageCount: z.coerce.number().int().positive(),
+});
+
+export type CreateDossierInput = z.infer<typeof createDossierSchema>;
+
+export const dossierFieldInputSchema = z.object({
+  id: z.string().optional(),
+  pageNumber: z.coerce.number().int().positive(),
+  xPct: z.coerce.number().min(0).max(100),
+  yPct: z.coerce.number().min(0).max(100),
+  dataSource: z.string().min(1),
+  fontFamily: z.string().min(1).default("Inter"),
+  fontSize: z.coerce.number().positive().default(24),
+  color: z.string().min(1).default("#111111"),
+  bold: z.boolean().default(false),
+  textAlign: z.enum(["left", "center", "right"]).default("left"),
+});
+
+export const updateDossierFieldsSchema = z.object({
+  fields: z.array(dossierFieldInputSchema),
+});
+
+export type UpdateDossierFieldsInput = z.infer<typeof updateDossierFieldsSchema>;

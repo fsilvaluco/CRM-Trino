@@ -31,6 +31,7 @@ import {
   History,
   FileCheck2,
   KeyRound,
+  FileText,
 } from "lucide-react";
 import { type LucideIcon } from "lucide-react";
 
@@ -118,6 +119,7 @@ export const navConfig: NavItem[] = [
     children: [
       { type: "leaf", href: "/smartlinks", label: "Smartlink", icon: Link2 },
       { type: "leaf", href: "/qr-codes", label: "Códigos QR", icon: QrCode },
+      { type: "leaf", href: "/dossier", label: "Dossier", icon: FileText },
     ],
   },
   {

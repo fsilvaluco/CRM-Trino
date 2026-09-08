@@ -1,6 +1,6 @@
 # Bitácora de Trabajo — Artist Pro
-_Checkpoint v1.6 — 7 de septiembre de 2026 (Comprobantes, Panel de Permisos, Finanzas con IA)_
-_Checkpoint anterior: v1.5 — 23 de agosto de 2026 (sesión Auditoría de Seguridad)_
+_Checkpoint v1.7 — 8 de septiembre de 2026 (módulo Dossier)_
+_Checkpoint anterior: v1.6 — 7 de septiembre de 2026 (Comprobantes, Panel de Permisos, Finanzas con IA)_
 
 > **Formato de tracking:** Registro histórico de trabajo realizado + pendientes actuales.  
 > Cada entrada incluye fecha, estado (🔨 En Progreso / ✅ Hecho), y notas de implementación detalladas.
@@ -1208,6 +1208,69 @@ correcto (`` `${date}T00:00:00` ``) y no se tocaron.
 commit y push directo a `main` (sin PR, como de costumbre en este proyecto).
 
 **Versión de la app subida a 4.0** (varios módulos nuevos: Comprobantes, Panel de Permisos, Carga masiva).
+
+---
+
+## 📦 Módulo Dossier -- datos en vivo sobre un PDF diseñado en Canva (7-8 sep 2026)
+
+Francisco arma los dossiers de cada artista en Canva y los publica en un subdominio propio (ej.
+`gamuza.katarsis.cl`), pero los números (seguidores, oyentes, engagement, etc.) los actualiza a mano
+cazándolos en cada plataforma. Pidió explorar opciones para que el diseño siga siendo 100% Canva pero los
+NÚMEROS vengan de datos reales que ArtistPro ya recolecta.
+
+**Investigación previa (sin construir nada todavía)**: se leyó el dossier real de Gamuza (PDF de 25
+páginas) y se revisó qué de esos datos ya recolecta ArtistPro en la base:
+- Instagram y Facebook: 100% en vivo (Meta Graph API, `artist_integrations`).
+- Spotify: semi-automático (`spotify_stats_snapshots`, pantallazo leído con IA, sin API pública de Spotify
+  for Artists para estos datos).
+- TikTok y YouTube: nada todavía -- ni integración ni carga manual.
+
+Se plantearon 3 opciones (Canva Connect API/Autofill, puente por Google Sheets, o una página propia con
+los datos vivos) -- Francisco eligió empezar por la más liviana: en vez de reconstruir el diseño en
+ArtistPro (explícitamente fuera de alcance), subir el PDF ya diseñado (sin los números) y posicionar a
+mano, con clics, dónde va cada dato -- con su propia tipografía/color -- generando un link público que
+siempre muestra el valor actual.
+
+**Lo construido:**
+- `manual_platform_stats` (migración 091): carga manual de TikTok/YouTube (JSONB de métricas, no columnas
+  fijas -- TikTok y YouTube no comparten el mismo set de campos), con espejo de seguidores/suscriptores a
+  `social_metrics` (mismo patrón que Spotify).
+- `dossiers` + `dossier_fields` (migración 092) + bucket público `dossiers` (mismo criterio que
+  `project-avatars`: el link se comparte sin cuenta). Un campo = una posición en % de la página (no
+  píxeles, para no depender del zoom) atada a un `data_source` (ej. `instagram.followers`), con su propia
+  tipografía/tamaño/color/negrita/alineación.
+- `src/lib/dossier-data-sources.ts`: catálogo de ~25 datos disponibles (Instagram con demografía
+  edad/género y engagement aproximado calculado de `instagram_posts`, Facebook, Spotify, TikTok/YouTube
+  manual) + `resolveDossierValues()`, que calcula el valor ACTUAL de cada uno -- reusado tanto por el
+  editor (preview) como por la página pública (siempre el dato más reciente).
+- Editor (`/dossier/[id]`): el PDF se renderiza página por página con `pdf.js` en un `<canvas>`; clic en un
+  espacio vacío agrega un campo ahí, arrastrar uno existente lo reposiciona, panel lateral para elegir el
+  dato/tipografía/color/tamaño/alineación de la selección.
+- Página pública (`/d/[id]`, sin login -- agregada a `PUBLIC_PREFIXES` en `AppShell.tsx`, mismo patrón que
+  `/e/[id]`/`/rate/[showId]`): misma técnica de renderizado, con los valores superpuestos en HTML.
+- Menú nuevo bajo "Herramientas": **Dossier** (lista de dossiers del proyecto activo, subir PDF, accesos
+  directos para registrar estadísticas de TikTok/YouTube).
+
+**Detalle técnico que costó una vuelta**: `pdfjs-dist` está en `serverExternalPackages` (necesario para el
+uso existente del lado servidor, vía `pdf-parse`) -- resolver el worker con el patrón estándar
+(`new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url)`) desde un componente CLIENTE choca con
+eso y Turbopack tira un warning de build. Solución: copiar el worker a `public/pdf.worker.min.mjs` (archivo
+estático versionado) y apuntar `workerSrc` ahí directo -- sin warnings, y más robusto en general (no
+depende de que el bundler resuelva bien una ruta dentro de `node_modules`). Si se actualiza la versión de
+`pdfjs-dist`, hay que volver a copiar ese archivo a mano.
+
+**Pendiente / decisión ya tomada para después**: la opción de generar el PDF autocompletado directo desde
+Canva (Connect API / Autofill) queda para una fase 2 -- Francisco tiene plan Canva Equipos, que sí calificaría,
+pero se prioriza validar primero que el flujo de datos (v1, página web) funcione bien.
+
+**Verificado**: `tsc --noEmit`, `eslint` (archivos nuevos y tocados, 0 errores/warnings propios -- el resto
+de hallazgos de un lint de `src` completo son preexistentes, no relacionados) y `npm run build` completo
+sin errores ni warnings. La ruta pública se probó de punta a punta contra el servidor real (bypass de
+login confirmado, metadata dinámica, manejo de "no encontrado"). **No se probó con un PDF real ni logueado
+como Francisco** (necesita su sesión) -- falta que él suba un dossier real y posicione los primeros campos
+para confirmar el flujo completo.
+
+**Versión de la app subida a 5.0** (módulo nuevo).
 
 ---
 
