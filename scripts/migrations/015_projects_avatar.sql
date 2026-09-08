@@ -32,6 +32,13 @@ ON CONFLICT (id) DO NOTHING;
 -- Solo admin o miembros del proyecto pueden subir/reemplazar/borrar el
 -- ícono. La ruta esperada es {project_id}/avatar.{ext} — el primer
 -- segmento del path se valida contra projects/organization_members.
+--
+-- OJO: las columnas se califican como storage.objects.name explícitamente
+-- -- `projects` también tiene una columna `name`, y dentro de este EXISTS
+-- un `name` sin calificar resuelve en silencio al nombre del PROYECTO
+-- (`p.name`) en vez de al path del archivo subido -- bug real encontrado
+-- en producción (8 sep 2026), mismo patrón copiado sin querer a las
+-- policies del bucket 'dossiers' (migración 092) y corregido ahí primero.
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -47,7 +54,7 @@ BEGIN
           SELECT 1 FROM projects p
           JOIN organization_members om
             ON om.organization_id = p.organization_id AND om.user_id = auth.uid()
-          WHERE p.id::text = (storage.foldername(name))[1]
+          WHERE p.id::text = (storage.foldername(storage.objects.name))[1]
             AND (
               om.role IN ('owner', 'admin')
               OR EXISTS (
@@ -72,7 +79,7 @@ BEGIN
           SELECT 1 FROM projects p
           JOIN organization_members om
             ON om.organization_id = p.organization_id AND om.user_id = auth.uid()
-          WHERE p.id::text = (storage.foldername(name))[1]
+          WHERE p.id::text = (storage.foldername(storage.objects.name))[1]
             AND (
               om.role IN ('owner', 'admin')
               OR EXISTS (
@@ -97,7 +104,7 @@ BEGIN
           SELECT 1 FROM projects p
           JOIN organization_members om
             ON om.organization_id = p.organization_id AND om.user_id = auth.uid()
-          WHERE p.id::text = (storage.foldername(name))[1]
+          WHERE p.id::text = (storage.foldername(storage.objects.name))[1]
             AND (
               om.role IN ('owner', 'admin')
               OR EXISTS (
