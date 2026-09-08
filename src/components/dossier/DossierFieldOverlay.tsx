@@ -62,6 +62,14 @@ export function DossierFieldOverlay({ field, selected, previewValue, onSelect, o
         onSelect();
         onDragStart(e);
       }}
+      // El "click" que sigue a un pointerdown/pointerup es un evento
+      // DISTINTO -- detener la propagación del pointerdown no alcanza para
+      // frenarlo. Sin esto, soltar el clic sobre un dato existente también
+      // dispara el onClick del contenedor (que agrega un dato NUEVO en esa
+      // posición) -- se veía como que el dato "se duplicaba" al tocarlo, y
+      // de paso hacía parecer que "borrar no funciona" (quedaban varios
+      // duplicados apilados en el mismo lugar).
+      onClick={(e) => e.stopPropagation()}
       title={source?.label ?? field.dataSource}
     >
       {text}
