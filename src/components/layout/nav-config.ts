@@ -118,7 +118,7 @@ export const navConfig: NavItem[] = [
     icon: Wrench,
     children: [
       { type: "leaf", href: "/smartlinks", label: "Smartlink", icon: Link2 },
-      { type: "leaf", href: "/qr-codes", label: "Códigos QR", icon: QrCode },
+      { type: "leaf", href: "/qr-codes", label: "Links", icon: QrCode },
       { type: "leaf", href: "/dossier", label: "Dossier", icon: FileText },
     ],
   },

@@ -68,12 +68,12 @@ export default function QrCodesPage() {
   }
 
   async function handleDelete(item: QrCodeItem) {
-    if (!confirm(`¿Eliminar el QR "${item.label}"? Si ya está impreso o pegado en algún lado, dejará de funcionar. Esta acción no se puede deshacer.`)) return;
+    if (!confirm(`¿Eliminar el link "${item.label}"? Si ya está impreso o compartido en algún lado, dejará de funcionar. Esta acción no se puede deshacer.`)) return;
     setDeletingId(item.id);
     try {
       const res = await fetch(`/api/qr/${item.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
-      toast.success("QR eliminado");
+      toast.success("Link eliminado");
       load();
     } catch {
       toast.error("No se pudo eliminar");
@@ -87,7 +87,7 @@ export default function QrCodesPage() {
       <EmptyState
         icon={QrCode}
         title="Elige un proyecto"
-        description="Los códigos QR son por proyecto -- selecciona uno arriba para ver o crear los suyos."
+        description="Los links son por proyecto -- selecciona uno arriba para ver o crear los suyos."
       />
     );
   }
@@ -96,15 +96,16 @@ export default function QrCodesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Códigos QR</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Links</h1>
           <p className="text-muted-foreground">
-            Cada QR redirige a un link real y cuenta cuántas veces lo escanean -- crea varios apuntando
-            al mismo destino para saber cuál funciona mejor (ej. flyer vs. bio de Instagram).
+            Cada link redirige a un destino real (y se puede compartir como URL corta o como QR) y cuenta
+            cuántas veces lo abren -- crea varios apuntando al mismo destino para saber cuál funciona mejor
+            (ej. flyer vs. bio de Instagram).
           </p>
         </div>
         <Button onClick={() => { setEditing(null); setFormOpen(true); }} className="cursor-pointer">
           <Plus className="h-4 w-4 mr-1.5" />
-          Nuevo QR
+          Nuevo link
         </Button>
       </div>
 
@@ -117,9 +118,9 @@ export default function QrCodesPage() {
       ) : items.length === 0 ? (
         <EmptyState
           icon={QrCode}
-          title="Sin códigos QR todavía"
+          title="Sin links todavía"
           description="Crea el primero para un flyer, la bio de Instagram, o cualquier link que quieras trackear."
-          actionLabel="Nuevo QR"
+          actionLabel="Nuevo link"
           onAction={() => { setEditing(null); setFormOpen(true); }}
         />
       ) : (

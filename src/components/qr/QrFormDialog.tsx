@@ -83,7 +83,7 @@ export function QrFormDialog({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "No se pudo guardar");
 
-      toast.success(editing ? "QR actualizado" : "QR creado");
+      toast.success(editing ? "Link actualizado" : "Link creado");
       onSaved();
       onClose();
     } catch (err) {
@@ -97,7 +97,7 @@ export function QrFormDialog({
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>{editing ? "Editar QR" : "Nuevo QR"}</DialogTitle>
+          <DialogTitle>{editing ? "Editar link" : "Nuevo link"}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -125,7 +125,7 @@ export function QrFormDialog({
             />
             {editing && (
               <p className="text-xs text-muted-foreground">
-                El QR ya impreso sigue funcionando igual -- solo cambia a dónde redirige.
+                El link ya impreso o compartido sigue funcionando igual -- solo cambia a dónde redirige.
               </p>
             )}
           </div>
@@ -152,7 +152,7 @@ export function QrFormDialog({
           </Button>
           <Button onClick={handleSubmit} disabled={saving} className="cursor-pointer">
             {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-            {editing ? "Guardar" : "Crear QR"}
+            {editing ? "Guardar" : "Crear link"}
           </Button>
         </DialogFooter>
       </DialogContent>
