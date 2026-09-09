@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useProject } from "@/lib/project-context";
-import type { Show, SocialMetric, MerchSnapshot, ShopifyProduct, ShopifySalesMonth, SpotifyStatsSnapshot } from "@/types/analytics";
+import type { Show, SocialMetric, MerchSnapshot, ShopifyProduct, ShopifySalesMonth, SpotifyStatsSnapshot, ManualPlatformStats } from "@/types/analytics";
 
 export interface MetaIntegration {
   connected: boolean;
@@ -34,6 +34,7 @@ export function useAnalyticsData() {
   const [shopifyIntegration, setShopifyIntegration] = useState<ShopifyIntegration>({ connected: false });
   const [facebookIntegration, setFacebookIntegration] = useState<FacebookIntegration>({ connected: false });
   const [spotifyStats, setSpotifyStats] = useState<SpotifyStatsSnapshot[]>([]);
+  const [manualStats, setManualStats] = useState<ManualPlatformStats[]>([]);
   const [loading, setLoading] = useState(true);
   const { activeProject, isAllProjects } = useProject();
 
@@ -48,7 +49,7 @@ export function useAnalyticsData() {
       }
       const qs = params.toString() ? `?${params.toString()}` : "";
 
-      const [showsRes, socialRes, merchRes, statusRes, shopifyRes, shopifyStatusRes, facebookStatusRes, spotifyStatsRes] = await Promise.all([
+      const [showsRes, socialRes, merchRes, statusRes, shopifyRes, shopifyStatusRes, facebookStatusRes, spotifyStatsRes, manualStatsRes] = await Promise.all([
         fetch(`/api/analytics/eventos${qs}`),
         fetch(`/api/analytics/social${qs}`),
         fetch(`/api/analytics/merch${qs}`),
@@ -57,8 +58,9 @@ export function useAnalyticsData() {
         fetch(`/api/integrations/shopify/status${qs}`),
         fetch(`/api/integrations/facebook/status${qs}`),
         fetch(`/api/analytics/spotify${qs}`),
+        fetch(`/api/analytics/manual-stats${qs}`),
       ]);
-      const [showsData, socialData, merchData, statusData, shopifyData, shopifyStatusData, facebookStatusData, spotifyStatsData] = await Promise.all([
+      const [showsData, socialData, merchData, statusData, shopifyData, shopifyStatusData, facebookStatusData, spotifyStatsData, manualStatsData] = await Promise.all([
         showsRes.ok ? showsRes.json() : [],
         socialRes.ok ? socialRes.json() : [],
         merchRes.ok ? merchRes.json() : [],
@@ -67,6 +69,7 @@ export function useAnalyticsData() {
         shopifyStatusRes.ok ? shopifyStatusRes.json() : { connected: false },
         facebookStatusRes.ok ? facebookStatusRes.json() : { connected: false },
         spotifyStatsRes.ok ? spotifyStatsRes.json() : [],
+        manualStatsRes.ok ? manualStatsRes.json() : [],
       ]);
       setShows(Array.isArray(showsData) ? showsData : []);
       setSocial(Array.isArray(socialData) ? socialData : []);
@@ -77,6 +80,7 @@ export function useAnalyticsData() {
       setShopifyIntegration(shopifyStatusData);
       setFacebookIntegration(facebookStatusData);
       setSpotifyStats(Array.isArray(spotifyStatsData) ? spotifyStatsData : []);
+      setManualStats(Array.isArray(manualStatsData) ? manualStatsData : []);
     } finally {
       setLoading(false);
     }
@@ -97,6 +101,7 @@ export function useAnalyticsData() {
     shopifyIntegration,
     facebookIntegration,
     spotifyStats,
+    manualStats,
     loading,
     refresh: loadAll,
   };
