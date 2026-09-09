@@ -15,7 +15,7 @@
     "local": "npm run build && npm run init && npm start",
     "mcp": "npx tsx mcp/crm-server.ts",
     "diagnose:storage": "npx tsx scripts/diagnose-storage.ts",
-    "postinstall": "mkdir -p data"
+    "postinstall": "node -e \"require('fs').mkdirSync('data',{recursive:true})\""
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
