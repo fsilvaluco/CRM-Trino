@@ -29,6 +29,10 @@ interface PlatformTabProps {
   /** Instagram y Facebook se conectan vía Meta; el resto es manual. */
   integration?: MetaIntegration;
   comingSoon?: boolean;
+  /** TikTok/YouTube tienen su propio formulario de estadísticas completas
+   * (ManualStatsDialog) en la página — oculta el botón genérico de acá
+   * para no tener dos flujos de "registrar" distintos a la vista. */
+  hideRegisterButton?: boolean;
 }
 
 const PLATFORM_COLOR: Record<Platform, string> = {
@@ -80,7 +84,7 @@ function tickInterval(dayCount: number): number {
   return 29; // ~mensual
 }
 
-export function PlatformTab({ platform, metrics, onRefresh, integration, comingSoon }: PlatformTabProps) {
+export function PlatformTab({ platform, metrics, onRefresh, integration, comingSoon, hideRegisterButton }: PlatformTabProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [period, setPeriod] = useState<Period>(PERIODS[1]); // default: 30 días
   const { activeProject } = useProject();
@@ -252,10 +256,12 @@ export function PlatformTab({ platform, metrics, onRefresh, integration, comingS
           <p className="text-sm text-muted-foreground">
             {sortedDays.length} día{sortedDays.length !== 1 ? "s" : ""} con datos
           </p>
-          <Button size="sm" variant="outline" onClick={() => setSheetOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Registrar snapshot
-          </Button>
+          {!hideRegisterButton && (
+            <Button size="sm" variant="outline" onClick={() => setSheetOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Registrar snapshot
+            </Button>
+          )}
         </div>
       </div>
 
@@ -349,12 +355,14 @@ export function PlatformTab({ platform, metrics, onRefresh, integration, comingS
         </div>
       )}
 
-      <RegisterSnapshotSheet
-        open={sheetOpen}
-        onOpenChange={setSheetOpen}
-        onRegistered={onRefresh}
-        lockedPlatform={platform}
-      />
+      {!hideRegisterButton && (
+        <RegisterSnapshotSheet
+          open={sheetOpen}
+          onOpenChange={setSheetOpen}
+          onRegistered={onRefresh}
+          lockedPlatform={platform}
+        />
+      )}
     </div>
   );
 }

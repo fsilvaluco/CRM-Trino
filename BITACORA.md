@@ -1,12 +1,63 @@
 # Bitácora de Trabajo — Artist Pro
-_Checkpoint v1.9 — 8 de septiembre de 2026 (marca de última actualización en venta de entradas)_
-_Checkpoint anterior: v1.8 — 8 de septiembre de 2026 (Dossier: fixes en vivo + tipografías propias)_
+_Checkpoint v1.10 — 9 de septiembre de 2026 (módulo de estadísticas detalladas TikTok/YouTube)_
+_Checkpoint anterior: v1.9 — 8 de septiembre de 2026 (marca de última actualización en venta de entradas)_
 
 > **Formato de tracking:** Registro histórico de trabajo realizado + pendientes actuales.  
 > Cada entrada incluye fecha, estado (🔨 En Progreso / ✅ Hecho), y notas de implementación detalladas.
 > Este checkpoint existe para poder empezar una conversación nueva sin perder contexto — si estás
 > retomando desde acá, lee primero **"🤝 Cómo trabajamos"**, después "🔴 Crítico" y "⚠️ Por verificar"
 > antes de construir nada.
+
+---
+
+## 📦 Módulo de estadísticas detalladas de TikTok/YouTube (9 sep 2026)
+
+**Pedido:** las páginas de Métricas > TikTok y > YouTube solo mostraban un banner "próximamente" y
+el gráfico genérico de seguidores (`PlatformTab`) -- el resto de las métricas (vistas, likes,
+comentarios, retención, etc.) solo se podían cargar desde el editor de Dossier
+(`ManualStatsDialog`, migración 091), sin una página propia para verlas ni gestionarlas.
+
+**Lo que se hizo:**
+- Se reutilizó toda la infraestructura que ya existía del módulo Dossier (`manual_platform_stats`,
+  `MANUAL_PLATFORM_METRIC_KEYS` en `dossier-data-sources.ts`, `ManualStatsDialog`) -- no se creó
+  tabla ni schema nuevo.
+- **`GET /api/analytics/manual-stats`**: ahora soporta `isAllProjects=true` (mismo patrón que
+  `/api/analytics/spotify`), para que las páginas funcionen también en la vista "Todos los
+  proyectos".
+- **`DELETE /api/analytics/manual-stats/[id]`** (nuevo): borra el registro y su espejo en
+  `social_metrics` de esa misma fecha/plataforma, igual que ya hace `DELETE
+  /api/analytics/spotify/[id]` -- para no dejar un punto huérfano en el gráfico de seguidores
+  compartido.
+- **`ManualStatsTable.tsx`** (nuevo): tabla de historial con columnas dinámicas según
+  `MANUAL_PLATFORM_METRIC_KEYS[platform]` (TikTok y YouTube no comparten los mismos campos), con
+  borrado por fila. Mismo patrón visual que `SpotifyStatsTable`, sin edición todavía (fuera de
+  alcance de esta pasada -- solo crear/ver/borrar).
+- **`use-analytics-data.ts`**: agrega `manualStats` al hook compartido (fetch a
+  `/api/analytics/manual-stats`, sin filtro de plataforma -- cada página filtra client-side).
+- **`AnalyticsPageHeader.tsx`**: nueva prop opcional `actions` (botón junto al ícono) -- la usan
+  las páginas de TikTok/YouTube para el botón "Registrar estadísticas".
+- **`PlatformTab.tsx`**: nueva prop `hideRegisterButton` -- TikTok/YouTube la usan para ocultar el
+  botón genérico "Registrar snapshot" (solo followers) y no tener dos flujos de carga distintos a
+  la vista; el gráfico de seguidores se sigue alimentando igual, vía el espejo a `social_metrics`.
+- **`analytics/tiktok/page.tsx`** y **`analytics/youtube/page.tsx`**: se sacó el `comingSoon`:
+  ahora tienen botón "Registrar estadísticas" (abre `ManualStatsDialog`, el mismo formulario que ya
+  usaba Dossier) + tabla de historial completo debajo del gráfico de seguidores.
+
+**Deliberadamente fuera de alcance** (ver roadmap original, "Conectar con deals/contactos" y
+"registrar publicaciones/campañas" quedan para más adelante si se pide):
+- Edición de un registro ya guardado (solo crear y borrar por ahora).
+- Seguimiento de publicaciones individuales (posts) -- esto sigue siendo solo Instagram
+  (`instagram_posts`). TikTok/YouTube quedan a nivel de snapshot periódico, no por publicación.
+- Integración en vivo con las APIs de TikTok/YouTube -- sigue siendo 100% manual, como ya estaba.
+
+**Verificado:** `npx tsc --noEmit` limpio, `eslint` sin warnings en los archivos tocados, `npm run
+build` completo sin errores. La lógica de guardar (insert + espejo a `social_metrics`) y borrar
+(delete + espejo) se probó directo contra la base de datos real del proyecto **Prueba 2** (sandbox,
+sin datos reales) vía Supabase MCP, simulando exactamente las queries que hacen las rutas nuevas --
+insertado y borrado sin dejar filas huérfanas. **No se probó con login real en el navegador** (no
+había credenciales de prueba a mano en esta sesión) -- falta que alguien entre a
+`/analytics/tiktok` o `/analytics/youtube`, registre una estadística real y confirme que se ve bien
+en pantalla.
 
 ---
 
