@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase-admin";
 import { sendEmail, buildInviteEmailHtml } from "@/lib/resend";
 import { canManageTeam, getProjectPermissions, seedTemplateMatrix, type ProjectRole } from "@/lib/project-roles";
 import { logActivity } from "@/lib/activity-logs";
+import { dbErrorResponse } from "@/lib/api-errors";
 
 type MemberStatus = "pending" | "active";
 type MemberRole = "owner" | "admin" | "member" | "artist" | "staff";
@@ -81,7 +82,7 @@ export async function GET(request: NextRequest) {
     membersError = fallback.error;
   }
 
-  if (membersError) return NextResponse.json({ error: membersError.message }, { status: 500 });
+  if (membersError) return dbErrorResponse("org-members:GET members", membersError);
 
   const userIds = (membersData ?? []).map((m) => m.user_id);
   if (userIds.length === 0) return NextResponse.json([]);
@@ -273,7 +274,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { user: existingUser, error: existingLookupError } = await findAuthUserByEmail(admin, normalizedEmail);
-  if (existingLookupError) return NextResponse.json({ error: existingLookupError }, { status: 500 });
+  if (existingLookupError) return dbErrorResponse("org-members:POST lookup", existingLookupError);
 
   if (existingUser) {
     const withStatus = await admin
@@ -298,7 +299,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (existingMemberError) {
-      return NextResponse.json({ error: existingMemberError.message }, { status: 500 });
+      return dbErrorResponse("org-members:POST existingMember", existingMemberError);
     }
 
     if (existingMember?.status === "active") {
@@ -338,7 +339,7 @@ export async function POST(request: NextRequest) {
         email: normalizedEmail,
         options: { redirectTo },
       });
-      if (linkError) return NextResponse.json({ error: linkError.message }, { status: 500 });
+      if (linkError) return dbErrorResponse("org-members:POST generateLink", linkError);
       await sendInviteEmail(linkData.properties.action_link);
       await assignProjectIfNeeded(existingUser.id);
       // Sigue pendiente de activar -- se refresca con lo que se acaba de tipear.
@@ -358,9 +359,9 @@ export async function POST(request: NextRequest) {
             { user_id: existingUser.id, organization_id: orgId, role },
             { onConflict: "user_id,organization_id" }
           );
-        if (fallback.error) return NextResponse.json({ error: fallback.error.message }, { status: 500 });
+        if (fallback.error) return dbErrorResponse("org-members:POST upsertPending fallback", fallback.error);
       } else if (upsertPending.error) {
-        return NextResponse.json({ error: upsertPending.error.message }, { status: 500 });
+        return dbErrorResponse("org-members:POST upsertPending", upsertPending.error);
       }
 
       await logActivity({
@@ -398,7 +399,7 @@ export async function POST(request: NextRequest) {
     // Usuario ya registrado → buscar su ID por email
     const { user: existing, error: retryLookupError } = await findAuthUserByEmail(admin, normalizedEmail);
     if (retryLookupError) return NextResponse.json({ error: retryLookupError }, { status: 500 });
-    if (!existing) return NextResponse.json({ error: inviteError.message }, { status: 500 });
+    if (!existing) return dbErrorResponse("org-members:POST generateLink invite", inviteError);
 
     userId = existing.id;
     alreadyExists = true;
@@ -428,9 +429,9 @@ export async function POST(request: NextRequest) {
         { user_id: userId, organization_id: orgId, role },
         { onConflict: "user_id,organization_id" }
       );
-    if (fallback.error) return NextResponse.json({ error: fallback.error.message }, { status: 500 });
+    if (fallback.error) return dbErrorResponse("org-members:POST upsertWithStatus fallback", fallback.error);
   } else if (upsertWithStatus.error) {
-    return NextResponse.json({ error: upsertWithStatus.error.message }, { status: 500 });
+    return dbErrorResponse("org-members:POST upsertWithStatus", upsertWithStatus.error);
   }
 
   // Si el usuario ya estaba registrado, enviar email de notificación (no llega el de Supabase)
@@ -484,7 +485,7 @@ export async function PATCH(request: NextRequest) {
     .eq("organization_id", orgId)
     .maybeSingle();
 
-  if (targetError) return NextResponse.json({ error: targetError.message }, { status: 500 });
+  if (targetError) return dbErrorResponse("org-members:targetMember lookup", targetError);
   if (!targetMember) return NextResponse.json({ error: "Miembro no encontrado" }, { status: 404 });
 
   if (targetMember.role === "owner") {
@@ -507,7 +508,7 @@ export async function PATCH(request: NextRequest) {
     .select("user_id, role")
     .maybeSingle();
 
-  if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
+  if (dbError) return dbErrorResponse("org-members:mutate", dbError);
   if (!updatedMember) {
     return NextResponse.json({ error: "No se puede modificar el owner" }, { status: 403 });
   }
@@ -544,7 +545,7 @@ export async function DELETE(request: NextRequest) {
     .eq("organization_id", orgId)
     .maybeSingle();
 
-  if (targetError) return NextResponse.json({ error: targetError.message }, { status: 500 });
+  if (targetError) return dbErrorResponse("org-members:targetMember lookup", targetError);
   if (!targetMember) return NextResponse.json({ error: "Miembro no encontrado" }, { status: 404 });
 
   if (targetMember.role === "owner") {
@@ -563,7 +564,7 @@ export async function DELETE(request: NextRequest) {
     .select("user_id")
     .maybeSingle();
 
-  if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
+  if (dbError) return dbErrorResponse("org-members:mutate", dbError);
   if (!deletedMember) {
     return NextResponse.json({ error: "No se puede eliminar el owner" }, { status: 403 });
   }
