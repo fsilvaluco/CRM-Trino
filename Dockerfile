@@ -33,4 +33,18 @@ ENV NODE_ENV=production
 ENV HOSTNAME="0.0.0.0"
 ENV PORT=3000
 
+# Correr como usuario no-root -- la imagen node:*-slim ya trae un usuario
+# "node" (uid 1000) predefinido, lo reusamos en vez de crear uno nuevo.
+# Todo lo anterior (npm ci, npm run build) corre como root -- solo el
+# proceso final que queda expuesto necesita ser no-root.
+RUN chown -R node:node /app
+USER node
+
+# Healthcheck (Railway/docker-compose lo pueden usar para reiniciar el
+# contenedor si deja de responder). Usa fetch nativo de Node en vez de
+# curl/wget porque la imagen slim no los trae instalados -- evita agregar
+# un paquete de apt solo para esto.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD node -e "fetch('http://localhost:'+(process.env.PORT||3000)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
 CMD ["npm", "start"]
