@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { syncShopify } from "@/lib/shopify-sync";
+import { verifyCronSecret } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -29,15 +30,8 @@ interface SyncResult {
  * llega a justificarlo.
  */
 export async function POST(request: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) {
-    return NextResponse.json({ error: "CRON_SECRET no configurado en el servidor" }, { status: 500 });
-  }
-
-  const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
+  const authError = verifyCronSecret(request);
+  if (authError) return authError;
 
   const supabase = createAdminClient();
 
