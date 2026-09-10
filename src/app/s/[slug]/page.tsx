@@ -114,7 +114,11 @@ export default async function SmartlinkPage({ params }: { params: Promise<{ slug
         <div className="space-y-2.5">
           {smartlink.links.map((link) => {
             const def = getPlatformDef(link.platform);
-            const label = link.platform === "other" ? (link.label || "Link") : def.label;
+            // El label manual (si lo escribieron) siempre gana -- sirve para
+            // distinguir, ej., "Último video" de "Canal de YouTube" cuando
+            // hay dos botones de la misma plataforma. Sin label, usa el
+            // nombre fijo de la plataforma ("Link" para Otra/Merch sin nombre).
+            const label = link.label || (link.platform === "other" || link.platform === "merch" ? "Link" : def.label);
             return (
               <a
                 key={link.id}

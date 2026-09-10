@@ -85,7 +85,8 @@ export default function SmartlinksPage() {
           <h1 className="text-2xl font-bold tracking-tight">Smartlinks</h1>
           <p className="text-muted-foreground">
             Una página con un botón por plataforma (Spotify, Apple Music, etc.) para un mismo lanzamiento --
-            cuenta vistas y qué plataforma toca cada quien.
+            cuenta vistas y qué plataforma toca cada quien. Crea uno tipo <strong>RRSS</strong> para la bio de
+            Instagram y otro tipo <strong>Ventas</strong> con todos los links para pegar en el correo de cierre.
           </p>
         </div>
         <Button onClick={() => { setEditing(null); setFormOpen(true); }} className="cursor-pointer">
@@ -123,7 +124,12 @@ export default function SmartlinksPage() {
                     )}
                   </div>
                   <div className="min-w-0 flex-1 space-y-1">
-                    <p className="font-medium truncate" title={item.title}>{item.title}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-medium truncate" title={item.title}>{item.title}</p>
+                      <Badge variant={item.purpose === "rrss" ? "outline" : "secondary"} className="text-[10px] px-1.5 py-0 shrink-0">
+                        {item.purpose === "rrss" ? "RRSS" : "Ventas"}
+                      </Badge>
+                    </div>
                     {item.artistName && <p className="text-xs text-muted-foreground truncate">{item.artistName}</p>}
                     <button
                       onClick={() => handleCopy(item.slug)}

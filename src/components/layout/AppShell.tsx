@@ -10,7 +10,11 @@ import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { AutoRequestPushPermission } from "@/components/layout/AutoRequestPushPermission";
 
 const PUBLIC_PATHS = ["/login", "/auth/activate", "/forgot-password", "/reset-password"];
-const PUBLIC_PREFIXES = ["/rate/", "/embed/", "/e/", "/d/"];
+// "/s/" son los Smartlinks (pagina publica /s/{slug}) -- sin esto, cualquiera
+// sin sesion que abre el link (el caso de uso completo: mandarlo por correo a
+// alguien que no tiene cuenta en el CRM) cae en el login en vez de ver la
+// pagina.
+const PUBLIC_PREFIXES = ["/rate/", "/embed/", "/e/", "/d/", "/s/"];
 const GUEST_ONLY_PATHS = ["/login", "/forgot-password"];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

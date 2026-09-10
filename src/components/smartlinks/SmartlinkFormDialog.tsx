@@ -12,10 +12,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { SMARTLINK_PLATFORMS, getPlatformDef } from "@/lib/smartlink-platforms";
 import { PlatformIcon } from "./PlatformIcon";
+
+export type SmartlinkPurpose = "rrss" | "ventas";
 
 export interface SmartlinkLinkItem {
   id: string;
@@ -31,6 +33,7 @@ export interface SmartlinkItem {
   title: string;
   artistName: string | null;
   coverImageUrl: string | null;
+  purpose: SmartlinkPurpose;
   links: SmartlinkLinkItem[];
   viewCount: number;
   clickCount: number;
@@ -45,6 +48,35 @@ interface DraftLink {
 }
 
 const EMPTY_LINK: DraftLink = { platform: "spotify", url: "", label: "" };
+
+const PURPOSE_OPTIONS: { value: SmartlinkPurpose; label: string; description: string }[] = [
+  { value: "rrss", label: "RRSS / lanzamiento", description: "Pocos botones -- lo que se está empujando ahora (último video, Spotify, canal, merch)." },
+  { value: "ventas", label: "Ventas", description: "Para el correo de cierre -- todos los links de interés (redes, streaming, merch, etc.)." },
+];
+
+// Set inicial de filas al crear un smartlink nuevo, según su proposito --
+// ahorra tener que agregar cada plataforma a mano. Solo se aplica una vez,
+// al abrir el formulario para CREAR (nunca pisa lo que ya tiene uno existente).
+const PURPOSE_PRESETS: Record<SmartlinkPurpose, DraftLink[]> = {
+  rrss: [
+    { platform: "youtube", url: "", label: "Último video" },
+    { platform: "spotify", url: "", label: "" },
+    { platform: "youtube", url: "", label: "Canal de YouTube" },
+    { platform: "merch", url: "", label: "" },
+  ],
+  ventas: [
+    { platform: "instagram", url: "", label: "" },
+    { platform: "tiktok", url: "", label: "" },
+    { platform: "spotify", url: "", label: "" },
+    { platform: "youtube", url: "", label: "" },
+    { platform: "merch", url: "", label: "" },
+  ],
+};
+
+// Plataformas del smartlink que tienen equivalente directo en los "links
+// guardados" del proyecto (social_links, ver SocialLinkField) -- para el
+// botón de autocompletar.
+const AUTOFILL_PLATFORM_KEYS = ["spotify", "instagram", "tiktok", "youtube"] as const;
 
 export function SmartlinkFormDialog({
   open,
@@ -63,8 +95,10 @@ export function SmartlinkFormDialog({
   const [artistName, setArtistName] = useState("");
   const [coverImageUrl, setCoverImageUrl] = useState("");
   const [customSlug, setCustomSlug] = useState("");
+  const [purpose, setPurpose] = useState<SmartlinkPurpose>("ventas");
   const [links, setLinks] = useState<DraftLink[]>([{ ...EMPTY_LINK }]);
   const [saving, setSaving] = useState(false);
+  const [autofilling, setAutofilling] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -72,10 +106,13 @@ export function SmartlinkFormDialog({
     setArtistName(editing?.artistName ?? "");
     setCoverImageUrl(editing?.coverImageUrl ?? "");
     setCustomSlug("");
+    setPurpose(editing?.purpose ?? "ventas");
     setLinks(
       editing && editing.links.length > 0
         ? editing.links.map((l) => ({ platform: l.platform, url: l.url, label: l.label ?? "" }))
-        : [{ ...EMPTY_LINK }]
+        : editing
+        ? [{ ...EMPTY_LINK }]
+        : PURPOSE_PRESETS.ventas.map((l) => ({ ...l }))
     );
   }, [open, editing]);
 
@@ -89,6 +126,57 @@ export function SmartlinkFormDialog({
 
   function removeLink(index: number) {
     setLinks((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  // Cambiar el proposito de un smartlink NUEVO reemplaza el set de filas
+  // por el preset correspondiente -- pero solo si todavia no se escribio
+  // ninguna URL, para no botar trabajo ya hecho. Editando uno existente el
+  // proposito es solo una etiqueta -- no toca los links.
+  function handlePurposeChange(next: SmartlinkPurpose) {
+    setPurpose(next);
+    if (editing) return;
+    const untouched = links.every((l) => !l.url.trim());
+    if (untouched) setLinks(PURPOSE_PRESETS[next].map((l) => ({ ...l })));
+  }
+
+  // Trae los links de perfil ya guardados en el proyecto (social_links --
+  // los que se van dejando en cada submenu de Métricas) y rellena las filas
+  // vacías que calcen por plataforma. No pisa una URL que ya se escribió.
+  async function handleAutofill() {
+    if (!projectId) return;
+    setAutofilling(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      const saved = (data?.socialLinks ?? {}) as Record<string, string>;
+      const available = AUTOFILL_PLATFORM_KEYS.filter((k) => saved[k]?.trim());
+      if (available.length === 0) {
+        toast.info("Este proyecto todavía no tiene links guardados en Métricas");
+        return;
+      }
+      setLinks((prev) => {
+        const next = [...prev];
+        let filledAny = false;
+        for (const key of available) {
+          const emptySlot = next.find((l) => l.platform === key && !l.url.trim());
+          if (emptySlot) {
+            emptySlot.url = saved[key];
+          } else if (!next.some((l) => l.platform === key && l.url.trim() === saved[key].trim())) {
+            next.push({ platform: key, url: saved[key], label: "" });
+          } else {
+            continue;
+          }
+          filledAny = true;
+        }
+        return filledAny ? next : prev;
+      });
+      toast.success("Links rellenados desde el proyecto");
+    } catch {
+      toast.error("No se pudieron traer los links guardados");
+    } finally {
+      setAutofilling(false);
+    }
   }
 
   async function handleSubmit() {
@@ -112,6 +200,7 @@ export function SmartlinkFormDialog({
         title: title.trim(),
         artistName: artistName.trim(),
         coverImageUrl: coverImageUrl.trim(),
+        purpose,
         links: cleanLinks.map((l) => ({ platform: l.platform, url: l.url.trim(), label: l.label.trim() || undefined })),
       };
 
@@ -160,6 +249,25 @@ export function SmartlinkFormDialog({
           </div>
 
           <div className="space-y-2">
+            <Label>Para qué es este smartlink</Label>
+            <Select value={purpose} onValueChange={(v) => handlePurposeChange(v === "rrss" ? "rrss" : "ventas")}>
+              <SelectTrigger className="cursor-pointer">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PURPOSE_OPTIONS.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {PURPOSE_OPTIONS.find((p) => p.value === purpose)?.description}
+            </p>
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="sl-cover">Link de la carátula (opcional)</Label>
             <Input id="sl-cover" placeholder="https://..." value={coverImageUrl} onChange={(e) => setCoverImageUrl(e.target.value)} />
             <p className="text-xs text-muted-foreground">
@@ -176,7 +284,21 @@ export function SmartlinkFormDialog({
           )}
 
           <div className="space-y-2">
-            <Label>Links por plataforma</Label>
+            <div className="flex items-center justify-between">
+              <Label>Links por plataforma</Label>
+              {projectId && (
+                <button
+                  type="button"
+                  onClick={handleAutofill}
+                  disabled={autofilling}
+                  className="text-xs text-primary hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  title="Rellena con los links de perfil ya guardados en Métricas del proyecto"
+                >
+                  {autofilling ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+                  Rellenar desde el proyecto
+                </button>
+              )}
+            </div>
             <div className="space-y-2">
               {links.map((link, i) => (
                 <div key={i} className="flex items-center gap-2">
@@ -200,14 +322,13 @@ export function SmartlinkFormDialog({
                       ))}
                     </SelectContent>
                   </Select>
-                  {link.platform === "other" && (
-                    <Input
-                      placeholder="Nombre"
-                      value={link.label}
-                      onChange={(e) => updateLink(i, { label: e.target.value })}
-                      className="w-24 shrink-0"
-                    />
-                  )}
+                  <Input
+                    placeholder={link.platform === "other" || link.platform === "merch" ? "Nombre" : "Nombre del botón (opcional)"}
+                    value={link.label}
+                    onChange={(e) => updateLink(i, { label: e.target.value })}
+                    className="w-28 shrink-0"
+                    title="Ej. 'Último video' para distinguirlo de otro botón de la misma plataforma"
+                  />
                   <Input
                     placeholder="https://..."
                     value={link.url}
