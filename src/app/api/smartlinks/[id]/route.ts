@@ -35,6 +35,7 @@ export async function PUT(
   }
   if (typeof body?.artistName === "string") updates.artist_name = body.artistName.trim() || null;
   if (typeof body?.coverImageUrl === "string") updates.cover_image_url = body.coverImageUrl.trim() || null;
+  if (body?.purpose === "rrss" || body?.purpose === "ventas") updates.purpose = body.purpose;
 
   const { error: dbError } = await supabase.from("smartlinks").update(updates).eq("id", id);
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });

@@ -11,6 +11,7 @@ import type { SocialMetric } from "@/types/analytics";
 import { RegisterSnapshotSheet } from "@/components/analytics/RegisterSnapshotSheet";
 import { MetaIntegrationCard } from "@/components/analytics/MetaIntegrationCard";
 import { FacebookIntegrationCard } from "@/components/analytics/FacebookIntegrationCard";
+import { SocialLinkField } from "@/components/analytics/SocialLinkField";
 import { useProject } from "@/lib/project-context";
 
 type Platform = "instagram" | "tiktok" | "youtube" | "spotify" | "facebook";
@@ -182,6 +183,14 @@ export function PlatformTab({ platform, metrics, onRefresh, integration, comingS
           <Clock className="h-4 w-4 shrink-0" />
           Conexión automática de {PLATFORM_LABEL[platform]} próximamente. Por ahora puedes registrar los
           seguidores a mano para ir siguiendo la evolución.
+        </div>
+      )}
+
+      {!integration && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>Link del perfil de {PLATFORM_LABEL[platform]}:</span>
+          <SocialLinkField projectId={activeProject?.id} platform={platform} connected={false} />
+          <span className="text-xs">-- se usa para autocompletar el Smartlink de Ventas del proyecto</span>
         </div>
       )}
 

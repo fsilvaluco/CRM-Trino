@@ -23,6 +23,7 @@ function mapSmartlink(row: any) {
     title: row.title,
     artistName: row.artist_name,
     coverImageUrl: row.cover_image_url,
+    purpose: row.purpose === "rrss" ? "rrss" : "ventas",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     links: links
@@ -73,6 +74,7 @@ export async function POST(request: NextRequest) {
   const coverImageUrl = typeof body?.coverImageUrl === "string" ? body.coverImageUrl.trim() : "";
   const projectId = typeof body?.projectId === "string" ? body.projectId : "";
   const customSlugInput = typeof body?.customSlug === "string" ? body.customSlug.trim() : "";
+  const purpose = body?.purpose === "rrss" ? "rrss" : "ventas";
   const linksInput: LinkInput[] = Array.isArray(body?.links) ? body.links : [];
 
   if (!title) return NextResponse.json({ error: "El título (nombre de la canción) es requerido" }, { status: 400 });
@@ -120,6 +122,7 @@ export async function POST(request: NextRequest) {
       title,
       artist_name: artistName || null,
       cover_image_url: coverImageUrl || null,
+      purpose,
       created_by: user!.id,
     })
     .select()
