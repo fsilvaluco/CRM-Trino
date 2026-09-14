@@ -1,6 +1,6 @@
 # Bitácora de Trabajo — Artist Pro
-_Checkpoint v1.10 — 9 de septiembre de 2026 (módulo de estadísticas detalladas TikTok/YouTube)_
-_Checkpoint anterior: v1.9 — 8 de septiembre de 2026 (marca de última actualización en venta de entradas)_
+_Checkpoint v1.11 — 14 de septiembre de 2026 (Meta Conversions API en Links, campaña LUR Dopamina)_
+_Checkpoint anterior: v1.10 — 9 de septiembre de 2026 (módulo de estadísticas detalladas TikTok/YouTube)_
 
 > **Formato de tracking:** Registro histórico de trabajo realizado + pendientes actuales.  
 > Cada entrada incluye fecha, estado (🔨 En Progreso / ✅ Hecho), y notas de implementación detalladas.
@@ -65,6 +65,77 @@ columnas sin valor cargado mostraron `—` como corresponde. El borrado usa `con
 navegador, que la automatización de pruebas no puede confirmar (se descarta solo) -- la limpieza
 del dato de prueba se hizo directo por SQL, mismo patrón ya verificado antes. Sin más pendientes
 de esta pasada.
+
+---
+
+## 📦 Meta Conversions API en Links (`/q/[slug]`) — campaña LUR "Dopamina" (14 sep 2026)
+
+**Pedido:** correr una campaña de Meta Ads que lleva directo a un track de Spotify (slug
+`lur-dopamina`), con tracking de UTMs + reporte server-side a Meta (evento `SpotifyClick` vía
+Conversions API) para no depender de un Pixel de navegador que nunca llega a cargar (el link va
+directo al destino, sin página intermedia).
+
+**Decisión de diseño (confirmada con Francisco antes de construir):** se hizo sobre **Links**
+(`/q/[slug]`, tabla `qr_codes`/`qr_scans`), no sobre Smartlink -- el caso de uso es un destino único
+directo, no una página con varios botones. La ruta pública sigue siendo `/q/`, no `/go/` (el spec
+original de la campaña decía `/go/`, pero renombrar la ruta hubiera roto QRs/links ya compartidos).
+
+**Lo que se hizo:**
+- **Migración 096** (`scripts/migrations/096_qr_scan_utm_meta_capi.sql`, aplicada vía Supabase MCP):
+  agrega a `qr_scans` las columnas `utm_source/medium/campaign/content/term`, `placement`,
+  `fbclid`, `fbc`, `fbp`, `ip_address`, `country`, y trazabilidad del envío a Meta
+  (`meta_capi_event_id`, `meta_capi_sent`, `meta_capi_response` jsonb). Todas nullable -- un
+  escaneo sin campaña detrás queda igual que antes.
+- **Vista nueva `qr_scans_daily_utm`** (primera vista SQL del proyecto): clics por día y por
+  `utm_content`, agrupados por `project_id` vía join a `qr_codes`.
+- **`src/lib/meta-capi.ts`** (nuevo): `resolveMetaCapiConfig()`, `buildFbc()`,
+  `sendMetaCapiEvent()`. El pixel/token es **por proyecto** -- cada artista tiene su propia cuenta
+  publicitaria (LUR está en el Business Manager "FLECHANDO CORAZONES", Gamuza en otro) -- se
+  guarda en `artist_integrations` con `platform='meta_capi'` (`account_id`=pixel, `access_token`=
+  token), mismo patrón que `platform='instagram'` para el OAuth de Meta ya existente. Sin fila
+  para el proyecto, cae a `META_PIXEL_ID`/`META_CAPI_TOKEN` (env vars globales) -- así el próximo
+  artista funciona de entrada sin tocar código, y se le puede dar su propio pixel después.
+- **`src/app/q/[slug]/route.ts`**: parsea UTMs/fbclid del query string, IP de `x-forwarded-for`,
+  país de `cf-ipcountry` (Cloudflare -- si el dominio no pasa por ahí, queda `NULL` a propósito,
+  fuera de alcance de esta pasada), `fbc`/`fbp` de las cookies `_fbc`/`_fbp`. Todo esto se guarda
+  en `qr_scans` dentro del `after()` que ya existía, y en el mismo bloque se dispara el evento
+  `SpotifyClick` a Meta CAPI (`event_source_url` = la URL completa del `/q/` con sus params,
+  `event_id` = el mismo uuid guardado en `meta_capi_event_id`, IP/user-agent en claro sin hashear,
+  `test_event_code` opcional vía `META_TEST_EVENT_CODE` para validar en Prueba de eventos). Un
+  error de Meta (token vencido, pixel malo, etc.) se guarda en `meta_capi_response` -- **nunca
+  bloquea el redirect**, que ya salió hace rato.
+- **`Cache-Control: no-store`** en las dos respuestas de visitante real (redirect directo y la
+  interstitial de apertura de app nativa) -- sin esto, el navegador embebido de Instagram puede
+  servir una visita repetida desde caché y saltarse el registro del escaneo + el evento a Meta.
+- **Nuevas env vars** (`.env.example`): `META_PIXEL_ID`, `META_CAPI_TOKEN`, `META_TEST_EVENT_CODE`
+  (opcional, sacar una vez validado en Events Manager).
+
+**Deliberadamente fuera de alcance de esta pasada** (a pedido explícito de Francisco):
+- País por IP cuando no hay Cloudflare de por medio -- Meta ya da el desglose por país en
+  Insights, y esta campaña es solo Chile.
+- UI para cargar el pixel/token por proyecto -- por ahora se hace por SQL directo (Supabase
+  dashboard) hasta que haya un segundo artista corriendo campañas propias; el mecanismo de
+  resolución (env var vs. `artist_integrations`) ya está listo para cuando se construya esa UI.
+
+**Verificado:** `npx tsc --noEmit`, `eslint` y `npm run build` limpios. Probado de punta a punta
+contra el servidor real (no solo simulado por SQL): un `curl` real a `/q/test-live-capi` con
+UTMs+fbclid+headers de IP/país confirmó `Cache-Control: no-store`, el redirect instantáneo (no
+espera a Meta), `fbc` derivado en el formato correcto (`fb.1.<timestamp_ms>.<fbclid>`), y la fila
+completa guardada en `qr_scans`. Con un pixel/token falso (`artist_integrations` de prueba en el
+proyecto sandbox **Prueba 2**) el código **sí llamó de verdad a `graph.facebook.com`**, Meta
+respondió un error real (`"Malformed access token"`, `fbtrace_id` incluido) y quedó guardado en
+`meta_capi_response` sin bloquear el redirect -- exactamente el comportamiento pedido. Todos los
+datos de prueba (QR, scans, fila de `artist_integrations`) se limpiaron después.
+
+**Pendiente de Francisco antes de lanzar:**
+- Generar el Pixel + token de Conversions API en Events Manager (Business Manager "FLECHANDO
+  CORAZONES") y cargar `META_CAPI_TOKEN`/`META_PIXEL_ID` en Railway (o insertar la fila en
+  `artist_integrations` para el proyecto de LUR específicamente, si se prefiere no usar el
+  fallback global).
+- Crear el link real (`/qr-codes` → nuevo, slug personalizado `lur-dopamina`, destino el track de
+  Spotify) desde la UI -- no se creó automáticamente, es una acción normal del usuario.
+- Probar desde el navegador in-app de Instagram (iOS y Android) y confirmar en Events Manager →
+  Prueba de eventos que llega `SpotifyClick` antes de lanzar el gasto real.
 
 ---
 
