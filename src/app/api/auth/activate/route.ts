@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { createSupabaseServer } from "@/lib/supabase-server";
+import { dbErrorResponse } from "@/lib/api-errors";
 
 function isMissingStatusColumn(message: string | undefined): boolean {
   if (!message) return false;
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
   );
 
   if (profileError) {
-    return NextResponse.json({ error: profileError.message }, { status: 500 });
+    return dbErrorResponse("auth/activate:profile upsert", profileError);
   }
 
   const withStatus = await admin
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (withStatus.error) {
-    return NextResponse.json({ error: withStatus.error.message }, { status: 500 });
+    return dbErrorResponse("auth/activate:organization_members status", withStatus.error);
   }
 
   return NextResponse.json({ ok: true });

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { syncInstagram, syncInstagramPosts, syncInstagramDemographics } from "@/lib/meta-sync";
 import { syncFacebookPage } from "@/lib/facebook-sync";
+import { verifyCronSecret } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -122,18 +123,8 @@ async function syncOneIntegration(
  * acotado por la cuenta mas lenta, no por la suma de todas.
  */
 export async function POST(request: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) {
-    return NextResponse.json(
-      { error: "CRON_SECRET no configurado en el servidor" },
-      { status: 500 }
-    );
-  }
-
-  const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
+  const authError = verifyCronSecret(request);
+  if (authError) return authError;
 
   const supabase = createAdminClient();
 

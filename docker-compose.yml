@@ -13,3 +13,11 @@ services:
       # Optional: uncomment and set your API key for AI features
       # - ANTHROPIC_API_KEY=sk-ant-...
     restart: unless-stopped
+    # Resource limits: commented out by default -- a hard limit that's too
+    # low for your machine would just make the app crash/OOM instead of
+    # protecting it. Uncomment and tune to your server's actual capacity.
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: "1.0"
+    #       memory: 1g

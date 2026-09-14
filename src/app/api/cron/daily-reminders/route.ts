@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { sendPushToUsers } from "@/lib/push";
 import { claimReminder } from "@/lib/reminders";
+import { verifyCronSecret } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -40,14 +41,8 @@ function dayRange(offsetDays: number): { start: string; end: string } {
  * mismo dia no se manda el aviso de nuevo.
  */
 export async function POST(request: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) {
-    return NextResponse.json({ error: "CRON_SECRET no configurado" }, { status: 500 });
-  }
-  const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
+  const authError = verifyCronSecret(request);
+  if (authError) return authError;
 
   const supabase = createAdminClient();
   const summary = { tasksNotified: 0, dealsNotified: 0, eventsNotified: 0, errors: [] as string[] };
