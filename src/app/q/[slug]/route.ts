@@ -8,6 +8,13 @@ import {
   detectDeepLinkTarget,
   renderAppOpenHtml,
 } from "@/lib/link-redirect";
+import { resolveMetaCapiConfig, buildFbc, sendMetaCapiEvent } from "@/lib/meta-capi";
+
+// Nombre del evento que se reporta a Meta CAPI por cada click real de
+// /q/[slug]. Fijo por ahora (un solo caso de uso: campañas que llevan a
+// Spotify) -- si más adelante se necesita variar por campaña/QR, se agrega
+// como columna en qr_codes en vez de hardcodearlo acá.
+const META_CAPI_EVENT_NAME = "SpotifyClick";
 
 export const dynamic = "force-dynamic";
 
@@ -68,7 +75,7 @@ export async function GET(
 
   const { data: qr } = await supabase
     .from("qr_codes")
-    .select("id, label, destination_url")
+    .select("id, label, destination_url, project_id, organization_id")
     .eq("slug", slug)
     .maybeSingle();
 
@@ -103,27 +110,109 @@ export async function GET(
     });
   }
 
+  // UTMs/fbclid/placement -- vienen tal cual los rellena Meta en el anuncio
+  // ({{campaign.name}}, etc.), directo del query string del link corto.
+  const sp = request.nextUrl.searchParams;
+  const utmSource = sp.get("utm_source");
+  const utmMedium = sp.get("utm_medium");
+  const utmCampaign = sp.get("utm_campaign");
+  const utmContent = sp.get("utm_content");
+  const utmTerm = sp.get("utm_term");
+  const placement = sp.get("placement");
+  const fbclid = sp.get("fbclid");
+
+  // x-forwarded-for puede traer una cadena "cliente, proxy1, proxy2" --
+  // el primero es el visitante real. cf-ipcountry solo existe si el
+  // dominio pasa por Cloudflare; si no, país queda NULL a propósito (fuera
+  // de alcance por ahora, ver BITACORA).
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  const ipAddress = forwardedFor ? forwardedFor.split(",")[0].trim() : null;
+  const country = request.headers.get("cf-ipcountry");
+
+  const fbpCookie = request.cookies.get("_fbp")?.value ?? null;
+  const fbcCookie = request.cookies.get("_fbc")?.value ?? null;
+  const fbc = buildFbc(fbclid, fbcCookie);
+
+  const metaCapiEventId = crypto.randomUUID();
+  // event_source_url tal cual llegó (con todos los params) -- request.url
+  // apunta al host interno del contenedor, así que se arma a mano igual
+  // que `base` de arriba.
+  const eventSourceUrl = `${base}/q/${slug}${request.nextUrl.search}`;
+
   // No se espera (no vale la pena demorar el redirect por esto), pero
   // TAMPOCO se deja como una promesa suelta sin dueño -- `void promise` sin
   // más no garantiza terminar antes de que el proceso pase a la siguiente
   // request. after() es la forma correcta en Next.js de encolar trabajo
   // que debe completarse SI O SI después de mandar la respuesta.
   after(async () => {
-    const { error } = await supabase.from("qr_scans").insert({
-      qr_id: qr.id,
-      user_agent: userAgent?.slice(0, 300) ?? null,
-    });
+    const { data: inserted, error } = await supabase
+      .from("qr_scans")
+      .insert({
+        qr_id: qr.id,
+        user_agent: userAgent?.slice(0, 300) ?? null,
+        utm_source: utmSource,
+        utm_medium: utmMedium,
+        utm_campaign: utmCampaign,
+        utm_content: utmContent,
+        utm_term: utmTerm,
+        placement,
+        fbclid,
+        fbc,
+        fbp: fbpCookie,
+        ip_address: ipAddress,
+        country,
+        meta_capi_event_id: metaCapiEventId,
+      })
+      .select("id")
+      .single();
+
     if (error) {
       console.error("[qr] no se pudo registrar el escaneo:", error.message);
+      return;
+    }
+
+    // Sin pixel/token (ni del proyecto ni de las env vars globales) no
+    // tiene sentido llamar a Meta -- el escaneo ya quedó guardado igual.
+    const capiConfig = await resolveMetaCapiConfig(supabase, qr.organization_id, qr.project_id);
+    if (!capiConfig) return;
+
+    const result = await sendMetaCapiEvent({
+      config: capiConfig,
+      eventName: META_CAPI_EVENT_NAME,
+      eventId: metaCapiEventId,
+      eventSourceUrl,
+      clientIpAddress: ipAddress,
+      clientUserAgent: userAgent,
+      fbc,
+      fbp: fbpCookie,
+      testEventCode: process.env.META_TEST_EVENT_CODE || undefined,
+    });
+
+    // Un error de Meta (token vencido, pixel mal, rate limit, etc.) queda
+    // registrado para poder revisarlo -- nunca reintenta ni afecta al
+    // visitante, que ya recibió su redirect hace rato.
+    const { error: updateError } = await supabase
+      .from("qr_scans")
+      .update({
+        meta_capi_sent: result.ok,
+        meta_capi_response: result.ok ? result.body : { status: result.status, body: result.body, error: result.error },
+      })
+      .eq("id", inserted.id);
+    if (updateError) {
+      console.error("[qr] no se pudo guardar la respuesta de Meta CAPI:", updateError.message);
     }
   });
 
   const deepLinkTarget = detectDeepLinkTarget(qr.destination_url);
   if (deepLinkTarget && isInAppBrowser(userAgent)) {
+    // no-store: el navegador embebido de Instagram/TikTok reutiliza la
+    // misma vista para cada visita a la bio -- sin esto, una visita
+    // repetida puede servirse desde caché y nunca pasar por acá, perdiendo
+    // el registro del escaneo (y el evento a Meta) en visitas siguientes.
     return new NextResponse(renderAppOpenHtml(qr.destination_url, deepLinkTarget, isIOSUserAgent(userAgent)), {
-      headers: { "Content-Type": "text/html; charset=utf-8" },
+      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
     });
   }
 
-  return NextResponse.redirect(qr.destination_url);
+  return NextResponse.redirect(qr.destination_url, { headers: { "Cache-Control": "no-store" } });
 }
