@@ -26,8 +26,9 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get("projectId");
   const platform = searchParams.get("platform");
+  const isAllProjects = searchParams.get("isAllProjects") === "true";
 
-  if (!projectId || !allowedProjectIds.includes(projectId)) {
+  if (!isAllProjects && (!projectId || !allowedProjectIds.includes(projectId))) {
     return NextResponse.json([]);
   }
 
@@ -35,8 +36,11 @@ export async function GET(request: NextRequest) {
     .from("manual_platform_stats")
     .select("*")
     .eq("organization_id", orgId!)
-    .eq("project_id", projectId)
     .order("period_end", { ascending: false });
+
+  if (!isAllProjects && projectId) {
+    query = query.eq("project_id", projectId);
+  }
 
   if (platform === "tiktok" || platform === "youtube") {
     query = query.eq("platform", platform);
