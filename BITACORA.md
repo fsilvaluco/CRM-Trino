@@ -54,10 +54,17 @@ comentarios, retención, etc.) solo se podían cargar desde el editor de Dossier
 build` completo sin errores. La lógica de guardar (insert + espejo a `social_metrics`) y borrar
 (delete + espejo) se probó directo contra la base de datos real del proyecto **Prueba 2** (sandbox,
 sin datos reales) vía Supabase MCP, simulando exactamente las queries que hacen las rutas nuevas --
-insertado y borrado sin dejar filas huérfanas. **No se probó con login real en el navegador** (no
-había credenciales de prueba a mano en esta sesión) -- falta que alguien entre a
-`/analytics/tiktok` o `/analytics/youtube`, registre una estadística real y confirme que se ve bien
-en pantalla.
+insertado y borrado sin dejar filas huérfanas.
+
+**Mergeado a `main` (14 sep 2026) y probado con login real en el navegador** con la cuenta de
+prueba `gonzalo.test@artistpro.local` (proyecto Prueba 2): se registró una estadística real de
+TikTok desde `/analytics/tiktok` (`+ Registrar estadísticas`), el toast de éxito apareció, el
+punto nuevo se vio en el gráfico de seguidores y la fila con todas las métricas (seguidores, total
+de espectadores, me gusta, comentarios) apareció correcta en "Estadísticas detalladas" -- las
+columnas sin valor cargado mostraron `—` como corresponde. El borrado usa `confirm()` nativo del
+navegador, que la automatización de pruebas no puede confirmar (se descarta solo) -- la limpieza
+del dato de prueba se hizo directo por SQL, mismo patrón ya verificado antes. Sin más pendientes
+de esta pasada.
 
 ---
 
