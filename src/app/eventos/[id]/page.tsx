@@ -28,6 +28,7 @@ import {
 import { format, formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import type { LiveShow, ShowStatus, SetlistItem, CostItem, TimingItem, TicketTier, EventContact } from "@/types/shows";
+import { ExternalSignersCard } from "@/components/events/ExternalSignersCard";
 import { EventPrintHeader } from "@/components/events/EventPrintHeader";
 import { EventPrintFooter } from "@/components/events/EventPrintFooter";
 import { compressImage } from "@/lib/image-compress";
@@ -3032,6 +3033,14 @@ export default function EventDetailPage() {
               ))}
           </CardContent>
         </Card>
+      )}
+
+      {/* Firma del cliente externo -- alguien que no tiene (ni va a tener)
+          cuenta en la app: el productor que contrató el evento y que no es
+          un proyecto de la cartera. Separado de la Aprobación de arriba a
+          propósito: no cuenta para el "X/Y firmaron" interno. */}
+      {event.canViewCosts !== false && (
+        <ExternalSignersCard showId={id} costSheetClosed={costSheetClosed} />
       )}
 
       {/* Riders + link */}

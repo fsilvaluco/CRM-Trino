@@ -10,6 +10,59 @@ _Checkpoint anterior: v1.11 — 14 de septiembre de 2026 (Meta Conversions API e
 
 ---
 
+## ✍️ Firma externa del cierre de caja — cliente sin cuenta en la app (15 sep 2026)
+
+**Pedido:** hay eventos que Trino produjo para un cliente que **no es un proyecto de la cartera**
+(solo se le hizo booking, gestión de ticketera, producción). Ese cliente debería poder dar su
+conformidad del cierre de caja, pero abrirle un proyecto no corresponde y nunca va a tener usuario.
+Se necesitaba un link para que firme sin cuenta, dejando su RUT, nombre, correo y teléfono —
+y con suficiente respaldo como para que la firma sirva de algo.
+
+**Lo que se hizo:**
+- **Migración 099** (`event_external_signers`): una fila = un link de firma emitido. Tabla aparte de
+  `event_closing_signatures` porque esa exige `user_id -> profiles`, y acá el punto es que el
+  firmante no tiene perfil. La firma externa **no cuenta** para el "X/Y firmaron" interno: es el
+  respaldo frente al cliente, no una aprobación del equipo. Trigger que bloquea UPDATE/DELETE de una
+  fila ya firmada (solo se permite escribir `receipt_sent_at`).
+- **El link es el secreto**: token de 32 bytes, en la base solo vive su SHA-256. Se muestra en claro
+  una única vez, al crearlo. Vence (30 días por defecto) y se puede anular (`revoked_at`, no DELETE).
+- **Verificación de identidad** (`src/lib/external-signature.ts`):
+  - Código de 6 dígitos al correo que declara el firmante (Resend). Es la prueba fuerte: acredita
+    control de esa casilla. Vence en 15 min, 5 intentos, cooldown de 60 s entre envíos, y el hash
+    del código va salteado con el token.
+  - Si al crear el link se carga `invited_email`, el código **solo** puede ir a esa casilla — así
+    nadie a quien le reenvíen el link puede firmar haciéndose pasar por el cliente.
+  - Los datos declarados (nombre, RUT, correo, teléfono) se guardan al pedir el código, no al
+    firmar: cambiar cualquiera obliga a pedir un código nuevo, que se manda al correo nuevo.
+  - Se registran IP, user-agent, cuándo se emitió el link y cuándo se abrió por primera vez.
+  - **Hash SHA-256 del documento** (JSON canónico, llaves ordenadas) + snapshot completo del cierre
+    tal como estaba al firmar. Si después se reabre la caja y cambia una cifra, el hash deja de
+    calzar y la pantalla lo avisa.
+- **Comprobante PDF** (pdf-lib): documento firmado + toda la evidencia + nota de Ley 19.799. Se manda
+  adjunto al firmante, a quien emitió el link y a quienes ya aprobaron por dentro, y se puede volver
+  a descargar desde el link o desde la ficha del evento.
+- **Rutas nuevas**:
+  - `GET/POST /api/eventos/[id]/external-signers` — listar / emitir link (exige caja cerrada y
+    `canEditEventCosts`).
+  - `DELETE /api/eventos/[id]/external-signers/[signerId]` — anular link pendiente.
+  - `GET /api/eventos/[id]/external-signers/[signerId]/comprobante` — PDF para el equipo.
+  - `GET /api/public/firma/[token]` · `POST .../codigo` · `POST .../firmar` · `GET .../comprobante` —
+    sin auth, service role, cada campo elegido a mano. Un link vencido o anulado no devuelve ni un peso.
+- **Pantallas**: `/firmar/[token]` (pública, 3 pasos: revisar el cierre → identificarse → código y
+  firmar) y la tarjeta "Firma del cliente (sin cuenta)" en la ficha del evento.
+- `middleware.ts`: `/api/public/firma` entra al rate limit estricto por IP. `AppShell`: `/firmar/`
+  como prefijo público (si no, el cliente sin sesión caía en el login).
+
+**Pendiente / decisiones tomadas:**
+- El RUT se normaliza (`12.345.678-5` → `12345678-5`) pero **no** se valida el dígito verificador, a
+  propósito: hay clientes extranjeros que firman con pasaporte. Si se quiere exigir, es módulo 11 en
+  `normalizeRut`.
+- No se implementó firma dibujada a mano ni verificación por SMS — el código al correo es la prueba
+  que efectivamente sirve. SMS quedaría como segundo factor si algún cliente lo pide.
+- **Requiere `RESEND_API_KEY`**: sin eso el endpoint del código devuelve 503 y no se puede firmar.
+
+---
+
 ## 📦 Módulo de estadísticas detalladas de TikTok/YouTube (9 sep 2026)
 
 **Pedido:** las páginas de Métricas > TikTok y > YouTube solo mostraban un banner "próximamente" y

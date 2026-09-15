@@ -8,10 +8,21 @@ export function isResendEnabled(): boolean {
   return !!RESEND_API_KEY;
 }
 
+export interface EmailAttachment {
+  filename: string;
+  /** Contenido del archivo en base64, sin el prefijo `data:...;base64,`. */
+  content: string;
+}
+
 /** Envia un correo via Resend. Si no hay API key configurada, no hace
  * nada -- el invite en si (via Supabase) ya funciona igual, solo que sin
  * el correo lindo hasta que se configure Resend. */
-export async function sendEmail(params: { to: string; subject: string; html: string }): Promise<void> {
+export async function sendEmail(params: {
+  to: string;
+  subject: string;
+  html: string;
+  attachments?: EmailAttachment[];
+}): Promise<void> {
   if (!RESEND_API_KEY) {
     console.warn("[resend] RESEND_API_KEY no configurado -- correo no enviado", { to: params.to, subject: params.subject });
     return;
@@ -28,6 +39,7 @@ export async function sendEmail(params: { to: string; subject: string; html: str
       to: params.to,
       subject: params.subject,
       html: params.html,
+      ...(params.attachments?.length ? { attachments: params.attachments } : {}),
     }),
   });
 
@@ -245,6 +257,96 @@ export function buildSettlementPendingSignatureEmailHtml(params: {
         style="display: inline-block; margin-top: 4px; padding: 12px 24px; background: #4338CA; color: white; text-decoration: none; border-radius: 100px; font-size: 14px; font-weight: 600;">
         Revisar y firmar
       </a>
+    </div>
+  `;
+}
+
+// ─── Firma externa del cierre de caja (cliente sin cuenta en la app) ───────
+
+/**
+ * Codigo de verificacion para firmar el cierre de caja desde un link
+ * publico (ver src/lib/external-signature.ts). El correo es la prueba de
+ * identidad: quien firma tiene que demostrar que controla esta casilla.
+ */
+export function buildExternalSignatureOtpEmailHtml(params: {
+  code: string;
+  eventName: string;
+  signerName: string;
+  minutes: number;
+}): string {
+  const { code, eventName, signerName, minutes } = params;
+  return `
+    <div style="font-family: -apple-system, Inter, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
+      <img src="https://artistpro.app/logo-black.png" alt="Artist Pro" style="width: 120px; height: auto; margin-bottom: 20px;" />
+      <p style="font-size: 16px; color: #14162B; margin-bottom: 4px;">Hola ${signerName},</p>
+      <p style="font-size: 15px; color: #14162B; line-height: 1.5;">
+        Tu código para firmar la conformidad del cierre de caja de <strong>${eventName}</strong> es:
+      </p>
+      <p style="font-size: 34px; font-weight: 700; letter-spacing: 10px; color: #14162B; background: #F4F4F8; border-radius: 12px; padding: 18px; text-align: center; margin: 20px 0;">
+        ${code}
+      </p>
+      <p style="font-size: 13px; color: #14162B99; line-height: 1.5;">
+        Vence en ${minutes} minutos y sirve una sola vez. Nadie del equipo te lo va a pedir por teléfono o WhatsApp.
+      </p>
+      <p style="font-size: 12px; color: #14162B66; margin-top: 28px;">
+        Si no estabas firmando nada, ignora este correo — sin el código no se puede firmar.
+      </p>
+    </div>
+  `;
+}
+
+/**
+ * Comprobante de la firma externa -- se manda al firmante y al equipo con
+ * el PDF adjunto, apenas queda registrada la firma.
+ */
+export function buildExternalSignatureReceiptEmailHtml(params: {
+  eventName: string;
+  eventDate: string;
+  venue: string;
+  signerName: string;
+  signerRut: string;
+  signerEmail: string;
+  signerPhone: string;
+  roleLabel: string | null;
+  signedAt: string;
+  ipAddress: string | null;
+  documentHash: string;
+  utilidad: number;
+}): string {
+  const {
+    eventName, eventDate, venue, signerName, signerRut, signerEmail, signerPhone,
+    roleLabel, signedAt, ipAddress, documentHash, utilidad,
+  } = params;
+
+  const line = (label: string, value: string) =>
+    `<tr><td style="padding:3px 0;color:#14162B99;font-size:13px;">${label}</td><td style="padding:3px 0;text-align:right;font-size:13px;color:#14162B;font-weight:600;">${value}</td></tr>`;
+
+  return `
+    <div style="font-family: -apple-system, Inter, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px;">
+      <img src="https://artistpro.app/logo-black.png" alt="Artist Pro" style="width: 120px; height: auto; margin-bottom: 20px;" />
+      <p style="font-size: 18px; font-weight: 700; color: #14162B; margin-bottom: 4px;">Cierre de caja firmado</p>
+      <p style="font-size: 15px; color: #14162B; margin-bottom: 2px;"><strong>${eventName}</strong></p>
+      <p style="font-size: 13px; color: #14162B99; margin-bottom: 20px;">${formatDateForEmail(eventDate)} · ${venue}</p>
+
+      <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
+        ${line("Firmante", signerName)}
+        ${roleLabel ? line("Calidad en que firma", roleLabel) : ""}
+        ${line("RUT / identificación", signerRut)}
+        ${line("Correo", signerEmail)}
+        ${line("Teléfono", signerPhone)}
+        ${line("Fecha y hora", formatDateTimeForEmail(signedAt))}
+        ${ipAddress ? line("IP", ipAddress) : ""}
+        ${line("Utilidad del cierre", CLP_FMT.format(utilidad / 100))}
+      </table>
+
+      <p style="font-size:12px;color:#14162B99;line-height:1.6;border-top:1px solid #E5E7EB;padding-top:14px;">
+        Huella SHA-256 del documento firmado:<br/>
+        <span style="font-family:ui-monospace,Menlo,monospace;font-size:11px;color:#14162B;word-break:break-all;">${documentHash}</span>
+      </p>
+      <p style="font-size:12px;color:#14162B99;line-height:1.6;">
+        Adjuntamos el comprobante en PDF con el detalle completo del cierre y la evidencia de la firma.
+        Guárdalo: si más adelante cambia alguna cifra del cierre, la huella deja de calzar y la diferencia queda demostrada.
+      </p>
     </div>
   `;
 }
