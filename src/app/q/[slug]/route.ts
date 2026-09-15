@@ -74,6 +74,14 @@ export async function GET(
   const { slug } = await params;
   const supabase = createAdminClient();
 
+  // request.url refleja el host interno del contenedor (localhost:8080
+  // detras del proxy de Railway), no el dominio publico -- se arma a mano
+  // con NEXT_PUBLIC_SITE_URL, mismo patron que el resto de la app. Esto
+  // aplica TAMBIEN al redirect de "slug no existe": armarlo con
+  // request.url mandaba a la persona a localhost:8080 (visto en un
+  // celular real probando un link borrado).
+  const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+
   const { data: qr } = await supabase
     .from("qr_codes")
     .select("id, label, destination_url, project_id, organization_id")
@@ -81,15 +89,10 @@ export async function GET(
     .maybeSingle();
 
   if (!qr) {
-    return NextResponse.redirect(new URL("/", request.url));
+    return NextResponse.redirect(new URL("/", base));
   }
 
   const userAgent = request.headers.get("user-agent");
-
-  // request.url refleja el host interno del contenedor (localhost:8080
-  // detras del proxy de Railway), no el dominio publico -- se arma a mano
-  // con NEXT_PUBLIC_SITE_URL, mismo patron que el resto de la app.
-  const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
   if (isLinkPreviewBot(userAgent)) {
     let scraped: ScrapedOg = { title: null, description: null, image: null, siteName: null };

@@ -21,8 +21,13 @@ export async function GET(
   const { slug, linkId } = await params;
   const supabase = createAdminClient();
 
+  // request.url es el host interno del contenedor (localhost:8080 detras
+  // del proxy de Railway) -- los redirects de "no existe" se arman con el
+  // dominio publico, igual que en /q/[slug].
+  const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+
   const { data: smartlink } = await supabase.from("smartlinks").select("id").eq("slug", slug).maybeSingle();
-  if (!smartlink) return NextResponse.redirect(new URL("/", request.url));
+  if (!smartlink) return NextResponse.redirect(new URL("/", base));
 
   const { data: link } = await supabase
     .from("smartlink_links")
@@ -31,7 +36,7 @@ export async function GET(
     .eq("smartlink_id", smartlink.id)
     .maybeSingle();
 
-  if (!link) return NextResponse.redirect(new URL(`/s/${slug}`, request.url));
+  if (!link) return NextResponse.redirect(new URL(`/s/${slug}`, base));
 
   after(async () => {
     const { error } = await supabase.from("smartlink_events").insert({
