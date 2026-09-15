@@ -12,6 +12,19 @@
 
 import { createHash, randomBytes, randomInt, timingSafeEqual } from "crypto";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { profitSplitLabels } from "@/lib/profit-split";
+
+/** Resuelve los nombres del reparto al armar el documento, para que el hash
+ * y el PDF queden con el nombre que realmente se le mostro al firmante --
+ * no con uno calculado despues. */
+function profitSplitLabelsForDoc(event: {
+  profitSplitProjectLabel: string | null;
+  profitSplitTrinoLabel: string | null;
+  projectName: string | null;
+}): { profitSplitProjectLabel: string; profitSplitTrinoLabel: string } {
+  const labels = profitSplitLabels(event);
+  return { profitSplitProjectLabel: labels.project, profitSplitTrinoLabel: labels.trino };
+}
 
 // ─── Token del link ─────────────────────────────────────────────────────────
 
@@ -123,6 +136,10 @@ export interface ClosingDocument {
   costItems: ClosingDocumentLineItem[];
   profitSplitProjectPct: number | null;
   profitSplitTrinoPct: number | null;
+  // Como se llama cada lado del reparto (migracion 100). Ya resueltos: en
+  // un evento externo dicen el cliente y "Trino", no el proyecto y "Sello".
+  profitSplitProjectLabel: string;
+  profitSplitTrinoLabel: string;
   profitSplitNote: string | null;
 }
 
@@ -137,7 +154,7 @@ export async function buildClosingDocument(
   const { data: show } = await admin
     .from("shows")
     .select(
-      "id, name, date, venue, city, project_id, cost_sheet_closed_at, fee, ticket_income, expenses, profit_split_note, profit_split_project_pct, profit_split_trino_pct"
+      "id, name, date, venue, city, project_id, cost_sheet_closed_at, fee, ticket_income, expenses, profit_split_note, profit_split_project_pct, profit_split_trino_pct, profit_split_project_label, profit_split_trino_label"
     )
     .eq("id", showId)
     .single();
@@ -182,6 +199,11 @@ export async function buildClosingDocument(
     })),
     profitSplitProjectPct: show.profit_split_project_pct ?? null,
     profitSplitTrinoPct: show.profit_split_trino_pct ?? null,
+    ...profitSplitLabelsForDoc({
+      profitSplitProjectLabel: show.profit_split_project_label ?? null,
+      profitSplitTrinoLabel: show.profit_split_trino_label ?? null,
+      projectName: project?.name ?? null,
+    }),
     profitSplitNote: show.profit_split_note ?? null,
   };
 }
@@ -392,13 +414,17 @@ export async function buildReceiptPdf(doc: ClosingDocument, ev: ReceiptEvidence)
     heading("REPARTO DE UTILIDAD");
     if (doc.profitSplitProjectPct != null) {
       row(
-        `${doc.profitSplitProjectPct}% ${doc.projectName || "Proyecto"}`,
+        `${doc.profitSplitProjectPct}% ${doc.profitSplitProjectLabel}`,
         formatCents(Math.round((doc.utilidad * doc.profitSplitProjectPct) / 100)),
         { size: 9 }
       );
     }
     if (doc.profitSplitTrinoPct != null) {
-      row(`${doc.profitSplitTrinoPct}% Sello`, formatCents(Math.round((doc.utilidad * doc.profitSplitTrinoPct) / 100)), { size: 9 });
+      row(
+        `${doc.profitSplitTrinoPct}% ${doc.profitSplitTrinoLabel}`,
+        formatCents(Math.round((doc.utilidad * doc.profitSplitTrinoPct) / 100)),
+        { size: 9 }
+      );
     }
     if (doc.profitSplitNote) {
       y -= 4;

@@ -92,12 +92,15 @@ export function DocumentoCierre({ doc }: { doc: ClosingDocumentView }) {
         <Section title="Reparto de utilidad">
           {projectPct != null && (
             <Row
-              label={`${projectPct}% ${doc.projectName || "Proyecto"}`}
+              label={`${projectPct}% ${doc.profitSplitProjectLabel}`}
               value={formatCents(Math.round((doc.utilidad * projectPct) / 100))}
             />
           )}
           {trinoPct != null && (
-            <Row label={`${trinoPct}% Sello`} value={formatCents(Math.round((doc.utilidad * trinoPct) / 100))} />
+            <Row
+              label={`${trinoPct}% ${doc.profitSplitTrinoLabel}`}
+              value={formatCents(Math.round((doc.utilidad * trinoPct) / 100))}
+            />
           )}
           {doc.profitSplitNote && (
             <p className="mt-2 whitespace-pre-wrap text-xs text-muted-foreground">{doc.profitSplitNote}</p>

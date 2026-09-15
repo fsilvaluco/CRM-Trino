@@ -19,6 +19,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { liquidoToBruto, retencionFromBruto, BHE_RETENTION_RATE } from "@/lib/bhe";
 import { COST_CATEGORIES } from "@/lib/cost-categories";
+import { profitSplitLabels, DEFAULT_TRINO_LABEL } from "@/lib/profit-split";
 import { toast } from "sonner";
 import {
   ArrowLeft, Pencil, MapPin, Clock, Music4, Wallet, FileText, Link as LinkIcon,
@@ -194,6 +195,10 @@ export default function EventDetailPage() {
   const [profitSplitNote, setProfitSplitNote] = useState("");
   const [profitSplitProjectPct, setProfitSplitProjectPct] = useState<number | null>(null);
   const [profitSplitTrinoPct, setProfitSplitTrinoPct] = useState<number | null>(null);
+  // Como se llama cada lado del reparto (migracion 100) -- vacio = el
+  // default de siempre (nombre del proyecto / "Sello").
+  const [profitSplitProjectLabel, setProfitSplitProjectLabel] = useState("");
+  const [profitSplitTrinoLabel, setProfitSplitTrinoLabel] = useState("");
   const [profitSplitTransferProofUrl, setProfitSplitTransferProofUrl] = useState<string | null>(null);
   const [profitSplitTransferredAt, setProfitSplitTransferredAt] = useState<string | null>(null);
   const [uploadingTransferProof, setUploadingTransferProof] = useState(false);
@@ -343,6 +348,8 @@ export default function EventDetailPage() {
           setProfitSplitNote(data.profitSplitNote ?? "");
           setProfitSplitProjectPct(data.profitSplitProjectPct ?? null);
           setProfitSplitTrinoPct(data.profitSplitTrinoPct ?? null);
+          setProfitSplitProjectLabel(data.profitSplitProjectLabel ?? "");
+          setProfitSplitTrinoLabel(data.profitSplitTrinoLabel ?? "");
           setProfitSplitTransferProofUrl(data.profitSplitTransferProofUrl ?? null);
           setProfitSplitTransferredAt(data.profitSplitTransferredAt ?? null);
           setCostsDirty(false);
@@ -911,6 +918,8 @@ export default function EventDetailPage() {
             profitSplitNote: profitSplitNote.trim() || null,
             profitSplitProjectPct,
             profitSplitTrinoPct,
+            profitSplitProjectLabel: profitSplitProjectLabel.trim() || null,
+            profitSplitTrinoLabel: profitSplitTrinoLabel.trim() || null,
           }),
         }),
       ]);
@@ -1248,6 +1257,11 @@ export default function EventDetailPage() {
   // Default 70/30 si no se ha tocado el reparto de este evento puntual.
   const resolvedProjectPct = profitSplitProjectPct ?? 70;
   const resolvedTrinoPct = profitSplitTrinoPct ?? 30;
+  const splitLabels = profitSplitLabels({
+    profitSplitProjectLabel,
+    profitSplitTrinoLabel,
+    projectName: event?.projectName ?? null,
+  });
   const projectSplitCents = Math.round((utilidadCents * resolvedProjectPct) / 100);
   const trinoSplitCents = Math.round((utilidadCents * resolvedTrinoPct) / 100);
   const currentEvent = event;
@@ -1385,7 +1399,7 @@ export default function EventDetailPage() {
       {event.canViewCosts !== false && (
         <div className="grid grid-cols-4 gap-3" data-section="summary">
           <Card><CardContent className="p-3 print:p-1.5"><p className="text-xs print:text-[9px] text-muted-foreground">Fee</p><p className="font-semibold print:text-xs print:whitespace-nowrap">{formatCents(event.fee)}</p></CardContent></Card>
-          <Card><CardContent className="p-3 print:p-1.5"><p className="text-xs print:text-[9px] text-muted-foreground">Entradas</p><p className="font-semibold print:text-xs print:whitespace-nowrap">{formatCents(event.ticketIncome)}</p></CardContent></Card>
+          <Card><CardContent className="p-3 print:p-1.5"><p className="text-xs print:text-[9px] text-muted-foreground">Ingresos</p><p className="font-semibold print:text-xs print:whitespace-nowrap">{formatCents(event.ticketIncome)}</p></CardContent></Card>
           <Card><CardContent className="p-3 print:p-1.5"><p className="text-xs print:text-[9px] text-muted-foreground">Egresos</p><p className="font-semibold print:text-xs print:whitespace-nowrap">{formatCents(event.expenses)}</p></CardContent></Card>
           <Card>
             <CardContent className="p-3 print:p-1.5">
@@ -2875,7 +2889,18 @@ export default function EventDetailPage() {
                   }}
                   className="h-8 w-16 text-sm"
                 />
-                <span className="text-sm text-muted-foreground">% {event.projectName || "Proyecto"} = </span>
+                <span className="text-sm text-muted-foreground">%</span>
+                <Input
+                  disabled={costSheetClosed || !canEditCosts}
+                  value={profitSplitProjectLabel}
+                  placeholder={event.projectName || "Proyecto"}
+                  onChange={(e) => {
+                    setProfitSplitProjectLabel(e.target.value);
+                    setCostsDirty(true);
+                  }}
+                  className="h-8 w-32 text-sm"
+                />
+                <span className="text-sm text-muted-foreground">=</span>
                 <span className="text-sm font-semibold">{formatCents(projectSplitCents)}</span>
               </div>
               <div className="flex items-center gap-1.5">
@@ -2890,7 +2915,18 @@ export default function EventDetailPage() {
                   }}
                   className="h-8 w-16 text-sm"
                 />
-                <span className="text-sm text-muted-foreground">% Sello = </span>
+                <span className="text-sm text-muted-foreground">%</span>
+                <Input
+                  disabled={costSheetClosed || !canEditCosts}
+                  value={profitSplitTrinoLabel}
+                  placeholder={DEFAULT_TRINO_LABEL}
+                  onChange={(e) => {
+                    setProfitSplitTrinoLabel(e.target.value);
+                    setCostsDirty(true);
+                  }}
+                  className="h-8 w-32 text-sm"
+                />
+                <span className="text-sm text-muted-foreground">=</span>
                 <span className="text-sm font-semibold">{formatCents(trinoSplitCents)}</span>
               </div>
             </div>
@@ -2905,7 +2941,9 @@ export default function EventDetailPage() {
               className="text-sm"
             />
             <p className="text-xs text-muted-foreground">
-              Estos porcentajes y montos los ven los firmantes al aprobar el cierre, para saber cuánto transferir.
+              Estos porcentajes, nombres y montos los ven los firmantes al aprobar el cierre, para saber cuánto
+              transferir. Los nombres sirven para eventos externos, donde el reparto no es con un proyecto de la
+              cartera -- en blanco quedan los de siempre.
             </p>
           </div>
 
@@ -2948,8 +2986,8 @@ export default function EventDetailPage() {
 
           <p className="hidden print:block text-sm pt-2">
             <span className="font-medium">Reparto de utilidad ({formatCents(utilidadCents)}):</span>{" "}
-            {resolvedProjectPct}% {event.projectName || "Proyecto"} = {formatCents(projectSplitCents)} ·{" "}
-            {resolvedTrinoPct}% Sello = {formatCents(trinoSplitCents)}
+            {resolvedProjectPct}% {splitLabels.project} = {formatCents(projectSplitCents)} ·{" "}
+            {resolvedTrinoPct}% {splitLabels.trino} = {formatCents(trinoSplitCents)}
             {profitSplitNote.trim() && (
               <>
                 <br /><span className="font-medium">Nota:</span> {profitSplitNote.trim()}
@@ -2959,11 +2997,11 @@ export default function EventDetailPage() {
 
           <div className="hidden print:grid grid-cols-2 gap-8 pt-12">
             <div className="text-center text-sm">
-              <div className="border-t border-foreground pt-1">Firma Sello</div>
+              <div className="border-t border-foreground pt-1">Firma {splitLabels.trino}</div>
             </div>
             <div className="text-center text-sm">
               <div className="border-t border-foreground pt-1">
-                Firma Rep. {event.projectName || "Proyecto"}
+                Firma Rep. {splitLabels.project}
               </div>
             </div>
           </div>

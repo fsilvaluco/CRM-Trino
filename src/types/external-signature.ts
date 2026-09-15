@@ -22,6 +22,9 @@ export interface ClosingDocumentView {
   costItems: { label: string; responsable: string | null; amount: number }[];
   profitSplitProjectPct: number | null;
   profitSplitTrinoPct: number | null;
+  /** Nombres ya resueltos de cada lado del reparto (migración 100). */
+  profitSplitProjectLabel: string;
+  profitSplitTrinoLabel: string;
   profitSplitNote: string | null;
 }
 

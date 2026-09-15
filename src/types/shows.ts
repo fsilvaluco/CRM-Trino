@@ -108,6 +108,11 @@ export interface LiveShow {
   // (se sube después de que todos firman -- es el cierre final del evento).
   profitSplitProjectPct: number | null;
   profitSplitTrinoPct: number | null;
+  // Cómo se llama cada lado del reparto (migración 100). null = el
+  // comportamiento de siempre: nombre del proyecto y "Sello". Se cambian en
+  // eventos externos, donde el reparto es entre el cliente y Trino.
+  profitSplitProjectLabel: string | null;
+  profitSplitTrinoLabel: string | null;
   profitSplitTransferProofUrl: string | null;
   profitSplitTransferredAt: string | null;
   createdAt: string;

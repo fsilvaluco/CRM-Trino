@@ -53,6 +53,19 @@ y con suficiente respaldo como para que la firma sirva de algo.
 - `middleware.ts`: `/api/public/firma` entra al rate limit estricto por IP. `AppShell`: `/firmar/`
   como prefijo público (si no, el cliente sin sesión caía en el login).
 
+**Ajustes del 15 sep 2026 (misma pasada):**
+- **Migración 100**: `shows.profit_split_project_label` y `profit_split_trino_label`. Los dos lados del
+  reparto de utilidad tenían el nombre quemado ("nombre del proyecto" y "Sello"), lo que no sirve en un
+  evento externo donde el reparto es entre el cliente y Trino. Ahora son dos campos de texto en la
+  planilla, al lado de cada porcentaje; en blanco quedan los nombres de siempre, así que ningún evento
+  anterior cambia. Se propagan a la planilla, la versión impresa (incluidas las líneas de firma), la
+  página de firma interna, el correo de "Informar cierre", el documento de la firma externa y el PDF del
+  comprobante — helper compartido en `src/lib/profit-split.ts`.
+  Ojo: los nombres se editan con la **caja abierta**, igual que los porcentajes, porque forman parte del
+  documento que se firma y entran en su hash.
+- La tarjeta de resumen del evento dice **"Ingresos"** en vez de "Entradas" (sigue mostrando
+  `ticket_income`). No se tocaron ni el campo del diálogo de edición ni la columna de Métricas > Eventos.
+
 **Pendiente / decisiones tomadas:**
 - El RUT se normaliza (`12.345.678-5` → `12345678-5`) pero **no** se valida el dígito verificador, a
   propósito: hay clientes extranjeros que firman con pasaporte. Si se quiere exigir, es módulo 11 en
@@ -60,6 +73,7 @@ y con suficiente respaldo como para que la firma sirva de algo.
 - No se implementó firma dibujada a mano ni verificación por SMS — el código al correo es la prueba
   que efectivamente sirve. SMS quedaría como segundo factor si algún cliente lo pide.
 - **Requiere `RESEND_API_KEY`**: sin eso el endpoint del código devuelve 503 y no se puede firmar.
+- Migraciones 099 y 100 aplicadas en Supabase (proyecto CRM Trino) el 15 sep 2026.
 
 ---
 
