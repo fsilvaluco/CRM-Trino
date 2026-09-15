@@ -171,6 +171,16 @@ que devuelve la página "Abriendo Spotify..." con el `intent://` correcto (`pack
 com.spotify.music`, track ID bien extraído pese al prefijo `intl-es` en la URL) y
 `Cache-Control: no-store`. Datos de prueba limpiados.
 
+### 🐛 Bug preexistente encontrado de rebote: link borrado/inexistente mandaba a `localhost:8080`
+
+Francisco probó `/q/test-whatsapp-fix` (mi QR de prueba, ya borrado al limpiar) desde el celular y
+llegó a `localhost:8080` con `ERR_CONNECTION_REFUSED`. Causa: el redirect de "slug no existe" en
+`/q/[slug]` y los dos de `/s/[slug]/go/[linkId]` se armaban con `new URL("/", request.url)` --
+y `request.url` detrás del proxy de Railway es el host interno del contenedor, no el dominio
+público (el propio archivo ya lo advertía para el resto de la ruta, pero ese redirect quedó
+afuera). Corregido usando `NEXT_PUBLIC_SITE_URL` (`base`), igual que todo lo demás. Verificado
+con `curl` a un slug inexistente: ahora el `Location` sale del dominio público.
+
 ---
 
 ## 🤝 Cómo trabajamos (leer esto primero al retomar)
