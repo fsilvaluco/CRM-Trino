@@ -37,7 +37,11 @@ export async function POST(
   // se borra "a mano" desde ningún lado) -- este es el único caso legítimo
   // que la limpia, y lo hace con el service role, no con el cliente del
   // usuario.
-  await createAdminClient().from("event_closing_signatures").delete().eq("show_id", id);
+  const admin = createAdminClient();
+  await admin.from("event_closing_signatures").delete().eq("show_id", id);
+  // Los códigos de 6 dígitos en vuelo también se caen: fueron pedidos para
+  // aprobar la planilla que se está reabriendo (migración 102).
+  await admin.from("event_signature_otps").delete().eq("show_id", id);
 
   await logActivity({
     supabase,

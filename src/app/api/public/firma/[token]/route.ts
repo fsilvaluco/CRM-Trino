@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
+import { getSignaturesState } from "@/lib/event-signatures";
 import {
   hashToken,
   externalSignerStatus,
@@ -52,6 +53,28 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "El evento de este link ya no existe" }, { status: 404 });
   }
 
+  // Recuadro de Aprobación: el firmante externo ve quién más está firmando
+  // el MISMO documento -- el equipo interno y los otros externos. Decisión
+  // explícita de Francisco (15 sep 2026): le da peso al documento que el
+  // cliente vea que no es el único firmando. Van nombres, correos y si
+  // firmaron; las IP no, que son evidencia de cada firmante y no le
+  // aportan nada a la contraparte.
+  const { data: showRow } = await admin
+    .from("shows")
+    .select("project_id, required_signer_ids")
+    .eq("id", signer.show_id)
+    .single();
+
+  const internal = showRow?.project_id
+    ? await getSignaturesState(admin, signer.show_id, showRow.project_id, showRow.required_signer_ids)
+    : null;
+
+  const { data: otherExternals } = await admin
+    .from("event_external_signers")
+    .select("id, role_label, invited_name, signer_name, signed_at, revoked_at, expires_at")
+    .eq("show_id", signer.show_id)
+    .order("created_at");
+
   const currentHash = documentHash(doc);
   const now = Date.now();
   const otpPending =
@@ -72,6 +95,35 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     // Un link vencido o anulado no muestra ni un peso: el documento solo
     // sale mientras el link sirve para firmar, o para que quien ya firmó
     // pueda releer lo que firmó.
+    approval: internal
+      ? {
+          requiredSigners: internal.requiredSigners.map((r) => {
+            const sig = internal.signatures.find((x) => x.userId === r.userId);
+            return {
+              name: r.fullName || r.email || "Integrante del equipo",
+              email: r.email,
+              signedAt: sig?.signedAt ?? null,
+            };
+          }),
+          externalSigners: (otherExternals ?? [])
+            .filter((r: { revoked_at: string | null }) => !r.revoked_at)
+            .map((r: {
+              id: string;
+              role_label: string | null;
+              invited_name: string | null;
+              signer_name: string | null;
+              signed_at: string | null;
+              expires_at: string;
+            }) => ({
+              id: r.id,
+              name: r.signer_name || r.invited_name || r.role_label || "Firmante externo",
+              roleLabel: r.role_label,
+              signedAt: r.signed_at,
+              // Para que el firmante actual se reconozca en la lista.
+              isMe: r.id === signer.id,
+            })),
+        }
+      : null,
     document: status === "pendiente" || status === "firmado" ? doc : null,
     documentHash: status === "pendiente" || status === "firmado" ? currentHash : null,
     otp: otpPending

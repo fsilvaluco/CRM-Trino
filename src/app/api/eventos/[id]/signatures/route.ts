@@ -2,9 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { sendPushToUsers } from "@/lib/push";
 import { getRequiredSigners, getSignaturesState, getEligibleSigners } from "@/lib/event-signatures";
-import { getProjectPermissions, canEditEventCosts } from "@/lib/project-roles";
+import { getProjectPermissions, canEditEventCosts, canViewEventCosts } from "@/lib/project-roles";
 import { dbErrorResponse } from "@/lib/api-errors";
 import { getClientIp } from "@/lib/client-ip";
+import { createAdminClient } from "@/lib/supabase-admin";
+import {
+  otpMatches,
+  buildClosingDocument,
+  documentHash,
+  maskEmail,
+  OTP_MAX_ATTEMPTS,
+} from "@/lib/external-signature";
 
 function siteUrl(path: string): string {
   const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -49,6 +57,43 @@ export async function GET(
   );
   const perm = await getProjectPermissions(supabase, user!.id, show.project_id);
 
+  // Prellenado del formulario de firma: lo que ya guardó en su perfil
+  // ("guardar para próximos cierres"). El código igual se pide siempre.
+  const { data: me } = await supabase
+    .from("profiles")
+    .select("full_name, email, phone, rut")
+    .eq("id", user!.id)
+    .single();
+
+  // Código en vuelo del usuario actual (si pidió uno y todavía no venció).
+  const admin = createAdminClient();
+  const { data: otpRow } = await admin
+    .from("event_signature_otps")
+    .select("sent_to, sent_at, expires_at, attempts")
+    .eq("show_id", id)
+    .eq("user_id", user!.id)
+    .maybeSingle();
+  const otpPending = otpRow && new Date(otpRow.expires_at).getTime() > Date.now() ? otpRow : null;
+
+  // Firmas externas del mismo cierre (migración 099) -- el recuadro de
+  // Aprobación las muestra junto a las internas: es el mismo documento.
+  // El documento que se firma va en la MISMA respuesta, para que la
+  // pantalla de firma del equipo muestre exactamente lo mismo que la del
+  // cliente externo. Solo para quien puede ver costos: esta respuesta
+  // también la lee gente (artist/staff) que ve quién falta por firmar pero
+  // no los montos -- ROLES.md 0.2.2.
+  const puedeVerCostos = canViewEventCosts(perm);
+  const doc = puedeVerCostos ? await buildClosingDocument(admin, id) : null;
+  const { data: transferRow } = puedeVerCostos
+    ? await supabase.from("shows").select("profit_split_transfer_proof_url").eq("id", id).single()
+    : { data: null };
+
+  const { data: externalRows } = await supabase
+    .from("event_external_signers")
+    .select("id, role_label, invited_name, signer_name, signed_at, revoked_at, expires_at, ip_address")
+    .eq("show_id", id)
+    .order("created_at");
+
   const signedIds = new Set(signatures.map((s) => s.userId));
   const isRequiredSigner = requiredSigners.some((r) => r.userId === user!.id);
   const alreadySigned = signedIds.has(user!.id);
@@ -65,6 +110,43 @@ export async function GET(
     // que cerrarlo o reabrirlo.
     canManageSigners: canEditEventCosts(perm),
     signatures,
+    externalSigners: (externalRows ?? [])
+      .filter((r: { revoked_at: string | null }) => !r.revoked_at)
+      .map((r: {
+        id: string;
+        role_label: string | null;
+        invited_name: string | null;
+        signer_name: string | null;
+        signed_at: string | null;
+        expires_at: string;
+        ip_address: string | null;
+      }) => ({
+        id: r.id,
+        name: r.signer_name || r.invited_name || r.role_label || "Firmante externo",
+        roleLabel: r.role_label,
+        signedAt: r.signed_at,
+        ipAddress: r.ip_address,
+        expired: !r.signed_at && new Date(r.expires_at).getTime() < Date.now(),
+      })),
+    document: doc,
+    profitSplitTransferProofUrl: transferRow?.profit_split_transfer_proof_url ?? null,
+    // Datos con los que se prellena el formulario de firma del usuario
+    // actual. `accountEmail` es a dónde llega el código, siempre.
+    me: {
+      fullName: me?.full_name ?? null,
+      rut: me?.rut ?? null,
+      email: me?.email ?? null,
+      phone: me?.phone ?? null,
+      accountEmailMasked: user!.email ? maskEmail(user!.email) : null,
+    },
+    otp: otpPending
+      ? {
+          sentToMasked: maskEmail(otpPending.sent_to),
+          sentAt: otpPending.sent_at,
+          expiresAt: otpPending.expires_at,
+          attemptsLeft: Math.max(0, OTP_MAX_ATTEMPTS - (otpPending.attempts ?? 0)),
+        }
+      : null,
     allSigned,
     alreadySigned,
     // Sin bypass de organización (ROLES.md, ítem 3 del rediseño de roles --
@@ -76,8 +158,13 @@ export async function GET(
 }
 
 // POST /api/eventos/[id]/signatures -- registra la aprobación del usuario
-// actual. Irreversible (sin endpoint de "des-firmar") -- la única forma de
-// sacar una firma es reabrir la caja, que las borra todas (ver
+// actual. Desde la migración 102 exige el código de 6 dígitos que se pidió
+// en ../codigo: los datos declarados (nombre, RUT, correo, teléfono) son
+// los que quedaron guardados con ese código, así que lo que se firma es
+// siempre la identidad que recibió el correo.
+//
+// Irreversible (sin endpoint de "des-firmar") -- la única forma de sacar
+// una firma es reabrir la caja, que las borra todas (ver
 // costs/reopen/route.ts).
 export async function POST(
   request: NextRequest,
@@ -117,15 +204,84 @@ export async function POST(
     );
   }
 
-  const { error: insertError } = await supabase
-    .from("event_closing_signatures")
-    .insert({ show_id: id, user_id: user!.id, ip_address: getClientIp(request) });
+  const body = await request.json().catch(() => ({}));
+  const code = typeof body.code === "string" ? body.code.replace(/\D/g, "") : "";
+
+  const admin = createAdminClient();
+  const { data: otp } = await admin
+    .from("event_signature_otps")
+    .select("otp_hash, expires_at, attempts, sent_to, signer_name, signer_rut, signer_email, signer_phone, save_to_profile")
+    .eq("show_id", id)
+    .eq("user_id", user!.id)
+    .maybeSingle();
+
+  if (!otp) {
+    return NextResponse.json({ error: "Primero pide el código de verificación" }, { status: 400 });
+  }
+  if (new Date(otp.expires_at).getTime() < Date.now()) {
+    return NextResponse.json({ error: "El código venció. Pide uno nuevo." }, { status: 410 });
+  }
+  const attempts = otp.attempts ?? 0;
+  if (attempts >= OTP_MAX_ATTEMPTS) {
+    return NextResponse.json({ error: "Demasiados intentos con ese código. Pide uno nuevo." }, { status: 429 });
+  }
+  if (!otpMatches(`${id}:${user!.id}`, code, otp.otp_hash)) {
+    await admin
+      .from("event_signature_otps")
+      .update({ attempts: attempts + 1 })
+      .eq("show_id", id)
+      .eq("user_id", user!.id);
+    const left = OTP_MAX_ATTEMPTS - (attempts + 1);
+    return NextResponse.json(
+      {
+        error:
+          left > 0
+            ? `Código incorrecto. Te quedan ${left} ${left === 1 ? "intento" : "intentos"}.`
+            : "Código incorrecto. Pide uno nuevo.",
+        attemptsLeft: Math.max(0, left),
+      },
+      { status: 400 }
+    );
+  }
+
+  // La huella se calcula sobre el cierre tal como está EN ESTE MOMENTO, y
+  // el documento completo queda guardado junto a ella -- mismo respaldo que
+  // la firma del cliente externo (migración 099).
+  const doc = await buildClosingDocument(admin, id);
+  const signedAt = new Date().toISOString();
+
+  const { error: insertError } = await supabase.from("event_closing_signatures").insert({
+    show_id: id,
+    user_id: user!.id,
+    ip_address: getClientIp(request),
+    user_agent: request.headers.get("user-agent"),
+    signed_at: signedAt,
+    otp_verified_at: signedAt,
+    signer_name: otp.signer_name,
+    signer_rut: otp.signer_rut,
+    signer_email: otp.signer_email,
+    signer_phone: otp.signer_phone,
+    document_hash: doc ? documentHash(doc) : null,
+    document_snapshot: doc,
+  });
 
   if (insertError) {
     if (insertError.code === "23505") {
       return NextResponse.json({ error: "Ya habías firmado este cierre" }, { status: 409 });
     }
-    return NextResponse.json({ error: insertError.message }, { status: 500 });
+    return dbErrorResponse("event-signatures:POST", insertError);
+  }
+
+  // El código se quema al usarlo.
+  await admin.from("event_signature_otps").delete().eq("show_id", id).eq("user_id", user!.id);
+
+  // "Guardar para próximos cierres" -- prellenado, no atajo: el código se
+  // sigue pidiendo igual la próxima vez.
+  if (otp.save_to_profile) {
+    await supabase
+      .from("profiles")
+      .update({ rut: otp.signer_rut, phone: otp.signer_phone })
+      .eq("id", user!.id);
   }
 
   // Fire-and-forget: avisar al resto del proyecto. Si esta firma completó

@@ -3,6 +3,7 @@
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import type { ClosingDocumentView } from "@/types/external-signature";
+import { ComprobanteCostoButton } from "@/components/events/ComprobanteCostoButton";
 
 const CLP = new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
 
@@ -19,11 +20,24 @@ function formatDate(d: string) {
   }
 }
 
-function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+function Row({
+  label,
+  value,
+  strong,
+  after,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+  after?: React.ReactNode;
+}) {
   return (
     <div className={`flex items-baseline justify-between gap-4 py-1 ${strong ? "font-semibold" : ""}`}>
       <span className={strong ? "" : "text-muted-foreground"}>{label}</span>
-      <span className="tabular-nums whitespace-nowrap">{value}</span>
+      <span className="flex items-center gap-1.5 shrink-0">
+        <span className="tabular-nums whitespace-nowrap">{value}</span>
+        {after}
+      </span>
     </div>
   );
 }
@@ -37,11 +51,21 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-/** El cierre de caja tal cual, de solo lectura -- es el documento que el
- * cliente externo está firmando, así que muestra exactamente lo mismo que
- * aprueban los firmantes internos en /eventos/[id]/firmar: no un resumen
- * más amable. */
-export function DocumentoCierre({ doc }: { doc: ClosingDocumentView }) {
+/** El cierre de caja tal cual, de solo lectura. Lo usan LAS DOS pantallas
+ * de firma (la del equipo y la del cliente externo) -- es el mismo
+ * documento, así que se ve igual en las dos: no hay una versión "más
+ * amable" para nadie.
+ *
+ * `resolveComprobante` es lo único que cambia entre ambas -- cómo se
+ * consigue la URL firmada de cada boleta. Sin esa prop, los costos se
+ * muestran igual pero sin el ícono para abrirlas. */
+export function DocumentoCierre({
+  doc,
+  resolveComprobante,
+}: {
+  doc: ClosingDocumentView;
+  resolveComprobante?: (path: string) => Promise<string | null>;
+}) {
   const projectPct = doc.profitSplitProjectPct;
   const trinoPct = doc.profitSplitTrinoPct;
 
@@ -83,7 +107,16 @@ export function DocumentoCierre({ doc }: { doc: ClosingDocumentView }) {
       {doc.costItems.length > 0 && (
         <Section title="Costos">
           {doc.costItems.map((c, i) => (
-            <Row key={i} label={c.responsable ? `${c.label} — ${c.responsable}` : c.label} value={formatCents(c.amount)} />
+            <Row
+              key={i}
+              label={c.responsable ? `${c.label} — ${c.responsable}` : c.label}
+              value={formatCents(c.amount)}
+              after={
+                c.comprobanteUrl && resolveComprobante ? (
+                  <ComprobanteCostoButton path={c.comprobanteUrl} resolve={resolveComprobante} />
+                ) : null
+              }
+            />
           ))}
         </Section>
       )}

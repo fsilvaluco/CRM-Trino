@@ -27,6 +27,14 @@ export interface SignerProfile {
 export interface SignatureRecord extends SignerProfile {
   signedAt: string;
   ipAddress: string | null;
+  // Evidencia de la migración 102 -- null en las firmas viejas, que se
+  // registraron cuando firmar era solo un click.
+  signerName: string | null;
+  signerRut: string | null;
+  signerEmail: string | null;
+  signerPhone: string | null;
+  otpVerifiedAt: string | null;
+  documentHash: string | null;
 }
 
 export interface SignaturesState {
@@ -126,7 +134,9 @@ export async function getSignaturesState(
 
   const { data: sigRows } = await supabase
     .from("event_closing_signatures")
-    .select("user_id, signed_at, ip_address, profiles ( full_name, email, avatar_url )")
+    .select(
+      "user_id, signed_at, ip_address, signer_name, signer_rut, signer_email, signer_phone, otp_verified_at, document_hash, profiles ( full_name, email, avatar_url )"
+    )
     .eq("show_id", showId)
     .order("signed_at", { ascending: true });
 
@@ -136,6 +146,12 @@ export async function getSignaturesState(
       userId: s.user_id,
       signedAt: s.signed_at,
       ipAddress: s.ip_address ?? null,
+      signerName: s.signer_name ?? null,
+      signerRut: s.signer_rut ?? null,
+      signerEmail: s.signer_email ?? null,
+      signerPhone: s.signer_phone ?? null,
+      otpVerifiedAt: s.otp_verified_at ?? null,
+      documentHash: s.document_hash ?? null,
       fullName: s.profiles?.full_name ?? null,
       email: s.profiles?.email ?? null,
       avatarUrl: s.profiles?.avatar_url ?? null,

@@ -4,6 +4,7 @@ import { getProjectPermissions, canViewEventCosts, canEditEventCosts } from "@/l
 import { dbErrorResponse } from "@/lib/api-errors";
 import { logActivity } from "@/lib/activity-logs";
 import { generateLinkToken, externalSignerStatus } from "@/lib/external-signature";
+import { sendEmail, isResendEnabled, buildExternalSignatureInviteEmailHtml } from "@/lib/resend";
 
 const DEFAULT_EXPIRY_DAYS = 30;
 const MAX_EXPIRY_DAYS = 180;
@@ -47,7 +48,7 @@ async function loadShowAndPermissions(id: string) {
 
   const { data: show } = await supabase
     .from("shows")
-    .select("id, name, project_id, cost_sheet_closed_at")
+    .select("id, name, date, venue, project_id, cost_sheet_closed_at, projects ( name )")
     .eq("id", id)
     .single();
 
@@ -59,7 +60,9 @@ async function loadShowAndPermissions(id: string) {
   }
 
   const perm = await getProjectPermissions(supabase, user!.id, show.project_id);
-  return { supabase, user, show, perm };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const projectName = (show as any).projects?.name ?? null;
+  return { supabase, user, show: { ...show, projectName }, perm };
 }
 
 // GET /api/eventos/[id]/external-signers -- links de firma externa emitidos
@@ -144,6 +147,42 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (insertError) return dbErrorResponse("external-signers:POST", insertError);
 
+  // Si el equipo dejó fijado el correo, se le manda el link de una --
+  // pedido de Francisco (15 sep 2026): antes había que copiarlo y mandarlo
+  // a mano por WhatsApp. El correo lleva el link, que ES el secreto, así
+  // que va SOLO a esa casilla y a ninguna otra.
+  let emailSent = false;
+  if (invitedEmail && isResendEnabled()) {
+    try {
+      const { data: me } = await ctx.supabase!
+        .from("profiles")
+        .select("full_name, email")
+        .eq("id", ctx.user!.id)
+        .single();
+
+      await sendEmail({
+        to: invitedEmail,
+        subject: `Necesitamos tu firma -- ${ctx.show!.name}`,
+        html: buildExternalSignatureInviteEmailHtml({
+          invitedName: invitedName || null,
+          roleLabel: roleLabel || null,
+          eventName: ctx.show!.name,
+          eventDate: ctx.show!.date,
+          venue: ctx.show!.venue,
+          projectName: ctx.show!.projectName,
+          senderName: me?.full_name || me?.email || null,
+          signUrl: siteUrl(`/firmar/${token}`),
+          expiresAt,
+        }),
+      });
+      emailSent = true;
+    } catch (err) {
+      // El link ya existe y se puede copiar a mano -- que falle el correo
+      // no tiene por qué botar la creación.
+      console.error("[external-signers:POST] fallo enviando la invitación", err);
+    }
+  }
+
   void logActivity({
     supabase: ctx.supabase!,
     userId: ctx.user!.id,
@@ -153,5 +192,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     entityName: `Link de firma externa -- ${ctx.show!.name}`,
   });
 
-  return NextResponse.json({ ...mapSigner(data), url: siteUrl(`/firmar/${token}`) }, { status: 201 });
+  return NextResponse.json(
+    { ...mapSigner(data), url: siteUrl(`/firmar/${token}`), emailSent },
+    { status: 201 }
+  );
 }

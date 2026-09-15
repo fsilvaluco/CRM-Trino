@@ -246,6 +246,9 @@ export default function EventDetailPage() {
     costs: false,
     details: false,
   });
+  // OJO: cada `saveX()` tiene que bajar su bandera (estado Y ref) apenas
+  // guarda, ANTES de llamar a load() -- si no, el refetch se salta esa
+  // sección para siempre (ver el comentario en saveCosts()).
   useEffect(() => {
     dirtyRef.current = {
       setlist: setlistDirty,
@@ -426,6 +429,8 @@ export default function EventDetailPage() {
       });
       if (!res.ok) throw new Error();
       toast.success("Setlist guardado");
+      setSetlistDirty(false);
+      dirtyRef.current.setlist = false;
       load();
     } catch {
       toast.error("No se pudo guardar el setlist");
@@ -633,6 +638,8 @@ export default function EventDetailPage() {
       });
       if (!res.ok) throw new Error();
       toast.success("Contactos guardados");
+      setContactsDirty(false);
+      dirtyRef.current.contacts = false;
       load();
     } catch {
       toast.error("No se pudieron guardar los contactos");
@@ -660,6 +667,8 @@ export default function EventDetailPage() {
       });
       if (!res.ok) throw new Error();
       toast.success("Timing guardado");
+      setTimingDirty(false);
+      dirtyRef.current.timing = false;
       load();
     } catch {
       toast.error("No se pudo guardar el timing");
@@ -696,6 +705,10 @@ export default function EventDetailPage() {
       if (!res.ok) throw new Error();
       setTicketsUpdatedAt(new Date().toISOString());
       toast.success("Entradas guardadas");
+      // Mismo caso que saveCosts() -- sin esto el refetch no repuebla los
+      // tramos y la sección queda marcada como sucia para siempre.
+      setTicketsDirty(false);
+      dirtyRef.current.tickets = false;
       load();
     } catch {
       toast.error("No se pudieron guardar las entradas");
@@ -907,6 +920,15 @@ export default function EventDetailPage() {
       ]);
       if (!itemsRes.ok || !noteRes.ok) throw new Error();
       toast.success("Costos guardados");
+      // Bajar la bandera ANTES del refetch: `load()` no repuebla ni resetea
+      // una sección con cambios sin guardar (para no pisar lo que la
+      // persona está escribiendo), así que sin esto `costsDirty` quedaba
+      // pegado en true y "Cerrar caja" seguía diciendo "guarda los costos
+      // primero" hasta refrescar la página. El ref se toca a mano porque
+      // el useEffect que lo sincroniza corre después del render, y `load()`
+      // sale en este mismo tick.
+      setCostsDirty(false);
+      dirtyRef.current.costs = false;
       load();
     } catch {
       toast.error("No se pudieron guardar los costos");

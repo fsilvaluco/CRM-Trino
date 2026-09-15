@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { UserCheck, Plus, Copy, Loader2, Ban, Download, CheckCircle2, Clock } from "lucide-react";
+import { UserCheck, Plus, Copy, Loader2, Ban, Download, CheckCircle2, Clock, Mail } from "lucide-react";
 import type { ExternalSigner, ExternalSignerStatus } from "@/types/external-signature";
 
 const STATUS_STYLE: Record<ExternalSignerStatus, string> = {
@@ -56,6 +56,7 @@ export function ExternalSignersCard({
   // Link recién emitido: el token en claro existe solo en esta respuesta,
   // así que se muestra hasta que la persona lo copie.
   const [freshLink, setFreshLink] = useState<string | null>(null);
+  const [resending, setResending] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -97,14 +98,42 @@ export function ExternalSignersCard({
       }
       setFreshLink(body.url);
       setFormOpen(false);
+      const correo = invitedEmail;
       setInvitedName("");
       setInvitedEmail("");
       await copy(body.url);
+      if (body.emailSent) toast.success(`También le mandamos el link por correo a ${correo}`);
       await load();
     } catch {
       toast.error("No se pudo crear el link");
     } finally {
       setCreating(false);
+    }
+  }
+
+  // "Reenviar" no es literal: el token en claro no existe en ninguna parte,
+  // así que se emite uno nuevo con los mismos datos y el anterior se anula.
+  async function resend(signer: ExternalSigner) {
+    if (
+      !confirm(
+        `¿Reenviarle el link a ${signer.invitedEmail}? Se emite uno nuevo y el anterior deja de funcionar al instante.`
+      )
+    )
+      return;
+    setResending(signer.id);
+    try {
+      const res = await fetch(`/api/eventos/${showId}/external-signers/${signer.id}/reenviar`, { method: "POST" });
+      const body = await res.json();
+      if (!res.ok) {
+        toast.error(body.error ?? "No se pudo reenviar");
+        return;
+      }
+      toast.success(`Link nuevo enviado a ${body.sentTo}`);
+      load();
+    } catch {
+      toast.error("No se pudo reenviar");
+    } finally {
+      setResending(null);
     }
   }
 
@@ -175,8 +204,8 @@ export function ExternalSignersCard({
               <Label htmlFor="ext-email" className="text-xs">Correo al que fijar el link (opcional)</Label>
               <Input id="ext-email" type="email" value={invitedEmail} onChange={(e) => setInvitedEmail(e.target.value)} placeholder="ennio@correo.cl" />
               <p className="text-[11px] text-muted-foreground">
-                Si lo cargas, el código de verificación solo se puede mandar a ese correo -- nadie más puede firmar
-                aunque le reenvíen el link.
+                Si lo cargas, le mandamos el link por correo apenas lo crees, y el código de verificación solo se
+                puede mandar a esa casilla -- nadie más puede firmar aunque le reenvíen el link.
               </p>
             </div>
             <div className="flex gap-2">
@@ -239,10 +268,29 @@ export function ExternalSignersCard({
                   {s.firstViewedAt ? ` · abierto el ${fmt(s.firstViewedAt)}` : " · sin abrir"}
                 </p>
                 {canCreate && s.status === "pendiente" && (
-                  <Button size="sm" variant="ghost" className="h-7 text-xs cursor-pointer text-muted-foreground" onClick={() => revoke(s)}>
-                    <Ban className="h-3.5 w-3.5 mr-1" />
-                    Anular link
-                  </Button>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {s.invitedEmail && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs cursor-pointer text-muted-foreground"
+                        disabled={resending !== null}
+                        onClick={() => resend(s)}
+                        title="Emitir un link nuevo y mandárselo por correo"
+                      >
+                        {resending === s.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                        ) : (
+                          <Mail className="h-3.5 w-3.5 mr-1" />
+                        )}
+                        Reenviar
+                      </Button>
+                    )}
+                    <Button size="sm" variant="ghost" className="h-7 text-xs cursor-pointer text-muted-foreground" onClick={() => revoke(s)}>
+                      <Ban className="h-3.5 w-3.5 mr-1" />
+                      Anular link
+                    </Button>
+                  </div>
                 )}
               </div>
             )}

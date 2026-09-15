@@ -111,6 +111,10 @@ export interface ClosingDocumentLineItem {
   label: string;
   responsable: string | null;
   amount: number;
+  /** Path del comprobante en el bucket privado "finances". Va en el
+   * documento para poder abrirlo desde la pantalla de firma, pero queda
+   * FUERA del hash -- ver documentHash(). */
+  comprobanteUrl: string | null;
 }
 
 export interface ClosingDocumentTicketTier {
@@ -165,7 +169,11 @@ export async function buildClosingDocument(
     show.project_id
       ? admin.from("projects").select("name").eq("id", show.project_id).single()
       : Promise.resolve({ data: null }),
-    admin.from("event_cost_items").select("label, responsable, amount").eq("show_id", showId).order("position"),
+    admin
+      .from("event_cost_items")
+      .select("label, responsable, amount, comprobante_url")
+      .eq("show_id", showId)
+      .order("position"),
     admin.from("event_ticket_tiers").select("label, unit_price, quantity_sold").eq("show_id", showId).order("position"),
   ]);
 
@@ -192,11 +200,14 @@ export async function buildClosingDocument(
       unitPrice: t.unit_price,
       quantitySold: t.quantity_sold,
     })),
-    costItems: (costRows ?? []).map((c: { label: string; responsable: string | null; amount: number }) => ({
-      label: c.label,
-      responsable: c.responsable ?? null,
-      amount: c.amount,
-    })),
+    costItems: (costRows ?? []).map(
+      (c: { label: string; responsable: string | null; amount: number; comprobante_url: string | null }) => ({
+        label: c.label,
+        responsable: c.responsable ?? null,
+        amount: c.amount,
+        comprobanteUrl: c.comprobante_url ?? null,
+      })
+    ),
     profitSplitProjectPct: show.profit_split_project_pct ?? null,
     profitSplitTrinoPct: show.profit_split_trino_pct ?? null,
     ...profitSplitLabelsForDoc({
@@ -226,7 +237,14 @@ function stableStringify(value: unknown): string {
  * cierre deja de calzar con el que se firmo y la diferencia es
  * demostrable. */
 export function documentHash(doc: ClosingDocument): string {
-  return createHash("sha256").update(stableStringify(doc)).digest("hex");
+  // El path del comprobante queda fuera: volver a subir la MISMA boleta
+  // genera un path nuevo sin que cambie ni un peso del cierre, y eso no
+  // tiene por qué invalidar una firma. Lo que se firma son las cifras.
+  const forHash = {
+    ...doc,
+    costItems: doc.costItems.map(({ label, responsable, amount }) => ({ label, responsable, amount })),
+  };
+  return createHash("sha256").update(stableStringify(forHash)).digest("hex");
 }
 
 /** Los 8 primeros caracteres, para mostrarlo en pantalla sin que sea un
