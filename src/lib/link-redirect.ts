@@ -96,10 +96,13 @@ export interface DeepLinkTarget {
    * se comprobó que SÍ abre la app desde el navegador in-app de WhatsApp
    * al tocarlo. Sirve tanto en iOS como en Android. */
   scheme: string;
-  /** URL intent:// para Chrome Android (resuelve el paquete exacto y trae
-   * browser_fallback_url si la app no está instalada). Los WebViews
-   * embebidos NO la procesan por sí solos -- depende de la app anfitriona,
-   * y WhatsApp la ignora en silencio (visto en dispositivo real). */
+  /** URL intent:// para Android (resuelve el paquete exacto de la app).
+   * A PROPÓSITO sin browser_fallback_url: con él, el WebView de WhatsApp
+   * NO abría la app sino que seguía el fallback a la web de Spotify --
+   * confirmado con telemetría de un dispositivo real (auto:intent seguido
+   * de hidden:pagehide navegando a la web). Sin fallback, este intento
+   * solo puede abrir la app o no hacer nada; el único fallback a la web es
+   * nuestro timer controlado de 4s. */
   androidIntent: string;
 }
 
@@ -112,7 +115,7 @@ export function detectDeepLinkTarget(destinationUrl: string): DeepLinkTarget | n
       platform: "youtube",
       label: "YouTube",
       scheme: `vnd.youtube://${ytId}`,
-      androidIntent: `intent://www.youtube.com/watch?v=${ytId}#Intent;package=com.google.android.youtube;scheme=https;S.browser_fallback_url=${encodeURIComponent(destinationUrl)};end`,
+      androidIntent: `intent://www.youtube.com/watch?v=${ytId}#Intent;package=com.google.android.youtube;scheme=https;end`,
     };
   }
 
@@ -122,7 +125,7 @@ export function detectDeepLinkTarget(destinationUrl: string): DeepLinkTarget | n
       platform: "spotify",
       label: "Spotify",
       scheme: `spotify://${sp.type}/${sp.id}`,
-      androidIntent: `intent://open.spotify.com/${sp.type}/${sp.id}#Intent;package=com.spotify.music;scheme=https;S.browser_fallback_url=${encodeURIComponent(destinationUrl)};end`,
+      androidIntent: `intent://open.spotify.com/${sp.type}/${sp.id}#Intent;package=com.spotify.music;scheme=https;end`,
     };
   }
 

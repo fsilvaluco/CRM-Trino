@@ -209,9 +209,21 @@ emulación móvil): 3 beacons `204` y `app_open_result` con la línea de tiempo 
 `fallback_web` (correcto: en el PC no hay app). Sin errores de consola propios. Datos de prueba
 limpiados.
 
-**Pendiente:** una prueba de Francisco desde WhatsApp Android con el link real -> leer
-`app_open_result` del último scan de LUR y ver qué intento ocultó la página. Con ese dato se
-ajusta el orden/mecanismo si hace falta -- ya con evidencia, no suposiciones.
+### 🎯 Tercera vuelta: el `browser_fallback_url` del intent era lo que arrastraba a la web
+
+La telemetría del dispositivo real de Francisco (leída de `app_open_result`) resolvió la duda sin
+adivinar. Timeline: `auto:scheme-iframe`@1ms → `auto:intent`@1007ms → `hidden:pagehide`@1221ms,
+outcome (mal) etiquetado `app_opened`. Es decir: el `spotify://` en iframe NO abrió la app, y el
+`intent://` que sigue traía `S.browser_fallback_url=<web de Spotify>` -- el WebView de WhatsApp, en
+vez de abrir la app, **siguió ese fallback y navegó a la web de Spotify** (eso fue el `pagehide`,
+mal contado como app abierta).
+
+**Fix:** sacar `browser_fallback_url` del `intent://` (Spotify y YouTube). Sin él, ese intento solo
+puede abrir la app o no hacer nada -- nunca arrastrar a la web. El único fallback web es nuestro
+timer controlado de 4s. Verificado `tsc`/`eslint`/`build`. Queda pendiente la próxima prueba de
+Francisco desde WhatsApp con el link real para leer el nuevo `app_open_result` y confirmar si ya
+abre la app (o, con el dato, seguir iterando -- el comportamiento de WhatsApp WebView con
+`intent://` sin fallback en top-level todavía no está 100% confirmado en dispositivo real).
 
 ### 🐛 Bug preexistente encontrado de rebote: link borrado/inexistente mandaba a `localhost:8080`
 
