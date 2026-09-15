@@ -309,8 +309,20 @@ la web solo producía escuchas degradadas (preview 30s / muro de login) gastando
 el tap del botón arma: Android → +700ms `intent://` si sigue visible, +2200ms `toWeb`; iOS →
 +1500ms `toWeb`. `toWeb` no dispara si la página se ocultó (app abrió) ni si el reloj se saltó
 (`now()-tapAt > 3500`, indica que el WebView pausó timers = volvió de la app). Nuevo outcome
-`tap_fallback_web`. Verificado `tsc`/`eslint`/`build`. Pendiente: prueba real de Francisco (esperar
-sin tocar NO debe ir a la web; tocar con app → abre app; tocar sin app → web).
+`tap_fallback_web`. Verificado `tsc`/`eslint`/`build`.
+
+**Resultado confirmado con telemetría real (15 sep 2026):**
+- **Android (WhatsApp):** esperar sin tocar → la página se queda quieta (eventos `auto:scheme-iframe`
+  + `auto:intent`, `hidden:false`, sin `fallback`). El `auto:intent` además dispara el banner nativo
+  de Chrome "¿Continuar a YouTube?". Al tocar el botón → abre la app. ✅
+- **iOS 18.7 (Safari):** el `auto:scheme` (`spotify://`) abre la app SOLA casi al instante (visto
+  `hidden:blur`@48ms y `hidden:pagehide`@6246ms, ambos `outcome: app_opened`). Sin `fallback`, sin
+  cartel de error, sin arrastre a la web. ✅
+
+**Caveat pendiente de datos reales:** las pruebas de iOS fueron en Safari directo (UA sin marca de
+navegador in-app). El tráfico real del ad de Meta llega por el WebView de Instagram/Facebook, que
+puede diferir. La telemetría (`qr_scans.app_open_result`) seguirá capturando el comportamiento real
+cuando corra la campaña.
 
 ### 🐛 Bug preexistente encontrado de rebote: link borrado/inexistente mandaba a `localhost:8080`
 
