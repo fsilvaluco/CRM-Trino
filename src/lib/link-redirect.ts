@@ -161,16 +161,20 @@ function js(value: unknown): string {
 //    WebView). Después, intent:// en el top-level, que Chrome sí procesa y
 //    WhatsApp ignora en silencio.
 // 2. Un BOTÓN grande con href al esquema propio: la navegación con gesto
-//    del usuario es la que más WebViews permiten, y es exactamente lo que
-//    hace el botón "Abrir aplicación" del propio sitio de Spotify (que sí
-//    funcionó desde WhatsApp). Si tras tocarlo la página sigue visible, se
-//    intenta intent:// también.
-// 3. El fallback a la web recién a los 4s, y SOLO si la página sigue
-//    visible y el reloj no se "saltó": cuando la app se abre, el WebView
-//    pausa los timers, y el elapsed real al volver es mucho mayor -- en ese
-//    caso no hay que arrancarle la página a alguien que acaba de volver.
-//    Antes el fallback era a los 1.6s incondicional, y le quitaba la página
-//    (y el botón) al visitante antes de que pudiera tocarlo.
+//    del usuario es la ÚNICA que el WebView de WhatsApp permite para abrir
+//    la app (confirmado con telemetría real: los intentos automáticos nunca
+//    abrieron la app). Es lo mismo que hace el botón "Abrir aplicación" del
+//    propio sitio de Spotify (que sí funcionó desde WhatsApp). Si tras
+//    tocarlo la página sigue visible, en Android se intenta intent:// también.
+// 3. El fallback a la web ocurre SOLO después de que el usuario tocó el
+//    botón y aun así la página sigue visible (= no tiene la app instalada).
+//    NUNCA se salta a la web sin un toque previo: así quien sí tiene la app
+//    no se ve arrancado de la página antes de poder tocarla, y quien no la
+//    tiene igual llega al contenido con un solo toque. (Antes había un timer
+//    ciego a los 4s que arrastraba a la web a todo el que no tocaba a tiempo
+//    -- justo lo que se quería evitar en una campaña de ads de música, donde
+//    la escucha de calidad es la que ocurre dentro de la app.) Un guardia de
+//    tiempo evita mandar a la web a quien ya volvió de la app.
 // 4. Cada intento, el ocultamiento de la página (= la app se abrió) y el
 //    fallback se reportan con sendBeacon a /api/q/beacon -> qr_scans.
 //    app_open_result. Es el diagnóstico Y la métrica real de la campaña.
@@ -253,7 +257,12 @@ export function renderAppOpenHtml(
       } catch (e) { log(m + ":err"); }
     }
 
-    // Intentos automáticos (ver comentario del render en el servidor).
+    // Intentos automáticos: se ejecutan igual, pero NO desencadenan ningún
+    // salto a la web. En el WebView de WhatsApp la app solo se abre con un
+    // gesto del usuario (confirmado con telemetría real: los intentos auto
+    // nunca ocultaron la página), así que abrir la app es siempre cosa del
+    // botón. Estos intentos quedan porque en iOS / otros WebViews a veces sí
+    // abren solos, y no cuestan nada.
     var auto = C.isIOS
       ? [function () { goTop(C.scheme, "auto:scheme"); }]
       : [function () { goFrame(C.scheme, "auto:scheme-iframe"); }, function () { goTop(C.intent, "auto:intent"); }];
@@ -265,26 +274,39 @@ export function renderAppOpenHtml(
     }
     next();
 
-    // Botón: se deja que el <a href="spotify://..."> navegue solo (gesto
-    // real del usuario). Si un momento después la página sigue visible, se
-    // prueba intent:// también.
+    // El salto a la web ocurre SOLO después de que el usuario tocó el botón y
+    // aun así la página sigue visible (= no tiene la app instalada). Nunca se
+    // salta a la web sin un toque previo: quien SÍ tiene la app no se ve
+    // arrancado de la página antes de poder tocarla (esa era la molestia del
+    // timer ciego de 4s), y quien NO la tiene igual llega al contenido web
+    // con un solo toque. tapAt + el guardia de tiempo evitan mandar a la web
+    // a alguien que ya volvió de la app (al abrirse la app el WebView pausa
+    // los timers y el reloj se "salta").
+    var tapAt = null;
+    function toWeb(src) {
+      if (hidden || fellBack) return;
+      if (tapAt != null && now() - tapAt > 3500) { log("fallback:skipped-throttled"); return; }
+      fellBack = true;
+      outcome = "tap_fallback_web";
+      log("fallback:" + src);
+      window.location.replace(C.dest);
+    }
+
+    // Botón: el <a href="scheme"> navega con el gesto real del usuario (lo
+    // único que el WebView de WhatsApp acepta para abrir la app). Si tras
+    // tocarlo la página sigue visible, en Android se prueba intent:// y, si
+    // aún nada, se cae a la web; en iOS se cae a la web directo.
     document.getElementById("btn").addEventListener("click", function () {
+      tapAt = now();
       log("tap:scheme");
-      if (!C.isIOS) {
+      if (C.isIOS) {
+        setTimeout(function () { toWeb("tap"); }, 1500);
+      } else {
         setTimeout(function () { if (!hidden) goTop(C.intent, "tap:intent"); }, 700);
+        setTimeout(function () { toWeb("tap"); }, 2200);
       }
     });
     document.getElementById("web").addEventListener("click", function () { outcome = "user_web"; log("tap:web"); });
-
-    var FALLBACK_MS = 4000;
-    setTimeout(function () {
-      if (hidden) return;
-      if (now() > FALLBACK_MS + 1500) { log("fallback:skipped-throttled"); return; }
-      outcome = "fallback_web";
-      fellBack = true;
-      log("fallback");
-      window.location.replace(C.dest);
-    }, FALLBACK_MS);
   })();
   </script>
 </body>
