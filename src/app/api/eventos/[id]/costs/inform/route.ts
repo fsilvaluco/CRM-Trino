@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/supabase-server";
 import { getProjectPermissions, canEditEventCosts } from "@/lib/project-roles";
 import { getSignaturesState } from "@/lib/event-signatures";
 import { sendEmail, buildCostSheetSummaryEmailHtml, isResendEnabled } from "@/lib/resend";
+import { profitSplitLabels } from "@/lib/profit-split";
 
 function siteUrl(path: string): string {
   const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -26,7 +27,7 @@ export async function POST(
   const { data: show, error: showErr } = await supabase
     .from("shows")
     .select(
-      "id, name, date, venue, project_id, cost_sheet_closed_at, fee, ticket_income, expenses, profit_split_note, profit_split_project_pct, profit_split_trino_pct, projects ( name )"
+      "id, name, date, venue, project_id, cost_sheet_closed_at, fee, ticket_income, expenses, profit_split_note, profit_split_project_pct, profit_split_trino_pct, profit_split_project_label, profit_split_trino_label, projects ( name )"
     )
     .eq("id", id)
     .single();
@@ -75,6 +76,13 @@ export async function POST(
     signedAt: s.signedAt,
   }));
 
+  const splitLabels = profitSplitLabels({
+    profitSplitProjectLabel: show.profit_split_project_label,
+    profitSplitTrinoLabel: show.profit_split_trino_label,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    projectName: (show as any).projects?.name ?? null,
+  });
+
   const html = buildCostSheetSummaryEmailHtml({
     eventName: show.name,
     eventDate: show.date,
@@ -97,6 +105,8 @@ export async function POST(
     profitSplitNote: show.profit_split_note,
     profitSplitProjectPct: show.profit_split_project_pct,
     profitSplitTrinoPct: show.profit_split_trino_pct,
+    profitSplitProjectLabel: splitLabels.project,
+    profitSplitTrinoLabel: splitLabels.trino,
     signers: signersForEmail,
     detailUrl: siteUrl(`/eventos/${id}/firmar`),
   });

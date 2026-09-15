@@ -12,6 +12,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import type { CostItem, TicketTier } from "@/types/shows";
 import { useAuth } from "@/lib/auth-context";
+import { profitSplitLabels } from "@/lib/profit-split";
 import { SignedFileLink } from "@/components/finances/SignedFileLink";
 
 const CLP = new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
@@ -70,6 +71,8 @@ interface EventSummary {
   profitSplitNote: string | null;
   profitSplitProjectPct: number | null;
   profitSplitTrinoPct: number | null;
+  profitSplitProjectLabel: string | null;
+  profitSplitTrinoLabel: string | null;
   profitSplitTransferProofUrl: string | null;
   profitSplitTransferredAt: string | null;
   costItems: CostItem[];
@@ -169,6 +172,11 @@ export default function FirmarClient() {
   const utilidadCents = event ? (event.fee ?? 0) + (event.ticketIncome ?? 0) - (event.expenses ?? 0) : 0;
   const resolvedProjectPct = event?.profitSplitProjectPct ?? 70;
   const resolvedTrinoPct = event?.profitSplitTrinoPct ?? 30;
+  const splitLabels = profitSplitLabels({
+    profitSplitProjectLabel: event?.profitSplitProjectLabel ?? null,
+    profitSplitTrinoLabel: event?.profitSplitTrinoLabel ?? null,
+    projectName: event?.projectName ?? null,
+  });
   const projectSplitCents = Math.round((utilidadCents * resolvedProjectPct) / 100);
   const trinoSplitCents = Math.round((utilidadCents * resolvedTrinoPct) / 100);
   const resolvedNote = event?.profitSplitNote?.trim() || "";
@@ -315,11 +323,11 @@ export default function FirmarClient() {
                   <p className="text-xs text-muted-foreground">Reparto de utilidad -- para transferir después de aprobar</p>
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
-                      <p className="text-xs text-muted-foreground">{resolvedProjectPct}% {event?.projectName || "Proyecto"}</p>
+                      <p className="text-xs text-muted-foreground">{resolvedProjectPct}% {splitLabels.project}</p>
                       <p className="font-semibold">{formatCents(projectSplitCents)}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">{resolvedTrinoPct}% Sello</p>
+                      <p className="text-xs text-muted-foreground">{resolvedTrinoPct}% {splitLabels.trino}</p>
                       <p className="font-semibold">{formatCents(trinoSplitCents)}</p>
                     </div>
                   </div>

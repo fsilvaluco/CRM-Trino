@@ -14,7 +14,10 @@ const PUBLIC_PATHS = ["/login", "/auth/activate", "/forgot-password", "/reset-pa
 // sin sesion que abre el link (el caso de uso completo: mandarlo por correo a
 // alguien que no tiene cuenta en el CRM) cae en el login en vez de ver la
 // pagina.
-const PUBLIC_PREFIXES = ["/rate/", "/embed/", "/e/", "/d/", "/s/"];
+// "/firmar/" es la firma externa del cierre de caja (migracion 099): el
+// cliente de un evento que no es proyecto de la cartera, y que por lo tanto
+// nunca va a tener cuenta, entra con el token del link.
+const PUBLIC_PREFIXES = ["/rate/", "/embed/", "/e/", "/d/", "/s/", "/firmar/"];
 const GUEST_ONLY_PATHS = ["/login", "/forgot-password"];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

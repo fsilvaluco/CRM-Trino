@@ -46,6 +46,8 @@ function mapLiveShow(row: any) {
     profitSplitNote: row.profit_split_note ?? null,
     profitSplitProjectPct: row.profit_split_project_pct ?? null,
     profitSplitTrinoPct: row.profit_split_trino_pct ?? null,
+    profitSplitProjectLabel: row.profit_split_project_label ?? null,
+    profitSplitTrinoLabel: row.profit_split_trino_label ?? null,
     profitSplitTransferProofUrl: row.profit_split_transfer_proof_url ?? null,
     profitSplitTransferredAt: row.profit_split_transferred_at ?? null,
   };
@@ -214,6 +216,7 @@ export async function PUT(
     fee, ticketIncome, expenses, venueId, name,
     eventLink, riderLocal, riderBanda, ticketSalesUrl, tour, profitSplitNote,
     profitSplitProjectPct, profitSplitTrinoPct, profitSplitTransferProofUrl, profitSplitTransferredAt,
+    profitSplitProjectLabel, profitSplitTrinoLabel,
     ticketIvaPct, ticketComisionPct, ticketScdPct, ticketSplitProjectPct,
   } = body as {
     date?: string;
@@ -238,6 +241,8 @@ export async function PUT(
     profitSplitTrinoPct?: number | null;
     profitSplitTransferProofUrl?: string | null;
     profitSplitTransferredAt?: string | null;
+    profitSplitProjectLabel?: string | null;
+    profitSplitTrinoLabel?: string | null;
     ticketIvaPct?: number | null;
     ticketComisionPct?: number | null;
     ticketScdPct?: number | null;
@@ -300,6 +305,8 @@ export async function PUT(
   if (profitSplitTrinoPct !== undefined) updates.profit_split_trino_pct = profitSplitTrinoPct;
   if (profitSplitTransferProofUrl !== undefined) updates.profit_split_transfer_proof_url = profitSplitTransferProofUrl || null;
   if (profitSplitTransferredAt !== undefined) updates.profit_split_transferred_at = profitSplitTransferredAt || null;
+  if (profitSplitProjectLabel !== undefined) updates.profit_split_project_label = profitSplitProjectLabel?.trim() || null;
+  if (profitSplitTrinoLabel !== undefined) updates.profit_split_trino_label = profitSplitTrinoLabel?.trim() || null;
 
   const { data, error: dbError } = await supabase
     .from("shows")
