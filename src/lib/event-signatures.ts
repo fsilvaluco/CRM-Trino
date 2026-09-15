@@ -2,6 +2,12 @@
 // Extraído de signatures/route.ts (19 ago 2026) para poder reusarlo también
 // desde costs/inform/route.ts sin duplicar las mismas dos queries.
 //
+// 15 sep 2026 (migración 101): a esa lista calculada ahora se le puede
+// aplicar una selección a mano (`shows.required_signer_ids`). Sin selección
+// firman todos los que califican, como siempre; con selección, solo esos.
+// La selección es siempre un SUBCONJUNTO de los que califican -- nadie
+// queda obligado a aprobar números que su matriz no lo deja ver.
+//
 // 25 ago 2026 (ROLES.md 0.2.4 / ítem 20 del rediseño de roles): los
 // firmantes requeridos dejaron de calcularse por `role IN (admin, artist)`
 // -- eso todavía asumía el modelo viejo de 4 roles fijos. Ahora exige
@@ -25,6 +31,9 @@ export interface SignatureRecord extends SignerProfile {
 
 export interface SignaturesState {
   requiredSigners: SignerProfile[];
+  /** Todos los que PODRÍAN firmar por permisos -- el universo entre el que
+   * se elige con los checks. */
+  eligibleSigners: SignerProfile[];
   signatures: SignatureRecord[];
   allSigned: boolean;
 }
@@ -41,7 +50,7 @@ export interface SignaturesState {
 // fallaba en silencio (`data` quedaba `null`, `data ?? []` lo escondía) y
 // siempre devolvía 0 firmantes requeridos. Bug encontrado el 19 ago 2026 --
 // se resuelve con una query aparte a `profiles`, no con un embed.
-export async function getRequiredSigners(
+export async function getEligibleSigners(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
   projectId: string
@@ -84,15 +93,36 @@ export async function getRequiredSigners(
   });
 }
 
+/** Los que efectivamente tienen que firmar: la selección a mano si existe
+ * (migración 101), acotada a quienes califican por permisos; si no hay
+ * selección, todos los que califican. Un id seleccionado que después pierde
+ * el permiso se cae solo de la lista, a propósito -- si no puede ver los
+ * números, no puede aprobarlos. */
+export async function getRequiredSigners(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  projectId: string,
+  requiredSignerIds?: string[] | null
+): Promise<SignerProfile[]> {
+  const eligible = await getEligibleSigners(supabase, projectId);
+  const chosen = requiredSignerIds ?? [];
+  if (chosen.length === 0) return eligible;
+  return eligible.filter((e) => chosen.includes(e.userId));
+}
+
 /** Firmantes requeridos + quiénes ya firmaron (incluye firmantes
  * "voluntarios" que firmaron sin ser requeridos) + si ya están todos. */
 export async function getSignaturesState(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
   showId: string,
-  projectId: string
+  projectId: string,
+  requiredSignerIds?: string[] | null
 ): Promise<SignaturesState> {
-  const requiredSigners = await getRequiredSigners(supabase, projectId);
+  const eligibleSigners = await getEligibleSigners(supabase, projectId);
+  const chosen = requiredSignerIds ?? [];
+  const requiredSigners =
+    chosen.length === 0 ? eligibleSigners : eligibleSigners.filter((e) => chosen.includes(e.userId));
 
   const { data: sigRows } = await supabase
     .from("event_closing_signatures")
@@ -115,5 +145,5 @@ export async function getSignaturesState(
   const signedIds = new Set(signatures.map((s) => s.userId));
   const allSigned = requiredSigners.length > 0 && requiredSigners.every((r) => signedIds.has(r.userId));
 
-  return { requiredSigners, signatures, allSigned };
+  return { requiredSigners, eligibleSigners, signatures, allSigned };
 }

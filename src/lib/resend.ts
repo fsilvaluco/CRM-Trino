@@ -354,3 +354,46 @@ export function buildExternalSignatureReceiptEmailHtml(params: {
     </div>
   `;
 }
+
+/**
+ * "Te toca firmar el cierre de caja de este evento" -- se manda a los
+ * firmantes elegidos a mano (migración 101), desde el botón "Enviar a
+ * todos" o el "Enviar" de una fila puntual en la tarjeta de Aprobación.
+ * Es un recordatorio: el que firma entra con su cuenta, así que el correo
+ * solo lleva el link a la pantalla de firma, nada sensible.
+ */
+export function buildEventSignatureRequestEmailHtml(params: {
+  signerName: string | null;
+  eventName: string;
+  eventDate: string;
+  venue: string;
+  projectName: string | null;
+  requestedBy: string | null;
+  signUrl: string;
+}): string {
+  const { signerName, eventName, eventDate, venue, projectName, requestedBy, signUrl } = params;
+  const greeting = signerName
+    ? `<p style="font-size: 16px; color: #14162B; margin-bottom: 4px;">Hola ${signerName.split(" ")[0]},</p>`
+    : "";
+
+  return `
+    <div style="font-family: -apple-system, Inter, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
+      <img src="https://artistpro.app/logo-black.png" alt="Artist Pro" style="width: 120px; height: auto; margin-bottom: 20px;" />
+      ${greeting}
+      <p style="font-size: 15px; color: #14162B; line-height: 1.5;">
+        ${requestedBy ? `<strong>${requestedBy}</strong> te pide` : "Te pedimos"} que revises y apruebes el cierre de caja de:
+      </p>
+      <p style="font-size: 14px; color: #14162B; line-height: 1.6; background:#F4F4F8; border-radius:12px; padding:14px 16px; margin: 16px 0;">
+        <strong>${eventName}</strong>${projectName ? ` — ${projectName}` : ""}<br/>
+        <span style="color:#14162B99;">${formatDateForEmail(eventDate)} · ${venue}</span>
+      </p>
+      <a href="${signUrl}" target="_blank" rel="noopener noreferrer"
+        style="display: inline-block; margin-top: 4px; padding: 12px 24px; background: #4338CA; color: white; text-decoration: none; border-radius: 100px; font-size: 14px; font-weight: 600;">
+        Revisar y aprobar
+      </a>
+      <p style="font-size: 12px; color: #14162B66; margin-top: 28px;">
+        Entras con tu cuenta de Artist Pro. Tu aprobación queda registrada con tu nombre, correo y la hora exacta.
+      </p>
+    </div>
+  `;
+}

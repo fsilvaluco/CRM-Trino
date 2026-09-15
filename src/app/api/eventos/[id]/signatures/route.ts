@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { sendPushToUsers } from "@/lib/push";
-import { getRequiredSigners, getSignaturesState } from "@/lib/event-signatures";
+import { getRequiredSigners, getSignaturesState, getEligibleSigners } from "@/lib/event-signatures";
+import { getProjectPermissions, canEditEventCosts } from "@/lib/project-roles";
+import { dbErrorResponse } from "@/lib/api-errors";
 import { getClientIp } from "@/lib/client-ip";
 
 function siteUrl(path: string): string {
@@ -25,7 +27,7 @@ export async function GET(
 
   const { data: show, error: showErr } = await supabase
     .from("shows")
-    .select("id, name, project_id, cost_sheet_closed_at")
+    .select("id, name, project_id, cost_sheet_closed_at, required_signer_ids")
     .eq("id", id)
     .single();
 
@@ -39,7 +41,13 @@ export async function GET(
     return NextResponse.json({ error: "Sin acceso a este evento" }, { status: 403 });
   }
 
-  const { requiredSigners, signatures, allSigned } = await getSignaturesState(supabase, id, show.project_id);
+  const { requiredSigners, eligibleSigners, signatures, allSigned } = await getSignaturesState(
+    supabase,
+    id,
+    show.project_id,
+    show.required_signer_ids
+  );
+  const perm = await getProjectPermissions(supabase, user!.id, show.project_id);
 
   const signedIds = new Set(signatures.map((s) => s.userId));
   const isRequiredSigner = requiredSigners.some((r) => r.userId === user!.id);
@@ -49,6 +57,13 @@ export async function GET(
     eventName: show.name,
     costSheetClosed: Boolean(show.cost_sheet_closed_at),
     requiredSigners,
+    // Universo entre el que se elige con los checks (migración 101) --
+    // todos los que PODRÍAN firmar segun su matriz de permisos.
+    eligibleSigners,
+    requiredSignerIds: (show.required_signer_ids ?? []) as string[],
+    // Elegir quien firma es parte de administrar el cierre, mismo permiso
+    // que cerrarlo o reabrirlo.
+    canManageSigners: canEditEventCosts(perm),
     signatures,
     allSigned,
     alreadySigned,
@@ -74,7 +89,7 @@ export async function POST(
 
   const { data: show, error: showErr } = await supabase
     .from("shows")
-    .select("id, name, project_id, cost_sheet_closed_at")
+    .select("id, name, project_id, cost_sheet_closed_at, required_signer_ids")
     .eq("id", id)
     .single();
 
@@ -91,13 +106,13 @@ export async function POST(
     return NextResponse.json({ error: "Sin acceso a este evento" }, { status: 403 });
   }
 
-  const requiredSigners = await getRequiredSigners(supabase, show.project_id);
+  const requiredSigners = await getRequiredSigners(supabase, show.project_id, show.required_signer_ids);
   const isRequiredSigner = requiredSigners.some((r) => r.userId === user!.id);
   // Sin bypass de organización -- solo firma quien es firmante requerido
   // de ESTE proyecto (ROLES.md, ítem 3 del rediseño de roles).
   if (!isRequiredSigner) {
     return NextResponse.json(
-      { error: "Solo quien ve ingresos y costos de Eventos en este proyecto puede firmar el cierre" },
+      { error: "No estás en la lista de firmantes de este cierre" },
       { status: 403 }
     );
   }
@@ -134,4 +149,69 @@ export async function POST(
   }
 
   return NextResponse.json({ ok: true, allSigned }, { status: 201 });
+}
+
+// PUT /api/eventos/[id]/signatures -- elige a mano quiénes tienen que
+// firmar el cierre (migración 101). Lista vacía = vuelve al comportamiento
+// de siempre: firman todos los que ven ingresos y costos de Eventos.
+//
+// La selección se acota a los que califican por permisos: no se puede
+// obligar a aprobar números a alguien que su matriz no deja ver (ROLES.md,
+// ítem 20). Se puede cambiar con la caja cerrada -- sumar un firmante
+// después de cerrar es justamente el caso de "se me olvidó fulano"; las
+// firmas que ya existen no se tocan.
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
+  if (error) return error;
+
+  const { data: show, error: showErr } = await supabase
+    .from("shows")
+    .select("id, project_id")
+    .eq("id", id)
+    .single();
+
+  if (showErr || !show) {
+    return NextResponse.json({ error: "Evento no encontrado" }, { status: 404 });
+  }
+  if (!show.project_id) {
+    return NextResponse.json({ error: "El evento no tiene proyecto asignado" }, { status: 400 });
+  }
+  if (!allowedProjectIds.includes(show.project_id)) {
+    return NextResponse.json({ error: "Sin acceso a este evento" }, { status: 403 });
+  }
+
+  const perm = await getProjectPermissions(supabase, user!.id, show.project_id);
+  if (!canEditEventCosts(perm)) {
+    return NextResponse.json({ error: "Tu rol no puede elegir los firmantes de este evento" }, { status: 403 });
+  }
+
+  const body = await request.json().catch(() => ({}));
+  const ids: unknown = body.requiredSignerIds;
+  if (!Array.isArray(ids) || ids.some((v) => typeof v !== "string")) {
+    return NextResponse.json({ error: "requiredSignerIds tiene que ser una lista de ids" }, { status: 400 });
+  }
+
+  const eligible = await getEligibleSigners(supabase, show.project_id);
+  const eligibleIds = new Set(eligible.map((e) => e.userId));
+  const unique = Array.from(new Set(ids as string[]));
+  const invalid = unique.filter((uid) => !eligibleIds.has(uid));
+  if (invalid.length > 0) {
+    return NextResponse.json(
+      { error: "Solo puedes elegir entre quienes ven ingresos y costos de Eventos en este proyecto" },
+      { status: 400 }
+    );
+  }
+
+  const { error: updateError } = await supabase
+    .from("shows")
+    .update({ required_signer_ids: unique })
+    .eq("id", id);
+
+  if (updateError) return dbErrorResponse("event-signatures:PUT", updateError);
+
+  return NextResponse.json({ ok: true, requiredSignerIds: unique });
 }
