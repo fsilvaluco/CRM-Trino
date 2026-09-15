@@ -10,6 +10,54 @@ _Checkpoint anterior: v1.11 — 14 de septiembre de 2026 (Meta Conversions API e
 
 ---
 
+## 🔐 Las dos pantallas de firma quedan iguales, y la interna con código (15 sep 2026)
+
+**Pedido de Francisco, después de probar el flujo externo:** que la firma del equipo tenga el mismo
+código de 6 dígitos ("porque así efectivamente queda como firma electrónica simple"), que las dos
+pantallas se vean igual —le gustó más la del externo—, que en los costos se pueda abrir el
+comprobante de cada gasto, que el recuadro de Aprobación aparezca en las pantallas de firma con los
+firmantes elegidos y los externos, y que al crear el link del cliente se le mande el correo solo.
+
+**Lo que se hizo:**
+
+- **Migración 102**: `event_closing_signatures` suma la misma evidencia que la firma externa
+  (`signer_name/rut/email/phone`, `otp_verified_at`, `user_agent`, `document_hash`,
+  `document_snapshot`), `profiles.rut` para el prellenado, y la tabla `event_signature_otps` con el
+  código en vuelo. Esa tabla **no tiene policies a propósito**: la maneja entera el backend con el
+  service role, el hash del código no tiene por qué ser legible desde el cliente. Las firmas
+  anteriores quedan con los campos en NULL — son históricas, no se completan hacia atrás.
+- **`POST /api/eventos/[id]/signatures/codigo`** (nuevo) y el POST de firma ahora exige el código. El
+  código va **siempre al correo de la cuenta**, no al que declare en el formulario: ese correo es su
+  identidad verificada en la app. Los datos declarados se guardan al pedir el código, así que la
+  identidad firmada es siempre la que recibió el correo.
+- **"Guardar estos datos para próximos cierres"** escribe `rut`/`phone` en el perfil. Es prellenado,
+  **no** atajo: el código se pide igual, siempre.
+- **Componentes compartidos** (`src/components/events/`): `DocumentoCierre` (salió de la página
+  externa), `FirmaPasos` (identifícate + código + texto de la Ley 19.799), `ApprovalSummary` y
+  `ComprobanteCostoButton`. Las dos pantallas de firma ahora son el mismo armado.
+- **Comprobante por costo**: ícono en cada línea, que firma la URL al hacer click (no al renderizar —
+  una planilla con 15 costos dispararía 15 llamadas al storage por gusto). Por dentro usa la sesión;
+  por fuera, **`GET /api/public/firma/[token]/comprobante-costo`**, con tres candados: link vigente,
+  el archivo tiene que ser de un costo **de ese evento**, y la URL firmada dura 5 minutos.
+- El **path del comprobante queda fuera del hash** del documento: volver a subir la misma boleta
+  genera un path nuevo sin que cambie ni un peso, y eso no puede invalidar una firma.
+- **Recuadro de Aprobación en ambas pantallas**, juntando equipo y externos. Decisión explícita: el
+  cliente externo **sí** ve quiénes del equipo firmaron (nombres y correos), porque le da peso al
+  documento; las IP no, que son evidencia de cada firmante.
+- **Correo automático al crear el link del cliente** cuando se cargó su correo, más botón
+  **"Reenviar"**. Ojo: reenviar no es literal —el token en claro no existe en ninguna parte—, así que
+  emite uno nuevo y anula el anterior. El viejo solo se anula **después** de que el correo salió.
+- `reopen` borra también los códigos en vuelo.
+
+**Bug corregido (el que reportó Francisco):** al guardar costos y cerrar la caja decía "guarda los
+costos primero", y recién funcionaba tras refrescar. `saveCosts()` nunca bajaba la bandera de "hay
+cambios sin guardar", y `load()` la respeta a propósito (para no pisar lo que la persona está
+escribiendo), así que quedaba pegada para siempre. **El mismo defecto estaba en los cinco guardados**
+(setlist, timing, contactos, entradas y costos): además del mensaje, el refetch nunca repoblaba esa
+sección. Ahora cada `saveX()` baja su bandera —estado y ref— antes de llamar a `load()`.
+
+---
+
 ## ✅ Elegir quién firma el cierre + pedir la firma por correo (15 sep 2026)
 
 **Pedido:** en la tarjeta de Aprobación aparecían TODOS los que califican por permisos

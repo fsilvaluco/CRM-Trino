@@ -6,7 +6,7 @@ import { CheckCircle2, FileWarning, Download, Lock } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import type { ExternalSignatureView } from "@/types/external-signature";
-import { DocumentoCierre } from "./DocumentoCierre";
+import { DocumentoCierre } from "@/components/events/DocumentoCierre";
 
 // Las pantallas de la firma externa que NO son el formulario: link roto,
 // link vencido/anulado, y la constancia de una firma ya registrada.

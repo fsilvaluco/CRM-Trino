@@ -19,7 +19,7 @@ export interface ClosingDocumentView {
   ingresos: number;
   utilidad: number;
   ticketTiers: { label: string; unitPrice: number; quantitySold: number }[];
-  costItems: { label: string; responsable: string | null; amount: number }[];
+  costItems: { label: string; responsable: string | null; amount: number; comprobanteUrl: string | null }[];
   profitSplitProjectPct: number | null;
   profitSplitTrinoPct: number | null;
   /** Nombres ya resueltos de cada lado del reparto (migración 100). */
@@ -46,6 +46,13 @@ export interface ExternalSignatureView {
     sentAt: string;
     expiresAt: string;
     attemptsLeft: number;
+  } | null;
+  /** Quiénes más están firmando este mismo cierre -- el equipo y las otras
+   * contrapartes. Se le muestra al firmante externo a propósito: le da peso
+   * al documento saber que no es el único. */
+  approval: {
+    requiredSigners: { name: string; email: string | null; signedAt: string | null }[];
+    externalSigners: { id: string; name: string; roleLabel: string | null; signedAt: string | null; isMe: boolean }[];
   } | null;
   signature: {
     name: string;
