@@ -1,6 +1,6 @@
 # Bitácora de Trabajo — Artist Pro
-_Checkpoint v1.11 — 14 de septiembre de 2026 (Meta Conversions API en Links, campaña LUR Dopamina)_
-_Checkpoint anterior: v1.10 — 9 de septiembre de 2026 (módulo de estadísticas detalladas TikTok/YouTube)_
+_Checkpoint v1.12 — 15 de septiembre de 2026 (forzar apertura de app en WhatsApp + device_type)_
+_Checkpoint anterior: v1.11 — 14 de septiembre de 2026 (Meta Conversions API en Links, campaña LUR Dopamina)_
 
 > **Formato de tracking:** Registro histórico de trabajo realizado + pendientes actuales.  
 > Cada entrada incluye fecha, estado (🔨 En Progreso / ✅ Hecho), y notas de implementación detalladas.
@@ -136,6 +136,40 @@ datos de prueba (QR, scans, fila de `artist_integrations`) se limpiaron después
   Spotify) desde la UI -- no se creó automáticamente, es una acción normal del usuario.
 - Probar desde el navegador in-app de Instagram (iOS y Android) y confirmar en Events Manager →
   Prueba de eventos que llega `SpotifyClick` antes de lanzar el gasto real.
+
+---
+
+## 📦 Forzar apertura de app también desde WhatsApp + `device_type` (15 sep 2026)
+
+**Hallazgo real de Francisco probando en su celular** (link de la campaña LUR, compartido por
+WhatsApp): Spotify cargaba en el navegador in-app en vez de forzar la apertura de la app. Esto no
+era un bug de lógica -- era un problema de fondo con el criterio original (`isInAppBrowser`).
+
+**Causa raíz:** a diferencia de Instagram/TikTok/Facebook, que marcan su WebView embebido con un
+identificador propio en el user-agent (`FBAN`, `bytedancewebview`, etc.), **el navegador in-app de
+WhatsApp en Android no lleva ningún identificador** -- usa el WebView normal de Chrome sin
+modificarlo. Confirmado con un dispositivo real: el UA capturado en `qr_scans.user_agent` fue
+idéntico a un Chrome Android cualquiera (`Mozilla/5.0 (Linux; Android 10; K) ... Chrome/152.0.0.0
+Mobile Safari/537.36`, sin rastro de "WhatsApp"). Un primer intento de agregar `/whatsapp/i` a
+`isInAppBrowser` no solo no servía (el UA real no lo contiene) sino que ni siquiera se llegaba a
+evaluar -- `isLinkPreviewBot` ya usa ese mismo patrón para el bot que arma la tarjeta de preview, y
+corre antes en la ruta.
+
+**Fix real:** cambiar el criterio de "¿reconozco el navegador embebido?" (imposible para WhatsApp)
+a **"¿es un celular?"** (`detectDeviceType() === "mobile"`, nuevo). En un navegador real
+(Chrome/Safari normal, no embebido) este paso es inofensivo -- si el sistema ya iba a abrir la app
+solo vía Universal/App Links, el intento extra ni se nota; si no (como en cualquier WebView,
+detectado o no), ahora sí queda forzado.
+
+**De paso, `device_type`** (mobile/tablet/desktop, migración 097) -- se agregó
+`detectDeviceType()` en `link-redirect.ts` y se guarda en cada `qr_scans`, pedido junto con el fix
+de arriba.
+
+**Verificado:** `tsc`, `eslint` y `npm run build` limpios. Probado contra el servidor real **con
+el user-agent exacto capturado del dispositivo real de Francisco** (no un UA inventado) -- confirmé
+que devuelve la página "Abriendo Spotify..." con el `intent://` correcto (`package=
+com.spotify.music`, track ID bien extraído pese al prefijo `intl-es` en la URL) y
+`Cache-Control: no-store`. Datos de prueba limpiados.
 
 ---
 
