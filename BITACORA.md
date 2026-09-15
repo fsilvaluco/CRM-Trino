@@ -10,6 +10,44 @@ _Checkpoint anterior: v1.11 — 14 de septiembre de 2026 (Meta Conversions API e
 
 ---
 
+## ✅ Elegir quién firma el cierre + pedir la firma por correo (15 sep 2026)
+
+**Pedido:** en la tarjeta de Aprobación aparecían TODOS los que califican por permisos
+(`ve_ingresos && ve_costos` de Eventos), que en proyectos con harta gente son muchos más de los que
+realmente tienen que aprobar ese evento puntual. Francisco pidió poder marcar con un check quiénes
+sí, y poder pedirles la firma por correo — un botón "Enviar a todos" y un "Enviar" por fila, para
+cuando a alguien no lo pillan por WhatsApp.
+
+**Lo que se hizo:**
+- **Migración 101**: `shows.required_signer_ids UUID[]`, mismo criterio que
+  `settlements.required_signer_ids` (migración 088). Lista vacía = comportamiento de siempre (firman
+  todos los que califican), así que ningún evento anterior cambia.
+- **`src/lib/event-signatures.ts`**: la función que calculaba los firmantes pasó a llamarse
+  `getEligibleSigners` (el universo por permisos) y `getRequiredSigners` ahora le aplica la selección
+  encima. La selección es siempre un **subconjunto de los elegibles**: un id elegido que después
+  pierde el permiso se cae solo de la lista — nadie aprueba números que su matriz no lo deja ver
+  (ROLES.md, ítem 20). `getSignaturesState` devuelve además `eligibleSigners`.
+- **`PUT /api/eventos/[id]/signatures`** (nuevo): guarda la selección. Exige `canEditEventCosts` y
+  valida que todos los ids estén entre los elegibles. Se puede cambiar con la caja cerrada — sumar un
+  firmante que se olvidó es justamente el caso de uso; las firmas ya registradas no se tocan.
+- **`POST /api/eventos/[id]/signatures/notify`** (nuevo): sin body avisa a todos los requeridos que
+  faltan; con `{ userId }`, solo a esa persona. Manda correo (`buildEventSignatureRequestEmailHtml`)
+  **y** push. El push sale aunque falte `RESEND_API_KEY` — son dos canales independientes. Exige caja
+  cerrada: antes de eso no hay nada que aprobar.
+- **`ApprovalCard.tsx`** (nuevo, sale de las ~65 líneas inline que tenía `eventos/[id]/page.tsx`):
+  checks por persona, botón "Enviar a todos" en el header y "Enviar" por fila. Destildar al último
+  firmante o a alguien que ya firmó se rechaza con un toast.
+- La tarjeta de Aprobación ahora se carga **siempre**, no solo con la caja cerrada: elegir los
+  firmantes se hace antes de cerrar. El badge "Pendiente de aprobación (X/Y)" del header de Costos
+  sigue apareciendo solo con la caja cerrada, para no mostrar un "0/3" engañoso.
+- `GET /api/eventos/[id]/signatures` devuelve además `eligibleSigners`, `requiredSignerIds` y
+  `canManageSigners`. `costs/inform` y el POST de firma respetan la selección.
+
+**Ojo:** solo se puede elegir entre quienes ven ingresos y costos de Eventos en ese proyecto. Si hace
+falta que firme alguien fuera de ese grupo, primero hay que darle ese permiso en su matriz.
+
+---
+
 ## ✍️ Firma externa del cierre de caja — cliente sin cuenta en la app (15 sep 2026)
 
 **Pedido:** hay eventos que Trino produjo para un cliente que **no es un proyecto de la cartera**

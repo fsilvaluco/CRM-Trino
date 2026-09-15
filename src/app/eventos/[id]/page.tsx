@@ -24,12 +24,13 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Pencil, MapPin, Clock, Music4, Wallet, FileText, Link as LinkIcon,
   Plus, Trash2, Star, ExternalLink, Loader2, Lock, LockOpen, Printer, Receipt,
-  Ticket, Upload, Paperclip, Share2, Users, RefreshCw, BellRing, Banknote, CheckCircle2, Circle, Mail, Sparkles,
+  Ticket, Upload, Paperclip, Share2, Users, RefreshCw, BellRing, Banknote, Mail, Sparkles,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import type { LiveShow, ShowStatus, SetlistItem, CostItem, TimingItem, TicketTier, EventContact } from "@/types/shows";
 import { ExternalSignersCard } from "@/components/events/ExternalSignersCard";
+import { ApprovalCard, type ApprovalData } from "@/components/events/ApprovalCard";
 import { EventPrintHeader } from "@/components/events/EventPrintHeader";
 import { EventPrintFooter } from "@/components/events/EventPrintFooter";
 import { compressImage } from "@/lib/image-compress";
@@ -108,22 +109,7 @@ interface CostSubmission {
   submitterName: string | null;
 }
 
-interface Signer {
-  userId: string;
-  fullName: string | null;
-  email: string | null;
-}
-
-interface Signature extends Signer {
-  signedAt: string;
-  ipAddress: string | null;
-}
-
-interface SignatureData {
-  requiredSigners: Signer[];
-  signatures: Signature[];
-  allSigned: boolean;
-}
+type SignatureData = ApprovalData;
 
 export default function EventDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -279,6 +265,16 @@ export default function EventDetailPage() {
   // primera vez, para siempre).
   const hasLoadedRef = useRef(false);
 
+  // Se carga siempre, no solo con la caja cerrada: elegir quiénes tienen
+  // que firmar (migración 101) se puede hacer antes de cerrar, y de hecho
+  // es lo natural -- se deja listo y después se cierra.
+  const loadSignatures = useCallback(() => {
+    fetch(`/api/eventos/${id}/signatures`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((sig: SignatureData | null) => setSignatureData(sig))
+      .catch(() => setSignatureData(null));
+  }, [id]);
+
   const load = useCallback(() => {
     // Solo se muestra el skeleton de carga en la carga inicial -- un
     // refetch de fondo con el evento ya en pantalla no debe hacer
@@ -362,25 +358,11 @@ export default function EventDetailPage() {
           setDetailsDirty(false);
         }
 
-        if (data.costSheetClosedAt) {
-          fetch(`/api/eventos/${id}/signatures`)
-            .then((r) => (r.ok ? r.json() : null))
-            .then((sig) => {
-              if (!sig) return;
-              setSignatureData({
-                requiredSigners: sig.requiredSigners,
-                signatures: sig.signatures,
-                allSigned: sig.allSigned,
-              });
-            })
-            .catch(() => setSignatureData(null));
-        } else {
-          setSignatureData(null);
-        }
+        loadSignatures();
       })
       .catch(() => setEvent(null))
       .finally(() => setLoading(false));
-  }, [id, activeProjectId]);
+  }, [id, activeProjectId, loadSignatures]);
 
   const loadCostSubmissions = useCallback(() => {
     fetch(`/api/eventos/${id}/cost-submissions`)
@@ -2296,7 +2278,10 @@ export default function EventDetailPage() {
                 Cerrada
               </Badge>
             )}
-            {signatureData && (
+            {/* Solo con la caja cerrada: antes de eso no hay nada que
+                aprobar todavía (los firmantes ya se pueden elegir, pero
+                un "0/3 pendiente" ahí arriba sería engañoso). */}
+            {signatureData?.costSheetClosed && (
               <Badge
                 variant="secondary"
                 className={`text-xs ml-1 ${signatureData.allSigned ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}
@@ -3010,67 +2995,10 @@ export default function EventDetailPage() {
       )}
 
       {/* Aprobación del cierre de caja -- fuera de la Card de Costos a
-          propósito: quien firma (Admin/Artista) tiene que poder ver quién
-          falta aunque su rol no lo deje ver los montos de la Planilla. Sin
-          plata acá, solo nombres/checks -- igual que /eventos/[id]/firmar. */}
+          propósito: quien firma tiene que poder ver quién falta aunque su
+          rol no lo deje ver los montos de la Planilla. */}
       {signatureData && (
-        <Card data-section="approval" className="no-print">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Lock className="h-4 w-4" />
-              Aprobación
-              <Badge
-                variant="secondary"
-                className={`text-xs ${signatureData.allSigned ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}
-              >
-                {signatureData.allSigned
-                  ? "Aprobado por todos"
-                  : `${signatureData.requiredSigners.filter((r) => signatureData.signatures.some((s) => s.userId === r.userId)).length}/${signatureData.requiredSigners.length} firmaron`}
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1.5">
-            {signatureData.requiredSigners.map((r) => {
-              const signature = signatureData.signatures.find((s) => s.userId === r.userId);
-              return (
-                <div key={r.userId} className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1.5">
-                    {signature ? (
-                      <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
-                    ) : (
-                      <Circle className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    )}
-                    <span>{r.fullName || r.email || "Usuario"}</span>
-                  </div>
-                  {signature && (
-                    <span className="text-muted-foreground text-right">
-                      {format(new Date(signature.signedAt), "d MMM yyyy, HH:mm", { locale: es })}
-                      {signature.ipAddress && <span className="block text-[10px] opacity-70">IP {signature.ipAddress}</span>}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-            {/* Firmantes "voluntarios" -- alguien (típicamente un admin de la
-                organización) que firmó sin ser de los requeridos para ESTE
-                proyecto. Igual quedó su aprobación registrada, así que se
-                muestra igual, solo que no cuenta para el "X/Y firmaron". */}
-            {signatureData.signatures
-              .filter((s) => !signatureData.requiredSigners.some((r) => r.userId === s.userId))
-              .map((s) => (
-                <div key={s.userId} className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
-                    <span>{s.fullName || s.email || "Usuario"}</span>
-                  </div>
-                  <span className="text-muted-foreground text-right">
-                    {format(new Date(s.signedAt), "d MMM yyyy, HH:mm", { locale: es })}
-                    {s.ipAddress && <span className="block text-[10px] opacity-70">IP {s.ipAddress}</span>}
-                  </span>
-                </div>
-              ))}
-          </CardContent>
-        </Card>
+        <ApprovalCard showId={id} data={signatureData} onReload={loadSignatures} />
       )}
 
       {/* Firma del cliente externo -- alguien que no tiene (ni va a tener)

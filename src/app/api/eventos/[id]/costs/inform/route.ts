@@ -27,7 +27,7 @@ export async function POST(
   const { data: show, error: showErr } = await supabase
     .from("shows")
     .select(
-      "id, name, date, venue, project_id, cost_sheet_closed_at, fee, ticket_income, expenses, profit_split_note, profit_split_project_pct, profit_split_trino_pct, profit_split_project_label, profit_split_trino_label, projects ( name )"
+      "id, name, date, venue, project_id, cost_sheet_closed_at, required_signer_ids, fee, ticket_income, expenses, profit_split_note, profit_split_project_pct, profit_split_trino_pct, profit_split_project_label, profit_split_trino_label, projects ( name )"
     )
     .eq("id", id)
     .single();
@@ -47,7 +47,12 @@ export async function POST(
     return NextResponse.json({ error: "La caja todavía no está cerrada" }, { status: 400 });
   }
 
-  const { requiredSigners, signatures, allSigned } = await getSignaturesState(supabase, id, show.project_id);
+  const { requiredSigners, signatures, allSigned } = await getSignaturesState(
+    supabase,
+    id,
+    show.project_id,
+    show.required_signer_ids
+  );
   if (!allSigned) {
     return NextResponse.json({ error: "Todavía faltan firmas -- no se puede informar el cierre." }, { status: 409 });
   }
