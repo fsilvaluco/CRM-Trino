@@ -171,6 +171,48 @@ que devuelve la página "Abriendo Spotify..." con el `intent://` correcto (`pack
 com.spotify.music`, track ID bien extraído pese al prefijo `intl-es` en la URL) y
 `Cache-Control: no-store`. Datos de prueba limpiados.
 
+### 🔁 Segunda vuelta: la detección ya funcionaba, el LANZAMIENTO no (+ telemetría real)
+
+Con el fix de arriba desplegado, Francisco volvió a probar desde WhatsApp: ahora sí vio "Abriendo
+en Spotify..." (o sea, la página intermedia se sirvió -- detección OK), **pero igual terminó en la
+web de Spotify**. Dos causas, las dos en la página intermedia:
+
+1. **`intent://` no es un mecanismo de WebView, es de Chrome.** Un WebView embebido se lo entrega a
+   la app anfitriona y depende de ella; WhatsApp lo ignora en silencio. Lo que SÍ abrió la app
+   desde WhatsApp fue el botón "Abrir aplicación" del propio sitio de Spotify -- y al inspeccionar
+   ese sitio, Spotify publica su deep link como **`spotify://track/ID`** (meta tags
+   `al:android:url` / `al:ios:url`), no como `spotify:track:ID` ni `intent://`. Ese esquema pasó a
+   ser el intento principal (iOS y Android); `intent://` quedó como segundo intento para Chrome.
+2. **El fallback a la web a los 1.6s era incondicional** y le arrancaba la página (y el botón) al
+   visitante antes de poder tocarlo. Ahora: 4s, solo si la página sigue visible, y solo si el reloj
+   no se "saltó" (cuando la app se abre, el WebView pausa timers y el elapsed real al volver es
+   mucho mayor -- en ese caso no se navega a ningún lado). Además el intento automático del esquema
+   va en un **iframe oculto**: si el WebView no entiende `spotify://`, el error queda en el iframe
+   en vez de reemplazar la página por una pantalla de error del WebView.
+
+**Telemetría real (migración 098 + `POST /api/q/beacon`):** ya no se adivina. La página reporta con
+`navigator.sendBeacon` cada intento (`auto:scheme-iframe`, `auto:intent`, `tap:scheme`,
+`tap:intent`), si la página se ocultó (= la app se abrió, con la fuente: `visibilitychange` /
+`pagehide` / `blur`) y el `outcome` (`app_opened` / `fallback_web` / `user_web`), a
+`qr_scans.app_open_result` (jsonb). Para eso el `id` del scan se genera ANTES de responder (ya
+no lo genera la base) y se embebe en la página. El endpoint es público, sin login, valida uuid,
+whitelist de claves y tamaño (<4 KB), y reintenta una vez a 1.5s si la fila aún no existe (el
+primer beacon puede llegar antes de que termine el `after()` del insert). Además de diagnóstico,
+es **la métrica real de la campaña**: cuántos clicks terminaron dentro de Spotify.
+
+**Verificado:** `tsc`, `eslint`, `npm run build` limpios. (a) `curl` con el UA real de WhatsApp:
+la página trae `spotify://track/ID`, `intent://`, `scanId` y la URL absoluta del beacon. (b) El
+endpoint: 204 en camino feliz, 204 tras reintento con uuid inexistente (~1.8s), 400 con uuid
+inválido y con no-JSON. (c) **JavaScript ejecutado en un navegador real** (Browser pane con
+emulación móvil): 3 beacons `204` y `app_open_result` con la línea de tiempo exacta
+`auto:scheme-iframe`@0ms → `auto:intent`@1014ms → `fallback`@4016ms → `pagehide`, outcome
+`fallback_web` (correcto: en el PC no hay app). Sin errores de consola propios. Datos de prueba
+limpiados.
+
+**Pendiente:** una prueba de Francisco desde WhatsApp Android con el link real -> leer
+`app_open_result` del último scan de LUR y ver qué intento ocultó la página. Con ese dato se
+ajusta el orden/mecanismo si hace falta -- ya con evidencia, no suposiciones.
+
 ### 🐛 Bug preexistente encontrado de rebote: link borrado/inexistente mandaba a `localhost:8080`
 
 Francisco probó `/q/test-whatsapp-fix` (mi QR de prueba, ya borrado al limpiar) desde el celular y

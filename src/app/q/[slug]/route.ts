@@ -139,6 +139,11 @@ export async function GET(
   const deviceType = detectDeviceType(userAgent);
 
   const metaCapiEventId = crypto.randomUUID();
+  // El id del escaneo se genera ACÁ (no lo deja generar la base) porque la
+  // página intermedia lo necesita para reportar de vuelta si logró abrir la
+  // app (POST /api/q/beacon -> qr_scans.app_open_result) -- y la respuesta
+  // sale antes de que el insert del after() termine.
+  const scanId = crypto.randomUUID();
   // event_source_url tal cual llegó (con todos los params) -- request.url
   // apunta al host interno del contenedor, así que se arma a mano igual
   // que `base` de arriba.
@@ -153,6 +158,7 @@ export async function GET(
     const { data: inserted, error } = await supabase
       .from("qr_scans")
       .insert({
+        id: scanId,
         qr_id: qr.id,
         user_agent: userAgent?.slice(0, 300) ?? null,
         utm_source: utmSource,
@@ -223,7 +229,11 @@ export async function GET(
     // esto, una visita repetida puede servirse desde caché y nunca pasar
     // por acá, perdiendo el registro del escaneo (y el evento a Meta) en
     // visitas siguientes.
-    return new NextResponse(renderAppOpenHtml(qr.destination_url, deepLinkTarget, isIOSUserAgent(userAgent)), {
+    const html = renderAppOpenHtml(qr.destination_url, deepLinkTarget, isIOSUserAgent(userAgent), {
+      scanId,
+      beaconUrl: `${base}/api/q/beacon`,
+    });
+    return new NextResponse(html, {
       headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
     });
   }
