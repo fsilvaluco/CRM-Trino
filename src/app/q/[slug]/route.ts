@@ -7,6 +7,7 @@ import {
   isIOSUserAgent,
   detectDeepLinkTarget,
   renderAppOpenHtml,
+  detectDeviceType,
 } from "@/lib/link-redirect";
 import { resolveMetaCapiConfig, buildFbc, sendMetaCapiEvent } from "@/lib/meta-capi";
 
@@ -132,6 +133,7 @@ export async function GET(
   const fbpCookie = request.cookies.get("_fbp")?.value ?? null;
   const fbcCookie = request.cookies.get("_fbc")?.value ?? null;
   const fbc = buildFbc(fbclid, fbcCookie);
+  const deviceType = detectDeviceType(userAgent);
 
   const metaCapiEventId = crypto.randomUUID();
   // event_source_url tal cual llegó (con todos los params) -- request.url
@@ -161,6 +163,7 @@ export async function GET(
         fbp: fbpCookie,
         ip_address: ipAddress,
         country,
+        device_type: deviceType,
         meta_capi_event_id: metaCapiEventId,
       })
       .select("id")
@@ -204,11 +207,19 @@ export async function GET(
   });
 
   const deepLinkTarget = detectDeepLinkTarget(qr.destination_url);
-  if (deepLinkTarget && isInAppBrowser(userAgent)) {
-    // no-store: el navegador embebido de Instagram/TikTok reutiliza la
-    // misma vista para cada visita a la bio -- sin esto, una visita
-    // repetida puede servirse desde caché y nunca pasar por acá, perdiendo
-    // el registro del escaneo (y el evento a Meta) en visitas siguientes.
+  // El criterio original era "¿reconozco el navegador embebido?"
+  // (isInAppBrowser), pero WhatsApp no se puede reconocer así -- su
+  // WebView en Android no lleva ningún identificador propio, confirmado
+  // con un dispositivo real (UA idéntico a Chrome). Se cambió a "¿es un
+  // celular?": en un navegador real (Chrome/Safari normal) este paso es
+  // inofensivo -- si el sistema ya iba a abrir la app solo, este intento
+  // extra ni se nota; si no, ahora sí queda forzado.
+  if (deepLinkTarget && (isInAppBrowser(userAgent) || deviceType === "mobile")) {
+    // no-store: el navegador embebido de Instagram/TikTok/WhatsApp
+    // reutiliza la misma vista para cada visita a la bio/chat -- sin
+    // esto, una visita repetida puede servirse desde caché y nunca pasar
+    // por acá, perdiendo el registro del escaneo (y el evento a Meta) en
+    // visitas siguientes.
     return new NextResponse(renderAppOpenHtml(qr.destination_url, deepLinkTarget, isIOSUserAgent(userAgent)), {
       headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
     });

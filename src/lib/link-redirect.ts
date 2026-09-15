@@ -18,6 +18,12 @@ const IN_APP_BROWSER_PATTERNS = [
   /instagram/i,
   /fban|fbav|fb_iab/i, // el mismo problema existe dentro de Facebook
   /tiktok|bytedancewebview|musical_ly/i,
+  // WhatsApp NO entra acá -- su navegador in-app en Android usa el WebView
+  // de Chrome sin ningún identificador propio en el user-agent (probado
+  // con un dispositivo real: UA idéntico a un Chrome cualquiera). Por eso
+  // el criterio para forzar la apertura de la app no puede depender de
+  // reconocer el navegador -- en la ruta se usa detectDeviceType() ===
+  // "mobile" en su lugar (ver comentario en /q/[slug]).
 ];
 
 export function isInAppBrowser(userAgent: string | null): boolean {
@@ -28,6 +34,19 @@ export function isInAppBrowser(userAgent: string | null): boolean {
 export function isIOSUserAgent(userAgent: string | null): boolean {
   if (!userAgent) return false;
   return /iphone|ipad|ipod/i.test(userAgent);
+}
+
+// Clasificación simple para reportes (no afecta ninguna decisión de la
+// ruta, solo se guarda en qr_scans.device_type) -- el orden importa: los
+// iPad en iOS 13+ mandan un user-agent de escritorio salvo que digan
+// "iPad" explícito, y "Android" sin "Mobile" es tablet, no celular.
+export function detectDeviceType(userAgent: string | null): "mobile" | "tablet" | "desktop" | null {
+  if (!userAgent) return null;
+  if (/ipad/i.test(userAgent)) return "tablet";
+  if (/android/i.test(userAgent)) return /mobile/i.test(userAgent) ? "mobile" : "tablet";
+  if (/iphone|ipod/i.test(userAgent)) return "mobile";
+  if (/mobile/i.test(userAgent)) return "mobile";
+  return "desktop";
 }
 
 function extractYoutubeId(url: string): string | null {
