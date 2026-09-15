@@ -219,11 +219,31 @@ vez de abrir la app, **siguió ese fallback y navegó a la web de Spotify** (eso
 mal contado como app abierta).
 
 **Fix:** sacar `browser_fallback_url` del `intent://` (Spotify y YouTube). Sin él, ese intento solo
-puede abrir la app o no hacer nada -- nunca arrastrar a la web. El único fallback web es nuestro
-timer controlado de 4s. Verificado `tsc`/`eslint`/`build`. Queda pendiente la próxima prueba de
-Francisco desde WhatsApp con el link real para leer el nuevo `app_open_result` y confirmar si ya
-abre la app (o, con el dato, seguir iterando -- el comportamiento de WhatsApp WebView con
-`intent://` sin fallback en top-level todavía no está 100% confirmado en dispositivo real).
+puede abrir la app o no hacer nada -- nunca arrastrar a la web.
+
+**Resultado (confirmado en dispositivo real):** Spotify abrió la app correctamente al tocar el
+botón. ✅
+
+### 🎯 Cuarta vuelta: el fallback a la web solo DESPUÉS del toque
+
+Prueba de YouTube (slug `ntkp`) reveló, con telemetría, el comportamiento fino: los intentos
+automáticos (`auto:scheme-iframe`@0, `auto:intent`@1006) NO abren la app -- el WebView de WhatsApp
+**exige un gesto del usuario** para abrir apps (restricción de seguridad del navegador, no un bug
+nuestro). Y el timer ciego de 4s (`fallback`@4008 → `pagehide`@4524, outcome `fallback_web`) tiraba
+a la web a quien tenía la app pero se demoraba en tocar.
+
+**Decisión de producto (Francisco, contexto: va a correr un ADS de música que redirige a escuchar
+la canción):** el salto a la web debe ocurrir **solo después de que el usuario toca el botón** y aun
+así la página sigue visible (= no tiene la app). Nunca saltar a la web sin un toque previo. Razón:
+la escucha de calidad (stream real, canción completa) ocurre DENTRO de la app; el envío automático a
+la web solo producía escuchas degradadas (preview 30s / muro de login) gastando clicks pagados.
+
+**Implementación** (`renderAppOpenHtml`): eliminado el `setTimeout(FALLBACK_MS=4000)` ciego. Ahora
+el tap del botón arma: Android → +700ms `intent://` si sigue visible, +2200ms `toWeb`; iOS →
++1500ms `toWeb`. `toWeb` no dispara si la página se ocultó (app abrió) ni si el reloj se saltó
+(`now()-tapAt > 3500`, indica que el WebView pausó timers = volvió de la app). Nuevo outcome
+`tap_fallback_web`. Verificado `tsc`/`eslint`/`build`. Pendiente: prueba real de Francisco (esperar
+sin tocar NO debe ir a la web; tocar con app → abre app; tocar sin app → web).
 
 ### 🐛 Bug preexistente encontrado de rebote: link borrado/inexistente mandaba a `localhost:8080`
 
