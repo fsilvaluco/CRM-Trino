@@ -2,7 +2,7 @@
 // que decide queda en ad_actions_log (incluso en dry-run) y se avisa por
 // Telegram. Las escrituras a Meta solo ocurren si BOT_ENABLED && !BOT_DRY_RUN.
 import { createAdminClient } from "@/lib/supabase-admin";
-import { BOT_ENABLED, BOT_DRY_RUN, DAILY_BUDGET_CAP_CLP, RULES } from "./config";
+import { BOT_ENABLED, BOT_DRY_RUN, DAILY_BUDGET_CAP_CLP, CAMPAIGN_PREFIXES, RULES } from "./config";
 import { fetchAdInsights, getAdSet, pauseAd, setAdSetDailyBudget, type AdInsightRow } from "./meta-client";
 import { resolveCampaign, fetchSpotifyClicks } from "./spotify-clicks";
 import {
@@ -53,12 +53,18 @@ export async function runMetaAdsBot(): Promise<BotRunSummary> {
     summary.errors.push(`Insights: ${err instanceof Error ? err.message : err}`);
     return summary;
   }
+  // Blindaje: solo campañas cuyo nombre empiece con un prefijo permitido.
+  if (CAMPAIGN_PREFIXES.length > 0) {
+    rows = rows.filter((r) => CAMPAIGN_PREFIXES.some((p) => (r.campaignName ?? "").startsWith(p)));
+  }
   const spotifyByAdDay = await fetchSpotifyClicks(supabase, campaign.qrId);
   const ads = aggregateAds(rows, spotifyByAdDay);
   summary.adsSeen = ads.length;
 
   if (rows.length === 0) {
-    // Cuenta sin ads todavía (campaña no lanzada): nada que hacer.
+    // Sin ads (o ninguno matchea el prefijo): heartbeat "sigo vivo" y salir.
+    const nCamp = new Set(rows.map((r) => r.campaignId)).size; // 0 acá
+    await sendTelegram(`🤖 <b>Bot Meta Ads</b> activo · ${nCamp} campañas · ${BOT_DRY_RUN ? "dry-run" : "real"}`);
     return summary;
   }
 
@@ -108,7 +114,7 @@ export async function runMetaAdsBot(): Promise<BotRunSummary> {
 
   // 6) Aplicar guardrail de cooldown + ejecutar/loguear cada decisión.
   for (const d of decisions) {
-    await applyDecision(supabase, d, summary);
+    await applyDecision(supabase, d, summary, campaign.projectId);
   }
 
   // 7) Aviso de cierre si hubo algo.
@@ -174,7 +180,7 @@ async function hasRecentAction(supabase: Supabase, d: Decision): Promise<boolean
   return (data?.length ?? 0) > 0;
 }
 
-async function applyDecision(supabase: Supabase, d: Decision, summary: BotRunSummary): Promise<void> {
+async function applyDecision(supabase: Supabase, d: Decision, summary: BotRunSummary, projectId: string | null): Promise<void> {
   // Cooldown solo para acciones reales (no alertas).
   if (d.action !== "alert" && (await hasRecentAction(supabase, d))) {
     summary.skippedCooldown++;
@@ -200,7 +206,7 @@ async function applyDecision(supabase: Supabase, d: Decision, summary: BotRunSum
   }
 
   await supabase.from("ad_actions_log").insert({
-    project_id: null,
+    project_id: projectId,
     campaign_id: d.campaignId ?? null,
     adset_id: d.adsetId ?? null,
     ad_id: d.adId ?? null,
