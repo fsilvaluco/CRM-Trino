@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
+import { getSignaturesState } from "@/lib/event-signatures";
 import {
+  approvalExternalSigners,
   hashToken,
   externalSignerStatus,
   buildClosingDocument,
@@ -26,7 +28,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const { data: signer } = await admin
     .from("event_external_signers")
     .select(
-      "id, show_id, role_label, invited_name, invited_email, created_at, expires_at, revoked_at, first_viewed_at, signed_at, signer_name, signer_rut, signer_email, signer_phone, otp_sent_to, otp_sent_at, otp_expires_at, otp_attempts, otp_verified_at, ip_address, document_hash"
+      "id, show_id, role_label, invited_name, invited_email, created_at, expires_at, revoked_at, invalidated_at, first_viewed_at, signed_at, signer_name, signer_rut, signer_email, signer_phone, otp_sent_to, otp_sent_at, otp_expires_at, otp_attempts, otp_verified_at, ip_address, document_hash"
     )
     .eq("token_hash", hashToken(token))
     .maybeSingle();
@@ -52,6 +54,28 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "El evento de este link ya no existe" }, { status: 404 });
   }
 
+  // Recuadro de Aprobación: el firmante externo ve quién más está firmando
+  // el MISMO documento -- el equipo interno y los otros externos. Decisión
+  // explícita de Francisco (15 sep 2026): le da peso al documento que el
+  // cliente vea que no es el único firmando. Van nombres, correos y si
+  // firmaron; las IP no, que son evidencia de cada firmante y no le
+  // aportan nada a la contraparte.
+  const { data: showRow } = await admin
+    .from("shows")
+    .select("project_id, required_signer_ids")
+    .eq("id", signer.show_id)
+    .single();
+
+  const internal = showRow?.project_id
+    ? await getSignaturesState(admin, signer.show_id, showRow.project_id, showRow.required_signer_ids)
+    : null;
+
+  const { data: otherExternals } = await admin
+    .from("event_external_signers")
+    .select("id, role_label, invited_name, invited_email, signer_name, signer_email, signed_at, revoked_at, invalidated_at, expires_at, created_at")
+    .eq("show_id", signer.show_id)
+    .order("created_at");
+
   const currentHash = documentHash(doc);
   const now = Date.now();
   const otpPending =
@@ -72,8 +96,26 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     // Un link vencido o anulado no muestra ni un peso: el documento solo
     // sale mientras el link sirve para firmar, o para que quien ya firmó
     // pueda releer lo que firmó.
+    approval: internal
+      ? {
+          requiredSigners: internal.requiredSigners.map((r) => {
+            const sig = internal.signatures.find((x) => x.userId === r.userId);
+            return {
+              name: r.fullName || r.email || "Integrante del equipo",
+              email: r.email,
+              signedAt: sig?.signedAt ?? null,
+            };
+          }),
+          externalSigners: approvalExternalSigners(otherExternals ?? []).map((e) => ({
+            ...e,
+            // Para que el firmante actual se reconozca en la lista.
+            isMe: e.id === signer.id,
+          })),
+        }
+      : null,
     document: status === "pendiente" || status === "firmado" ? doc : null,
     documentHash: status === "pendiente" || status === "firmado" ? currentHash : null,
+    invalidatedAt: signer.invalidated_at ?? null,
     otp: otpPending
       ? {
           sentToMasked: signer.otp_sent_to ? maskEmail(signer.otp_sent_to) : null,

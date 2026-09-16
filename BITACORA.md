@@ -53,6 +53,182 @@ en dry-run antes de poner `BOT_DRY_RUN=false`. Verificado `tsc`/`eslint`/`build`
 
 ---
 
+## 📄 Acta del cierre: correo automático con todas las firmas (16 sep 2026)
+
+**Pedido:** cuando termina de firmar todo el mundo, que salga solo un correo con un PDF como el
+comprobante del externo, pero con **todas** las firmas juntas.
+
+**Lo que se hizo:**
+- **`buildActaPdf()`**: el mismo documento del cierre + cada firma con su evidencia (nombre, RUT,
+  correo, teléfono, hora, IP, código verificado), agrupadas en "Equipo" y "Contraparte". Si la huella
+  de alguien no calza con la del cierre actual, el acta lo dice — firmó otra versión de las cifras, y
+  eso un acta lo deja en evidencia en vez de esconderlo. Las firmas anteriores a las migraciones
+  099/102 (sin huella) también se declaran como tales.
+- Se extrajo `nuevoPdf()` y `escribirDocumento()`: el comprobante individual y el acta comparten todo
+  el armado, son el mismo documento con distinto bloque final.
+- **`src/lib/closing-acta.ts`**: `sendClosingActa()` decide y manda. "Todos" = los firmantes internos
+  marcados **y** todos los links externos vigentes. Un link anulado, vencido o invalidado por
+  reapertura no cuenta (no hay a quién esperar); uno **pendiente** sí bloquea el envío automático.
+- Se llama fire-and-forget después de **cada** firma, interna y externa: si falta alguien no hace nada.
+- **Destinatarios: todos los que firmaron**, equipo y contraparte por igual.
+- Idempotencia con `cost_sheet_informed_at`, que ya existía y significaba lo mismo ("el cierre quedó
+  informado"). Reabrir la caja lo limpia solo, así que después de reabrir → volver a firmar, el acta
+  sale de nuevo. **No hizo falta migración.**
+- El botón "Informar cierre" pasó a ser **"Mandar acta" / "Reenviar acta"**: el mismo envío pero con
+  `force`, que se salta el chequeo de externos pendientes. Es la salida para cuando un cliente nunca
+  firma. Lo que no se salta es que haya firmado el equipo — informar un cierre que el propio equipo no
+  aprobó no tiene sentido.
+
+---
+
+## 🔑 Botón "Copiar link" — token cifrado en vez de solo hasheado (16 sep 2026)
+
+**Pedido:** un botón para copiar el link, al lado de Reenviar y Anular.
+
+**El problema:** no se podía. Desde la migración 099 en la base vivía **solo el SHA-256** del token:
+perfecto para validar un link, imposible para volver a mostrarlo. La primera implementación emitía uno
+nuevo al copiar (matando el anterior) y Francisco la rechazó con razón — un botón de copiar no puede
+invalidar el link que el cliente ya tiene.
+
+**Lo que se hizo (migración 104):** además del hash se guarda el token **cifrado con AES-256-GCM**. La
+llave vive en `LINK_TOKEN_SECRET` (variable de entorno de Railway), **no** en la base: quien se robe un
+dump se lleva ciphertext inservible. El hash sigue siendo lo que valida cada request; el ciphertext es
+solo para mostrarle el link de vuelta a quien ya puede administrar el cierre.
+
+- `src/lib/link-token-crypto.ts`: formato `v1.<iv>.<tag>.<ciphertext>` en base64url, IV aleatorio por
+  cifrado. `decryptLinkToken` nunca tira: devuelve null si el formato no calza o si el GCM no valida
+  (típicamente porque se cambió el secreto), y quien llama muestra "emite uno nuevo".
+- **`GET /api/eventos/[id]/external-signers/[signerId]/link`**: pide el **mismo** permiso que emitir el
+  link, no menos — quien puede copiarlo puede, en la práctica, firmar haciéndose pasar por el cliente.
+  Solo para links en pie: uno firmado ya se gastó, y uno vencido/anulado/invalidado no sirve.
+- Sin la variable configurada no se cifra nada, `canCopyLink` viene en false y el botón no aparece —
+  todo lo demás sigue igual. Lo mismo para los links emitidos antes de esta migración.
+
+**Requiere configurar `LINK_TOKEN_SECRET` en Railway** (`openssl rand -base64 48`). Si se cambia, los
+links ya emitidos siguen sirviendo para firmar pero dejan de poder copiarse.
+
+---
+
+## ♻️ Reabrir la caja también tumba la firma del cliente (16 sep 2026)
+
+**Hallazgo de Francisco probando el flujo:** al reabrir el cierre se borran las firmas internas, pero
+la firma externa quedaba viva — aprobando cifras que ya no son las vigentes. Si algo cambia, el
+cliente también tiene que firmar de nuevo.
+
+**Lo que se hizo (migración 103):** la firma externa **no se borra**, a diferencia de las internas: es
+el respaldo frente a un tercero y ya se le mandó su comprobante en PDF. Se marca
+`invalidated_at`/`invalidated_reason`, conservando entera su evidencia (datos del firmante, IP, hash
+y snapshot del documento que sí firmó). Deja de contar como firma vigente, su link deja de servir, y
+para el cierre nuevo hay que emitirle uno nuevo.
+
+- Estado nuevo `"invalidado"` en `externalSignerStatus`, que gana sobre `"firmado"`.
+- El trigger de la 099 se aflojó lo justo: una fila firmada sigue siendo inmutable salvo
+  `receipt_sent_at` y ahora los dos campos de invalidación. Y una vez invalidada no se des-invalida.
+- En los recuadros de Aprobación (las dos pantallas) una firma invalidada cuenta como **pendiente**.
+- La tarjeta del evento la muestra en ámbar con el motivo y un botón **"Pedir firma de nuevo"**, que
+  emite un link nuevo y se lo manda. `reenviar` acepta ahora una fila firmada solo si está
+  invalidada, y no intenta revocarla (es inmutable).
+- Si el cliente abre el link viejo ve una pantalla que le explica que el cierre cambió después de su
+  firma y que le va a llegar uno nuevo.
+- Los comprobantes de costo dejan de abrirse desde un link invalidado; el PDF de su propia firma
+  sigue disponible, que es su respaldo.
+
+**Corrección (mismo día):** el recuadro de Aprobación mostraba al mismo cliente **dos veces**, las dos
+"Pendiente" — la firma invalidada y el link nuevo son dos filas de la misma persona. Ahora
+`approvalExternalSigners()` agrupa por correo (o nombre) y muestra una fila por **persona**, no por
+link emitido: gana la firma vigente sobre el link en pie, y este sobre uno muerto. Una fila muerta
+igual se muestra como pendiente —que el cliente no haya firmado tiene que verse aunque todavía no le
+manden el link nuevo— y los links anulados a mano no aparecen. La tarjeta de gestión del evento sigue
+mostrando **todas** las filas: esa es la vista de auditoría.
+
+---
+
+## 🔐 Las dos pantallas de firma quedan iguales, y la interna con código (15 sep 2026)
+
+**Pedido de Francisco, después de probar el flujo externo:** que la firma del equipo tenga el mismo
+código de 6 dígitos ("porque así efectivamente queda como firma electrónica simple"), que las dos
+pantallas se vean igual —le gustó más la del externo—, que en los costos se pueda abrir el
+comprobante de cada gasto, que el recuadro de Aprobación aparezca en las pantallas de firma con los
+firmantes elegidos y los externos, y que al crear el link del cliente se le mande el correo solo.
+
+**Lo que se hizo:**
+
+- **Migración 102**: `event_closing_signatures` suma la misma evidencia que la firma externa
+  (`signer_name/rut/email/phone`, `otp_verified_at`, `user_agent`, `document_hash`,
+  `document_snapshot`), `profiles.rut` para el prellenado, y la tabla `event_signature_otps` con el
+  código en vuelo. Esa tabla **no tiene policies a propósito**: la maneja entera el backend con el
+  service role, el hash del código no tiene por qué ser legible desde el cliente. Las firmas
+  anteriores quedan con los campos en NULL — son históricas, no se completan hacia atrás.
+- **`POST /api/eventos/[id]/signatures/codigo`** (nuevo) y el POST de firma ahora exige el código. El
+  código va **siempre al correo de la cuenta**, no al que declare en el formulario: ese correo es su
+  identidad verificada en la app. Los datos declarados se guardan al pedir el código, así que la
+  identidad firmada es siempre la que recibió el correo.
+- **"Guardar estos datos para próximos cierres"** escribe `rut`/`phone` en el perfil. Es prellenado,
+  **no** atajo: el código se pide igual, siempre.
+- **Componentes compartidos** (`src/components/events/`): `DocumentoCierre` (salió de la página
+  externa), `FirmaPasos` (identifícate + código + texto de la Ley 19.799), `ApprovalSummary` y
+  `ComprobanteCostoButton`. Las dos pantallas de firma ahora son el mismo armado.
+- **Comprobante por costo**: ícono en cada línea, que firma la URL al hacer click (no al renderizar —
+  una planilla con 15 costos dispararía 15 llamadas al storage por gusto). Por dentro usa la sesión;
+  por fuera, **`GET /api/public/firma/[token]/comprobante-costo`**, con tres candados: link vigente,
+  el archivo tiene que ser de un costo **de ese evento**, y la URL firmada dura 5 minutos.
+- El **path del comprobante queda fuera del hash** del documento: volver a subir la misma boleta
+  genera un path nuevo sin que cambie ni un peso, y eso no puede invalidar una firma.
+- **Recuadro de Aprobación en ambas pantallas**, juntando equipo y externos. Decisión explícita: el
+  cliente externo **sí** ve quiénes del equipo firmaron (nombres y correos), porque le da peso al
+  documento; las IP no, que son evidencia de cada firmante.
+- **Correo automático al crear el link del cliente** cuando se cargó su correo, más botón
+  **"Reenviar"**. Ojo: reenviar no es literal —el token en claro no existe en ninguna parte—, así que
+  emite uno nuevo y anula el anterior. El viejo solo se anula **después** de que el correo salió.
+- `reopen` borra también los códigos en vuelo.
+
+**Bug corregido (el que reportó Francisco):** al guardar costos y cerrar la caja decía "guarda los
+costos primero", y recién funcionaba tras refrescar. `saveCosts()` nunca bajaba la bandera de "hay
+cambios sin guardar", y `load()` la respeta a propósito (para no pisar lo que la persona está
+escribiendo), así que quedaba pegada para siempre. **El mismo defecto estaba en los cinco guardados**
+(setlist, timing, contactos, entradas y costos): además del mensaje, el refetch nunca repoblaba esa
+sección. Ahora cada `saveX()` baja su bandera —estado y ref— antes de llamar a `load()`.
+
+---
+
+## ✅ Elegir quién firma el cierre + pedir la firma por correo (15 sep 2026)
+
+**Pedido:** en la tarjeta de Aprobación aparecían TODOS los que califican por permisos
+(`ve_ingresos && ve_costos` de Eventos), que en proyectos con harta gente son muchos más de los que
+realmente tienen que aprobar ese evento puntual. Francisco pidió poder marcar con un check quiénes
+sí, y poder pedirles la firma por correo — un botón "Enviar a todos" y un "Enviar" por fila, para
+cuando a alguien no lo pillan por WhatsApp.
+
+**Lo que se hizo:**
+- **Migración 101**: `shows.required_signer_ids UUID[]`, mismo criterio que
+  `settlements.required_signer_ids` (migración 088). Lista vacía = comportamiento de siempre (firman
+  todos los que califican), así que ningún evento anterior cambia.
+- **`src/lib/event-signatures.ts`**: la función que calculaba los firmantes pasó a llamarse
+  `getEligibleSigners` (el universo por permisos) y `getRequiredSigners` ahora le aplica la selección
+  encima. La selección es siempre un **subconjunto de los elegibles**: un id elegido que después
+  pierde el permiso se cae solo de la lista — nadie aprueba números que su matriz no lo deja ver
+  (ROLES.md, ítem 20). `getSignaturesState` devuelve además `eligibleSigners`.
+- **`PUT /api/eventos/[id]/signatures`** (nuevo): guarda la selección. Exige `canEditEventCosts` y
+  valida que todos los ids estén entre los elegibles. Se puede cambiar con la caja cerrada — sumar un
+  firmante que se olvidó es justamente el caso de uso; las firmas ya registradas no se tocan.
+- **`POST /api/eventos/[id]/signatures/notify`** (nuevo): sin body avisa a todos los requeridos que
+  faltan; con `{ userId }`, solo a esa persona. Manda correo (`buildEventSignatureRequestEmailHtml`)
+  **y** push. El push sale aunque falte `RESEND_API_KEY` — son dos canales independientes. Exige caja
+  cerrada: antes de eso no hay nada que aprobar.
+- **`ApprovalCard.tsx`** (nuevo, sale de las ~65 líneas inline que tenía `eventos/[id]/page.tsx`):
+  checks por persona, botón "Enviar a todos" en el header y "Enviar" por fila. Destildar al último
+  firmante o a alguien que ya firmó se rechaza con un toast.
+- La tarjeta de Aprobación ahora se carga **siempre**, no solo con la caja cerrada: elegir los
+  firmantes se hace antes de cerrar. El badge "Pendiente de aprobación (X/Y)" del header de Costos
+  sigue apareciendo solo con la caja cerrada, para no mostrar un "0/3" engañoso.
+- `GET /api/eventos/[id]/signatures` devuelve además `eligibleSigners`, `requiredSignerIds` y
+  `canManageSigners`. `costs/inform` y el POST de firma respetan la selección.
+
+**Ojo:** solo se puede elegir entre quienes ven ingresos y costos de Eventos en ese proyecto. Si hace
+falta que firme alguien fuera de ese grupo, primero hay que darle ese permiso en su matriz.
+
+---
+
 ## ✍️ Firma externa del cierre de caja — cliente sin cuenta en la app (15 sep 2026)
 
 **Pedido:** hay eventos que Trino produjo para un cliente que **no es un proyecto de la cartera**
@@ -106,8 +282,10 @@ y con suficiente respaldo como para que la firma sirva de algo.
   comprobante — helper compartido en `src/lib/profit-split.ts`.
   Ojo: los nombres se editan con la **caja abierta**, igual que los porcentajes, porque forman parte del
   documento que se firma y entran en su hash.
-- La tarjeta de resumen del evento dice **"Ingresos"** en vez de "Entradas" (sigue mostrando
-  `ticket_income`). No se tocaron ni el campo del diálogo de edición ni la columna de Métricas > Eventos.
+- ~~La tarjeta de resumen del evento dice **"Ingresos"** en vez de "Entradas"~~ — **revertido el 16 sep
+  2026**: Francisco pidió volver a "Entradas", porque ese número es `ticket_income` y efectivamente
+  viene solo de la venta de entradas. Nunca se tocaron ni el campo del diálogo de edición ni la
+  columna de Métricas > Eventos, así que ahora los tres dicen lo mismo otra vez.
 
 **Pendiente / decisiones tomadas:**
 - El RUT se normaliza (`12.345.678-5` → `12345678-5`) pero **no** se valida el dígito verificador, a

@@ -4,6 +4,8 @@ import { getProjectPermissions, canViewEventCosts, canEditEventCosts } from "@/l
 import { dbErrorResponse } from "@/lib/api-errors";
 import { logActivity } from "@/lib/activity-logs";
 import { generateLinkToken, externalSignerStatus } from "@/lib/external-signature";
+import { encryptLinkToken } from "@/lib/link-token-crypto";
+import { sendEmail, isResendEnabled, buildExternalSignatureInviteEmailHtml } from "@/lib/resend";
 
 const DEFAULT_EXPIRY_DAYS = 30;
 const MAX_EXPIRY_DAYS = 180;
@@ -24,6 +26,8 @@ function mapSigner(row: any) {
     createdAt: row.created_at,
     expiresAt: row.expires_at,
     revokedAt: row.revoked_at ?? null,
+    invalidatedAt: row.invalidated_at ?? null,
+    invalidatedReason: row.invalidated_reason ?? null,
     firstViewedAt: row.first_viewed_at ?? null,
     signedAt: row.signed_at ?? null,
     signerName: row.signer_name ?? null,
@@ -33,13 +37,17 @@ function mapSigner(row: any) {
     otpVerifiedAt: row.otp_verified_at ?? null,
     ipAddress: row.ip_address ?? null,
     documentHash: row.document_hash ?? null,
+    // Los links emitidos antes de la migración 104 (o con el secreto sin
+    // configurar) no se pueden copiar -- para esos queda "Reenviar", que
+    // emite uno nuevo.
+    canCopyLink: Boolean(row.token_encrypted),
   };
 }
 
 // Columnas que se devuelven al equipo. Nunca `token_hash` ni `otp_hash`:
 // no le sirven a la UI y no tienen por qué salir de la base.
 const SELECT_COLUMNS =
-  "id, role_label, invited_name, invited_email, created_at, expires_at, revoked_at, first_viewed_at, signed_at, signer_name, signer_rut, signer_email, signer_phone, otp_verified_at, ip_address, document_hash";
+  "id, role_label, invited_name, invited_email, created_at, expires_at, revoked_at, invalidated_at, invalidated_reason, first_viewed_at, signed_at, token_encrypted, signer_name, signer_rut, signer_email, signer_phone, otp_verified_at, ip_address, document_hash";
 
 async function loadShowAndPermissions(id: string) {
   const { supabase, user, allowedProjectIds, error } = await requireAuth();
@@ -47,7 +55,7 @@ async function loadShowAndPermissions(id: string) {
 
   const { data: show } = await supabase
     .from("shows")
-    .select("id, name, project_id, cost_sheet_closed_at")
+    .select("id, name, date, venue, project_id, cost_sheet_closed_at, projects ( name )")
     .eq("id", id)
     .single();
 
@@ -59,7 +67,9 @@ async function loadShowAndPermissions(id: string) {
   }
 
   const perm = await getProjectPermissions(supabase, user!.id, show.project_id);
-  return { supabase, user, show, perm };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const projectName = (show as any).projects?.name ?? null;
+  return { supabase, user, show: { ...show, projectName }, perm };
 }
 
 // GET /api/eventos/[id]/external-signers -- links de firma externa emitidos
@@ -136,6 +146,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       invited_name: invitedName || null,
       invited_email: invitedEmail || null,
       token_hash: tokenHash,
+      // Cifrado con la llave de LINK_TOKEN_SECRET, que NO vive en la base
+      // (migración 104) -- es lo único que permite volver a mostrar el link
+      // después. Sin la variable configurada queda null y el botón de
+      // copiar no aparece.
+      token_encrypted: encryptLinkToken(token),
       expires_at: expiresAt,
       created_by: ctx.user!.id,
     })
@@ -143,6 +158,42 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .single();
 
   if (insertError) return dbErrorResponse("external-signers:POST", insertError);
+
+  // Si el equipo dejó fijado el correo, se le manda el link de una --
+  // pedido de Francisco (15 sep 2026): antes había que copiarlo y mandarlo
+  // a mano por WhatsApp. El correo lleva el link, que ES el secreto, así
+  // que va SOLO a esa casilla y a ninguna otra.
+  let emailSent = false;
+  if (invitedEmail && isResendEnabled()) {
+    try {
+      const { data: me } = await ctx.supabase!
+        .from("profiles")
+        .select("full_name, email")
+        .eq("id", ctx.user!.id)
+        .single();
+
+      await sendEmail({
+        to: invitedEmail,
+        subject: `Necesitamos tu firma -- ${ctx.show!.name}`,
+        html: buildExternalSignatureInviteEmailHtml({
+          invitedName: invitedName || null,
+          roleLabel: roleLabel || null,
+          eventName: ctx.show!.name,
+          eventDate: ctx.show!.date,
+          venue: ctx.show!.venue,
+          projectName: ctx.show!.projectName,
+          senderName: me?.full_name || me?.email || null,
+          signUrl: siteUrl(`/firmar/${token}`),
+          expiresAt,
+        }),
+      });
+      emailSent = true;
+    } catch (err) {
+      // El link ya existe y se puede copiar a mano -- que falle el correo
+      // no tiene por qué botar la creación.
+      console.error("[external-signers:POST] fallo enviando la invitación", err);
+    }
+  }
 
   void logActivity({
     supabase: ctx.supabase!,
@@ -153,5 +204,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     entityName: `Link de firma externa -- ${ctx.show!.name}`,
   });
 
-  return NextResponse.json({ ...mapSigner(data), url: siteUrl(`/firmar/${token}`) }, { status: 201 });
+  return NextResponse.json(
+    { ...mapSigner(data), url: siteUrl(`/firmar/${token}`), emailSent },
+    { status: 201 }
+  );
 }

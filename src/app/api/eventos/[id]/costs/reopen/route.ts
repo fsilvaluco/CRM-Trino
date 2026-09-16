@@ -37,7 +37,26 @@ export async function POST(
   // se borra "a mano" desde ningún lado) -- este es el único caso legítimo
   // que la limpia, y lo hace con el service role, no con el cliente del
   // usuario.
-  await createAdminClient().from("event_closing_signatures").delete().eq("show_id", id);
+  const admin = createAdminClient();
+  await admin.from("event_closing_signatures").delete().eq("show_id", id);
+  // Los códigos de 6 dígitos en vuelo también se caen: fueron pedidos para
+  // aprobar la planilla que se está reabriendo (migración 102).
+  await admin.from("event_signature_otps").delete().eq("show_id", id);
+
+  // La firma del cliente externo NO se borra (es el respaldo frente a un
+  // tercero, y ya se le mandó su comprobante en PDF): se marca invalidada,
+  // conservando entera su evidencia. Deja de contar y su link deja de
+  // servir -- si el cierre nuevo también necesita su conformidad, hay que
+  // emitirle uno nuevo (migración 103).
+  await admin
+    .from("event_external_signers")
+    .update({
+      invalidated_at: new Date().toISOString(),
+      invalidated_reason: "Se reabrió el cierre de caja después de esta firma",
+    })
+    .eq("show_id", id)
+    .not("signed_at", "is", null)
+    .is("invalidated_at", null);
 
   await logActivity({
     supabase,

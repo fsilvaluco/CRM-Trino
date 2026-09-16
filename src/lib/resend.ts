@@ -136,12 +136,14 @@ export function buildCostSheetSummaryEmailHtml(params: {
   profitSplitProjectLabel: string;
   profitSplitTrinoLabel: string;
   signers: { name: string; signedAt: string }[];
+  /** Cuando el correo lleva adjunta el acta en PDF (ver closing-acta.ts). */
+  conActaAdjunta?: boolean;
   detailUrl: string;
 }): string {
   const {
     eventName, eventDate, venue, projectName, fee, ticketIncome, expenses, ticketTiers, costItems,
     profitSplitNote, profitSplitProjectPct, profitSplitTrinoPct,
-    profitSplitProjectLabel, profitSplitTrinoLabel, signers, detailUrl,
+    profitSplitProjectLabel, profitSplitTrinoLabel, signers, conActaAdjunta, detailUrl,
   } = params;
   const ingresos = (fee ?? 0) + (ticketIncome ?? 0);
   const utilidad = ingresos - (expenses ?? 0);
@@ -208,9 +210,15 @@ export function buildCostSheetSummaryEmailHtml(params: {
       ` : ""}
 
       <p style="font-size:13px;font-weight:600;color:#14162B;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;border-top:1px solid #E5E7EB;padding-top:16px;">Aprobado por</p>
-      <ul style="font-size:13px;color:#14162B;padding-left:18px;margin-bottom:24px;">
+      <ul style="font-size:13px;color:#14162B;padding-left:18px;margin-bottom:${conActaAdjunta ? "12px" : "24px"};">
         ${signerRows}
       </ul>
+      ${conActaAdjunta ? `
+      <p style="font-size:12px;color:#14162B99;line-height:1.6;margin-bottom:24px;">
+        Adjuntamos el <strong>acta del cierre en PDF</strong>: el detalle completo y la evidencia de cada firma
+        (datos del firmante, hora, IP y la huella del documento que firmó). Guárdala como respaldo.
+      </p>
+      ` : ""}
 
       <a href="${detailUrl}" target="_blank" rel="noopener noreferrer"
         style="display: inline-block; padding: 12px 24px; background: #4338CA; color: white; text-decoration: none; border-radius: 100px; font-size: 14px; font-weight: 600;">
@@ -350,6 +358,98 @@ export function buildExternalSignatureReceiptEmailHtml(params: {
       <p style="font-size:12px;color:#14162B99;line-height:1.6;">
         Adjuntamos el comprobante en PDF con el detalle completo del cierre y la evidencia de la firma.
         Guárdalo: si más adelante cambia alguna cifra del cierre, la huella deja de calzar y la diferencia queda demostrada.
+      </p>
+    </div>
+  `;
+}
+
+/**
+ * "Te toca firmar el cierre de caja de este evento" -- se manda a los
+ * firmantes elegidos a mano (migración 101), desde el botón "Enviar a
+ * todos" o el "Enviar" de una fila puntual en la tarjeta de Aprobación.
+ * Es un recordatorio: el que firma entra con su cuenta, así que el correo
+ * solo lleva el link a la pantalla de firma, nada sensible.
+ */
+export function buildEventSignatureRequestEmailHtml(params: {
+  signerName: string | null;
+  eventName: string;
+  eventDate: string;
+  venue: string;
+  projectName: string | null;
+  requestedBy: string | null;
+  signUrl: string;
+}): string {
+  const { signerName, eventName, eventDate, venue, projectName, requestedBy, signUrl } = params;
+  const greeting = signerName
+    ? `<p style="font-size: 16px; color: #14162B; margin-bottom: 4px;">Hola ${signerName.split(" ")[0]},</p>`
+    : "";
+
+  return `
+    <div style="font-family: -apple-system, Inter, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
+      <img src="https://artistpro.app/logo-black.png" alt="Artist Pro" style="width: 120px; height: auto; margin-bottom: 20px;" />
+      ${greeting}
+      <p style="font-size: 15px; color: #14162B; line-height: 1.5;">
+        ${requestedBy ? `<strong>${requestedBy}</strong> te pide` : "Te pedimos"} que revises y apruebes el cierre de caja de:
+      </p>
+      <p style="font-size: 14px; color: #14162B; line-height: 1.6; background:#F4F4F8; border-radius:12px; padding:14px 16px; margin: 16px 0;">
+        <strong>${eventName}</strong>${projectName ? ` — ${projectName}` : ""}<br/>
+        <span style="color:#14162B99;">${formatDateForEmail(eventDate)} · ${venue}</span>
+      </p>
+      <a href="${signUrl}" target="_blank" rel="noopener noreferrer"
+        style="display: inline-block; margin-top: 4px; padding: 12px 24px; background: #4338CA; color: white; text-decoration: none; border-radius: 100px; font-size: 14px; font-weight: 600;">
+        Revisar y aprobar
+      </a>
+      <p style="font-size: 12px; color: #14162B66; margin-top: 28px;">
+        Entras con tu cuenta de Artist Pro. Tu aprobación queda registrada con tu nombre, correo y la hora exacta.
+      </p>
+    </div>
+  `;
+}
+
+/**
+ * "Necesitamos tu firma" para el cliente externo -- se manda solo al crear
+ * el link (si se cargó su correo) y desde el botón "Reenviar correo". El
+ * link ES el secreto, así que este correo va únicamente a la casilla que el
+ * equipo dejó fijada: quien lo reciba puede abrir el documento.
+ */
+export function buildExternalSignatureInviteEmailHtml(params: {
+  invitedName: string | null;
+  roleLabel: string | null;
+  eventName: string;
+  eventDate: string;
+  venue: string;
+  projectName: string | null;
+  senderName: string | null;
+  signUrl: string;
+  expiresAt: string;
+}): string {
+  const { invitedName, roleLabel, eventName, eventDate, venue, projectName, senderName, signUrl, expiresAt } = params;
+  const greeting = invitedName
+    ? `<p style="font-size: 16px; color: #14162B; margin-bottom: 4px;">Hola ${invitedName.split(" ")[0]},</p>`
+    : "";
+
+  return `
+    <div style="font-family: -apple-system, Inter, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
+      <img src="https://artistpro.app/logo-black.png" alt="Artist Pro" style="width: 120px; height: auto; margin-bottom: 20px;" />
+      ${greeting}
+      <p style="font-size: 15px; color: #14162B; line-height: 1.5;">
+        ${senderName ? `<strong>${senderName}</strong> te pide` : "Te pedimos"} que revises y firmes tu conformidad
+        con el cierre de caja de:
+      </p>
+      <p style="font-size: 14px; color: #14162B; line-height: 1.6; background:#F4F4F8; border-radius:12px; padding:14px 16px; margin: 16px 0;">
+        <strong>${eventName}</strong>${projectName ? ` — ${projectName}` : ""}<br/>
+        <span style="color:#14162B99;">${formatDateForEmail(eventDate)} · ${venue}</span>
+        ${roleLabel ? `<br/><span style="color:#14162B99;">Firmas como: ${roleLabel}</span>` : ""}
+      </p>
+      <a href="${signUrl}" target="_blank" rel="noopener noreferrer"
+        style="display: inline-block; margin-top: 4px; padding: 12px 24px; background: #4338CA; color: white; text-decoration: none; border-radius: 100px; font-size: 14px; font-weight: 600;">
+        Revisar y firmar
+      </a>
+      <p style="font-size: 13px; color: #14162B99; line-height: 1.6; margin-top: 20px;">
+        No necesitas crear una cuenta. Para firmar te vamos a mandar un código de 6 dígitos a este mismo correo.
+      </p>
+      <p style="font-size: 12px; color: #14162B66; margin-top: 20px;">
+        Este link es personal y vence el ${formatDateForEmail(expiresAt.slice(0, 10))}. No lo reenvíes.
       </p>
     </div>
   `;

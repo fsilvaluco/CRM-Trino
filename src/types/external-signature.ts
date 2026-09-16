@@ -3,7 +3,7 @@
 // es server-only (crypto, pdf-lib) y estos los usan también los componentes
 // del cliente. Ver scripts/migrations/099_event_external_signers.sql.
 
-export type ExternalSignerStatus = "pendiente" | "firmado" | "vencido" | "revocado";
+export type ExternalSignerStatus = "pendiente" | "firmado" | "invalidado" | "vencido" | "revocado";
 
 export interface ClosingDocumentView {
   eventId: string;
@@ -19,7 +19,7 @@ export interface ClosingDocumentView {
   ingresos: number;
   utilidad: number;
   ticketTiers: { label: string; unitPrice: number; quantitySold: number }[];
-  costItems: { label: string; responsable: string | null; amount: number }[];
+  costItems: { label: string; responsable: string | null; amount: number; comprobanteUrl: string | null }[];
   profitSplitProjectPct: number | null;
   profitSplitTrinoPct: number | null;
   /** Nombres ya resueltos de cada lado del reparto (migración 100). */
@@ -41,11 +41,19 @@ export interface ExternalSignatureView {
   /** null cuando el link está vencido o anulado. */
   document: ClosingDocumentView | null;
   documentHash: string | null;
+  invalidatedAt: string | null;
   otp: {
     sentToMasked: string | null;
     sentAt: string;
     expiresAt: string;
     attemptsLeft: number;
+  } | null;
+  /** Quiénes más están firmando este mismo cierre -- el equipo y las otras
+   * contrapartes. Se le muestra al firmante externo a propósito: le da peso
+   * al documento saber que no es el único. */
+  approval: {
+    requiredSigners: { name: string; email: string | null; signedAt: string | null }[];
+    externalSigners: { id: string; name: string; roleLabel: string | null; signedAt: string | null; isMe: boolean }[];
   } | null;
   signature: {
     name: string;
@@ -70,6 +78,10 @@ export interface ExternalSigner {
   createdAt: string;
   expiresAt: string;
   revokedAt: string | null;
+  /** Firmó, pero después se reabrió el cierre: la firma se conserva con
+   * toda su evidencia y deja de contar (migración 103). */
+  invalidatedAt: string | null;
+  invalidatedReason: string | null;
   firstViewedAt: string | null;
   signedAt: string | null;
   signerName: string | null;
@@ -79,6 +91,9 @@ export interface ExternalSigner {
   otpVerifiedAt: string | null;
   ipAddress: string | null;
   documentHash: string | null;
-  /** Solo viene en la respuesta del POST que lo crea -- después nunca más. */
+  /** Si el token quedó guardado cifrado (migración 104) se puede volver a
+   * copiar el link. Los emitidos antes, no. */
+  canCopyLink: boolean;
+  /** Solo viene en la respuesta del POST que lo crea. */
   url?: string;
 }

@@ -31,7 +31,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { data: signer } = await admin
     .from("event_external_signers")
-    .select("id, show_id, invited_email, invited_name, expires_at, revoked_at, signed_at, otp_sent_at")
+    .select("id, show_id, invited_email, invited_name, expires_at, revoked_at, invalidated_at, signed_at, otp_sent_at")
     .eq("token_hash", tokenHash)
     .maybeSingle();
 
@@ -40,6 +40,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const status = externalSignerStatus(signer);
+  if (status === "invalidado") {
+    return NextResponse.json({ error: "Este documento cambió después de tu firma -- el equipo tiene que mandarte un link nuevo" }, { status: 410 });
+  }
   if (status === "firmado") return NextResponse.json({ error: "Este documento ya está firmado" }, { status: 409 });
   if (status === "revocado") return NextResponse.json({ error: "Este link fue anulado" }, { status: 410 });
   if (status === "vencido") return NextResponse.json({ error: "Este link venció. Pide uno nuevo." }, { status: 410 });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
+import { sendClosingActa } from "@/lib/closing-acta";
 import { getClientIp } from "@/lib/client-ip";
 import { dbErrorResponse } from "@/lib/api-errors";
 import { sendPushToUsers } from "@/lib/push";
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { data: signer } = await admin
     .from("event_external_signers")
     .select(
-      "id, show_id, role_label, created_at, first_viewed_at, expires_at, revoked_at, signed_at, signer_name, signer_rut, signer_email, signer_phone, otp_hash, otp_sent_to, otp_expires_at, otp_attempts, created_by"
+      "id, show_id, role_label, created_at, first_viewed_at, expires_at, revoked_at, invalidated_at, signed_at, signer_name, signer_rut, signer_email, signer_phone, otp_hash, otp_sent_to, otp_expires_at, otp_attempts, created_by"
     )
     .eq("token_hash", tokenHash)
     .maybeSingle();
@@ -44,6 +45,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const status = externalSignerStatus(signer);
+  if (status === "invalidado") {
+    return NextResponse.json({ error: "Este documento cambió después de tu firma -- el equipo tiene que mandarte un link nuevo" }, { status: 410 });
+  }
   if (status === "firmado") return NextResponse.json({ error: "Este documento ya está firmado" }, { status: 409 });
   if (status === "revocado") return NextResponse.json({ error: "Este link fue anulado" }, { status: 410 });
   if (status === "vencido") return NextResponse.json({ error: "Este link venció. Pide uno nuevo." }, { status: 410 });
@@ -115,6 +119,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!updated || updated.length === 0) {
     return NextResponse.json({ error: "Este documento ya está firmado" }, { status: 409 });
   }
+
+  // El acta de todas las firmas, si esta fue la última que faltaba.
+  void sendClosingActa({ admin, showId: signer.show_id }).then((r) => {
+    if (!r.sent && r.reason && r.reason !== "faltan-firmas" && r.reason !== "ya-enviada") {
+      console.warn("[acta-cierre] no se envió tras firma externa:", r.reason);
+    }
+  });
 
   void sendReceipts({
     admin,

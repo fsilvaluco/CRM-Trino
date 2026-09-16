@@ -24,12 +24,13 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Pencil, MapPin, Clock, Music4, Wallet, FileText, Link as LinkIcon,
   Plus, Trash2, Star, ExternalLink, Loader2, Lock, LockOpen, Printer, Receipt,
-  Ticket, Upload, Paperclip, Share2, Users, RefreshCw, BellRing, Banknote, CheckCircle2, Circle, Mail, Sparkles,
+  Ticket, Upload, Paperclip, Share2, Users, RefreshCw, BellRing, Banknote, Mail, Sparkles,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import type { LiveShow, ShowStatus, SetlistItem, CostItem, TimingItem, TicketTier, EventContact } from "@/types/shows";
 import { ExternalSignersCard } from "@/components/events/ExternalSignersCard";
+import { ApprovalCard, type ApprovalData } from "@/components/events/ApprovalCard";
 import { EventPrintHeader } from "@/components/events/EventPrintHeader";
 import { EventPrintFooter } from "@/components/events/EventPrintFooter";
 import { compressImage } from "@/lib/image-compress";
@@ -108,22 +109,7 @@ interface CostSubmission {
   submitterName: string | null;
 }
 
-interface Signer {
-  userId: string;
-  fullName: string | null;
-  email: string | null;
-}
-
-interface Signature extends Signer {
-  signedAt: string;
-  ipAddress: string | null;
-}
-
-interface SignatureData {
-  requiredSigners: Signer[];
-  signatures: Signature[];
-  allSigned: boolean;
-}
+type SignatureData = ApprovalData;
 
 export default function EventDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -260,6 +246,9 @@ export default function EventDetailPage() {
     costs: false,
     details: false,
   });
+  // OJO: cada `saveX()` tiene que bajar su bandera (estado Y ref) apenas
+  // guarda, ANTES de llamar a load() -- si no, el refetch se salta esa
+  // sección para siempre (ver el comentario en saveCosts()).
   useEffect(() => {
     dirtyRef.current = {
       setlist: setlistDirty,
@@ -278,6 +267,16 @@ export default function EventDetailPage() {
   // quedaría pegado al valor de cuando se creó el callback (null la
   // primera vez, para siempre).
   const hasLoadedRef = useRef(false);
+
+  // Se carga siempre, no solo con la caja cerrada: elegir quiénes tienen
+  // que firmar (migración 101) se puede hacer antes de cerrar, y de hecho
+  // es lo natural -- se deja listo y después se cierra.
+  const loadSignatures = useCallback(() => {
+    fetch(`/api/eventos/${id}/signatures`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((sig: SignatureData | null) => setSignatureData(sig))
+      .catch(() => setSignatureData(null));
+  }, [id]);
 
   const load = useCallback(() => {
     // Solo se muestra el skeleton de carga en la carga inicial -- un
@@ -362,25 +361,11 @@ export default function EventDetailPage() {
           setDetailsDirty(false);
         }
 
-        if (data.costSheetClosedAt) {
-          fetch(`/api/eventos/${id}/signatures`)
-            .then((r) => (r.ok ? r.json() : null))
-            .then((sig) => {
-              if (!sig) return;
-              setSignatureData({
-                requiredSigners: sig.requiredSigners,
-                signatures: sig.signatures,
-                allSigned: sig.allSigned,
-              });
-            })
-            .catch(() => setSignatureData(null));
-        } else {
-          setSignatureData(null);
-        }
+        loadSignatures();
       })
       .catch(() => setEvent(null))
       .finally(() => setLoading(false));
-  }, [id, activeProjectId]);
+  }, [id, activeProjectId, loadSignatures]);
 
   const loadCostSubmissions = useCallback(() => {
     fetch(`/api/eventos/${id}/cost-submissions`)
@@ -444,6 +429,8 @@ export default function EventDetailPage() {
       });
       if (!res.ok) throw new Error();
       toast.success("Setlist guardado");
+      setSetlistDirty(false);
+      dirtyRef.current.setlist = false;
       load();
     } catch {
       toast.error("No se pudo guardar el setlist");
@@ -651,6 +638,8 @@ export default function EventDetailPage() {
       });
       if (!res.ok) throw new Error();
       toast.success("Contactos guardados");
+      setContactsDirty(false);
+      dirtyRef.current.contacts = false;
       load();
     } catch {
       toast.error("No se pudieron guardar los contactos");
@@ -678,6 +667,8 @@ export default function EventDetailPage() {
       });
       if (!res.ok) throw new Error();
       toast.success("Timing guardado");
+      setTimingDirty(false);
+      dirtyRef.current.timing = false;
       load();
     } catch {
       toast.error("No se pudo guardar el timing");
@@ -714,6 +705,10 @@ export default function EventDetailPage() {
       if (!res.ok) throw new Error();
       setTicketsUpdatedAt(new Date().toISOString());
       toast.success("Entradas guardadas");
+      // Mismo caso que saveCosts() -- sin esto el refetch no repuebla los
+      // tramos y la sección queda marcada como sucia para siempre.
+      setTicketsDirty(false);
+      dirtyRef.current.tickets = false;
       load();
     } catch {
       toast.error("No se pudieron guardar las entradas");
@@ -925,6 +920,15 @@ export default function EventDetailPage() {
       ]);
       if (!itemsRes.ok || !noteRes.ok) throw new Error();
       toast.success("Costos guardados");
+      // Bajar la bandera ANTES del refetch: `load()` no repuebla ni resetea
+      // una sección con cambios sin guardar (para no pisar lo que la
+      // persona está escribiendo), así que sin esto `costsDirty` quedaba
+      // pegado en true y "Cerrar caja" seguía diciendo "guarda los costos
+      // primero" hasta refrescar la página. El ref se toca a mano porque
+      // el useEffect que lo sincroniza corre después del render, y `load()`
+      // sale en este mismo tick.
+      setCostsDirty(false);
+      dirtyRef.current.costs = false;
       load();
     } catch {
       toast.error("No se pudieron guardar los costos");
@@ -1130,16 +1134,23 @@ export default function EventDetailPage() {
   // No es de un solo uso: se puede volver a apretar para reenviar.
   async function informClosing() {
     const already = Boolean(event?.costSheetInformedAt);
-    if (!confirm(already ? "¿Reenviar el resumen del cierre a todos los que firmaron?" : "¿Informar el cierre? Se les manda por correo el resumen completo a todos los que firmaron.")) return;
+    if (
+      !confirm(
+        already
+          ? "¿Reenviar el acta del cierre a todos los que firmaron?"
+          : "¿Mandar el acta del cierre? Va por correo a todos los que firmaron, con el resumen y el PDF de todas las firmas. Normalmente sale sola cuando termina de firmar todo el mundo -- esto sirve para adelantarla o reenviarla."
+      )
+    )
+      return;
     setInformingClosing(true);
     try {
       const res = await fetch(`/api/eventos/${id}/costs/inform`, { method: "POST" });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "No se pudo informar el cierre");
-      toast.success(`Cierre informado a ${data.sentTo?.length ?? 0} persona(s)`);
+      if (!res.ok) throw new Error(data.error || "No se pudo enviar el acta");
+      toast.success(`Acta enviada a ${data.sentTo?.length ?? 0} persona(s)`);
       load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "No se pudo informar el cierre");
+      toast.error(err instanceof Error ? err.message : "No se pudo enviar el acta");
     } finally {
       setInformingClosing(false);
     }
@@ -1399,7 +1410,7 @@ export default function EventDetailPage() {
       {event.canViewCosts !== false && (
         <div className="grid grid-cols-4 gap-3" data-section="summary">
           <Card><CardContent className="p-3 print:p-1.5"><p className="text-xs print:text-[9px] text-muted-foreground">Fee</p><p className="font-semibold print:text-xs print:whitespace-nowrap">{formatCents(event.fee)}</p></CardContent></Card>
-          <Card><CardContent className="p-3 print:p-1.5"><p className="text-xs print:text-[9px] text-muted-foreground">Ingresos</p><p className="font-semibold print:text-xs print:whitespace-nowrap">{formatCents(event.ticketIncome)}</p></CardContent></Card>
+          <Card><CardContent className="p-3 print:p-1.5"><p className="text-xs print:text-[9px] text-muted-foreground">Entradas</p><p className="font-semibold print:text-xs print:whitespace-nowrap">{formatCents(event.ticketIncome)}</p></CardContent></Card>
           <Card><CardContent className="p-3 print:p-1.5"><p className="text-xs print:text-[9px] text-muted-foreground">Egresos</p><p className="font-semibold print:text-xs print:whitespace-nowrap">{formatCents(event.expenses)}</p></CardContent></Card>
           <Card>
             <CardContent className="p-3 print:p-1.5">
@@ -2296,7 +2307,10 @@ export default function EventDetailPage() {
                 Cerrada
               </Badge>
             )}
-            {signatureData && (
+            {/* Solo con la caja cerrada: antes de eso no hay nada que
+                aprobar todavía (los firmantes ya se pueden elegir, pero
+                un "0/3 pendiente" ahí arriba sería engañoso). */}
+            {signatureData?.costSheetClosed && (
               <Badge
                 variant="secondary"
                 className={`text-xs ml-1 ${signatureData.allSigned ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}
@@ -2390,10 +2404,10 @@ export default function EventDetailPage() {
                     className="h-7 text-xs cursor-pointer"
                     disabled={informingClosing}
                     onClick={informClosing}
-                    title={event.costSheetInformedAt ? `Informado el ${format(new Date(event.costSheetInformedAt), "d MMM yyyy, HH:mm", { locale: es })} -- click para reenviar` : "Mandar el resumen del cierre por correo a todos los que firmaron"}
+                    title={event.costSheetInformedAt ? `Acta enviada el ${format(new Date(event.costSheetInformedAt), "d MMM yyyy, HH:mm", { locale: es })} -- click para reenviarla` : "Mandar el acta (resumen + PDF con todas las firmas) a todos los que firmaron. Sale sola cuando firman todos."}
                   >
                     {informingClosing ? <Loader2 className="h-3.5 w-3.5 animate-spin sm:mr-1" /> : <Mail className="h-3.5 w-3.5 sm:mr-1" />}
-                    <span className="hidden sm:inline">{event.costSheetInformedAt ? "Reenviar informe" : "Informar cierre"}</span>
+                    <span className="hidden sm:inline">{event.costSheetInformedAt ? "Reenviar acta" : "Mandar acta"}</span>
                   </Button>
                 )}
                 <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" disabled={closingCosts} onClick={reopenCostSheet} title="Reabrir">
@@ -3010,67 +3024,10 @@ export default function EventDetailPage() {
       )}
 
       {/* Aprobación del cierre de caja -- fuera de la Card de Costos a
-          propósito: quien firma (Admin/Artista) tiene que poder ver quién
-          falta aunque su rol no lo deje ver los montos de la Planilla. Sin
-          plata acá, solo nombres/checks -- igual que /eventos/[id]/firmar. */}
+          propósito: quien firma tiene que poder ver quién falta aunque su
+          rol no lo deje ver los montos de la Planilla. */}
       {signatureData && (
-        <Card data-section="approval" className="no-print">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Lock className="h-4 w-4" />
-              Aprobación
-              <Badge
-                variant="secondary"
-                className={`text-xs ${signatureData.allSigned ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}
-              >
-                {signatureData.allSigned
-                  ? "Aprobado por todos"
-                  : `${signatureData.requiredSigners.filter((r) => signatureData.signatures.some((s) => s.userId === r.userId)).length}/${signatureData.requiredSigners.length} firmaron`}
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1.5">
-            {signatureData.requiredSigners.map((r) => {
-              const signature = signatureData.signatures.find((s) => s.userId === r.userId);
-              return (
-                <div key={r.userId} className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1.5">
-                    {signature ? (
-                      <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
-                    ) : (
-                      <Circle className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    )}
-                    <span>{r.fullName || r.email || "Usuario"}</span>
-                  </div>
-                  {signature && (
-                    <span className="text-muted-foreground text-right">
-                      {format(new Date(signature.signedAt), "d MMM yyyy, HH:mm", { locale: es })}
-                      {signature.ipAddress && <span className="block text-[10px] opacity-70">IP {signature.ipAddress}</span>}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-            {/* Firmantes "voluntarios" -- alguien (típicamente un admin de la
-                organización) que firmó sin ser de los requeridos para ESTE
-                proyecto. Igual quedó su aprobación registrada, así que se
-                muestra igual, solo que no cuenta para el "X/Y firmaron". */}
-            {signatureData.signatures
-              .filter((s) => !signatureData.requiredSigners.some((r) => r.userId === s.userId))
-              .map((s) => (
-                <div key={s.userId} className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
-                    <span>{s.fullName || s.email || "Usuario"}</span>
-                  </div>
-                  <span className="text-muted-foreground text-right">
-                    {format(new Date(s.signedAt), "d MMM yyyy, HH:mm", { locale: es })}
-                    {s.ipAddress && <span className="block text-[10px] opacity-70">IP {s.ipAddress}</span>}
-                  </span>
-                </div>
-              ))}
-          </CardContent>
-        </Card>
+        <ApprovalCard showId={id} data={signatureData} onReload={loadSignatures} />
       )}
 
       {/* Firma del cliente externo -- alguien que no tiene (ni va a tener)
