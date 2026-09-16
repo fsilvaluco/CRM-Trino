@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/supabase-server";
 import { getProjectPermissions, canEditEventCosts } from "@/lib/project-roles";
 import { dbErrorResponse } from "@/lib/api-errors";
 import { generateLinkToken } from "@/lib/external-signature";
+import { encryptLinkToken } from "@/lib/link-token-crypto";
 import { sendEmail, isResendEnabled, buildExternalSignatureInviteEmailHtml } from "@/lib/resend";
 
 function siteUrl(path: string): string {
@@ -81,6 +82,7 @@ export async function POST(
       invited_name: old.invited_name,
       invited_email: old.invited_email,
       token_hash: tokenHash,
+      token_encrypted: encryptLinkToken(token),
       expires_at: expiresAt,
       created_by: user!.id,
     })

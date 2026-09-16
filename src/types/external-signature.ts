@@ -91,6 +91,9 @@ export interface ExternalSigner {
   otpVerifiedAt: string | null;
   ipAddress: string | null;
   documentHash: string | null;
-  /** Solo viene en la respuesta del POST que lo crea -- después nunca más. */
+  /** Si el token quedó guardado cifrado (migración 104) se puede volver a
+   * copiar el link. Los emitidos antes, no. */
+  canCopyLink: boolean;
+  /** Solo viene en la respuesta del POST que lo crea. */
   url?: string;
 }

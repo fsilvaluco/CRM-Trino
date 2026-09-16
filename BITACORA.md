@@ -10,6 +10,34 @@ _Checkpoint anterior: v1.11 — 14 de septiembre de 2026 (Meta Conversions API e
 
 ---
 
+## 🔑 Botón "Copiar link" — token cifrado en vez de solo hasheado (16 sep 2026)
+
+**Pedido:** un botón para copiar el link, al lado de Reenviar y Anular.
+
+**El problema:** no se podía. Desde la migración 099 en la base vivía **solo el SHA-256** del token:
+perfecto para validar un link, imposible para volver a mostrarlo. La primera implementación emitía uno
+nuevo al copiar (matando el anterior) y Francisco la rechazó con razón — un botón de copiar no puede
+invalidar el link que el cliente ya tiene.
+
+**Lo que se hizo (migración 104):** además del hash se guarda el token **cifrado con AES-256-GCM**. La
+llave vive en `LINK_TOKEN_SECRET` (variable de entorno de Railway), **no** en la base: quien se robe un
+dump se lleva ciphertext inservible. El hash sigue siendo lo que valida cada request; el ciphertext es
+solo para mostrarle el link de vuelta a quien ya puede administrar el cierre.
+
+- `src/lib/link-token-crypto.ts`: formato `v1.<iv>.<tag>.<ciphertext>` en base64url, IV aleatorio por
+  cifrado. `decryptLinkToken` nunca tira: devuelve null si el formato no calza o si el GCM no valida
+  (típicamente porque se cambió el secreto), y quien llama muestra "emite uno nuevo".
+- **`GET /api/eventos/[id]/external-signers/[signerId]/link`**: pide el **mismo** permiso que emitir el
+  link, no menos — quien puede copiarlo puede, en la práctica, firmar haciéndose pasar por el cliente.
+  Solo para links en pie: uno firmado ya se gastó, y uno vencido/anulado/invalidado no sirve.
+- Sin la variable configurada no se cifra nada, `canCopyLink` viene en false y el botón no aparece —
+  todo lo demás sigue igual. Lo mismo para los links emitidos antes de esta migración.
+
+**Requiere configurar `LINK_TOKEN_SECRET` en Railway** (`openssl rand -base64 48`). Si se cambia, los
+links ya emitidos siguen sirviendo para firmar pero dejan de poder copiarse.
+
+---
+
 ## ♻️ Reabrir la caja también tumba la firma del cliente (16 sep 2026)
 
 **Hallazgo de Francisco probando el flujo:** al reabrir el cierre se borran las firmas internas, pero
