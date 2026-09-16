@@ -1134,16 +1134,23 @@ export default function EventDetailPage() {
   // No es de un solo uso: se puede volver a apretar para reenviar.
   async function informClosing() {
     const already = Boolean(event?.costSheetInformedAt);
-    if (!confirm(already ? "¿Reenviar el resumen del cierre a todos los que firmaron?" : "¿Informar el cierre? Se les manda por correo el resumen completo a todos los que firmaron.")) return;
+    if (
+      !confirm(
+        already
+          ? "¿Reenviar el acta del cierre a todos los que firmaron?"
+          : "¿Mandar el acta del cierre? Va por correo a todos los que firmaron, con el resumen y el PDF de todas las firmas. Normalmente sale sola cuando termina de firmar todo el mundo -- esto sirve para adelantarla o reenviarla."
+      )
+    )
+      return;
     setInformingClosing(true);
     try {
       const res = await fetch(`/api/eventos/${id}/costs/inform`, { method: "POST" });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "No se pudo informar el cierre");
-      toast.success(`Cierre informado a ${data.sentTo?.length ?? 0} persona(s)`);
+      if (!res.ok) throw new Error(data.error || "No se pudo enviar el acta");
+      toast.success(`Acta enviada a ${data.sentTo?.length ?? 0} persona(s)`);
       load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "No se pudo informar el cierre");
+      toast.error(err instanceof Error ? err.message : "No se pudo enviar el acta");
     } finally {
       setInformingClosing(false);
     }
@@ -2397,10 +2404,10 @@ export default function EventDetailPage() {
                     className="h-7 text-xs cursor-pointer"
                     disabled={informingClosing}
                     onClick={informClosing}
-                    title={event.costSheetInformedAt ? `Informado el ${format(new Date(event.costSheetInformedAt), "d MMM yyyy, HH:mm", { locale: es })} -- click para reenviar` : "Mandar el resumen del cierre por correo a todos los que firmaron"}
+                    title={event.costSheetInformedAt ? `Acta enviada el ${format(new Date(event.costSheetInformedAt), "d MMM yyyy, HH:mm", { locale: es })} -- click para reenviarla` : "Mandar el acta (resumen + PDF con todas las firmas) a todos los que firmaron. Sale sola cuando firman todos."}
                   >
                     {informingClosing ? <Loader2 className="h-3.5 w-3.5 animate-spin sm:mr-1" /> : <Mail className="h-3.5 w-3.5 sm:mr-1" />}
-                    <span className="hidden sm:inline">{event.costSheetInformedAt ? "Reenviar informe" : "Informar cierre"}</span>
+                    <span className="hidden sm:inline">{event.costSheetInformedAt ? "Reenviar acta" : "Mandar acta"}</span>
                   </Button>
                 )}
                 <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" disabled={closingCosts} onClick={reopenCostSheet} title="Reabrir">

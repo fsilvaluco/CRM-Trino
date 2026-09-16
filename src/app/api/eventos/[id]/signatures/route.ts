@@ -6,6 +6,7 @@ import { getProjectPermissions, canEditEventCosts, canViewEventCosts } from "@/l
 import { dbErrorResponse } from "@/lib/api-errors";
 import { getClientIp } from "@/lib/client-ip";
 import { createAdminClient } from "@/lib/supabase-admin";
+import { sendClosingActa } from "@/lib/closing-acta";
 import {
   approvalExternalSigners,
   otpMatches,
@@ -270,6 +271,15 @@ export async function POST(
       .update({ rut: otp.signer_rut, phone: otp.signer_phone })
       .eq("id", user!.id);
   }
+
+  // Si esta firma completó a todo el mundo (equipo + contrapartes), sale el
+  // acta con TODAS las firmas. Fire-and-forget: si todavía falta alguien no
+  // hace nada, y si el correo falla la firma ya quedó registrada igual.
+  void sendClosingActa({ admin, showId: id }).then((r) => {
+    if (!r.sent && r.reason && r.reason !== "faltan-firmas" && r.reason !== "ya-enviada") {
+      console.warn("[acta-cierre] no se envió tras firma interna:", r.reason);
+    }
+  });
 
   // Fire-and-forget: avisar al resto del proyecto. Si esta firma completó
   // a todos los requeridos, un mensaje distinto (más de cierre).

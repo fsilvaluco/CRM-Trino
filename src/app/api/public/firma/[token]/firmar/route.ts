@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
+import { sendClosingActa } from "@/lib/closing-acta";
 import { getClientIp } from "@/lib/client-ip";
 import { dbErrorResponse } from "@/lib/api-errors";
 import { sendPushToUsers } from "@/lib/push";
@@ -118,6 +119,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!updated || updated.length === 0) {
     return NextResponse.json({ error: "Este documento ya está firmado" }, { status: 409 });
   }
+
+  // El acta de todas las firmas, si esta fue la última que faltaba.
+  void sendClosingActa({ admin, showId: signer.show_id }).then((r) => {
+    if (!r.sent && r.reason && r.reason !== "faltan-firmas" && r.reason !== "ya-enviada") {
+      console.warn("[acta-cierre] no se envió tras firma externa:", r.reason);
+    }
+  });
 
   void sendReceipts({
     admin,
