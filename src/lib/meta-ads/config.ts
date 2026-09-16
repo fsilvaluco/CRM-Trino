@@ -14,6 +14,12 @@ export const META_SYSTEM_TOKEN = process.env.META_SYSTEM_TOKEN || "";
  *  y los spotify_clicks (qr_scans por utm_content = ad_name). */
 export const SPOTIFY_QR_SLUG = process.env.BOT_SPOTIFY_QR_SLUG || "lur-dopamina";
 
+/** El bot SOLO mira campañas cuyo nombre empiece con uno de estos prefijos.
+ *  Blindaje: aunque la cuenta tenga otras campañas, el bot no las toca. */
+export const CAMPAIGN_PREFIXES = (
+  process.env.BOT_CAMPAIGN_PREFIXES || "LUR_DOPA_TEST_TRAF,LUR_DOPA_ESCALA_TRAF"
+).split(",").map((s) => s.trim()).filter(Boolean);
+
 /** Interruptores. Arranca DESACTIVADO para escribir y en DRY-RUN por defecto:
  *  evalúa y registra/notifica, pero NO toca Meta hasta que se diga explícito. */
 export const BOT_ENABLED = process.env.BOT_ENABLED === "true";
