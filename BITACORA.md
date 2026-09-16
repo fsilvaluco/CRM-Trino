@@ -10,6 +10,49 @@ _Checkpoint anterior: v1.11 — 14 de septiembre de 2026 (Meta Conversions API e
 
 ---
 
+## 🤖 Bot de Meta Ads — optimización automática de CP_LUR (16 sep 2026)
+
+**Pedido:** bot que baje insights de la campaña de ads (cuenta `act_1734662137756560` = CP_LUR,
+CLP) cada 6h, guarde métricas, evalúe reglas con guardrails duros y actúe (pausar / mover
+presupuesto), avisando por Telegram — arrancando en dry-run.
+
+**Validación previa (con `META_SYSTEM_TOKEN`):** `GET act_1734662137756560` → `CP_LUR` / status 1 /
+CLP ✓. La cuenta está **vacía** (sin campañas/adsets/ads aún) → el bot queda dormido hasta que se
+lance la campaña. El pipe de UTMs ya funciona (hay un scan real con `utm_content=V00_test`).
+
+**Contrato con quien arma la campaña (para no pisarse):** (1) los anuncios pasan
+`utm_content={{ad.name}}` en la URL — es el enganche Meta↔Artist Pro; (2) la campaña debe ser **ABO**
+(presupuesto por conjunto), o las reglas de presupuesto no tienen dónde actuar.
+
+**Implementación:**
+- Migración `101_meta_ads_bot.sql`: `ad_metrics_daily` (upsert por `ad_id,date`), `ad_actions_log`
+  (auditoría de TODA decisión, incl. dry-run y alertas), `ad_rule_state` (racha CPC para "2 lecturas
+  seguidas"), y función `bot_spotify_clicks(qr_id, since)` que cruza `qr_scans` por
+  `utm_content=ad_name` y día en zona Santiago (solo scans que llegaron a Spotify).
+- `src/lib/meta-ads/`: `config` (umbrales = guardrails exactos), `meta-client` (insights + pausar +
+  presupuesto, token nunca logueado), `spotify-clicks`, `rules` (motor puro), `bot` (orquestador),
+  `summary`, `telegram` (no-op si faltan vars).
+- Crons: `/api/cron/meta-ads-bot` (cada 6h) y `/api/cron/meta-ads-summary` (1x/día, 12:00 UTC ≈ 9:00
+  Santiago). Protegidos con `CRON_SECRET`.
+- Env: `BOT_ENABLED` (default false), `BOT_DRY_RUN` (default true), `BOT_DAILY_BUDGET_CAP_CLP`
+  (sin esto, subir presupuesto queda inactivo), `META_AD_ACCOUNT_ID`, `BOT_SPOTIFY_QR_SLUG`,
+  `TELEGRAM_BOT_TOKEN/CHAT_ID`. Documentadas en `.env.example`. `project_id` se DERIVA del slug.
+
+**Diseño de presupuesto neto-cero:** escalar al ganador = mover X del perdedor al ganador (total
+constante), clamp +20%/día del ganador, sin dejar al perdedor en 0, y si hay cap, no superarlo.
+
+**Guardrails (exactos):** piso 1.500 impresiones; máx. 1 acción/anuncio cada 24h; pausar si CPC >
+2× mediana en 2 lecturas seguidas; pausar si hook rate <20% y CPC>mediana; escalar 20%/día si
+costo/SpotifyClick del ganador <70% del otro por 3 días; nunca subir >20%/día ni pasar el plan;
+alertar si frecuencia >3 o SpotifyClick/clic <40%.
+
+**Pendiente para activar:** setear `META_SYSTEM_TOKEN` (ya en Railway), `CRON_SECRET` (ya existe),
+crear los 2 Railway Cron apuntando a los endpoints, definir `BOT_DAILY_BUDGET_CAP_CLP`, crear el bot
+de Telegram, lanzar la campaña (ABO + ads con `utm_content={{ad.name}}`). Revisar `ad_actions_log`
+en dry-run antes de poner `BOT_DRY_RUN=false`. Verificado `tsc`/`eslint`/`build`.
+
+---
+
 ## ✍️ Firma externa del cierre de caja — cliente sin cuenta en la app (15 sep 2026)
 
 **Pedido:** hay eventos que Trino produjo para un cliente que **no es un proyecto de la cartera**
