@@ -25,14 +25,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const { data: signer } = await admin
     .from("event_external_signers")
-    .select("show_id, signed_at, revoked_at, expires_at")
+    .select("show_id, signed_at, revoked_at, invalidated_at, expires_at")
     .eq("token_hash", hashToken(token))
     .maybeSingle();
 
   if (!signer) return NextResponse.json({ error: "Link no válido" }, { status: 404 });
 
   const status = externalSignerStatus(signer);
-  if (status === "revocado" || status === "vencido") {
+  if (status === "revocado" || status === "vencido" || status === "invalidado") {
     return NextResponse.json({ error: "Este link ya no está vigente" }, { status: 410 });
   }
 

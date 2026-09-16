@@ -90,7 +90,7 @@ export async function GET(
 
   const { data: externalRows } = await supabase
     .from("event_external_signers")
-    .select("id, role_label, invited_name, signer_name, signed_at, revoked_at, expires_at, ip_address")
+    .select("id, role_label, invited_name, signer_name, signed_at, revoked_at, invalidated_at, expires_at, ip_address")
     .eq("show_id", id)
     .order("created_at");
 
@@ -118,13 +118,16 @@ export async function GET(
         invited_name: string | null;
         signer_name: string | null;
         signed_at: string | null;
+        invalidated_at: string | null;
         expires_at: string;
         ip_address: string | null;
       }) => ({
         id: r.id,
         name: r.signer_name || r.invited_name || r.role_label || "Firmante externo",
         roleLabel: r.role_label,
-        signedAt: r.signed_at,
+        // Una firma invalidada por reapertura cuenta como pendiente: su
+        // conformidad era sobre cifras que ya no son las vigentes.
+        signedAt: r.invalidated_at ? null : r.signed_at,
         ipAddress: r.ip_address,
         expired: !r.signed_at && new Date(r.expires_at).getTime() < Date.now(),
       })),

@@ -9,12 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { UserCheck, Plus, Copy, Loader2, Ban, Download, CheckCircle2, Clock, Mail } from "lucide-react";
+import { UserCheck, Plus, Copy, Loader2, Ban, Download, CheckCircle2, Clock, Mail, AlertTriangle } from "lucide-react";
 import type { ExternalSigner, ExternalSignerStatus } from "@/types/external-signature";
 
 const STATUS_STYLE: Record<ExternalSignerStatus, string> = {
   pendiente: "bg-amber-100 text-amber-700",
   firmado: "bg-green-100 text-green-700",
+  invalidado: "bg-orange-100 text-orange-700",
   vencido: "bg-slate-100 text-slate-600",
   revocado: "bg-slate-100 text-slate-600",
 };
@@ -233,6 +234,8 @@ export function ExternalSignersCard({
               <div className="flex items-center gap-1.5 min-w-0">
                 {s.status === "firmado" ? (
                   <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                ) : s.status === "invalidado" ? (
+                  <AlertTriangle className="h-3.5 w-3.5 text-orange-600 shrink-0" />
                 ) : (
                   <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                 )}
@@ -245,21 +248,46 @@ export function ExternalSignersCard({
 
             {s.roleLabel && <p className="text-muted-foreground">{s.roleLabel}</p>}
 
-            {s.status === "firmado" ? (
+            {s.signedAt ? (
               <div className="space-y-0.5 text-muted-foreground">
                 <p>RUT {s.signerRut} · {s.signerEmail} · {s.signerPhone}</p>
                 <p>Firmó el {fmt(s.signedAt)}{s.ipAddress ? ` · IP ${s.ipAddress}` : ""}</p>
                 <p>Correo verificado con código el {fmt(s.otpVerifiedAt)}</p>
                 {s.documentHash && <p className="break-all">Huella {s.documentHash.slice(0, 24)}…</p>}
+                {s.status === "invalidado" && (
+                  <p className="text-orange-600 pt-1">
+                    {s.invalidatedReason ?? "El cierre se reabrió después de esta firma"}. La firma queda de
+                    respaldo, pero ya no aprueba el cierre vigente -- hay que pedírsela de nuevo.
+                  </p>
+                )}
+                <div className="flex items-center gap-1 flex-wrap mt-2">
+                  {canCreate && s.status === "invalidado" && s.invitedEmail && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs cursor-pointer"
+                      disabled={resending !== null}
+                      onClick={() => resend(s)}
+                      title="Emitir un link nuevo para el cierre actual y mandárselo"
+                    >
+                      {resending === s.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                      ) : (
+                        <Mail className="h-3.5 w-3.5 mr-1" />
+                      )}
+                      Pedir firma de nuevo
+                    </Button>
+                  )}
                 <a
                   href={`/api/eventos/${showId}/external-signers/${s.id}/comprobante`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`${buttonVariants({ variant: "outline", size: "sm" })} mt-2 h-7 text-xs cursor-pointer`}
+                  className={`${buttonVariants({ variant: "outline", size: "sm" })} h-7 text-xs cursor-pointer`}
                 >
                   <Download className="h-3.5 w-3.5 mr-1" />
                   Comprobante PDF
                 </a>
+                </div>
               </div>
             ) : (
               <div className="space-y-1 text-muted-foreground">

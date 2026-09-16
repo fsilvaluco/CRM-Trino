@@ -25,6 +25,8 @@ function mapSigner(row: any) {
     createdAt: row.created_at,
     expiresAt: row.expires_at,
     revokedAt: row.revoked_at ?? null,
+    invalidatedAt: row.invalidated_at ?? null,
+    invalidatedReason: row.invalidated_reason ?? null,
     firstViewedAt: row.first_viewed_at ?? null,
     signedAt: row.signed_at ?? null,
     signerName: row.signer_name ?? null,
@@ -40,7 +42,7 @@ function mapSigner(row: any) {
 // Columnas que se devuelven al equipo. Nunca `token_hash` ni `otp_hash`:
 // no le sirven a la UI y no tienen por qué salir de la base.
 const SELECT_COLUMNS =
-  "id, role_label, invited_name, invited_email, created_at, expires_at, revoked_at, first_viewed_at, signed_at, signer_name, signer_rut, signer_email, signer_phone, otp_verified_at, ip_address, document_hash";
+  "id, role_label, invited_name, invited_email, created_at, expires_at, revoked_at, invalidated_at, invalidated_reason, first_viewed_at, signed_at, signer_name, signer_rut, signer_email, signer_phone, otp_verified_at, ip_address, document_hash";
 
 async function loadShowAndPermissions(id: string) {
   const { supabase, user, allowedProjectIds, error } = await requireAuth();

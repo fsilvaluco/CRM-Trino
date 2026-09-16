@@ -42,13 +42,18 @@ export function hashToken(token: string): string {
 
 /** Estado de un link de firma, derivado de la fila (no hay columna
  * `status` -- se calcula para que no pueda quedar desincronizada). */
-export type ExternalSignerStatus = "firmado" | "revocado" | "vencido" | "pendiente";
+export type ExternalSignerStatus = "firmado" | "invalidado" | "revocado" | "vencido" | "pendiente";
 
 export function externalSignerStatus(row: {
   signed_at: string | null;
   revoked_at: string | null;
   expires_at: string;
+  invalidated_at?: string | null;
 }): ExternalSignerStatus {
+  // "invalidado" gana sobre "firmado": la firma existe y su evidencia se
+  // conserva entera, pero aprobaba un cierre que se reabrio y ya no es el
+  // vigente (migracion 103). No cuenta como firma y su link no sirve mas.
+  if (row.invalidated_at) return "invalidado";
   if (row.signed_at) return "firmado";
   if (row.revoked_at) return "revocado";
   if (new Date(row.expires_at).getTime() < Date.now()) return "vencido";

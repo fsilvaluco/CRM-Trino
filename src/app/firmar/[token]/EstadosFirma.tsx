@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
-import { CheckCircle2, FileWarning, Download, Lock } from "lucide-react";
+import { CheckCircle2, FileWarning, Download, Lock, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import type { ExternalSignatureView } from "@/types/external-signature";
@@ -55,13 +55,30 @@ export function EstadoError({ title, hint }: { title: string; hint?: string }) {
   );
 }
 
-export function EstadoCerrado({ vencido }: { vencido: boolean }) {
+export function EstadoCerrado({ status }: { status: "vencido" | "revocado" | "invalidado" }) {
+  if (status === "invalidado") {
+    return (
+      <Shell>
+        <Card>
+          <CardContent className="py-10 text-center space-y-2">
+            <RotateCcw className="h-8 w-8 mx-auto text-orange-600" />
+            <p className="font-medium">El cierre cambió después de tu firma</p>
+            <p className="text-sm text-muted-foreground">
+              Tu firma anterior quedó registrada y te queda como respaldo, pero el equipo reabrió el cierre y los
+              números pueden ser otros. Te van a mandar un link nuevo para que revises y firmes la versión final.
+            </p>
+          </CardContent>
+        </Card>
+      </Shell>
+    );
+  }
+
   return (
     <Shell>
       <Card>
         <CardContent className="py-10 text-center space-y-2">
           <Lock className="h-8 w-8 mx-auto text-muted-foreground" />
-          <p className="font-medium">{vencido ? "Este link venció" : "Este link fue anulado"}</p>
+          <p className="font-medium">{status === "vencido" ? "Este link venció" : "Este link fue anulado"}</p>
           <p className="text-sm text-muted-foreground">Pídele al equipo que te mande uno nuevo.</p>
         </CardContent>
       </Card>

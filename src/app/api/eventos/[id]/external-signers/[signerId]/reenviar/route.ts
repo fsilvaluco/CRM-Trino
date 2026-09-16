@@ -44,13 +44,16 @@ export async function POST(
 
   const { data: old } = await supabase
     .from("event_external_signers")
-    .select("id, role_label, invited_name, invited_email, expires_at, signed_at, revoked_at")
+    .select("id, role_label, invited_name, invited_email, expires_at, signed_at, revoked_at, invalidated_at")
     .eq("id", signerId)
     .eq("show_id", id)
     .single();
 
   if (!old) return NextResponse.json({ error: "Link no encontrado" }, { status: 404 });
-  if (old.signed_at) {
+  // Una firma ya registrada no se reenvía... salvo que haya quedado
+  // invalidada porque se reabrió el cierre (migración 103): ahí justamente
+  // hay que volver a pedirle la conformidad, sobre los números nuevos.
+  if (old.signed_at && !old.invalidated_at) {
     return NextResponse.json({ error: "Ese link ya se firmó -- no hay nada que reenviar" }, { status: 409 });
   }
   if (!old.invited_email) {
@@ -114,8 +117,10 @@ export async function POST(
   }
 
   // Recién acá se anula el anterior: si algo falla más arriba, el cliente
-  // se queda con un link que funciona.
-  if (!old.revoked_at) {
+  // se queda con un link que funciona. Una fila ya firmada no se toca --
+  // es inmutable por diseño (trigger de la 099) y además ya no sirve para
+  // firmar: su estado "invalidado" la deja fuera igual.
+  if (!old.revoked_at && !old.signed_at) {
     await supabase
       .from("event_external_signers")
       .update({ revoked_at: new Date().toISOString() })

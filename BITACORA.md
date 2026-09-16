@@ -10,6 +10,32 @@ _Checkpoint anterior: v1.11 — 14 de septiembre de 2026 (Meta Conversions API e
 
 ---
 
+## ♻️ Reabrir la caja también tumba la firma del cliente (16 sep 2026)
+
+**Hallazgo de Francisco probando el flujo:** al reabrir el cierre se borran las firmas internas, pero
+la firma externa quedaba viva — aprobando cifras que ya no son las vigentes. Si algo cambia, el
+cliente también tiene que firmar de nuevo.
+
+**Lo que se hizo (migración 103):** la firma externa **no se borra**, a diferencia de las internas: es
+el respaldo frente a un tercero y ya se le mandó su comprobante en PDF. Se marca
+`invalidated_at`/`invalidated_reason`, conservando entera su evidencia (datos del firmante, IP, hash
+y snapshot del documento que sí firmó). Deja de contar como firma vigente, su link deja de servir, y
+para el cierre nuevo hay que emitirle uno nuevo.
+
+- Estado nuevo `"invalidado"` en `externalSignerStatus`, que gana sobre `"firmado"`.
+- El trigger de la 099 se aflojó lo justo: una fila firmada sigue siendo inmutable salvo
+  `receipt_sent_at` y ahora los dos campos de invalidación. Y una vez invalidada no se des-invalida.
+- En los recuadros de Aprobación (las dos pantallas) una firma invalidada cuenta como **pendiente**.
+- La tarjeta del evento la muestra en ámbar con el motivo y un botón **"Pedir firma de nuevo"**, que
+  emite un link nuevo y se lo manda. `reenviar` acepta ahora una fila firmada solo si está
+  invalidada, y no intenta revocarla (es inmutable).
+- Si el cliente abre el link viejo ve una pantalla que le explica que el cierre cambió después de su
+  firma y que le va a llegar uno nuevo.
+- Los comprobantes de costo dejan de abrirse desde un link invalidado; el PDF de su propia firma
+  sigue disponible, que es su respaldo.
+
+---
+
 ## 🔐 Las dos pantallas de firma quedan iguales, y la interna con código (15 sep 2026)
 
 **Pedido de Francisco, después de probar el flujo externo:** que la firma del equipo tenga el mismo
