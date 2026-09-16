@@ -29,7 +29,7 @@ export async function GET(
   const { data: show } = await supabase
     .from("shows")
     .select(
-      "name, date, venue, city, project_id, cost_sheet_closed_at, fee, ticket_income, expenses, financials_untracked, projects ( name )"
+      "name, date, venue, city, project_id, cost_sheet_closed_at, fee, ticket_income, expenses, financials_untracked, profit_split_project_pct, profit_split_trino_pct, profit_split_project_label, profit_split_trino_label, profit_split_note, projects ( name )"
     )
     .eq("id", id)
     .single();
@@ -96,6 +96,11 @@ export async function GET(
       ticketIncome: show.ticket_income ?? null,
       expenses: show.expenses ?? null,
       financialsUntracked: show.financials_untracked ?? false,
+      profitSplitProjectPct: show.profit_split_project_pct ?? null,
+      profitSplitTrinoPct: show.profit_split_trino_pct ?? null,
+      profitSplitProjectLabel: show.profit_split_project_label ?? null,
+      profitSplitTrinoLabel: show.profit_split_trino_label ?? null,
+      profitSplitNote: show.profit_split_note ?? null,
     },
     items,
     { generatedBy: user!.email ?? null }

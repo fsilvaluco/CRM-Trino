@@ -16,6 +16,7 @@
 
 import { nuevoPdf } from "@/lib/pdf-writer";
 import { formatCents } from "@/lib/external-signature";
+import { profitSplitLabels } from "@/lib/profit-split";
 import type { CostItem } from "@/types/shows";
 
 export interface CostSheetPdfEvent {
@@ -33,6 +34,14 @@ export interface CostSheetPdfEvent {
   /** Eventos viejos cuya plata vive en un Excel aparte: ahi fee/entradas/
    * egresos son 0 y cualquier utilidad calculada seria un numero falso. */
   financialsUntracked: boolean;
+  /** Reparto de utilidad. Los pct en null = no configurado en este evento:
+   * se usa el default 70/30, igual que la pantalla, y se dice que es el
+   * default para que nadie apruebe un reparto que nadie eligio. */
+  profitSplitProjectPct: number | null;
+  profitSplitTrinoPct: number | null;
+  profitSplitProjectLabel: string | null;
+  profitSplitTrinoLabel: string | null;
+  profitSplitNote: string | null;
 }
 
 function formatDate(iso: string | null): string {
@@ -118,6 +127,43 @@ export async function buildCostSheetPdf(
         `El evento tiene registrado ${formatCents(event.expenses)} en "Egresos", distinto del total de esta planilla. La utilidad de arriba usa el total de la planilla.`
       );
     }
+  }
+
+  // ── Reparto de utilidad ───────────────────────────────────────────────────
+  // Mismos defaults y etiquetas que la Planilla en pantalla (70/30 y
+  // profitSplitLabels), para que el PDF y la app no digan cosas distintas.
+  const projectPct = event.profitSplitProjectPct ?? 70;
+  const trinoPct = event.profitSplitTrinoPct ?? 30;
+  const splitPorDefecto = event.profitSplitProjectPct == null && event.profitSplitTrinoPct == null;
+  const labels = profitSplitLabels({
+    profitSplitProjectLabel: event.profitSplitProjectLabel,
+    profitSplitTrinoLabel: event.profitSplitTrinoLabel,
+    projectName: event.projectName,
+  });
+
+  w.heading("REPARTO DE UTILIDAD");
+  if (event.financialsUntracked) {
+    // Sin utilidad no hay monto que repartir; los porcentajes igual sirven.
+    w.row(`${projectPct}% ${labels.project}`, formatCents(null), { size: 9 });
+    w.row(`${trinoPct}% ${labels.trino}`, formatCents(null), { size: 9 });
+  } else {
+    const utilidad = (event.fee ?? 0) + (event.ticketIncome ?? 0) - total;
+    w.row(`${projectPct}% ${labels.project}`, formatCents(Math.round((utilidad * projectPct) / 100)), {
+      size: 9,
+    });
+    w.row(`${trinoPct}% ${labels.trino}`, formatCents(Math.round((utilidad * trinoPct) / 100)), {
+      size: 9,
+    });
+  }
+  if (splitPorDefecto) {
+    w.paragraph("Este evento no tiene un reparto configurado: se muestra el 70/30 por defecto.");
+  } else if (projectPct + trinoPct !== 100) {
+    // Los dos porcentajes se editan por separado en la app, asi que pueden no
+    // sumar 100. Mejor decirlo que dejar que alguien apruebe el descuadre.
+    w.paragraph(`Atencion: los porcentajes suman ${projectPct + trinoPct}%, no 100%.`);
+  }
+  if (event.profitSplitNote?.trim()) {
+    w.paragraph(event.profitSplitNote.trim());
   }
 
   w.heading("DETALLE");
