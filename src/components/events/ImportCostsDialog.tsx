@@ -163,7 +163,7 @@ export function ImportCostsDialog({ eventId, open, onOpenChange, onImport }: Pro
           <Tabs defaultValue="evento">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="evento" className="cursor-pointer">Desde otro evento</TabsTrigger>
-              <TabsTrigger value="csv" className="cursor-pointer">Desde un CSV</TabsTrigger>
+              <TabsTrigger value="csv" className="cursor-pointer">Desde un archivo</TabsTrigger>
             </TabsList>
 
             <TabsContent value="evento" className="space-y-3 pt-3">
@@ -208,14 +208,14 @@ export function ImportCostsDialog({ eventId, open, onOpenChange, onImport }: Pro
 
             <TabsContent value="csv" className="space-y-3 pt-3">
               <p className="text-sm text-muted-foreground">
-                Sube un CSV con las columnas <span className="font-medium">Detalle</span> y{" "}
-                <span className="font-medium">Monto</span>. Si no sabes el formato, descarga el CSV
+                Sube un CSV o un Excel con las columnas <span className="font-medium">Detalle</span>{" "}
+                y <span className="font-medium">Monto</span>. Si no sabes el formato, descarga el CSV
                 de cualquier evento y úsalo de plantilla.
               </p>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".csv"
+                accept=".csv,.xlsx,.xls"
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
@@ -230,7 +230,7 @@ export function ImportCostsDialog({ eventId, open, onOpenChange, onImport }: Pro
                 onClick={() => fileInputRef.current?.click()}
               >
                 {loading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Upload className="h-4 w-4 mr-1" />}
-                Elegir archivo CSV
+                Elegir archivo
               </Button>
               <a
                 href={`/api/eventos/${eventId}/costs/export?format=csv`}

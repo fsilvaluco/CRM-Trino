@@ -7,7 +7,8 @@ import {
   canEditEventCosts,
 } from "@/lib/project-roles";
 import {
-  readCostSheetCsv,
+  readCostSheetFile,
+  isSupportedCostSheetFile,
   parseCostSheetRows,
   costItemsToParsedRows,
   type ParsedCostRow,
@@ -27,7 +28,7 @@ import type { CostItem } from "@/types/shows";
 // chequeo de caja cerrada, sus permisos y su log) y la persona puede revisar
 // -- o recargar la pagina y no guardar nada -- antes de comprometerse.
 
-const MAX_FILE_SIZE = 2 * 1024 * 1024; // una planilla de costos en CSV pesa KBs
+const MAX_FILE_SIZE = 2 * 1024 * 1024; // una planilla de costos pesa KBs, no MBs
 
 /** Los dos chequeos que comparten GET y POST: quien pide tiene que poder
  * editar los costos del evento destino, y la caja no puede estar cerrada. */
@@ -137,7 +138,7 @@ export async function GET(
 }
 
 // POST -- vista previa de lo que se importaria. Dos formas de llamarlo:
-//   multipart/form-data con `file` (un CSV), o JSON { sourceShowId }.
+//   multipart/form-data con `file` (CSV o Excel), o JSON { sourceShowId }.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -212,7 +213,7 @@ export async function POST(
     });
   }
 
-  // ── Desde un CSV ─────────────────────────────────────────────────────────
+  // ── Desde un archivo (CSV o Excel) ───────────────────────────────────────
   const formData = await request.formData().catch(() => null);
   const file = formData?.get("file");
   if (!file || typeof file === "string") {
@@ -221,9 +222,9 @@ export async function POST(
   if (file.size > MAX_FILE_SIZE) {
     return NextResponse.json({ error: "El archivo no puede superar 2 MB" }, { status: 400 });
   }
-  if (!file.name.toLowerCase().endsWith(".csv")) {
+  if (!isSupportedCostSheetFile(file.name)) {
     return NextResponse.json(
-      { error: "Solo se puede subir un archivo .csv (usa el botón Descargar para obtener el formato)" },
+      { error: "El archivo tiene que ser .csv, .xlsx o .xls (usa el botón Descargar para obtener el formato)" },
       { status: 400 }
     );
   }
@@ -231,7 +232,7 @@ export async function POST(
   let parsed: { items: ParsedCostRow[]; skipped: { row: number; reason: string }[] };
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
-    parsed = parseCostSheetRows(readCostSheetCsv(buffer));
+    parsed = parseCostSheetRows(readCostSheetFile(buffer, file.name));
   } catch {
     return NextResponse.json({ error: "No se pudo leer el archivo" }, { status: 400 });
   }
@@ -240,7 +241,7 @@ export async function POST(
     return NextResponse.json(
       {
         error:
-          "No se encontró ningún costo en el archivo. Revisa que tenga una columna \"Detalle\" y otra \"Monto\".",
+          "No se encontró ningún costo en el archivo. Revisa que la primera fila sean los encabezados, con una columna \"Detalle\" y otra \"Monto\".",
       },
       { status: 400 }
     );

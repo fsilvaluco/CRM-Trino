@@ -1,11 +1,12 @@
-// ─── Planilla de costos: CSV de ida y vuelta ────────────────────────────────
+// ─── Planilla de costos: la ida y vuelta en planilla ────────────────────────
 // Pedido de Francisco (16 sep 2026): poder bajar la planilla de un evento y
 // subirla a otro, para no volver a tipear los mismos 20 costos de siempre.
 //
 // La regla que ordena todo este archivo: el CSV que se exporta es EXACTAMENTE
 // el que se sabe importar. Si se agrega una columna hay que tocar las dos
 // puntas (COST_CSV_COLUMNS y los alias de `columnKey`), si no la ida y vuelta
-// deja de cerrar.
+// deja de cerrar. Al importar tambien se acepta Excel, para quien arma la
+// planilla en Excel o Sheets y no la exporta a CSV.
 //
 // Lo que NO viaja en el CSV y es a proposito:
 //  - comprobantes (boleta/factura y comprobante de pago): son archivos, no
@@ -192,16 +193,28 @@ function pesosToCents(raw: string | undefined): number | null {
   return Math.round(pesos) * 100;
 }
 
+/** Extensiones que se aceptan al importar: el CSV que exportamos nosotros y
+ * el Excel de quien arma la planilla en Excel o Google Sheets sin exportarla. */
+export const COST_SHEET_IMPORT_EXTENSIONS = [".csv", ".xlsx", ".xls"] as const;
+
+export function isSupportedCostSheetFile(filename: string): boolean {
+  const lower = filename.toLowerCase();
+  return COST_SHEET_IMPORT_EXTENSIONS.some((ext) => lower.endsWith(ext));
+}
+
 /**
- * Lee el CSV a filas crudas. Es casi `parseSpreadsheet()` pero con
- * `blankrows: true` a proposito: si las filas vacias se descartan, el numero
- * de fila que se le informa a la persona ("Fila 7: sin detalle") deja de
- * calzar con lo que ve en Excel apenas el archivo tiene una linea en blanco
- * al medio, que es justo lo que pasa cuando alguien edita la planilla a mano.
+ * Lee la planilla (CSV o Excel) a filas crudas. Es casi `parseSpreadsheet()`
+ * pero con `blankrows: true` a proposito: si las filas vacias se descartan, el
+ * numero de fila que se le informa a la persona ("Fila 7: sin detalle") deja de
+ * calzar con lo que ve en Excel apenas el archivo tiene una linea en blanco al
+ * medio, que es justo lo que pasa cuando alguien edita la planilla a mano.
  * Las filas vacias las filtra despues `parseCostSheetRows`, en silencio.
  */
-export function readCostSheetCsv(buffer: Buffer): Record<string, string>[] {
-  const workbook = XLSX.read(buffer.toString("utf-8"), { type: "string" });
+export function readCostSheetFile(buffer: Buffer, filename: string): Record<string, string>[] {
+  const isCsv = filename.toLowerCase().endsWith(".csv");
+  const workbook = isCsv
+    ? XLSX.read(buffer.toString("utf-8"), { type: "string" })
+    : XLSX.read(buffer, { type: "buffer" });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   return XLSX.utils.sheet_to_json<Record<string, string>>(sheet, {
     raw: false,
