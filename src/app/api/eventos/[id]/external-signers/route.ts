@@ -4,6 +4,7 @@ import { getProjectPermissions, canViewEventCosts, canEditEventCosts } from "@/l
 import { dbErrorResponse } from "@/lib/api-errors";
 import { logActivity } from "@/lib/activity-logs";
 import { generateLinkToken, externalSignerStatus } from "@/lib/external-signature";
+import { encryptLinkToken } from "@/lib/link-token-crypto";
 import { sendEmail, isResendEnabled, buildExternalSignatureInviteEmailHtml } from "@/lib/resend";
 
 const DEFAULT_EXPIRY_DAYS = 30;
@@ -36,13 +37,17 @@ function mapSigner(row: any) {
     otpVerifiedAt: row.otp_verified_at ?? null,
     ipAddress: row.ip_address ?? null,
     documentHash: row.document_hash ?? null,
+    // Los links emitidos antes de la migración 104 (o con el secreto sin
+    // configurar) no se pueden copiar -- para esos queda "Reenviar", que
+    // emite uno nuevo.
+    canCopyLink: Boolean(row.token_encrypted),
   };
 }
 
 // Columnas que se devuelven al equipo. Nunca `token_hash` ni `otp_hash`:
 // no le sirven a la UI y no tienen por qué salir de la base.
 const SELECT_COLUMNS =
-  "id, role_label, invited_name, invited_email, created_at, expires_at, revoked_at, invalidated_at, invalidated_reason, first_viewed_at, signed_at, signer_name, signer_rut, signer_email, signer_phone, otp_verified_at, ip_address, document_hash";
+  "id, role_label, invited_name, invited_email, created_at, expires_at, revoked_at, invalidated_at, invalidated_reason, first_viewed_at, signed_at, token_encrypted, signer_name, signer_rut, signer_email, signer_phone, otp_verified_at, ip_address, document_hash";
 
 async function loadShowAndPermissions(id: string) {
   const { supabase, user, allowedProjectIds, error } = await requireAuth();
@@ -141,6 +146,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       invited_name: invitedName || null,
       invited_email: invitedEmail || null,
       token_hash: tokenHash,
+      // Cifrado con la llave de LINK_TOKEN_SECRET, que NO vive en la base
+      // (migración 104) -- es lo único que permite volver a mostrar el link
+      // después. Sin la variable configurada queda null y el botón de
+      // copiar no aparece.
+      token_encrypted: encryptLinkToken(token),
       expires_at: expiresAt,
       created_by: ctx.user!.id,
     })

@@ -58,6 +58,7 @@ export function ExternalSignersCard({
   // así que se muestra hasta que la persona lo copie.
   const [freshLink, setFreshLink] = useState<string | null>(null);
   const [resending, setResending] = useState<string | null>(null);
+  const [copying, setCopying] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -109,6 +110,26 @@ export function ExternalSignersCard({
       toast.error("No se pudo crear el link");
     } finally {
       setCreating(false);
+    }
+  }
+
+  // Recupera el link ya emitido (se descifra en el backend, ver migración
+  // 104) y lo copia -- sin tocar el token, así que el que ya tenga el
+  // cliente sigue sirviendo.
+  async function copyExisting(signer: ExternalSigner) {
+    setCopying(signer.id);
+    try {
+      const res = await fetch(`/api/eventos/${showId}/external-signers/${signer.id}/link`);
+      const body = await res.json();
+      if (!res.ok) {
+        toast.error(body.error ?? "No se pudo recuperar el link");
+        return;
+      }
+      await copy(body.url);
+    } catch {
+      toast.error("No se pudo recuperar el link");
+    } finally {
+      setCopying(null);
     }
   }
 
@@ -297,6 +318,23 @@ export function ExternalSignersCard({
                 </p>
                 {canCreate && s.status === "pendiente" && (
                   <div className="flex items-center gap-1 flex-wrap">
+                    {s.canCopyLink && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs cursor-pointer text-muted-foreground"
+                        disabled={copying !== null}
+                        onClick={() => copyExisting(s)}
+                        title="Copiar este mismo link (no lo cambia)"
+                      >
+                        {copying === s.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5 mr-1" />
+                        )}
+                        Copiar link
+                      </Button>
+                    )}
                     {s.invitedEmail && (
                       <Button
                         size="sm"
