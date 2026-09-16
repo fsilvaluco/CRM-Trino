@@ -60,6 +60,85 @@ export function externalSignerStatus(row: {
   return "pendiente";
 }
 
+/** Fila de event_external_signers, como la necesita el recuadro de
+ * Aprobacion. */
+export interface ExternalSignerRow {
+  id: string;
+  role_label: string | null;
+  invited_name: string | null;
+  invited_email?: string | null;
+  signer_name: string | null;
+  signer_email?: string | null;
+  signed_at: string | null;
+  invalidated_at?: string | null;
+  revoked_at: string | null;
+  expires_at: string;
+  created_at?: string | null;
+}
+
+export interface ApprovalExternalSigner {
+  id: string;
+  name: string;
+  roleLabel: string | null;
+  signedAt: string | null;
+}
+
+/**
+ * Los firmantes externos tal como van en el recuadro de Aprobacion: UNA
+ * fila por persona, no una por link emitido.
+ *
+ * Hace falta porque una misma persona puede tener varias filas: cada vez
+ * que se le reemplaza el link (se perdio el correo, se reabrio el cierre)
+ * se emite uno nuevo y el anterior queda de historia. Sin agrupar, el
+ * recuadro mostraba al mismo cliente dos veces, las dos "Pendiente"
+ * -- reportado por Francisco el 16 sep 2026.
+ *
+ * Se agrupa por correo (o por nombre si no hay) y de cada persona se
+ * elige su fila mas representativa: una firma vigente gana sobre un link
+ * en pie, y este sobre uno muerto (invalidado o vencido). Una fila muerta
+ * igual se muestra, como pendiente: que el cliente no haya firmado tiene
+ * que verse, aunque todavia no le hayan mandado el link nuevo.
+ *
+ * Los links ANULADOS a mano no aparecen -- se cancelaron a proposito.
+ */
+export function approvalExternalSigners(rows: ExternalSignerRow[]): ApprovalExternalSigner[] {
+  const vivo = (r: ExternalSignerRow) => new Date(r.expires_at).getTime() >= Date.now();
+  // 3 = firmo y su firma sigue valiendo, 2 = link en pie, 1 = link muerto
+  const rango = (r: ExternalSignerRow): number => {
+    if (r.signed_at && !r.invalidated_at) return 3;
+    if (!r.signed_at && !r.invalidated_at && vivo(r)) return 2;
+    return 1;
+  };
+
+  const porPersona = new Map<string, ExternalSignerRow>();
+  for (const r of rows) {
+    if (r.revoked_at) continue;
+    const clave = (r.signer_email || r.invited_email || r.signer_name || r.invited_name || r.id)
+      .toString()
+      .trim()
+      .toLowerCase();
+    const previa = porPersona.get(clave);
+    if (!previa) {
+      porPersona.set(clave, r);
+      continue;
+    }
+    const mejor =
+      rango(r) > rango(previa) ||
+      (rango(r) === rango(previa) &&
+        new Date(r.created_at ?? 0).getTime() > new Date(previa.created_at ?? 0).getTime());
+    if (mejor) porPersona.set(clave, r);
+  }
+
+  return [...porPersona.values()].map((r) => ({
+    id: r.id,
+    name: r.signer_name || r.invited_name || r.role_label || "Firmante externo",
+    roleLabel: r.role_label,
+    // Una firma invalidada por reapertura cuenta como pendiente: su
+    // conformidad era sobre cifras que ya no son las vigentes.
+    signedAt: r.invalidated_at ? null : r.signed_at,
+  }));
+}
+
 // ─── Codigo de verificacion al correo (OTP) ─────────────────────────────────
 
 export const OTP_TTL_MINUTES = 15;

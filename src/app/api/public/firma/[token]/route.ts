@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { getSignaturesState } from "@/lib/event-signatures";
 import {
+  approvalExternalSigners,
   hashToken,
   externalSignerStatus,
   buildClosingDocument,
@@ -71,7 +72,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   const { data: otherExternals } = await admin
     .from("event_external_signers")
-    .select("id, role_label, invited_name, signer_name, signed_at, revoked_at, invalidated_at, expires_at")
+    .select("id, role_label, invited_name, invited_email, signer_name, signer_email, signed_at, revoked_at, invalidated_at, expires_at, created_at")
     .eq("show_id", signer.show_id)
     .order("created_at");
 
@@ -105,25 +106,11 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
               signedAt: sig?.signedAt ?? null,
             };
           }),
-          externalSigners: (otherExternals ?? [])
-            .filter((r: { revoked_at: string | null }) => !r.revoked_at)
-            .map((r: {
-              id: string;
-              role_label: string | null;
-              invited_name: string | null;
-              signer_name: string | null;
-              signed_at: string | null;
-              invalidated_at: string | null;
-              expires_at: string;
-            }) => ({
-              id: r.id,
-              name: r.signer_name || r.invited_name || r.role_label || "Firmante externo",
-              roleLabel: r.role_label,
-              // Invalidada por reapertura = pendiente: firmó otras cifras.
-              signedAt: r.invalidated_at ? null : r.signed_at,
-              // Para que el firmante actual se reconozca en la lista.
-              isMe: r.id === signer.id,
-            })),
+          externalSigners: approvalExternalSigners(otherExternals ?? []).map((e) => ({
+            ...e,
+            // Para que el firmante actual se reconozca en la lista.
+            isMe: e.id === signer.id,
+          })),
         }
       : null,
     document: status === "pendiente" || status === "firmado" ? doc : null,
