@@ -13,12 +13,14 @@ import {
   costItemsToParsedRows,
   type ParsedCostRow,
 } from "@/lib/cost-sheet-io";
+import { projectScopeIds, isInProjectScope } from "@/lib/project-scope";
 import type { CostItem } from "@/types/shows";
 
 // ─── Importar costos a la Planilla de un evento ─────────────────────────────
 //
 // Las dos puntas del mismo flujo "copiar los costos de otro evento":
-//   GET  -> eventos de los que se puede copiar (el selector del dialogo)
+//   GET  -> eventos de los que se puede copiar (el selector del dialogo),
+//           acotados al proyecto del evento en que se esta parado
 //   POST -> devuelve los items que se importarian, desde un CSV o desde otro
 //           evento
 //
@@ -75,6 +77,8 @@ export async function GET(
   const guard = await guardTarget(supabase, user!.id, id);
   if (guard instanceof NextResponse) return guard;
 
+  const scopeIds = await projectScopeIds(supabase, guard.projectId);
+
   let query = supabase
     .from("shows")
     .select("id, name, venue, date, project_id, projects ( name )")
@@ -83,8 +87,14 @@ export async function GET(
     .order("date", { ascending: false })
     .limit(120);
 
-  // Mismo recorte que la lista de Eventos: si la persona tiene proyectos
-  // acotados, los demas no se traen de la base para nada.
+  // Solo el proyecto de este evento y sus hijos. Se ancla al proyecto DEL
+  // EVENTO y no al selector del front, para que el alcance no se pueda
+  // ensanchar desde el cliente. Un evento sin proyecto solo copia de otros sin
+  // proyecto: mandarlos al saco de todos seria la misma fuga al reves.
+  query = scopeIds ? query.in("project_id", scopeIds) : query.is("project_id", null);
+
+  // Ademas, el recorte de siempre: si la persona tiene proyectos acotados, los
+  // demas no se traen de la base para nada.
   if (allowedProjectIds !== null) {
     if (allowedProjectIds.length === 0) return NextResponse.json({ events: [] });
     query = query.in("project_id", allowedProjectIds);
@@ -178,6 +188,16 @@ export async function POST(
     if (!canViewEventCosts(sourceRole)) {
       return NextResponse.json(
         { error: "Sin acceso a los costos del evento que quieres copiar" },
+        { status: 403 }
+      );
+    }
+
+    // El mismo alcance que el selector, pero chequeado aca: si no, mandando un
+    // sourceShowId a mano se podrian traer los costos de otro proyecto igual.
+    const scopeIds = await projectScopeIds(supabase, guard.projectId);
+    if (!isInProjectScope(scopeIds, source.project_id ?? null)) {
+      return NextResponse.json(
+        { error: "Solo se pueden copiar costos de eventos del mismo proyecto" },
         { status: 403 }
       );
     }
