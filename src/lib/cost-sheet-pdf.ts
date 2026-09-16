@@ -4,9 +4,15 @@
 // firmas, hash y valor legal): esto es el presupuesto/rendicion para que
 // alguien lo mire y lo apruebe.
 //
-// Por eso muestra SOLO egresos -- ni fee, ni venta de entradas, ni utilidad.
-// El PDF se manda por correo y termina reenviado a gente que no tiene por que
-// ver los ingresos del evento (decision de Francisco, 16 sep 2026).
+// Muestra el resumen financiero completo -- fee, entradas, egresos y la
+// utilidad calculada -- ademas del detalle de costos: quien aprueba un gasto
+// necesita verlo contra lo que el evento entra (Francisco, 16 sep 2026; en la
+// primera version iban solo egresos y se quedaba corto para decidir).
+//
+// La utilidad se calcula contra el TOTAL DE ESTA PLANILLA, no contra el campo
+// "Egresos" del evento, para que el documento no se contradiga a si mismo. Si
+// los dos numeros difieren se dice en una linea, porque esa diferencia es
+// justo lo que quien aprueba tiene que saber.
 
 import { nuevoPdf } from "@/lib/pdf-writer";
 import { formatCents } from "@/lib/external-signature";
@@ -19,6 +25,14 @@ export interface CostSheetPdfEvent {
   city: string | null;
   projectName: string | null;
   closedAt: string | null;
+  fee: number | null;
+  ticketIncome: number | null;
+  /** El campo "Egresos" del evento, que no siempre es el total de la planilla
+   * (se copia a mano con "Usar como Egresos del evento"). */
+  expenses: number | null;
+  /** Eventos viejos cuya plata vive en un Excel aparte: ahi fee/entradas/
+   * egresos son 0 y cualquier utilidad calculada seria un numero falso. */
+  financialsUntracked: boolean;
 }
 
 function formatDate(iso: string | null): string {
@@ -68,7 +82,7 @@ export async function buildCostSheetPdf(
   const w = await nuevoPdf();
 
   w.text("PLANILLA DE COSTOS", { size: 14, bold: true });
-  w.text("Detalle de egresos para aprobacion interna", { size: 10, gray: true });
+  w.text("Resumen financiero y detalle de costos para aprobacion interna", { size: 10, gray: true });
   w.rule();
 
   w.text(event.name, { size: 12, bold: true });
@@ -82,6 +96,29 @@ export async function buildCostSheetPdf(
   }
 
   const total = items.reduce((sum, item) => sum + (item.amount || 0), 0);
+
+  w.heading("RESUMEN DEL EVENTO");
+  if (event.financialsUntracked) {
+    w.paragraph(
+      "Este evento no lleva su parte financiera en la app, asi que no se muestran ingresos ni utilidad. El detalle de costos de mas abajo si es el de la planilla."
+    );
+  } else {
+    const ingresos = (event.fee ?? 0) + (event.ticketIncome ?? 0);
+    w.row("Fee / cache", formatCents(event.fee));
+    w.row("Venta de entradas", formatCents(event.ticketIncome));
+    w.row("Total ingresos", formatCents(ingresos), { bold: true });
+    w.row("Total egresos (esta planilla)", formatCents(total));
+    w.row("Utilidad", formatCents(ingresos - total), { bold: true });
+
+    // El campo "Egresos" del evento se llena a mano y puede haber quedado
+    // atras respecto de la planilla. Callarlo seria mandar a aprobar una
+    // utilidad que no calza con la que se ve en la app.
+    if (event.expenses != null && event.expenses !== total) {
+      w.paragraph(
+        `El evento tiene registrado ${formatCents(event.expenses)} en "Egresos", distinto del total de esta planilla. La utilidad de arriba usa el total de la planilla.`
+      );
+    }
+  }
 
   w.heading("DETALLE");
   if (items.length === 0) {
@@ -157,7 +194,7 @@ export async function buildCostSheetPdf(
   });
   if (opts.generatedBy) w.row("Generado por", opts.generatedBy, { size: 8 });
   w.paragraph(
-    "Documento interno de egresos. No incluye ingresos ni utilidad del evento, y no reemplaza al acta de cierre de caja firmada.",
+    "Documento interno para aprobacion. No reemplaza al acta de cierre de caja firmada.",
     8
   );
   w.paragraph("Generado por Artist Pro - artistpro.app", 8);
