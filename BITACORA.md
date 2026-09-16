@@ -1,6 +1,6 @@
 # Bitácora de Trabajo — Artist Pro
-_Checkpoint v1.12 — 15 de septiembre de 2026 (forzar apertura de app en WhatsApp + device_type)_
-_Checkpoint anterior: v1.11 — 14 de septiembre de 2026 (Meta Conversions API en Links, campaña LUR Dopamina)_
+_Checkpoint v1.13 — 16 de septiembre de 2026 (bot de Meta Ads desplegado y verificado en producción, en dry-run)_
+_Checkpoint anterior: v1.12 — 15 de septiembre de 2026 (forzar apertura de app en WhatsApp + device_type)_
 
 > **Formato de tracking:** Registro histórico de trabajo realizado + pendientes actuales.  
 > Cada entrada incluye fecha, estado (🔨 En Progreso / ✅ Hecho), y notas de implementación detalladas.
@@ -50,6 +50,41 @@ alertar si frecuencia >3 o SpotifyClick/clic <40%.
 crear los 2 Railway Cron apuntando a los endpoints, definir `BOT_DAILY_BUDGET_CAP_CLP`, crear el bot
 de Telegram, lanzar la campaña (ABO + ads con `utm_content={{ad.name}}`). Revisar `ad_actions_log`
 en dry-run antes de poner `BOT_DRY_RUN=false`. Verificado `tsc`/`eslint`/`build`.
+
+### 🚀 Cierre pre-lanzamiento + go-live (16 sep 2026) — infraestructura COMPLETA y verificada en vivo
+
+Tres cosas para dejar el bot listo antes del lanzamiento (PR #22):
+
+- **(a) Heartbeat en runs vacíos.** En una corrida sin ads (o donde ninguno matchea el prefijo) el
+  bot manda a Telegram `🤖 Bot Meta Ads activo · N campañas · dry-run/real` y sale limpio. Así se
+  sabe que está vivo aunque no haya campaña. Probado con smoke test real contra CP_LUR.
+- **(b) Filtro por prefijo de campaña.** `BOT_CAMPAIGN_PREFIXES` (default
+  `LUR_DOPA_TEST_TRAF,LUR_DOPA_ESCALA_TRAF`): el bot SOLO mira esas campañas, nunca toca otras de la
+  cuenta. Cap global `BOT_DAILY_BUDGET_CAP_CLP=5500`. Además `ad_actions_log` ahora guarda el
+  `project_id` real (para poder filtrarlo en el reporte).
+- **(c) Endpoint de reporte read-only.** `GET /api/ads/report?project_id=<uuid>&days=4` con header
+  `x-report-key` (env `ADS_REPORT_KEY`). Devuelve por anuncio y por día: spend, impresiones,
+  frecuencia, clics al enlace, CPC, hook rate, SpotifyClicks (desde qr_scans) y costo/SpotifyClick,
+  más las acciones del período. No llama a Meta (lee `ad_metrics_daily`). Es la herramienta de
+  reporte de Francisco cada 3-4 días. project_id de LUR = `9c45953a-a680-48cd-b0a2-cf8d03d676b3`.
+
+**Tests:** 13 unit tests del motor de reglas con el runner nativo de Node (`node:test` vía tsx, sin
+deps nuevas). Correr con `npm test`. Blindan mediana, piso de impresiones, racha de CPC, hook, y el
+movimiento neto-cero de presupuesto con sus clamps.
+
+**Go-live verificado EN PRODUCCIÓN (no supuesto):**
+- Endpoints vivos y protegidos: `/api/cron/meta-ads-bot` y `/api/ads/report` → 401 sin auth.
+- Reporte con `x-report-key` correcta → **HTTP 200** (`ads: []`, campaña vacía aún).
+- Env en Railway (CRM-Trino): `BOT_ENABLED=true`, `BOT_DRY_RUN=true`, cap 5500, `ADS_REPORT_KEY`,
+  Telegram. Los 2 Railway Cron (`cron-meta-ads-bot` 6h, `cron-meta-ads-summary` diario) **disparan
+  OK** — confirmado por los mensajes de Telegram (heartbeat + resumen diario). Nota operativa: ese
+  servicio de cron no expande `$CRON_SECRET`, así que el header Bearer lleva el valor LITERAL (igual
+  que los otros crons del proyecto).
+
+**Estado:** infraestructura 100% lista, bot en dry-run sin tocar nada. **Falta SOLO armar la campaña
+en Meta** (la arma otro Claude), respetando el contrato: nombres con prefijo, ABO, suma ≤ 5.500
+CLP/día, `utm_content={{ad.name}}`. Con la campaña corriendo: revisar decisiones simuladas en el
+reporte/`ad_actions_log` → recién ahí `BOT_DRY_RUN=false`.
 
 ---
 
