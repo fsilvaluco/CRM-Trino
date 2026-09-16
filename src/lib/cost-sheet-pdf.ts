@@ -162,8 +162,11 @@ export async function buildCostSheetPdf(
     // sumar 100. Mejor decirlo que dejar que alguien apruebe el descuadre.
     w.paragraph(`Atencion: los porcentajes suman ${projectPct + trinoPct}%, no 100%.`);
   }
+  // Prefijo "Nota:" a proposito: en este mismo bloque pueden salir avisos del
+  // sistema (el 70/30 por defecto, los porcentajes que no suman 100), y sin la
+  // etiqueta la nota que escribio el equipo se lee como uno mas de esos.
   if (event.profitSplitNote?.trim()) {
-    w.paragraph(event.profitSplitNote.trim());
+    w.paragraph(`Nota: ${event.profitSplitNote.trim()}`);
   }
 
   w.heading("DETALLE");
