@@ -34,6 +34,14 @@ para el cierre nuevo hay que emitirle uno nuevo.
 - Los comprobantes de costo dejan de abrirse desde un link invalidado; el PDF de su propia firma
   sigue disponible, que es su respaldo.
 
+**Corrección (mismo día):** el recuadro de Aprobación mostraba al mismo cliente **dos veces**, las dos
+"Pendiente" — la firma invalidada y el link nuevo son dos filas de la misma persona. Ahora
+`approvalExternalSigners()` agrupa por correo (o nombre) y muestra una fila por **persona**, no por
+link emitido: gana la firma vigente sobre el link en pie, y este sobre uno muerto. Una fila muerta
+igual se muestra como pendiente —que el cliente no haya firmado tiene que verse aunque todavía no le
+manden el link nuevo— y los links anulados a mano no aparecen. La tarjeta de gestión del evento sigue
+mostrando **todas** las filas: esa es la vista de auditoría.
+
 ---
 
 ## 🔐 Las dos pantallas de firma quedan iguales, y la interna con código (15 sep 2026)

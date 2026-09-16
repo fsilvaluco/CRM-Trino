@@ -7,6 +7,7 @@ import { dbErrorResponse } from "@/lib/api-errors";
 import { getClientIp } from "@/lib/client-ip";
 import { createAdminClient } from "@/lib/supabase-admin";
 import {
+  approvalExternalSigners,
   otpMatches,
   buildClosingDocument,
   documentHash,
@@ -90,7 +91,7 @@ export async function GET(
 
   const { data: externalRows } = await supabase
     .from("event_external_signers")
-    .select("id, role_label, invited_name, signer_name, signed_at, revoked_at, invalidated_at, expires_at, ip_address")
+    .select("id, role_label, invited_name, invited_email, signer_name, signer_email, signed_at, revoked_at, invalidated_at, expires_at, created_at, ip_address")
     .eq("show_id", id)
     .order("created_at");
 
@@ -110,27 +111,10 @@ export async function GET(
     // que cerrarlo o reabrirlo.
     canManageSigners: canEditEventCosts(perm),
     signatures,
-    externalSigners: (externalRows ?? [])
-      .filter((r: { revoked_at: string | null }) => !r.revoked_at)
-      .map((r: {
-        id: string;
-        role_label: string | null;
-        invited_name: string | null;
-        signer_name: string | null;
-        signed_at: string | null;
-        invalidated_at: string | null;
-        expires_at: string;
-        ip_address: string | null;
-      }) => ({
-        id: r.id,
-        name: r.signer_name || r.invited_name || r.role_label || "Firmante externo",
-        roleLabel: r.role_label,
-        // Una firma invalidada por reapertura cuenta como pendiente: su
-        // conformidad era sobre cifras que ya no son las vigentes.
-        signedAt: r.invalidated_at ? null : r.signed_at,
-        ipAddress: r.ip_address,
-        expired: !r.signed_at && new Date(r.expires_at).getTime() < Date.now(),
-      })),
+    // Una fila por PERSONA, no por link emitido -- ver
+    // approvalExternalSigners(). Sin esto un cliente al que se le
+    // reemplazó el link aparecía dos veces.
+    externalSigners: approvalExternalSigners(externalRows ?? []),
     document: doc,
     profitSplitTransferProofUrl: transferRow?.profit_split_transfer_proof_url ?? null,
     // Datos con los que se prellena el formulario de firma del usuario
