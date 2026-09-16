@@ -168,8 +168,8 @@ export function ImportCostsDialog({ eventId, open, onOpenChange, onImport }: Pro
 
             <TabsContent value="evento" className="space-y-3 pt-3">
               <p className="text-sm text-muted-foreground">
-                Elige el evento del que quieres copiar la planilla. Solo aparecen los que tienen
-                costos cargados.
+                Elige el evento del que quieres copiar la planilla. Solo aparecen los eventos de
+                este mismo proyecto que tienen costos cargados.
               </p>
               {sourceEvents === null ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
@@ -177,7 +177,7 @@ export function ImportCostsDialog({ eventId, open, onOpenChange, onImport }: Pro
                 </div>
               ) : sourceEvents.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4">
-                  No hay otros eventos con costos cargados todavía.
+                  No hay otros eventos de este proyecto con costos cargados todavía.
                 </p>
               ) : (
                 <>
