@@ -211,8 +211,10 @@ y con suficiente respaldo como para que la firma sirva de algo.
   comprobante — helper compartido en `src/lib/profit-split.ts`.
   Ojo: los nombres se editan con la **caja abierta**, igual que los porcentajes, porque forman parte del
   documento que se firma y entran en su hash.
-- La tarjeta de resumen del evento dice **"Ingresos"** en vez de "Entradas" (sigue mostrando
-  `ticket_income`). No se tocaron ni el campo del diálogo de edición ni la columna de Métricas > Eventos.
+- ~~La tarjeta de resumen del evento dice **"Ingresos"** en vez de "Entradas"~~ — **revertido el 16 sep
+  2026**: Francisco pidió volver a "Entradas", porque ese número es `ticket_income` y efectivamente
+  viene solo de la venta de entradas. Nunca se tocaron ni el campo del diálogo de edición ni la
+  columna de Métricas > Eventos, así que ahora los tres dicen lo mismo otra vez.
 
 **Pendiente / decisiones tomadas:**
 - El RUT se normaliza (`12.345.678-5` → `12345678-5`) pero **no** se valida el dígito verificador, a
