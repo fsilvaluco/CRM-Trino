@@ -11,7 +11,7 @@
 // permisos. Ver scripts/migrations/099_event_external_signers.sql.
 
 import { createHash, randomBytes, randomInt, timingSafeEqual } from "crypto";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { nuevoPdf, type EscritorPdf } from "@/lib/pdf-writer";
 import { profitSplitLabels } from "@/lib/profit-split";
 
 /** Resuelve los nombres del reparto al armar el documento, para que el hash
@@ -359,19 +359,6 @@ function formatDateTime(iso: string | null): string {
   }
 }
 
-/** pdf-lib con las fuentes estandar solo sabe escribir WinAnsi (Latin-1):
- * cualquier caracter fuera de ese set revienta el documento entero. Las
- * comillas curvas y las rayas largas que salen de los textos pegados por
- * el usuario son el caso tipico. */
-function sanitize(text: string): string {
-  return text
-    .replace(/[‘’‛]/g, "'")
-    .replace(/[“”]/g, '"')
-    .replace(/[–—]/g, "-")
-    .replace(/…/g, "...")
-    .replace(/[^\x20-\x7E\xA0-\xFF\n]/g, "");
-}
-
 export interface ReceiptEvidence {
   signerName: string;
   signerRut: string;
@@ -390,105 +377,7 @@ export interface ReceiptEvidence {
 
 /** Comprobante de la firma: el documento que se firmo + toda la evidencia
  * de quien lo firmo y como se verifico. Se manda adjunto por correo al
- * firmante y al equipo, y se puede volver a descargar desde el link. *//** Hoja carta con los ayudantes de escritura (cursor vertical, salto de
- * pagina automatico, filas etiqueta/valor). Lo comparten el comprobante de
- * UNA firma y el acta con TODAS -- son el mismo documento con distinto
- * bloque final. */
-async function nuevoPdf() {
-  const pdf = await PDFDocument.create();
-  const regular = await pdf.embedFont(StandardFonts.Helvetica);
-  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-
-  const WIDTH = 595.28;
-  const HEIGHT = 841.89;
-  const MARGIN = 50;
-  const RIGHT = WIDTH - MARGIN;
-
-  let page = pdf.addPage([WIDTH, HEIGHT]);
-  let y = HEIGHT - MARGIN;
-
-  function ensureSpace(needed: number) {
-    if (y - needed < MARGIN) {
-      page = pdf.addPage([WIDTH, HEIGHT]);
-      y = HEIGHT - MARGIN;
-    }
-  }
-
-  function text(value: string, opts: { size?: number; bold?: boolean; gray?: boolean; gap?: number } = {}) {
-    const size = opts.size ?? 10;
-    ensureSpace(size + 6);
-    y -= size + 2;
-    page.drawText(sanitize(value), {
-      x: MARGIN,
-      y,
-      size,
-      font: opts.bold ? bold : regular,
-      color: opts.gray ? rgb(0.45, 0.45, 0.5) : rgb(0.08, 0.09, 0.17),
-    });
-    y -= opts.gap ?? 2;
-  }
-
-  /** Fila etiqueta-izquierda / valor-derecha, como una linea de planilla. */
-  function row(label: string, value: string, opts: { bold?: boolean; size?: number } = {}) {
-    const size = opts.size ?? 10;
-    ensureSpace(size + 6);
-    y -= size + 2;
-    const font = opts.bold ? bold : regular;
-    const clean = sanitize(value);
-    page.drawText(sanitize(label), { x: MARGIN, y, size, font, color: rgb(0.08, 0.09, 0.17) });
-    page.drawText(clean, {
-      x: RIGHT - font.widthOfTextAtSize(clean, size),
-      y,
-      size,
-      font,
-      color: rgb(0.08, 0.09, 0.17),
-    });
-    y -= 2;
-  }
-
-  function rule(gap = 8) {
-    ensureSpace(gap + 2);
-    y -= gap;
-    page.drawLine({
-      start: { x: MARGIN, y },
-      end: { x: RIGHT, y },
-      thickness: 0.5,
-      color: rgb(0.85, 0.86, 0.9),
-    });
-    y -= gap;
-  }
-
-  function heading(value: string) {
-    ensureSpace(24);
-    y -= 12;
-    text(value, { size: 9, bold: true, gray: true });
-  }
-
-  /** Parrafo con corte de linea a lo ancho de la pagina. */
-  function paragraph(value: string, size = 8.5) {
-    const words = sanitize(value).split(/\s+/);
-    const maxWidth = RIGHT - MARGIN;
-    let line = "";
-    for (const word of words) {
-      const candidate = line ? `${line} ${word}` : word;
-      if (regular.widthOfTextAtSize(candidate, size) > maxWidth && line) {
-        text(line, { size, gray: true, gap: 0 });
-        line = word;
-      } else {
-        line = candidate;
-      }
-    }
-    if (line) text(line, { size, gray: true, gap: 0 });
-  }
-
-  function space(n: number) {
-    y -= n;
-  }
-
-  return { text, row, rule, heading, paragraph, space, save: () => pdf.save() };
-}
-
-type EscritorPdf = Awaited<ReturnType<typeof nuevoPdf>>;
+ * firmante y al equipo, y se puede volver a descargar desde el link. */
 
 /** El cierre de caja en si: el bloque que es identico en el comprobante de
  * una firma y en el acta de todas. */

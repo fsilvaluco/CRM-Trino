@@ -13,10 +13,17 @@ import { Label } from "@/components/ui/label";
 import { EventFormDialog } from "@/components/events/EventFormDialog";
 import { BencinaCalculator } from "@/components/events/BencinaCalculator";
 import { SortableList } from "@/components/events/SortableList";
+import { ImportCostsDialog } from "@/components/events/ImportCostsDialog";
 import { TypeaheadInput } from "@/components/events/TypeaheadInput";
 import { MoneyInput } from "@/components/shared/MoneyInput";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { liquidoToBruto, retencionFromBruto, BHE_RETENTION_RATE } from "@/lib/bhe";
 import { COST_CATEGORIES } from "@/lib/cost-categories";
 import { profitSplitLabels, DEFAULT_TRINO_LABEL } from "@/lib/profit-split";
@@ -25,10 +32,12 @@ import {
   ArrowLeft, Pencil, MapPin, Clock, Music4, Wallet, FileText, Link as LinkIcon,
   Plus, Trash2, Star, ExternalLink, Loader2, Lock, LockOpen, Printer, Receipt,
   Ticket, Upload, Paperclip, Share2, Users, RefreshCw, BellRing, Banknote, Mail, Sparkles,
+  Download, FileSpreadsheet, FileDown,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import type { LiveShow, ShowStatus, SetlistItem, CostItem, TimingItem, TicketTier, EventContact } from "@/types/shows";
+import type { ParsedCostRow } from "@/lib/cost-sheet-io";
 import { ExternalSignersCard } from "@/components/events/ExternalSignersCard";
 import { ApprovalCard, type ApprovalData } from "@/components/events/ApprovalCard";
 import { EventPrintHeader } from "@/components/events/EventPrintHeader";
@@ -202,6 +211,7 @@ export default function EventDetailPage() {
   const [closingCosts, setClosingCosts] = useState(false);
   const [informingClosing, setInformingClosing] = useState(false);
   const [addingCostFromFile, setAddingCostFromFile] = useState(false);
+  const [importCostsOpen, setImportCostsOpen] = useState(false);
   const costAttachmentFileInputRef = useRef<HTMLInputElement>(null);
 
   const [costSubmissions, setCostSubmissions] = useState<CostSubmission[]>([]);
@@ -880,6 +890,43 @@ export default function EventDetailPage() {
     }
   }
 
+  // Los items que vuelven del diálogo de importar (CSV o copiados de otro
+  // evento). Se agregan AL FINAL y quedan sin guardar a propósito: la persona
+  // los revisa y aprieta "Guardar costos", que es la única ruta de escritura.
+  //
+  // Lo que nunca se copia, aunque venga en el archivo: el comprobante (es un
+  // archivo del evento viejo) y el estado de pago -- un costo del evento
+  // nuevo nace impago, si no la contabilidad de este evento diría que se
+  // pagó algo que no se pagó.
+  function handleImportedCosts(imported: ParsedCostRow[]) {
+    setCostItems((prev) => [
+      ...prev,
+      ...imported.map((item, i) => ({
+        id: `tmp-${newId()}`,
+        position: prev.length + i,
+        label: item.label,
+        category: item.category,
+        amount: item.amount,
+        liquidoAmount: item.liquidoAmount,
+        esBhe: item.esBhe,
+        responsable: item.responsable,
+        // El responsable viaja como texto: el contacto enlazado es del otro
+        // evento y puede no existir en el proyecto de este.
+        responsableContactId: null,
+        comprobanteUrl: null,
+        pagado: false,
+        comprobantePagoUrl: null,
+        notes: item.notes,
+        km: item.km,
+        kmRate: item.kmRate,
+      })),
+    ]);
+    setCostsDirty(true);
+    toast.success(
+      `${imported.length} ${imported.length === 1 ? "ítem agregado" : "ítems agregados"} -- revisa y guarda los costos`
+    );
+  }
+
   async function saveCosts() {
     setSavingCosts(true);
     try {
@@ -1030,6 +1077,16 @@ export default function EventDetailPage() {
     } finally {
       setUploadingTransferProof(false);
     }
+  }
+
+  // El nombre del archivo lo pone el Content-Disposition del endpoint; el <a>
+  // temporal es para no navegar fuera de la página al descargar.
+  function downloadCostSheet(fileFormat: "csv" | "pdf") {
+    const link = document.createElement("a");
+    link.href = `/api/eventos/${id}/costs/export?format=${fileFormat}`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   }
 
   function printSection(section: "costs" | "timing" | "setlist" | "contacts" | "todo") {
@@ -2353,6 +2410,44 @@ export default function EventDetailPage() {
                 </Button>
               </>
             )}
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" title="Descargar la planilla" />
+                }
+              >
+                <Download className="h-3.5 w-3.5 sm:mr-1" />
+                <span className="hidden sm:inline">Descargar</span>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  onClick={() => downloadCostSheet("pdf")}
+                >
+                  <FileDown className="h-3.5 w-3.5 mr-2" />
+                  PDF para aprobación
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  onClick={() => downloadCostSheet("csv")}
+                >
+                  <FileSpreadsheet className="h-3.5 w-3.5 mr-2" />
+                  CSV para copiar a otro evento
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {canEditCosts && !costSheetClosed && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs cursor-pointer"
+                onClick={() => setImportCostsOpen(true)}
+                title="Copiar los costos de otro evento o subir un CSV"
+              >
+                <Upload className="h-3.5 w-3.5 sm:mr-1" />
+                <span className="hidden sm:inline">Importar</span>
+              </Button>
+            )}
             <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => printSection("costs")} title="Imprimir">
               <Printer className="h-3.5 w-3.5 sm:mr-1" />
               <span className="hidden sm:inline">Imprimir</span>
@@ -2872,6 +2967,15 @@ export default function EventDetailPage() {
             </div>
           )}
           </div>
+
+          {canEditCosts && !costSheetClosed && (
+            <ImportCostsDialog
+              eventId={id}
+              open={importCostsOpen}
+              onOpenChange={setImportCostsOpen}
+              onImport={handleImportedCosts}
+            />
+          )}
 
           {costItems.length > 0 && (
             <div className="flex items-center justify-between border-t pt-2">
