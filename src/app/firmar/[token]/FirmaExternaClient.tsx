@@ -105,12 +105,16 @@ export default function FirmaExternaClient() {
     return <EstadoError title={loadError ?? "Link no válido"} />;
   }
 
-  if (data.status === "firmado" && data.signature) {
-    return <EstadoFirmado data={{ ...data, signature: data.signature }} token={token} />;
+  if (data.status === "firmado") {
+    return data.signature ? (
+      <EstadoFirmado data={{ ...data, signature: data.signature }} token={token} />
+    ) : (
+      <EstadoError title="No se pudo cargar tu firma" hint="Avísale al equipo que te mandó el link." />
+    );
   }
 
   if (data.status !== "pendiente") {
-    return <EstadoCerrado vencido={data.status === "vencido"} />;
+    return <EstadoCerrado status={data.status} />;
   }
 
   if (!data.document) {

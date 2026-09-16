@@ -27,7 +27,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const { data: signer } = await admin
     .from("event_external_signers")
     .select(
-      "id, show_id, role_label, invited_name, invited_email, created_at, expires_at, revoked_at, first_viewed_at, signed_at, signer_name, signer_rut, signer_email, signer_phone, otp_sent_to, otp_sent_at, otp_expires_at, otp_attempts, otp_verified_at, ip_address, document_hash"
+      "id, show_id, role_label, invited_name, invited_email, created_at, expires_at, revoked_at, invalidated_at, first_viewed_at, signed_at, signer_name, signer_rut, signer_email, signer_phone, otp_sent_to, otp_sent_at, otp_expires_at, otp_attempts, otp_verified_at, ip_address, document_hash"
     )
     .eq("token_hash", hashToken(token))
     .maybeSingle();
@@ -71,7 +71,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   const { data: otherExternals } = await admin
     .from("event_external_signers")
-    .select("id, role_label, invited_name, signer_name, signed_at, revoked_at, expires_at")
+    .select("id, role_label, invited_name, signer_name, signed_at, revoked_at, invalidated_at, expires_at")
     .eq("show_id", signer.show_id)
     .order("created_at");
 
@@ -113,12 +113,14 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
               invited_name: string | null;
               signer_name: string | null;
               signed_at: string | null;
+              invalidated_at: string | null;
               expires_at: string;
             }) => ({
               id: r.id,
               name: r.signer_name || r.invited_name || r.role_label || "Firmante externo",
               roleLabel: r.role_label,
-              signedAt: r.signed_at,
+              // Invalidada por reapertura = pendiente: firmó otras cifras.
+              signedAt: r.invalidated_at ? null : r.signed_at,
               // Para que el firmante actual se reconozca en la lista.
               isMe: r.id === signer.id,
             })),
@@ -126,6 +128,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       : null,
     document: status === "pendiente" || status === "firmado" ? doc : null,
     documentHash: status === "pendiente" || status === "firmado" ? currentHash : null,
+    invalidatedAt: signer.invalidated_at ?? null,
     otp: otpPending
       ? {
           sentToMasked: signer.otp_sent_to ? maskEmail(signer.otp_sent_to) : null,

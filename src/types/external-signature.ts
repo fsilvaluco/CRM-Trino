@@ -3,7 +3,7 @@
 // es server-only (crypto, pdf-lib) y estos los usan también los componentes
 // del cliente. Ver scripts/migrations/099_event_external_signers.sql.
 
-export type ExternalSignerStatus = "pendiente" | "firmado" | "vencido" | "revocado";
+export type ExternalSignerStatus = "pendiente" | "firmado" | "invalidado" | "vencido" | "revocado";
 
 export interface ClosingDocumentView {
   eventId: string;
@@ -41,6 +41,7 @@ export interface ExternalSignatureView {
   /** null cuando el link está vencido o anulado. */
   document: ClosingDocumentView | null;
   documentHash: string | null;
+  invalidatedAt: string | null;
   otp: {
     sentToMasked: string | null;
     sentAt: string;
@@ -77,6 +78,10 @@ export interface ExternalSigner {
   createdAt: string;
   expiresAt: string;
   revokedAt: string | null;
+  /** Firmó, pero después se reabrió el cierre: la firma se conserva con
+   * toda su evidencia y deja de contar (migración 103). */
+  invalidatedAt: string | null;
+  invalidatedReason: string | null;
   firstViewedAt: string | null;
   signedAt: string | null;
   signerName: string | null;
