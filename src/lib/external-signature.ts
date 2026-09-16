@@ -359,26 +359,6 @@ function formatDateTime(iso: string | null): string {
   }
 }
 
-export interface ReceiptEvidence {
-  signerName: string;
-  signerRut: string;
-  signerEmail: string;
-  signerPhone: string;
-  roleLabel: string | null;
-  signedAt: string;
-  otpVerifiedAt: string | null;
-  otpSentTo: string | null;
-  ipAddress: string | null;
-  userAgent: string | null;
-  linkCreatedAt: string | null;
-  firstViewedAt: string | null;
-  documentHash: string;
-}
-
-/** Comprobante de la firma: el documento que se firmo + toda la evidencia
- * de quien lo firmo y como se verifico. Se manda adjunto por correo al
- * firmante y al equipo, y se puede volver a descargar desde el link. */
-
 /** El cierre de caja en si: el bloque que es identico en el comprobante de
  * una firma y en el acta de todas. */
 function escribirDocumento(w: EscritorPdf, doc: ClosingDocument) {
