@@ -136,12 +136,14 @@ export function buildCostSheetSummaryEmailHtml(params: {
   profitSplitProjectLabel: string;
   profitSplitTrinoLabel: string;
   signers: { name: string; signedAt: string }[];
+  /** Cuando el correo lleva adjunta el acta en PDF (ver closing-acta.ts). */
+  conActaAdjunta?: boolean;
   detailUrl: string;
 }): string {
   const {
     eventName, eventDate, venue, projectName, fee, ticketIncome, expenses, ticketTiers, costItems,
     profitSplitNote, profitSplitProjectPct, profitSplitTrinoPct,
-    profitSplitProjectLabel, profitSplitTrinoLabel, signers, detailUrl,
+    profitSplitProjectLabel, profitSplitTrinoLabel, signers, conActaAdjunta, detailUrl,
   } = params;
   const ingresos = (fee ?? 0) + (ticketIncome ?? 0);
   const utilidad = ingresos - (expenses ?? 0);
@@ -208,9 +210,15 @@ export function buildCostSheetSummaryEmailHtml(params: {
       ` : ""}
 
       <p style="font-size:13px;font-weight:600;color:#14162B;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;border-top:1px solid #E5E7EB;padding-top:16px;">Aprobado por</p>
-      <ul style="font-size:13px;color:#14162B;padding-left:18px;margin-bottom:24px;">
+      <ul style="font-size:13px;color:#14162B;padding-left:18px;margin-bottom:${conActaAdjunta ? "12px" : "24px"};">
         ${signerRows}
       </ul>
+      ${conActaAdjunta ? `
+      <p style="font-size:12px;color:#14162B99;line-height:1.6;margin-bottom:24px;">
+        Adjuntamos el <strong>acta del cierre en PDF</strong>: el detalle completo y la evidencia de cada firma
+        (datos del firmante, hora, IP y la huella del documento que firmó). Guárdala como respaldo.
+      </p>
+      ` : ""}
 
       <a href="${detailUrl}" target="_blank" rel="noopener noreferrer"
         style="display: inline-block; padding: 12px 24px; background: #4338CA; color: white; text-decoration: none; border-radius: 100px; font-size: 14px; font-weight: 600;">

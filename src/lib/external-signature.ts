@@ -390,8 +390,11 @@ export interface ReceiptEvidence {
 
 /** Comprobante de la firma: el documento que se firmo + toda la evidencia
  * de quien lo firmo y como se verifico. Se manda adjunto por correo al
- * firmante y al equipo, y se puede volver a descargar desde el link. */
-export async function buildReceiptPdf(doc: ClosingDocument, ev: ReceiptEvidence): Promise<Uint8Array> {
+ * firmante y al equipo, y se puede volver a descargar desde el link. *//** Hoja carta con los ayudantes de escritura (cursor vertical, salto de
+ * pagina automatico, filas etiqueta/valor). Lo comparten el comprobante de
+ * UNA firma y el acta con TODAS -- son el mismo documento con distinto
+ * bloque final. */
+async function nuevoPdf() {
   const pdf = await PDFDocument.create();
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
@@ -478,99 +481,226 @@ export async function buildReceiptPdf(doc: ClosingDocument, ev: ReceiptEvidence)
     if (line) text(line, { size, gray: true, gap: 0 });
   }
 
-  // ── Encabezado
-  text("COMPROBANTE DE FIRMA ELECTRONICA SIMPLE", { size: 14, bold: true });
-  text("Conformidad de cierre de caja de evento", { size: 10, gray: true });
-  rule();
+  function space(n: number) {
+    y -= n;
+  }
 
-  // ── Documento firmado
-  heading("DOCUMENTO FIRMADO");
-  text(doc.eventName, { size: 12, bold: true });
-  text(
+  return { text, row, rule, heading, paragraph, space, save: () => pdf.save() };
+}
+
+type EscritorPdf = Awaited<ReturnType<typeof nuevoPdf>>;
+
+/** El cierre de caja en si: el bloque que es identico en el comprobante de
+ * una firma y en el acta de todas. */
+function escribirDocumento(w: EscritorPdf, doc: ClosingDocument) {
+  w.heading("DOCUMENTO FIRMADO");
+  w.text(doc.eventName, { size: 12, bold: true });
+  w.text(
     [doc.date, doc.venue, doc.city].filter(Boolean).join(" - ") +
       (doc.projectName ? ` (${doc.projectName})` : ""),
     { size: 9, gray: true }
   );
-  y -= 4;
-  row("Fee / cache", formatCents(doc.fee));
-  row("Venta de entradas", formatCents(doc.ticketIncome));
-  row("Total ingresos", formatCents(doc.ingresos), { bold: true });
-  row("Total egresos", formatCents(doc.expenses));
-  row("Utilidad", formatCents(doc.utilidad), { bold: true });
+  w.space(4);
+  w.row("Fee / cache", formatCents(doc.fee));
+  w.row("Venta de entradas", formatCents(doc.ticketIncome));
+  w.row("Total ingresos", formatCents(doc.ingresos), { bold: true });
+  w.row("Total egresos", formatCents(doc.expenses));
+  w.row("Utilidad", formatCents(doc.utilidad), { bold: true });
 
   if (doc.ticketTiers.length > 0) {
-    heading("VENTA DE ENTRADAS");
+    w.heading("VENTA DE ENTRADAS");
     for (const t of doc.ticketTiers) {
-      row(`${t.label} (${t.quantitySold} x ${formatCents(t.unitPrice)})`, formatCents(t.unitPrice * t.quantitySold), { size: 9 });
+      w.row(
+        `${t.label} (${t.quantitySold} x ${formatCents(t.unitPrice)})`,
+        formatCents(t.unitPrice * t.quantitySold),
+        { size: 9 }
+      );
     }
   }
 
   if (doc.costItems.length > 0) {
-    heading("COSTOS");
+    w.heading("COSTOS");
     for (const c of doc.costItems) {
-      row(c.responsable ? `${c.label} - ${c.responsable}` : c.label, formatCents(c.amount), { size: 9 });
+      w.row(c.responsable ? `${c.label} - ${c.responsable}` : c.label, formatCents(c.amount), { size: 9 });
     }
   }
 
   if (doc.profitSplitProjectPct != null || doc.profitSplitTrinoPct != null || doc.profitSplitNote) {
-    heading("REPARTO DE UTILIDAD");
+    w.heading("REPARTO DE UTILIDAD");
     if (doc.profitSplitProjectPct != null) {
-      row(
+      w.row(
         `${doc.profitSplitProjectPct}% ${doc.profitSplitProjectLabel}`,
         formatCents(Math.round((doc.utilidad * doc.profitSplitProjectPct) / 100)),
         { size: 9 }
       );
     }
     if (doc.profitSplitTrinoPct != null) {
-      row(
+      w.row(
         `${doc.profitSplitTrinoPct}% ${doc.profitSplitTrinoLabel}`,
         formatCents(Math.round((doc.utilidad * doc.profitSplitTrinoPct) / 100)),
         { size: 9 }
       );
     }
     if (doc.profitSplitNote) {
-      y -= 4;
-      paragraph(doc.profitSplitNote, 9);
+      w.space(4);
+      w.paragraph(doc.profitSplitNote, 9);
+    }
+  }
+}
+
+const NOTA_LEY =
+  "Este comprobante da cuenta de una firma electronica simple en los terminos de la Ley 19.799. " +
+  "Cada firmante se identifico con los datos declarados mas arriba y acredito el control de su correo " +
+  "mediante un codigo de un solo uso enviado a esa casilla. La huella SHA-256 corresponde al " +
+  "contenido exacto del cierre de caja tal como se le mostro al momento de firmar: cualquier modificacion " +
+  "posterior de esas cifras produce una huella distinta.";
+
+export interface ReceiptEvidence {
+  signerName: string;
+  signerRut: string;
+  signerEmail: string;
+  signerPhone: string;
+  roleLabel: string | null;
+  signedAt: string;
+  otpVerifiedAt: string | null;
+  otpSentTo: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  linkCreatedAt: string | null;
+  firstViewedAt: string | null;
+  documentHash: string;
+}
+
+/** Comprobante de UNA firma: el documento que se firmo + toda la evidencia
+ * de quien lo firmo y como se verifico. Se manda adjunto por correo al
+ * firmante y al equipo, y se puede volver a descargar desde el link. */
+export async function buildReceiptPdf(doc: ClosingDocument, ev: ReceiptEvidence): Promise<Uint8Array> {
+  const w = await nuevoPdf();
+
+  w.text("COMPROBANTE DE FIRMA ELECTRONICA SIMPLE", { size: 14, bold: true });
+  w.text("Conformidad de cierre de caja de evento", { size: 10, gray: true });
+  w.rule();
+
+  escribirDocumento(w, doc);
+  w.rule();
+
+  w.heading("FIRMANTE");
+  w.row("Nombre", ev.signerName, { bold: true });
+  w.row("RUT / identificacion", ev.signerRut);
+  w.row("Correo", ev.signerEmail);
+  w.row("Telefono", ev.signerPhone);
+  if (ev.roleLabel) w.row("Calidad en que firma", ev.roleLabel);
+
+  w.heading("EVIDENCIA DE LA FIRMA");
+  w.row("Fecha y hora de la firma", formatDateTime(ev.signedAt), { size: 9 });
+  w.row("Codigo enviado a", ev.otpSentTo ?? "--", { size: 9 });
+  w.row("Codigo verificado", formatDateTime(ev.otpVerifiedAt), { size: 9 });
+  w.row("Direccion IP", ev.ipAddress ?? "--", { size: 9 });
+  w.row("Link emitido", formatDateTime(ev.linkCreatedAt), { size: 9 });
+  w.row("Primera apertura del link", formatDateTime(ev.firstViewedAt), { size: 9 });
+  if (ev.userAgent) {
+    w.space(2);
+    w.text("Dispositivo / navegador", { size: 9 });
+    w.paragraph(ev.userAgent, 8);
+  }
+  w.space(4);
+  w.text("Huella (SHA-256) del documento firmado", { size: 9 });
+  w.paragraph(ev.documentHash, 8);
+
+  w.rule();
+  w.paragraph(NOTA_LEY, 8);
+  w.paragraph("Generado por Artist Pro - artistpro.app", 8);
+
+  return w.save();
+}
+
+// ─── Acta de cierre firmado (todas las firmas juntas) ───────────────────────
+
+export interface ActaSigner {
+  /** "equipo" = firmante interno con cuenta; "contraparte" = cliente externo. */
+  tipo: "equipo" | "contraparte";
+  name: string;
+  rut: string | null;
+  email: string | null;
+  phone: string | null;
+  roleLabel: string | null;
+  signedAt: string;
+  otpVerifiedAt: string | null;
+  ipAddress: string | null;
+  documentHash: string | null;
+}
+
+/**
+ * El acta del cierre: el mismo documento, con TODAS las firmas juntas y la
+ * evidencia de cada una. Se manda cuando termina de firmar todo el mundo --
+ * el comprobante individual le sirve a cada firmante, esto le sirve al
+ * evento.
+ *
+ * Si alguna huella no calza con la del documento actual se dice
+ * explicitamente: significa que esa persona firmo una version distinta de
+ * las cifras, y es justo lo que un acta tiene que dejar en evidencia en vez
+ * de esconder.
+ */
+export async function buildActaPdf(
+  doc: ClosingDocument,
+  firmantes: ActaSigner[],
+  opts: { generadoEl?: string } = {}
+): Promise<Uint8Array> {
+  const w = await nuevoPdf();
+  const hashActual = documentHash(doc);
+
+  w.text("ACTA DE CIERRE DE CAJA FIRMADO", { size: 14, bold: true });
+  w.text(`${firmantes.length} ${firmantes.length === 1 ? "firma registrada" : "firmas registradas"}`, {
+    size: 10,
+    gray: true,
+  });
+  w.rule();
+
+  escribirDocumento(w, doc);
+  w.rule();
+
+  const equipo = firmantes.filter((f) => f.tipo === "equipo");
+  const contraparte = firmantes.filter((f) => f.tipo === "contraparte");
+
+  function escribirFirmante(f: ActaSigner) {
+    w.space(6);
+    w.text(f.roleLabel ? `${f.name} (${f.roleLabel})` : f.name, { size: 10, bold: true });
+    w.row("RUT / identificacion", f.rut ?? "--", { size: 9 });
+    w.row("Correo", f.email ?? "--", { size: 9 });
+    w.row("Telefono", f.phone ?? "--", { size: 9 });
+    w.row("Firmo el", formatDateTime(f.signedAt), { size: 9 });
+    w.row("Codigo verificado", formatDateTime(f.otpVerifiedAt), { size: 9 });
+    w.row("Direccion IP", f.ipAddress ?? "--", { size: 9 });
+    if (!f.documentHash) {
+      // Firmas anteriores a las migraciones 099/102, cuando firmar era un
+      // click sin huella. Se dice, no se disimula.
+      w.paragraph("Firma registrada antes de que se guardara la huella del documento.", 8);
+    } else if (f.documentHash !== hashActual) {
+      w.paragraph(
+        `ATENCION: firmo una version distinta del cierre (huella ${f.documentHash.slice(0, 16)}...).`,
+        8
+      );
     }
   }
 
-  rule();
-
-  // ── Quien firmo
-  heading("FIRMANTE");
-  row("Nombre", ev.signerName, { bold: true });
-  row("RUT / identificacion", ev.signerRut);
-  row("Correo", ev.signerEmail);
-  row("Telefono", ev.signerPhone);
-  if (ev.roleLabel) row("Calidad en que firma", ev.roleLabel);
-
-  // ── Evidencia
-  heading("EVIDENCIA DE LA FIRMA");
-  row("Fecha y hora de la firma", formatDateTime(ev.signedAt), { size: 9 });
-  row("Codigo enviado a", ev.otpSentTo ?? "--", { size: 9 });
-  row("Codigo verificado", formatDateTime(ev.otpVerifiedAt), { size: 9 });
-  row("Direccion IP", ev.ipAddress ?? "--", { size: 9 });
-  row("Link emitido", formatDateTime(ev.linkCreatedAt), { size: 9 });
-  row("Primera apertura del link", formatDateTime(ev.firstViewedAt), { size: 9 });
-  if (ev.userAgent) {
-    y -= 2;
-    text("Dispositivo / navegador", { size: 9 });
-    paragraph(ev.userAgent, 8);
+  if (equipo.length > 0) {
+    w.heading("FIRMAS DEL EQUIPO");
+    equipo.forEach(escribirFirmante);
   }
-  y -= 4;
-  text("Huella (SHA-256) del documento firmado", { size: 9 });
-  paragraph(ev.documentHash, 8);
+  if (contraparte.length > 0) {
+    w.heading("FIRMAS DE LA CONTRAPARTE");
+    contraparte.forEach(escribirFirmante);
+  }
 
-  rule();
-  paragraph(
-    "Este comprobante da cuenta de una firma electronica simple en los terminos de la Ley 19.799. " +
-      "El firmante se identifico con los datos declarados mas arriba y acredito el control del correo " +
-      "indicado mediante un codigo de un solo uso enviado a esa casilla. La huella SHA-256 corresponde al " +
-      "contenido exacto del cierre de caja tal como se le mostro al momento de firmar: cualquier modificacion " +
-      "posterior de esas cifras produce una huella distinta.",
-    8
-  );
-  paragraph("Generado por Artist Pro - artistpro.app", 8);
+  w.rule();
+  w.text("Huella (SHA-256) del cierre al generarse esta acta", { size: 9 });
+  w.paragraph(hashActual, 8);
+  w.space(4);
+  w.row("Acta generada el", formatDateTime(opts.generadoEl ?? new Date().toISOString()), { size: 9 });
 
-  return pdf.save();
+  w.rule();
+  w.paragraph(NOTA_LEY, 8);
+  w.paragraph("Generado por Artist Pro - artistpro.app", 8);
+
+  return w.save();
 }

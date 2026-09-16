@@ -10,6 +10,34 @@ _Checkpoint anterior: v1.11 — 14 de septiembre de 2026 (Meta Conversions API e
 
 ---
 
+## 📄 Acta del cierre: correo automático con todas las firmas (16 sep 2026)
+
+**Pedido:** cuando termina de firmar todo el mundo, que salga solo un correo con un PDF como el
+comprobante del externo, pero con **todas** las firmas juntas.
+
+**Lo que se hizo:**
+- **`buildActaPdf()`**: el mismo documento del cierre + cada firma con su evidencia (nombre, RUT,
+  correo, teléfono, hora, IP, código verificado), agrupadas en "Equipo" y "Contraparte". Si la huella
+  de alguien no calza con la del cierre actual, el acta lo dice — firmó otra versión de las cifras, y
+  eso un acta lo deja en evidencia en vez de esconderlo. Las firmas anteriores a las migraciones
+  099/102 (sin huella) también se declaran como tales.
+- Se extrajo `nuevoPdf()` y `escribirDocumento()`: el comprobante individual y el acta comparten todo
+  el armado, son el mismo documento con distinto bloque final.
+- **`src/lib/closing-acta.ts`**: `sendClosingActa()` decide y manda. "Todos" = los firmantes internos
+  marcados **y** todos los links externos vigentes. Un link anulado, vencido o invalidado por
+  reapertura no cuenta (no hay a quién esperar); uno **pendiente** sí bloquea el envío automático.
+- Se llama fire-and-forget después de **cada** firma, interna y externa: si falta alguien no hace nada.
+- **Destinatarios: todos los que firmaron**, equipo y contraparte por igual.
+- Idempotencia con `cost_sheet_informed_at`, que ya existía y significaba lo mismo ("el cierre quedó
+  informado"). Reabrir la caja lo limpia solo, así que después de reabrir → volver a firmar, el acta
+  sale de nuevo. **No hizo falta migración.**
+- El botón "Informar cierre" pasó a ser **"Mandar acta" / "Reenviar acta"**: el mismo envío pero con
+  `force`, que se salta el chequeo de externos pendientes. Es la salida para cuando un cliente nunca
+  firma. Lo que no se salta es que haya firmado el equipo — informar un cierre que el propio equipo no
+  aprobó no tiene sentido.
+
+---
+
 ## 🔑 Botón "Copiar link" — token cifrado en vez de solo hasheado (16 sep 2026)
 
 **Pedido:** un botón para copiar el link, al lado de Reenviar y Anular.
