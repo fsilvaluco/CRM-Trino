@@ -37,6 +37,13 @@ export interface Decision {
   after?: Record<string, unknown>;
 }
 
+/** Clave de atribución canónica: conjunto + anuncio + día (utm_term +
+ *  utm_content + día). Única fuente de verdad para cruzar Meta con qr_scans;
+ *  los creativos se repiten entre conjuntos con el mismo nombre. */
+export function spotifyKey(adsetName: string | null, adName: string | null, day: string): string {
+  return `${adsetName ?? ""}|${adName ?? ""}|${day}`;
+}
+
 export function median(values: number[]): number {
   if (values.length === 0) return 0;
   const s = [...values].sort((a, b) => a - b);
@@ -67,8 +74,7 @@ export function aggregateAds(
     w.linkClicks += r.inlineLinkClicks;
     w.video3s += r.video3sViews;
     w.reachMax = Math.max(w.reachMax, r.reach);
-    const key = `${r.adName}|${r.date}`;
-    w.spotifyClicks += spotifyByAdDay.get(key) ?? 0;
+    w.spotifyClicks += spotifyByAdDay.get(spotifyKey(r.adsetName, r.adName, r.date)) ?? 0;
   }
   for (const w of byAd.values()) {
     w.cpc = w.linkClicks > 0 ? w.spend / w.linkClicks : 0;

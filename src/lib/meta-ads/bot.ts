@@ -9,7 +9,7 @@ import {
 } from "./meta-client";
 import { resolveCampaign, fetchSpotifyClicks } from "./spotify-clicks";
 import {
-  aggregateAds, evaluateAdRules, evaluateBudgetRules,
+  aggregateAds, evaluateAdRules, evaluateBudgetRules, spotifyKey,
   type Decision, type AdSetBudgetInput,
 } from "./rules";
 import { sendTelegram } from "./telegram";
@@ -95,8 +95,8 @@ export async function runMetaAdsBot(): Promise<BotRunSummary> {
     spend: r.spend, impressions: r.impressions, reach: r.reach, frequency: r.frequency,
     inline_link_clicks: r.inlineLinkClicks, cpc: r.cpc, ctr: r.ctr,
     video_3s_views: r.video3sViews, thruplays: r.thruplays,
-    spotify_clicks: spotify.get(`${r.adName}|${r.date}`)?.total ?? 0,
-    spotify_clicks_unique: spotify.get(`${r.adName}|${r.date}`)?.unique ?? 0,
+    spotify_clicks: spotify.get(spotifyKey(r.adsetName, r.adName, r.date))?.total ?? 0,
+    spotify_clicks_unique: spotify.get(spotifyKey(r.adsetName, r.adName, r.date))?.unique ?? 0,
     raw: r.raw as object,
     updated_at: ranAt,
   }));
@@ -236,7 +236,7 @@ async function buildAndEvaluateBudgets(
     adsetName.set(r.adsetId, r.adsetName);
     const k = `${r.adsetId}|${r.date}`;
     spendByAdsetDay.set(k, (spendByAdsetDay.get(k) ?? 0) + r.spend);
-    spotifyByAdsetDay.set(k, (spotifyByAdsetDay.get(k) ?? 0) + (spotifyByAdDay.get(`${r.adName}|${r.date}`) ?? 0));
+    spotifyByAdsetDay.set(k, (spotifyByAdsetDay.get(k) ?? 0) + (spotifyByAdDay.get(spotifyKey(r.adsetName, r.adName, r.date)) ?? 0));
   }
 
   const inputs: AdSetBudgetInput[] = [];
