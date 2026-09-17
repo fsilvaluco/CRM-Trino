@@ -354,6 +354,11 @@ distinción de rol de proyecto en la aplicación, solo lo que ya cubre RLS a niv
 sección 8, sí hay algo de scoping por proyecto a nivel de RLS en `transactions` que la app no usa
 todavía).
 
+> **Actualización 17 sep 2026:** de esos dos, **Finanzas ya quedó cubierta** (§11 ítem 10). **Métricas
+> sigue sin cubrir**, y la consecuencia está medida contra producción en la **sección 12, ítem 34**:
+> `/api/analytics/eventos` devuelve la plata de todos los proyectos a cualquiera autenticado, porque la
+> RLS de `shows` es a nivel de organización y ahí el código no chequea nada.
+
 **Tampoco cubre hoy el módulo de Tareas** (`/tasks`, `task_assignees`) **ni Campañas** (`/campanas`,
 subproyectos) -- ambos módulos existen y funcionan en el código, pero sin ninguna distinción de rol:
 cualquiera con acceso al proyecto puede ver, crear, editar y asignar tareas o campañas, sin importar si
@@ -913,3 +918,82 @@ queda pendiente completar el ítem 18 para cerrar toda la Prioridad 2.
     con bypass -- ver 0.4): un resumen de salud de todos los proyectos a los que la persona ya tiene
     acceso, respetando la matriz de cada uno, sin entrar al detalle editable de ninguno sin seleccionarlo
     primero.
+
+---
+
+## 12. Auditoría de aislamiento por proyecto en Eventos (17 sep 2026)
+
+Motivada por un hallazgo de Francisco en producción: estando en un evento de GAMUZA, el selector de
+"copiar costos desde otro evento" listaba eventos de **todos los proyectos** de la organización, con
+sus nombres y sus totales. La causa no era el permiso sino el **alcance**: el endpoint filtraba por
+organización y por `canViewEventCosts`, y un `owner`/admin ve todos los proyectos, así que no quedaba
+nada por filtrar. Es la misma familia de brecha que la del 23 ago y la de `/api/finances` (§11 ítem
+10), en endpoints nuevos o que habían quedado fuera de esas revisiones.
+
+**Verificado contra la base de producción** (consultas de solo lectura a `pg_policy` e
+`information_schema`, 17 sep 2026), porque de eso depende qué tan grave es que el código no chequee:
+
+- Las políticas RLS de `shows` para `authenticated` son **a nivel de organización**
+  (`organization_id IN (...)`), nunca de proyecto. Igual `event_cost_items` ("org access cost items").
+  **La separación por proyecto vive solo en el código de la app**: donde un endpoint no chequea, no hay
+  red de seguridad abajo.
+- La política `anon read shows for rating` (`USING (true)`, rol `anon`) **no es una fuga pública**:
+  `anon` tiene SELECT solo a nivel de **columna** sobre `id, venue, city, date` -- las cuatro que usa
+  `/rate/[showId]`, ninguna de plata. Está bien hecho; se deja anotado para que no vuelva a asustar a
+  quien lea las políticas.
+
+### Corregido
+
+- ✅ **`GET`/`POST /api/eventos/[id]/costs/import`** (el selector de copiar costos) -- ahora solo
+  devuelve/acepta eventos del proyecto **del evento en que se está parado**, y sus hijos, mismo criterio
+  que `/api/eventos?projectId=`. Se ancla al proyecto del evento y **no** al selector de proyecto del
+  front, para que el alcance lo decida el servidor y no se pueda ensanchar mandando otro `projectId`.
+  El `POST` hace el mismo chequeo antes de copiar: sin eso, mandando a mano un `sourceShowId` de otro
+  proyecto se traían sus costos igual, aunque el selector ya no lo mostrara. El alcance quedó en
+  [`project-scope.ts`](src/lib/project-scope.ts) con tests (`npm test`).
+- ✅ **`POST /api/eventos/[id]/duplicate`** -- no tenía NINGÚN chequeo: cualquiera de la organización
+  podía duplicar el evento de cualquier proyecto. Duplicar es CREAR un evento en el proyecto del
+  original, así que ahora pide lo mismo que `POST /api/eventos` (`allowedProjectIds` + `canEditEvent`).
+  Además, la planilla de costos se copia solo con `canEditEventCosts`, igual que `POST /api/eventos`
+  ignora los campos de plata sin ese permiso.
+- ✅ **`POST /api/eventos/[id]/notify`** -- no tenía chequeo: cualquiera de la organización podía
+  disparar un push a todos los integrantes del proyecto de cualquier evento. Ahora exige acceso al
+  proyecto (`allowedProjectIds` + `canViewEvent`). No expone datos, pero es una acción sobre gente ajena.
+- ✅ **`GET /api/eventos/tours`** -- el alcance venía del `projectId` que manda el cliente, y sin él
+  devolvía nombres de gira de toda la organización. Ahora se verifica el acceso a ese proyecto, y sin
+  `projectId` se acota a `allowedProjectIds`. Devuelve lista vacía en vez de 403: es un autocompletado,
+  no debe romper el formulario.
+
+### Revisado y sin cambios
+
+- Limpios (ya tenían el patrón): `/api/eventos` (lista), `/api/eventos/[id]`, todos los
+  `[id]/costs/*`, `signatures/*` (incl. `codigo`, que además exige ser firmante requerido),
+  `external-signers/*`, `cost-submissions`, `setlist`, `timing`, `tickets`, `contacts`.
+- Los `*-extract` (`km`, `setlist`, `tickets`, `timing`, `cost-submissions`) **no leen la base**: solo
+  parsean el archivo que se les sube. No tienen alcance que filtrar.
+- `/api/cost-item-types` es org-wide **a propósito** (catálogo compartido de nombres de ítem de costo,
+  sin montos ni referencia al evento). No es brecha; queda anotado porque parece una.
+
+### Pendiente
+
+34. **Métricas (`GET /api/analytics/eventos` y `/api/analytics/eventos/[id]`) no tiene ningún chequeo
+    de proyecto ni de rol.** Con `isAllProjects=true` -- o simplemente sin `projectId` -- devuelve
+    **todos los eventos de la organización con `fee`, `ticket_income` y `expenses`** a cualquiera
+    autenticado. Es exactamente la brecha de `/api/finances` (§11 ítem 10) en el módulo que la sección
+    3 de este documento declara fuera del modelo de roles ("deliberadamente NO cubre todavía ...
+    Métricas"). O sea: no es un descuido, es un módulo que quedó fuera de la migración -- pero la
+    consecuencia hoy es real. **Se dejó fuera de la corrección del 17 sep a propósito** (decisión de
+    Francisco): no es un parche, es extender el modelo de roles a un módulo nuevo, y cambia lo que ven
+    las personas con acceso acotado. El arreglo es el mismo patrón de §11 ítem 10: `allowedProjectIds`
+    + matriz de cada proyecto fila por fila + redacción de montos. **Al hacerlo hay que actualizar la
+    sección 3**, que hoy nombra a Métricas junto a Finanzas cuando Finanzas ya fue cubierta.
+35. **El PDF de la Planilla de costos tiene que migrar junto con Eventos al modelo fino de 0.2.2.**
+    Hoy el PDF (`/api/eventos/[id]/costs/export?format=pdf`, 16 sep 2026) muestra ingresos, utilidad y
+    reparto detrás de `canViewEventCosts`, que es `ve_ingresos` **O** `ve_costos` -- el mismo gate
+    grueso que usa toda la sección financiera del evento en el código de hoy, así que **el PDF no
+    expone nada que esa persona no vea ya en pantalla**. Pero 0.2.2 define un modelo más fino
+    ("la Utilidad se oculta si falta cualquiera de las dos"), y hay precedente explícito de que las
+    exportaciones entran en esa migración (§11 ítem 9: el CSV de Deals ocultando el valor con
+    `ve_ingresos = no`). Cuando Eventos se migre: ingresos exigen `ve_ingresos`, el detalle de costos
+    exige `ve_costos`, y **utilidad y reparto exigen las dos** -- ojo que mostrar la utilidad a quien
+    ve costos pero no ingresos le revela los ingresos por resta.

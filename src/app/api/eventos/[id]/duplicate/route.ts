@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { getProjectPermissions, canEditEvent, canEditEventCosts } from "@/lib/project-roles";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapLiveShow(row: any) {
@@ -40,7 +41,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, user, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { data: original, error: findErr } = await supabase
@@ -51,6 +52,18 @@ export async function POST(
 
   if (findErr || !original) {
     return NextResponse.json({ error: "Evento no encontrado" }, { status: 404 });
+  }
+
+  // Duplicar es CREAR un evento en el proyecto del original, asi que pide lo
+  // mismo que POST /api/eventos: acceso a ese proyecto y poder editar eventos
+  // ahi. Sin esto, cualquiera de la organizacion podia duplicar el evento de
+  // cualquier proyecto (auditoria del 17 sep 2026, ver ROLES.md §11).
+  if (allowedProjectIds !== null && !allowedProjectIds.includes(original.project_id)) {
+    return NextResponse.json({ error: "Sin acceso a este evento" }, { status: 403 });
+  }
+  const role = await getProjectPermissions(supabase, user!.id, original.project_id ?? null);
+  if (!canEditEvent(role)) {
+    return NextResponse.json({ error: "Tu rol no puede crear eventos en este proyecto" }, { status: 403 });
   }
 
   const { data: newShow, error: insertErr } = await supabase
@@ -98,10 +111,16 @@ export async function POST(
   // repiten) -- los montos quedan igual como punto de partida, se ajustan
   // en el evento nuevo. No copia comprobantes ni el flag BHE por fila para
   // evitar arrastrar datos de un pago que ya se hizo.
-  const { data: costRows } = await supabase
-    .from("event_cost_items")
-    .select("position, label, responsable, responsable_contact_id")
-    .eq("show_id", id);
+  //
+  // Se copia solo si la persona puede editar costos: igual que POST
+  // /api/eventos ignora los campos de plata sin ese permiso, aca no se
+  // arrastra una planilla que quien duplica no tiene permitido tocar.
+  const { data: costRows } = canEditEventCosts(role)
+    ? await supabase
+        .from("event_cost_items")
+        .select("position, label, responsable, responsable_contact_id")
+        .eq("show_id", id)
+    : { data: null };
 
   if (costRows && costRows.length > 0) {
     await supabase.from("event_cost_items").insert(

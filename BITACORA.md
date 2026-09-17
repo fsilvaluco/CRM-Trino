@@ -1,12 +1,74 @@
 # Bitácora de Trabajo — Artist Pro
-_Checkpoint v1.13 — 16 de septiembre de 2026 (bot de Meta Ads desplegado y verificado en producción, en dry-run)_
-_Checkpoint anterior: v1.12 — 15 de septiembre de 2026 (forzar apertura de app en WhatsApp + device_type)_
+_Checkpoint v1.14 — 17 de septiembre de 2026 (planilla de costos: CSV/PDF e importar, + auditoría de aislamiento por proyecto en Eventos)_
+_Checkpoint anterior: v1.13 — 16 de septiembre de 2026 (bot de Meta Ads desplegado y verificado en producción, en dry-run)_
 
 > **Formato de tracking:** Registro histórico de trabajo realizado + pendientes actuales.  
 > Cada entrada incluye fecha, estado (🔨 En Progreso / ✅ Hecho), y notas de implementación detalladas.
 > Este checkpoint existe para poder empezar una conversación nueva sin perder contexto — si estás
 > retomando desde acá, lee primero **"🤝 Cómo trabajamos"**, después "🔴 Crítico" y "⚠️ Por verificar"
 > antes de construir nada.
+
+---
+
+## 💸 Planilla de costos: bajar en CSV/PDF, importar y copiar de otro evento (16-17 sep 2026)
+
+**Pedido:** poder copiar los costos de un evento a otro sin volver a tipear los mismos 20 ítems, y sacar
+la planilla en PDF para mandarla a aprobación interna (hasta ahora solo existía el print del navegador).
+Decidido con Francisco antes de construir: CSV para la ida y vuelta, PDF solo de salida.
+
+**Qué quedó en la Planilla de costos** (PRs #24, #25, #26):
+- **Descargar → PDF**: documento de aprobación con resumen financiero (fee, entradas, total ingresos,
+  total egresos, **utilidad**), **reparto de utilidad** con porcentajes/montos/nota, detalle de ítems,
+  subtotales por categoría, estado de pago y espacio de firma.
+- **Descargar → CSV**: la planilla para bajarla y volver a subirla.
+- **Importar**: desde otro evento (selector) o desde un archivo CSV/Excel. Las dos vías pasan por una
+  **vista previa** (qué entra, qué se omite y por qué) con switch *"traer montos"*.
+
+**Decisiones que vale la pena recordar:**
+- El CSV que se exporta es EXACTAMENTE el que se sabe importar, y además tolera planillas escritas a
+  mano: alias de encabezados (`Item`/`Descripción`/`Glosa`), montos en formato chileno (`$1.250.000`),
+  categorías sin tilde, filas de TOTAL y filas vacías. Separador `;` + BOM para que Excel es-CL lo abra
+  sin el asistente.
+- **Los ítems importados se agregan al final y quedan SIN GUARDAR**: se escriben por el `PUT` de costos
+  de siempre. Una sola ruta de escritura, con su chequeo de caja cerrada y su log.
+- **No se copian comprobantes ni el estado de pago**: un costo del evento nuevo nace impago. Copiar
+  "pagado" de otro evento sería mentir en la contabilidad de este.
+- La **utilidad del PDF se calcula contra el total de la planilla**, no contra el campo `Egresos` del
+  evento (que se llena a mano y puede estar atrasado). Si difieren, el PDF lo dice en una línea.
+- En eventos con `financials_untracked` no se muestran ingresos ni utilidad -- serían ceros disfrazados
+  de dato.
+- En BHE manda el líquido: el bruto se recalcula con la retención vigente, que pudo cambiar desde el
+  evento que se copia.
+- El escritor de PDF salió de `external-signature.ts` a **`src/lib/pdf-writer.ts`**, compartido ahora por
+  el comprobante de firma, el acta de cierre y la planilla (+ un ayudante de columnas para la tabla).
+
+**🔴 Hallazgo en producción, corregido (PR #27):** estando en un evento de GAMUZA, el selector de
+"copiar de otro evento" listaba eventos de **todos los proyectos** de la organización con sus totales.
+La causa no era el permiso sino el **alcance** -- filtraba por organización y por `canViewEventCosts`, y
+un owner/admin ve todos los proyectos, así que no filtraba nada. Ahora se acota al proyecto **del evento
+en que se está parado** (y sus hijos), anclado en el servidor y no en el selector del front, y el `POST`
+hace el mismo chequeo antes de copiar. El alcance quedó en `src/lib/project-scope.ts` **con tests**
+(`npm test`).
+
+**Auditoría que salió de ahí (17 sep):** se revisaron todos los endpoints de Eventos con el mismo
+criterio. Corregidos `duplicate` (no tenía NINGÚN chequeo: cualquiera podía duplicar el evento de
+cualquier proyecto), `notify` (push a integrantes de proyectos ajenos) y `tours` (alcance tomado del
+`projectId` que manda el cliente). **Detalle completo, lo revisado sin cambios y lo pendiente: ROLES.md
+sección 12.**
+
+**⚠️ Pendiente (decidido dejar aparte, no es parche sino trabajo de roles):** `GET
+/api/analytics/eventos` **no tiene ningún chequeo de proyecto ni de rol** -- devuelve todos los eventos
+de la organización con `fee`/`ticket_income`/`expenses` a cualquiera autenticado. Es la misma brecha que
+se cerró en `/api/finances`, en el módulo que ROLES.md §3 declara fuera del modelo de roles. Ver
+**ROLES.md sección 12, ítems 34 y 35** (el 35 es el PDF, que debe migrar al modelo fino de 0.2.2 cuando
+Eventos se migre).
+
+**Verificado:** `tsc`, `lint` y `build` limpios; `npm test` en verde (19 tests, 6 nuevos). Ida y vuelta
+del CSV probada byte a byte (acentos, comillas y `;` dentro del texto), import desde `.xlsx` real, PDF
+en sus casos (egresos que calzan, `Egresos` desfasado, evento sin finanzas, 60 ítems paginando, montos
+de millones) leyendo el texto del PDF generado. Las políticas RLS se verificaron contra la base de
+producción con consultas de solo lectura. **Lo que NO se probó: la app corriendo contra Supabase** -- el
+entorno de desarrollo no tiene credenciales, así que el click en pantalla quedó pendiente de Francisco.
 
 ---
 

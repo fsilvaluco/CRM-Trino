@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { getProjectPermissions, canViewEvent } from "@/lib/project-roles";
 import { sendPushToUsers } from "@/lib/push";
 
 function siteUrl(path: string): string {
@@ -18,7 +19,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, user, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const body = await request.json().catch(() => ({}));
@@ -35,6 +36,18 @@ export async function POST(
   }
   if (!event.project_id) {
     return NextResponse.json({ error: "El evento no tiene proyecto asignado" }, { status: 400 });
+  }
+
+  // Avisar es una accion sobre el proyecto (le llega un push a todos sus
+  // integrantes), asi que pide acceso al evento. Sin esto cualquiera de la
+  // organizacion podia notificar sobre eventos de proyectos ajenos
+  // (auditoria del 17 sep 2026, ver ROLES.md §11).
+  if (allowedProjectIds !== null && !allowedProjectIds.includes(event.project_id as string)) {
+    return NextResponse.json({ error: "Sin acceso a este evento" }, { status: 403 });
+  }
+  const role = await getProjectPermissions(supabase, user!.id, event.project_id as string);
+  if (!canViewEvent(role)) {
+    return NextResponse.json({ error: "Sin acceso a este evento" }, { status: 403 });
   }
 
   const { data: members, error: membersErr } = await supabase
