@@ -66,8 +66,12 @@ export async function runMetaAdsBot(): Promise<BotRunSummary> {
   //      por Telegram el listado con IDs SOLO cuando la estructura cambia.
   const struct = await detectAndReportStructure(supabase, summary);
 
-  const spotifyByAdDay = await fetchSpotifyClicks(supabase, campaign.qrId);
-  const ads = aggregateAds(rows, spotifyByAdDay);
+  const spotify = await fetchSpotifyClicks(supabase, campaign.qrId);
+  // Las reglas siguen usando el TOTAL (comportamiento acordado); el ÚNICO se
+  // guarda para el reporte/resumen (costo/SC no inflado por dobles toques).
+  const spotifyTotal = new Map<string, number>();
+  for (const [k, v] of spotify) spotifyTotal.set(k, v.total);
+  const ads = aggregateAds(rows, spotifyTotal);
   summary.adsSeen = ads.length;
 
   if (rows.length === 0) {
@@ -90,7 +94,8 @@ export async function runMetaAdsBot(): Promise<BotRunSummary> {
     spend: r.spend, impressions: r.impressions, reach: r.reach, frequency: r.frequency,
     inline_link_clicks: r.inlineLinkClicks, cpc: r.cpc, ctr: r.ctr,
     video_3s_views: r.video3sViews, thruplays: r.thruplays,
-    spotify_clicks: spotifyByAdDay.get(`${r.adName}|${r.date}`) ?? 0,
+    spotify_clicks: spotify.get(`${r.adName}|${r.date}`)?.total ?? 0,
+    spotify_clicks_unique: spotify.get(`${r.adName}|${r.date}`)?.unique ?? 0,
     raw: r.raw as object,
     updated_at: ranAt,
   }));
@@ -119,7 +124,7 @@ export async function runMetaAdsBot(): Promise<BotRunSummary> {
   }
 
   // 5) Evaluar reglas de presupuesto (nivel adset).
-  const budgetDecisions = await buildAndEvaluateBudgets(rows, spotifyByAdDay, summary);
+  const budgetDecisions = await buildAndEvaluateBudgets(rows, spotifyTotal, summary);
 
   const decisions = [...adDecisions, ...budgetDecisions];
   summary.decisions = decisions.length;

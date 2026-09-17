@@ -43,7 +43,9 @@ const round = (x: number, d = 4) => Math.round(x * 10 ** d) / 10 ** d;
 interface DayMetric {
   date: string; spend: number; impressions: number; frequency: number;
   inline_link_clicks: number; cpc: number; hook_rate: number;
-  spotify_clicks: number; cost_per_spotify_click: number | null;
+  spotify_clicks: number; spotify_clicks_unique: number;
+  // costo/SpotifyClick sobre ÚNICOS (dedup IP+UA 30 min) — no inflado.
+  cost_per_spotify_click: number | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -67,7 +69,7 @@ export async function GET(req: NextRequest) {
 
   const { data: metrics, error: mErr } = await supabase
     .from("ad_metrics_daily")
-    .select("ad_id, ad_name, adset_name, campaign_name, date, spend, impressions, frequency, inline_link_clicks, cpc, video_3s_views, spotify_clicks")
+    .select("ad_id, ad_name, adset_name, campaign_name, date, spend, impressions, frequency, inline_link_clicks, cpc, video_3s_views, spotify_clicks, spotify_clicks_unique")
     .eq("project_id", projectId)
     .gte("date", sinceDay)
     .order("ad_name", { ascending: true })
@@ -81,7 +83,7 @@ export async function GET(req: NextRequest) {
     campaign_name: string | null; days: DayMetric[];
     totals: {
       spend: number; impressions: number; inline_link_clicks: number;
-      spotify_clicks: number; cpc: number; hook_rate: number;
+      spotify_clicks: number; spotify_clicks_unique: number; cpc: number; hook_rate: number;
       cost_per_spotify_click: number | null;
     };
   }
@@ -96,22 +98,23 @@ export async function GET(req: NextRequest) {
         adset_name: (row.adset_name as string) ?? null,
         campaign_name: (row.campaign_name as string) ?? null,
         days: [],
-        totals: { spend: 0, impressions: 0, inline_link_clicks: 0, spotify_clicks: 0, cpc: 0, hook_rate: 0, cost_per_spotify_click: null },
+        totals: { spend: 0, impressions: 0, inline_link_clicks: 0, spotify_clicks: 0, spotify_clicks_unique: 0, cpc: 0, hook_rate: 0, cost_per_spotify_click: null },
       };
       byAd.set(adId, r);
     }
     const spend = n(row.spend), impr = n(row.impressions), clicks = n(row.inline_link_clicks);
-    const v3s = n(row.video_3s_views), sc = n(row.spotify_clicks);
+    const v3s = n(row.video_3s_views), sc = n(row.spotify_clicks), scu = n(row.spotify_clicks_unique);
     r.days.push({
       date: String(row.date),
       spend, impressions: impr, frequency: round(n(row.frequency), 3),
       inline_link_clicks: clicks, cpc: round(n(row.cpc), 2),
       hook_rate: impr > 0 ? round(v3s / impr, 4) : 0,
-      spotify_clicks: sc,
-      cost_per_spotify_click: sc > 0 ? round(spend / sc, 2) : null,
+      spotify_clicks: sc, spotify_clicks_unique: scu,
+      cost_per_spotify_click: scu > 0 ? round(spend / scu, 2) : null,
     });
     r.totals.spend += spend; r.totals.impressions += impr;
     r.totals.inline_link_clicks += clicks; r.totals.spotify_clicks += sc;
+    r.totals.spotify_clicks_unique += scu;
     // acumulamos video_3s en hook_rate temporalmente como suma, se resuelve abajo
     r.totals.hook_rate += v3s;
   }
@@ -120,7 +123,7 @@ export async function GET(req: NextRequest) {
     const v3sSum = r.totals.hook_rate; // era la suma de video_3s
     r.totals.cpc = r.totals.inline_link_clicks > 0 ? round(r.totals.spend / r.totals.inline_link_clicks, 2) : 0;
     r.totals.hook_rate = r.totals.impressions > 0 ? round(v3sSum / r.totals.impressions, 4) : 0;
-    r.totals.cost_per_spotify_click = r.totals.spotify_clicks > 0 ? round(r.totals.spend / r.totals.spotify_clicks, 2) : null;
+    r.totals.cost_per_spotify_click = r.totals.spotify_clicks_unique > 0 ? round(r.totals.spend / r.totals.spotify_clicks_unique, 2) : null;
   }
 
   const { data: actions, error: aErr } = await supabase

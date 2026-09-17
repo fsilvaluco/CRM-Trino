@@ -22,22 +22,32 @@ export async function resolveCampaign(supabase: Supabase): Promise<CampaignRef |
   return { qrId: data.id, projectId: data.project_id ?? null };
 }
 
-/** Mapa "adName|YYYY-MM-DD" -> clicks. Solo cuenta scans que llegaron a
- *  Spotify (lo define la función SQL). `sinceDays` acota la ventana leída. */
+export interface SpotifyCount {
+  /** Todos los scans que llegaron a Spotify. */
+  total: number;
+  /** Dedup: mismo IP+UA dentro de 30 min = 1 (para que costo/SC no se infle). */
+  unique: number;
+}
+
+/** Mapa "adName|YYYY-MM-DD" -> {total, unique}. Solo cuenta scans que llegaron
+ *  a Spotify (lo define la función SQL). `sinceDays` acota la ventana leída. */
 export async function fetchSpotifyClicks(
   supabase: Supabase,
   qrId: string,
   sinceDays = 4
-): Promise<Map<string, number>> {
+): Promise<Map<string, SpotifyCount>> {
   const since = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase.rpc("bot_spotify_clicks", {
     p_qr_id: qrId,
     p_since: since,
   });
-  const map = new Map<string, number>();
+  const map = new Map<string, SpotifyCount>();
   if (error || !data) return map;
-  for (const row of data as { ad_name: string; day: string; clicks: number }[]) {
-    map.set(`${row.ad_name}|${row.day}`, Number(row.clicks) || 0);
+  for (const row of data as { ad_name: string; day: string; clicks: number; clicks_unique: number }[]) {
+    map.set(`${row.ad_name}|${row.day}`, {
+      total: Number(row.clicks) || 0,
+      unique: Number(row.clicks_unique) || 0,
+    });
   }
   return map;
 }
