@@ -3,7 +3,10 @@
 // Telegram. Las escrituras a Meta solo ocurren si BOT_ENABLED && !BOT_DRY_RUN.
 import { createAdminClient } from "@/lib/supabase-admin";
 import { BOT_ENABLED, BOT_DRY_RUN, DAILY_BUDGET_CAP_CLP, CAMPAIGN_PREFIXES, RULES } from "./config";
-import { fetchAdInsights, getAdSet, pauseAd, setAdSetDailyBudget, type AdInsightRow } from "./meta-client";
+import {
+  fetchAdInsights, fetchCampaignAds, getAdSet, pauseAd, setAdSetDailyBudget,
+  type AdInsightRow, type AdStructureRow,
+} from "./meta-client";
 import { resolveCampaign, fetchSpotifyClicks } from "./spotify-clicks";
 import {
   aggregateAds, evaluateAdRules, evaluateBudgetRules,
@@ -57,14 +60,23 @@ export async function runMetaAdsBot(): Promise<BotRunSummary> {
   if (CAMPAIGN_PREFIXES.length > 0) {
     rows = rows.filter((r) => CAMPAIGN_PREFIXES.some((p) => (r.campaignName ?? "").startsWith(p)));
   }
+
+  // 1.b) Estructura de la campaña (independiente de la entrega): así el bot
+  //      "ve" los anuncios aunque estén en revisión con 0 impresiones. Avisa
+  //      por Telegram el listado con IDs SOLO cuando la estructura cambia.
+  const struct = await detectAndReportStructure(supabase, summary);
+
   const spotifyByAdDay = await fetchSpotifyClicks(supabase, campaign.qrId);
   const ads = aggregateAds(rows, spotifyByAdDay);
   summary.adsSeen = ads.length;
 
   if (rows.length === 0) {
-    // Sin ads (o ninguno matchea el prefijo): heartbeat "sigo vivo" y salir.
-    const nCamp = new Set(rows.map((r) => r.campaignId)).size; // 0 acá
-    await sendTelegram(`🤖 <b>Bot Meta Ads</b> activo · ${nCamp} campañas · ${BOT_DRY_RUN ? "dry-run" : "real"}`);
+    // Sin ENTREGA todavía (ads en revisión) o cuenta vacía. La confirmación de
+    // estructura ya la mandó detectAndReportStructure si hubo cambio -- no se
+    // spamea cada 6h. Solo si NO hay ninguna campaña se manda el heartbeat.
+    if (struct.ads === 0) {
+      await sendTelegram(`🤖 <b>Bot Meta Ads</b> activo · 0 campañas · ${BOT_DRY_RUN ? "dry-run" : "real"}`);
+    }
     return summary;
   }
 
@@ -127,6 +139,79 @@ export async function runMetaAdsBot(): Promise<BotRunSummary> {
   }
 
   return summary;
+}
+
+/** Lee la estructura viva (campañas→conjuntos→anuncios) filtrada por prefijo,
+ *  y avisa por Telegram el listado con IDs SOLO cuando cambió respecto a la
+ *  última corrida (firma en bot_kv). Devuelve los conteos para el heartbeat. */
+async function detectAndReportStructure(
+  supabase: Supabase,
+  summary: BotRunSummary
+): Promise<{ campaigns: number; adsets: number; ads: number }> {
+  let all: AdStructureRow[];
+  try {
+    all = await fetchCampaignAds();
+  } catch (err) {
+    summary.errors.push(`Estructura: ${err instanceof Error ? err.message : err}`);
+    return { campaigns: 0, adsets: 0, ads: 0 };
+  }
+  const rows = CAMPAIGN_PREFIXES.length > 0
+    ? all.filter((r) => CAMPAIGN_PREFIXES.some((p) => (r.campaignName ?? "").startsWith(p)))
+    : all;
+
+  const counts = {
+    campaigns: new Set(rows.map((r) => r.campaignId)).size,
+    adsets: new Set(rows.map((r) => r.adsetId)).size,
+    ads: rows.length,
+  };
+
+  const sig = rows
+    .map((r) => `${r.campaignId}|${r.adsetId}|${r.adId}|${r.effectiveStatus}`)
+    .sort()
+    .join(";");
+  const { data: kv } = await supabase.from("bot_kv").select("value").eq("key", "structure_sig").maybeSingle();
+  const prev = (kv as { value: string } | null)?.value ?? "";
+
+  if (sig !== prev) {
+    if (rows.length > 0) await sendTelegram(buildStructureMessage(rows, counts));
+    await supabase.from("bot_kv").upsert(
+      { key: "structure_sig", value: sig, updated_at: new Date().toISOString() },
+      { onConflict: "key" }
+    );
+  }
+  return counts;
+}
+
+function buildStructureMessage(
+  rows: AdStructureRow[],
+  counts: { campaigns: number; adsets: number; ads: number }
+): string {
+  // Agrupar campaña -> conjunto -> anuncios.
+  const byCampaign = new Map<string, AdStructureRow[]>();
+  for (const r of rows) {
+    const k = r.campaignId ?? "?";
+    (byCampaign.get(k) ?? byCampaign.set(k, []).get(k)!).push(r);
+  }
+  const lines: string[] = [`🤖 <b>Bot Meta Ads</b> · estructura detectada (${BOT_DRY_RUN ? "dry-run" : "real"})`];
+  for (const [, cRows] of byCampaign) {
+    const c0 = cRows[0];
+    lines.push(`\n📣 <b>${c0.campaignName ?? "?"}</b> (<code>${c0.campaignId}</code>)`);
+    const byAdset = new Map<string, AdStructureRow[]>();
+    for (const r of cRows) {
+      const k = r.adsetId ?? "?";
+      (byAdset.get(k) ?? byAdset.set(k, []).get(k)!).push(r);
+    }
+    for (const [, sRows] of byAdset) {
+      const s0 = sRows[0];
+      const budget = s0.adsetBudgetClp != null ? `${s0.adsetBudgetClp} CLP/día` : "sin budget propio";
+      lines.push(`  📦 <b>${s0.adsetName ?? "?"}</b> (<code>${s0.adsetId}</code>) · ${budget} · ${sRows.length} anuncios`);
+      for (const r of sRows) {
+        lines.push(`     • ${r.adName ?? "?"} — <code>${r.adId}</code> — ${r.effectiveStatus ?? "?"}`);
+      }
+    }
+  }
+  lines.push(`\n<b>Total:</b> ${counts.campaigns} campaña(s) · ${counts.adsets} conjunto(s) · ${counts.ads} anuncios`);
+  return lines.join("\n");
 }
 
 async function buildAndEvaluateBudgets(

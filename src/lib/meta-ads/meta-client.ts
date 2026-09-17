@@ -149,6 +149,56 @@ export async function fetchAdInsights(): Promise<AdInsightRow[]> {
   return rows;
 }
 
+export interface AdStructureRow {
+  adId: string;
+  adName: string | null;
+  effectiveStatus: string | null;
+  adsetId: string | null;
+  adsetName: string | null;
+  adsetBudgetClp: number | null;
+  campaignId: string | null;
+  campaignName: string | null;
+}
+
+interface GraphAdNode {
+  id: string;
+  name?: string;
+  effective_status?: string;
+  adset?: { id?: string; name?: string; daily_budget?: string };
+  campaign?: { id?: string; name?: string };
+}
+
+/** Lista TODOS los anuncios de la cuenta con su conjunto y campaña, sin
+ *  depender de que tengan entrega (insights no devuelve ads sin impresiones).
+ *  Es lo que permite "ver" la campaña aunque esté en revisión. */
+export async function fetchCampaignAds(): Promise<AdStructureRow[]> {
+  const fields = "id,name,effective_status,adset{id,name,daily_budget},campaign{id,name}";
+  const rows: AdStructureRow[] = [];
+  let after: string | null = null;
+  do {
+    const params: Record<string, string> = { fields, limit: "200" };
+    if (after) params.after = after;
+    const page = (await graph(`${AD_ACCOUNT_ID}/ads`, params)) as {
+      data?: GraphAdNode[];
+      paging?: { cursors?: { after?: string }; next?: string };
+    };
+    for (const a of page.data ?? []) {
+      rows.push({
+        adId: a.id,
+        adName: a.name ?? null,
+        effectiveStatus: a.effective_status ?? null,
+        adsetId: a.adset?.id ?? null,
+        adsetName: a.adset?.name ?? null,
+        adsetBudgetClp: a.adset?.daily_budget != null ? num(a.adset.daily_budget) : null,
+        campaignId: a.campaign?.id ?? null,
+        campaignName: a.campaign?.name ?? null,
+      });
+    }
+    after = page.paging?.next ? page.paging?.cursors?.after ?? null : null;
+  } while (after);
+  return rows;
+}
+
 export interface AdSetInfo {
   id: string;
   name: string | null;
