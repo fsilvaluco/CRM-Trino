@@ -67,11 +67,12 @@ export async function runMetaAdsBot(): Promise<BotRunSummary> {
   const struct = await detectAndReportStructure(supabase, summary);
 
   const spotify = await fetchSpotifyClicks(supabase, campaign.qrId);
-  // Las reglas siguen usando el TOTAL (comportamiento acordado); el ÚNICO se
-  // guarda para el reporte/resumen (costo/SC no inflado por dobles toques).
-  const spotifyTotal = new Map<string, number>();
-  for (const [k, v] of spotify) spotifyTotal.set(k, v.total);
-  const ads = aggregateAds(rows, spotifyTotal);
+  // Las reglas optimizan por SpotifyClick ÚNICO (dedup IP+UA 30min): mismos
+  // umbrales/guardrails, pero sin decidir en base a dobles toques. El TOTAL se
+  // guarda igual en ad_metrics_daily para el reporte.
+  const spotifyUnique = new Map<string, number>();
+  for (const [k, v] of spotify) spotifyUnique.set(k, v.unique);
+  const ads = aggregateAds(rows, spotifyUnique);
   summary.adsSeen = ads.length;
 
   if (rows.length === 0) {
@@ -123,8 +124,8 @@ export async function runMetaAdsBot(): Promise<BotRunSummary> {
     await supabase.from("ad_rule_state").upsert(streakRows, { onConflict: "ad_id" });
   }
 
-  // 5) Evaluar reglas de presupuesto (nivel adset).
-  const budgetDecisions = await buildAndEvaluateBudgets(rows, spotifyTotal, summary);
+  // 5) Evaluar reglas de presupuesto (nivel adset) — también por SpotifyClick único.
+  const budgetDecisions = await buildAndEvaluateBudgets(rows, spotifyUnique, summary);
 
   const decisions = [...adDecisions, ...budgetDecisions];
   summary.decisions = decisions.length;
