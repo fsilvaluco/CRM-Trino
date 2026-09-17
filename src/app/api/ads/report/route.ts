@@ -72,6 +72,7 @@ export async function GET(req: NextRequest) {
     .select("ad_id, ad_name, adset_name, campaign_name, date, spend, impressions, frequency, inline_link_clicks, cpc, video_3s_views, spotify_clicks, spotify_clicks_unique")
     .eq("project_id", projectId)
     .gte("date", sinceDay)
+    .order("adset_name", { ascending: true })
     .order("ad_name", { ascending: true })
     .order("date", { ascending: true });
   if (mErr) {

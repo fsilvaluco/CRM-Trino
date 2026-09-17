@@ -52,6 +52,17 @@ function num(v: string | undefined | null): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** Fecha YYYY-MM-DD en la zona de la cuenta (America/Santiago), con offset de
+ *  días. Se usa para el time_range de insights: así el corte de medianoche
+ *  coincide con el de Meta (que reporta en la TZ de la cuenta, no UTC). */
+function santiagoDay(offsetDays: number): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date(Date.now() - offsetDays * 86400000));
+  const get = (t: string) => parts.find((p) => p.type === t)?.value;
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
 function actionValue(actions: GraphAction[] | undefined, type: string): number {
   if (!actions) return 0;
   const hit = actions.find((a) => a.action_type === type);
@@ -104,10 +115,16 @@ export async function fetchAdInsights(): Promise<AdInsightRow[]> {
   const rows: AdInsightRow[] = [];
   let after: string | null = null;
 
+  // Ventana de 3 días INCLUYENDO hoy, en la TZ de la cuenta. OJO: date_preset
+  // "last_3d" excluye hoy (son los 3 días previos), así que una campaña
+  // lanzada hoy devolvería 0 filas. Con time_range en fechas de Santiago el
+  // corte de medianoche calza con el de Meta.
+  const timeRange = JSON.stringify({ since: santiagoDay(2), until: santiagoDay(0) });
+
   do {
     const params: Record<string, string> = {
       level: "ad",
-      date_preset: "last_3d",
+      time_range: timeRange,
       time_increment: "1",
       fields,
       limit: "200",

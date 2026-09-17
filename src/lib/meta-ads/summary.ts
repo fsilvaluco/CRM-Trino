@@ -20,15 +20,16 @@ export async function runDailySummary(): Promise<{ ok: boolean; day: string }> {
 
   const { data: metrics } = await supabase
     .from("ad_metrics_daily")
-    .select("ad_name, spend, impressions, inline_link_clicks, spotify_clicks, spotify_clicks_unique")
+    .select("ad_name, adset_name, spend, impressions, inline_link_clicks, spotify_clicks, spotify_clicks_unique")
     .eq("date", day)
+    .order("adset_name", { ascending: true })
     .order("spend", { ascending: false });
 
   const rows = ((metrics ?? []) as {
-    ad_name: string | null; spend: number; impressions: number;
+    ad_name: string | null; adset_name: string | null; spend: number; impressions: number;
     inline_link_clicks: number; spotify_clicks: number; spotify_clicks_unique: number;
   }[]).map((r) => ({
-    ad_name: r.ad_name, spend: Number(r.spend) || 0, impressions: Number(r.impressions) || 0,
+    ad_name: r.ad_name, adset_name: r.adset_name, spend: Number(r.spend) || 0, impressions: Number(r.impressions) || 0,
     inline_link_clicks: Number(r.inline_link_clicks) || 0,
     spotify_clicks: Number(r.spotify_clicks) || 0,
     spotify_clicks_unique: Number(r.spotify_clicks_unique) || 0,
@@ -57,10 +58,10 @@ export async function runDailySummary(): Promise<{ ok: boolean; day: string }> {
   // Costo/SpotifyClick sobre ÚNICOS (no inflado por dobles toques).
   const costPerSpotify = tot.spotifyU > 0 ? tot.spend / tot.spotifyU : null;
 
-  const top = rows.slice(0, 12).map((r) => {
+  const top = rows.slice(0, 15).map((r) => {
     const cps = r.spotify_clicks_unique > 0 ? clp(r.spend / r.spotify_clicks_unique) : "—";
     const cpc = r.inline_link_clicks > 0 ? clp(r.spend / r.inline_link_clicks) : "—";
-    return `• <b>${r.ad_name ?? "?"}</b>: ${clp(r.spend)} · ${r.impressions} impr · ${r.inline_link_clicks} clics · CPC ${cpc} · SC ${r.spotify_clicks_unique}ú/${r.spotify_clicks}t · ${cps}/SCú`;
+    return `• <b>${r.adset_name ?? "?"}</b> / <b>${r.ad_name ?? "?"}</b>: ${clp(r.spend)} · ${r.impressions} impr · ${r.inline_link_clicks} clics · CPC ${cpc} · SC ${r.spotify_clicks_unique}ú/${r.spotify_clicks}t · ${cps}/SCú`;
   }).join("\n");
 
   const acts = (actions ?? []) as { action: string; reason: string; dry_run: boolean }[];

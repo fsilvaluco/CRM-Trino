@@ -46,7 +46,8 @@ test("aggregateAds suma días y cruza spotify_clicks por adName|date", () => {
       adId: "a1", adName: "V00", spend: 500, impressions: 1000, reach: 950, frequency: 1.05,
       inlineLinkClicks: 10, cpc: 50, ctr: 1, video3sViews: 300, thruplays: 40, raw: {} },
   ];
-  const spotify = new Map<string, number>([["V00|2026-09-15", 4], ["V00|2026-09-16", 6]]);
+  // clave = adsetName|adName|día (S1 = adset de las filas de prueba)
+  const spotify = new Map<string, number>([["S1|V00|2026-09-15", 4], ["S1|V00|2026-09-16", 6]]);
   const [w] = aggregateAds(rows, spotify);
   assert.equal(w.impressions, 2000);
   assert.equal(w.spend, 1000);
@@ -56,6 +57,21 @@ test("aggregateAds suma días y cruza spotify_clicks por adName|date", () => {
   assert.equal(w.hookRate, 0.3);        // 600 / 2000
   assert.equal(w.reachMax, 950);        // max, no suma
   assert.equal(w.spotifyPerClick, 0.5); // 10 / 20
+});
+
+test("aggregateAds atribuye por conjunto: mismo nombre en 2 adsets no se mezcla", () => {
+  const mk = (adId: string, adset: string): AdInsightRow => ({
+    date: "2026-09-17", campaignId: "c", campaignName: "C", adsetId: adset, adsetName: adset,
+    adId, adName: "V01", spend: 100, impressions: 500, reach: 400, frequency: 1.2,
+    inlineLinkClicks: 5, cpc: 20, ctr: 1, video3sViews: 100, thruplays: 10, raw: {},
+  });
+  const rows = [mk("adInt", "INT"), mk("adBroad", "BROAD")];
+  const spotify = new Map<string, number>([["INT|V01|2026-09-17", 3], ["BROAD|V01|2026-09-17", 9]]);
+  const out = aggregateAds(rows, spotify);
+  const int = out.find((w) => w.adId === "adInt")!;
+  const broad = out.find((w) => w.adId === "adBroad")!;
+  assert.equal(int.spotifyClicks, 3);   // solo lo de INT
+  assert.equal(broad.spotifyClicks, 9); // solo lo de BROAD (no 12)
 });
 
 // ── piso de impresiones ────────────────────────────────────────────────────
