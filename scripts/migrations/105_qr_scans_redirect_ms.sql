@@ -1,0 +1,11 @@
+-- ============================================================
+-- Migration 105: qr_scans.redirect_ms — latencia del servidor llegada→respuesta.
+-- Target: Supabase (Postgres).
+-- ============================================================
+-- Tiempo (ms) desde que llega el request a /q/[slug] hasta que se emite la
+-- respuesta que redirige a la persona: el 302 directo (navegador normal) o el
+-- handoff de la página intermedia (móvil/in-app). Sirve para descartar que el
+-- redirect propio de Artist Pro esté agregando latencia perceptible antes de
+-- llegar a Spotify. NULL en scans previos a esta migración.
+-- ============================================================
+ALTER TABLE qr_scans ADD COLUMN IF NOT EXISTS redirect_ms INTEGER;

@@ -10,6 +10,15 @@ import {
   type AdWindow, type AdSetBudgetInput, type Decision,
 } from "./rules";
 import type { AdInsightRow } from "./meta-client";
+import { isExcludedAdset } from "./config";
+
+// ── exclusión de conjuntos (link directo, sin Artist Pro) ───────────────────
+test("isExcludedAdset excluye BROAD_DIRECTO_TEST y no toca los normales", () => {
+  assert.equal(isExcludedAdset("BROAD_DIRECTO_TEST"), true);
+  assert.equal(isExcludedAdset("INT_18-34"), false);
+  assert.equal(isExcludedAdset("BROAD_18-44"), false);
+  assert.equal(isExcludedAdset(null), false);
+});
 
 // ── helpers ────────────────────────────────────────────────────────────────
 const DEFAULTS: AdWindow = {

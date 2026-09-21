@@ -71,6 +71,12 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
+  // Marca de llegada del request, para medir la latencia del servidor hasta
+  // emitir el redirect (columna qr_scans.redirect_ms). Se llena justo antes de
+  // cada return que redirige a una persona (interstitial o 302).
+  const startedAt = Date.now();
+  let redirectMs: number | null = null;
+
   const { slug } = await params;
   const supabase = createAdminClient();
 
@@ -174,6 +180,7 @@ export async function GET(
         country,
         device_type: deviceType,
         meta_capi_event_id: metaCapiEventId,
+        redirect_ms: redirectMs,
       })
       .select("id")
       .single();
@@ -233,10 +240,12 @@ export async function GET(
       scanId,
       beaconUrl: `${base}/api/q/beacon`,
     });
+    redirectMs = Date.now() - startedAt;
     return new NextResponse(html, {
       headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
     });
   }
 
+  redirectMs = Date.now() - startedAt;
   return NextResponse.redirect(qr.destination_url, { headers: { "Cache-Control": "no-store" } });
 }

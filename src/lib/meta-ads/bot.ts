@@ -2,7 +2,7 @@
 // que decide queda en ad_actions_log (incluso en dry-run) y se avisa por
 // Telegram. Las escrituras a Meta solo ocurren si BOT_ENABLED && !BOT_DRY_RUN.
 import { createAdminClient } from "@/lib/supabase-admin";
-import { BOT_ENABLED, BOT_DRY_RUN, DAILY_BUDGET_CAP_CLP, CAMPAIGN_PREFIXES, RULES } from "./config";
+import { BOT_ENABLED, BOT_DRY_RUN, DAILY_BUDGET_CAP_CLP, CAMPAIGN_PREFIXES, RULES, isExcludedAdset } from "./config";
 import {
   fetchAdInsights, fetchCampaignAds, fetchAdPeriodReach, getAdSet, pauseAd, setAdSetDailyBudget,
   type AdInsightRow, type AdStructureRow,
@@ -72,7 +72,11 @@ export async function runMetaAdsBot(): Promise<BotRunSummary> {
   // guarda igual en ad_metrics_daily para el reporte.
   const spotifyUnique = new Map<string, number>();
   for (const [k, v] of spotify) spotifyUnique.set(k, v.unique);
-  const ads = aggregateAds(rows, spotifyUnique);
+  // Conjuntos excluidos (ej. BROAD_DIRECTO_TEST, link directo sin Artist Pro):
+  // sus métricas SÍ se guardan (upsert de abajo), pero NO entran a reglas ni
+  // alertas -- 0 SpotifyClicks es esperado y no debe disparar nada.
+  const rulesRows = rows.filter((r) => !isExcludedAdset(r.adsetName));
+  const ads = aggregateAds(rulesRows, spotifyUnique);
   summary.adsSeen = ads.length;
 
   // Frecuencia del PERÍODO desde Meta (alcance no aditivo entre días): corrige
@@ -138,7 +142,8 @@ export async function runMetaAdsBot(): Promise<BotRunSummary> {
   }
 
   // 5) Evaluar reglas de presupuesto (nivel adset) — también por SpotifyClick único.
-  const budgetDecisions = await buildAndEvaluateBudgets(rows, spotifyUnique, summary);
+  //    Sobre rulesRows: los conjuntos excluidos no participan del reparto.
+  const budgetDecisions = await buildAndEvaluateBudgets(rulesRows, spotifyUnique, summary);
 
   const decisions = [...adDecisions, ...budgetDecisions];
   summary.decisions = decisions.length;
