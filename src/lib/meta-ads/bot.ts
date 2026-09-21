@@ -12,7 +12,7 @@ import {
   aggregateAds, evaluateAdRules, evaluateBudgetRules, spotifyKey,
   type Decision, type AdSetBudgetInput,
 } from "./rules";
-import { sendTelegram } from "./telegram";
+import { sendTelegram, esc } from "./telegram";
 
 type Supabase = ReturnType<typeof createAdminClient>;
 
@@ -222,7 +222,7 @@ function buildStructureMessage(
   const lines: string[] = [`🤖 <b>Bot Meta Ads</b> · estructura detectada (${BOT_DRY_RUN ? "dry-run" : "real"})`];
   for (const [, cRows] of byCampaign) {
     const c0 = cRows[0];
-    lines.push(`\n📣 <b>${c0.campaignName ?? "?"}</b> (<code>${c0.campaignId}</code>)`);
+    lines.push(`\n📣 <b>${esc(c0.campaignName ?? "?")}</b> (<code>${esc(c0.campaignId)}</code>)`);
     const byAdset = new Map<string, AdStructureRow[]>();
     for (const r of cRows) {
       const k = r.adsetId ?? "?";
@@ -231,9 +231,9 @@ function buildStructureMessage(
     for (const [, sRows] of byAdset) {
       const s0 = sRows[0];
       const budget = s0.adsetBudgetClp != null ? `${s0.adsetBudgetClp} CLP/día` : "sin budget propio";
-      lines.push(`  📦 <b>${s0.adsetName ?? "?"}</b> (<code>${s0.adsetId}</code>) · ${budget} · ${sRows.length} anuncios`);
+      lines.push(`  📦 <b>${esc(s0.adsetName ?? "?")}</b> (<code>${esc(s0.adsetId)}</code>) · ${budget} · ${sRows.length} anuncios`);
       for (const r of sRows) {
-        lines.push(`     • ${r.adName ?? "?"} — <code>${r.adId}</code> — ${r.effectiveStatus ?? "?"}`);
+        lines.push(`     • ${esc(r.adName ?? "?")} — <code>${esc(r.adId)}</code> — ${esc(r.effectiveStatus ?? "?")}`);
       }
     }
   }
@@ -304,7 +304,7 @@ async function applyBudgetPairAtomic(
       summary.skippedCooldown += pair.length;
       await sendTelegram(
         `⏸️ <b>Movimiento de presupuesto OMITIDO</b> (cooldown)\n` +
-        `Una pata (adset <code>${d.adsetId}</code>) tuvo una acción en las últimas 24h. ` +
+        `Una pata (adset <code>${esc(d.adsetId)}</code>) tuvo una acción en las últimas 24h. ` +
         `No se hace ninguna, para no romper el tope diario.`
       );
       return;
@@ -362,7 +362,7 @@ async function applyDecision(
   const tag = willExecute ? "EJECUTADO" : d.action === "alert" ? "ALERTA" : "DRY-RUN";
   await sendTelegram(
     `<b>${actionVerb[d.action]}</b> [${tag}]\n` +
-    `${d.adId ? `ad: <code>${d.adId}</code>\n` : ""}${d.adsetId ? `adset: <code>${d.adsetId}</code>\n` : ""}` +
-    `${d.reason}${execError ? `\n❌ error: ${execError}` : ""}`
+    `${d.adId ? `ad: <code>${esc(d.adId)}</code>\n` : ""}${d.adsetId ? `adset: <code>${esc(d.adsetId)}</code>\n` : ""}` +
+    `${esc(d.reason)}${execError ? `\n❌ error: ${esc(execError)}` : ""}`
   );
 }

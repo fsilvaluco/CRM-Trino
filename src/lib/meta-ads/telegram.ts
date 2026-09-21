@@ -9,6 +9,13 @@ export function telegramConfigured(): boolean {
   return Boolean(TOKEN && CHAT_ID);
 }
 
+/** Escapa texto dinámico antes de meterlo en un mensaje con parse_mode=HTML.
+ *  Los `reason` del bot traen `<` y `>` (ej. "hook < 20%") que rompen el
+ *  parseo de Telegram (error 400). Escapar & < > lo evita. */
+export function esc(s: unknown): string {
+  return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 export async function sendTelegram(text: string): Promise<void> {
   if (!telegramConfigured()) {
     console.log("[meta-ads-bot] Telegram no configurado, mensaje omitido:", text.slice(0, 120));

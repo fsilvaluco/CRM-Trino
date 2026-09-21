@@ -1,7 +1,7 @@
 // Resumen diario a Telegram (cron 1x/día). Lee lo ya guardado en
 // ad_metrics_daily + acciones de las últimas 24h; no llama a Meta.
 import { createAdminClient } from "@/lib/supabase-admin";
-import { sendTelegram, telegramConfigured } from "./telegram";
+import { sendTelegram, telegramConfigured, esc } from "./telegram";
 
 const clp = (n: number) => `$${Math.round(n).toLocaleString("es-CL")}`;
 
@@ -61,13 +61,13 @@ export async function runDailySummary(): Promise<{ ok: boolean; day: string }> {
   const top = rows.slice(0, 15).map((r) => {
     const cps = r.spotify_clicks_unique > 0 ? clp(r.spend / r.spotify_clicks_unique) : "—";
     const cpc = r.inline_link_clicks > 0 ? clp(r.spend / r.inline_link_clicks) : "—";
-    return `• <b>${r.adset_name ?? "?"}</b> / <b>${r.ad_name ?? "?"}</b>: ${clp(r.spend)} · ${r.impressions} impr · ${r.inline_link_clicks} clics · CPC ${cpc} · SC ${r.spotify_clicks_unique}ú/${r.spotify_clicks}t · ${cps}/SCú`;
+    return `• <b>${esc(r.adset_name ?? "?")}</b> / <b>${esc(r.ad_name ?? "?")}</b>: ${clp(r.spend)} · ${r.impressions} impr · ${r.inline_link_clicks} clics · CPC ${cpc} · SC ${r.spotify_clicks_unique}ú/${r.spotify_clicks}t · ${cps}/SCú`;
   }).join("\n");
 
   const acts = (actions ?? []) as { action: string; reason: string; dry_run: boolean }[];
   const actLine = acts.length === 0
     ? "Sin acciones en 24h."
-    : acts.slice(0, 10).map((a) => `• [${a.dry_run ? "dry" : "real"}] ${a.action}: ${a.reason}`).join("\n");
+    : acts.slice(0, 10).map((a) => `• [${a.dry_run ? "dry" : "real"}] ${esc(a.action)}: ${esc(a.reason)}`).join("\n");
 
   await sendTelegram(
     `<b>📊 Resumen diario ${day}</b>\n` +
