@@ -56,3 +56,5 @@ data/crm.db-shm
 .aider*
 .aider.conf.yml
 .aider*
+.stitch/
+public/_stitch/
