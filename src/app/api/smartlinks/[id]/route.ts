@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
-import { SMARTLINK_PLATFORMS } from "@/lib/smartlink-platforms";
-
-interface LinkInput {
-  platform: string;
-  url: string;
-  label?: string | null;
-}
+import { isSmartlinkThemeKey } from "@/lib/smartlink-themes";
+import { sanitizeSmartlinkLinks, type SmartlinkLinkInput } from "@/lib/smartlink-links";
 
 // PUT /api/smartlinks/[id] -- edita metadata (titulo/artista/caratula) y
 // reemplaza la lista completa de links (mismo patron "guardado completo"
@@ -36,15 +31,13 @@ export async function PUT(
   if (typeof body?.artistName === "string") updates.artist_name = body.artistName.trim() || null;
   if (typeof body?.coverImageUrl === "string") updates.cover_image_url = body.coverImageUrl.trim() || null;
   if (body?.purpose === "rrss" || body?.purpose === "ventas") updates.purpose = body.purpose;
+  if (isSmartlinkThemeKey(body?.theme)) updates.theme = body.theme;
 
   const { error: dbError } = await supabase.from("smartlinks").update(updates).eq("id", id);
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
 
   if (Array.isArray(body?.links)) {
-    const validPlatformKeys = new Set(SMARTLINK_PLATFORMS.map((p) => p.key));
-    const cleanLinks = (body.links as LinkInput[])
-      .filter((l) => l && typeof l.url === "string" && l.url.trim() && typeof l.platform === "string" && validPlatformKeys.has(l.platform))
-      .map((l) => ({ platform: l.platform, url: l.url.trim(), label: l.label?.trim() || null }));
+    const cleanLinks = sanitizeSmartlinkLinks(body.links as SmartlinkLinkInput[]);
 
     for (const l of cleanLinks) {
       try {
@@ -59,7 +52,7 @@ export async function PUT(
 
     if (cleanLinks.length > 0) {
       const { error: insertError } = await supabase.from("smartlink_links").insert(
-        cleanLinks.map((l, i) => ({ smartlink_id: id, platform: l.platform, url: l.url, label: l.label, position: i }))
+        cleanLinks.map((l, i) => ({ smartlink_id: id, platform: l.platform, url: l.url, label: l.label, featured: l.featured, position: i }))
       );
       if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
     }

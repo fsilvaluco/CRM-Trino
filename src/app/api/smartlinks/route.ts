@@ -1,20 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { generateAvailableSlug, isSlugTaken, normalizeCustomSlug } from "@/lib/short-slug";
-import { SMARTLINK_PLATFORMS } from "@/lib/smartlink-platforms";
-
-interface LinkInput {
-  platform: string;
-  url: string;
-  label?: string | null;
-}
+import { DEFAULT_SMARTLINK_THEME, isSmartlinkThemeKey } from "@/lib/smartlink-themes";
+import { sanitizeSmartlinkLinks, type SmartlinkLinkInput } from "@/lib/smartlink-links";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapSmartlink(row: any) {
   const events = (row.smartlink_events ?? []) as Array<{ event_type: string; platform: string | null }>;
   const views = events.filter((e) => e.event_type === "view").length;
   const clicks = events.filter((e) => e.event_type === "click").length;
-  const links = (row.smartlink_links ?? []) as Array<{ id: string; platform: string; url: string; label: string | null; position: number }>;
+  const links = (row.smartlink_links ?? []) as Array<{ id: string; platform: string; url: string; label: string | null; position: number; featured?: boolean }>;
 
   return {
     id: row.id,
@@ -24,18 +19,19 @@ function mapSmartlink(row: any) {
     artistName: row.artist_name,
     coverImageUrl: row.cover_image_url,
     purpose: row.purpose === "rrss" ? "rrss" : "ventas",
+    theme: isSmartlinkThemeKey(row.theme) ? row.theme : DEFAULT_SMARTLINK_THEME,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     links: links
       .slice()
       .sort((a, b) => a.position - b.position)
-      .map((l) => ({ id: l.id, platform: l.platform, url: l.url, label: l.label })),
+      .map((l) => ({ id: l.id, platform: l.platform, url: l.url, label: l.label, featured: l.featured === true })),
     viewCount: views,
     clickCount: clicks,
   };
 }
 
-const SELECT = "*, smartlink_links ( id, platform, url, label, position ), smartlink_events ( event_type, platform )";
+const SELECT = "*, smartlink_links ( id, platform, url, label, position, featured ), smartlink_events ( event_type, platform )";
 
 // GET /api/smartlinks?projectId=xxx
 export async function GET(request: NextRequest) {
@@ -75,7 +71,10 @@ export async function POST(request: NextRequest) {
   const projectId = typeof body?.projectId === "string" ? body.projectId : "";
   const customSlugInput = typeof body?.customSlug === "string" ? body.customSlug.trim() : "";
   const purpose = body?.purpose === "rrss" ? "rrss" : "ventas";
-  const linksInput: LinkInput[] = Array.isArray(body?.links) ? body.links : [];
+  // Tema desconocido (o ausente) cae al default en vez de rechazar: un
+  // cliente viejo que no manda `theme` tiene que seguir creando smartlinks.
+  const theme = isSmartlinkThemeKey(body?.theme) ? body.theme : DEFAULT_SMARTLINK_THEME;
+  const linksInput: SmartlinkLinkInput[] = Array.isArray(body?.links) ? body.links : [];
 
   if (!title) return NextResponse.json({ error: "El título (nombre de la canción) es requerido" }, { status: 400 });
   if (!projectId) return NextResponse.json({ error: "projectId es requerido" }, { status: 400 });
@@ -83,10 +82,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
   }
 
-  const validPlatformKeys = new Set(SMARTLINK_PLATFORMS.map((p) => p.key));
-  const cleanLinks = linksInput
-    .filter((l) => l && typeof l.url === "string" && l.url.trim() && typeof l.platform === "string" && validPlatformKeys.has(l.platform))
-    .map((l) => ({ platform: l.platform, url: l.url.trim(), label: l.label?.trim() || null }));
+  const cleanLinks = sanitizeSmartlinkLinks(linksInput);
 
   for (const l of cleanLinks) {
     try {
@@ -123,6 +119,7 @@ export async function POST(request: NextRequest) {
       artist_name: artistName || null,
       cover_image_url: coverImageUrl || null,
       purpose,
+      theme,
       created_by: user!.id,
     })
     .select()
@@ -136,6 +133,7 @@ export async function POST(request: NextRequest) {
       platform: l.platform,
       url: l.url,
       label: l.label,
+      featured: l.featured,
       position: i,
     }))
   );

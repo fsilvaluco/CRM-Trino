@@ -12,10 +12,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Loader2, Plus, Trash2, Wand2 } from "lucide-react";
+import { Loader2, Plus, Star, Trash2, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { SMARTLINK_PLATFORMS, getPlatformDef } from "@/lib/smartlink-platforms";
+import { DEFAULT_SMARTLINK_THEME } from "@/lib/smartlink-themes";
 import { PlatformIcon } from "./PlatformIcon";
+import { SmartlinkThemePicker } from "./SmartlinkThemePicker";
 
 export type SmartlinkPurpose = "rrss" | "ventas";
 
@@ -24,6 +26,7 @@ export interface SmartlinkLinkItem {
   platform: string;
   url: string;
   label: string | null;
+  featured: boolean;
 }
 
 export interface SmartlinkItem {
@@ -34,6 +37,7 @@ export interface SmartlinkItem {
   artistName: string | null;
   coverImageUrl: string | null;
   purpose: SmartlinkPurpose;
+  theme: string;
   links: SmartlinkLinkItem[];
   viewCount: number;
   clickCount: number;
@@ -45,9 +49,10 @@ interface DraftLink {
   platform: string;
   url: string;
   label: string;
+  featured: boolean;
 }
 
-const EMPTY_LINK: DraftLink = { platform: "spotify", url: "", label: "" };
+const EMPTY_LINK: DraftLink = { platform: "spotify", url: "", label: "", featured: false };
 
 const PURPOSE_OPTIONS: { value: SmartlinkPurpose; label: string; description: string }[] = [
   { value: "rrss", label: "RRSS / lanzamiento", description: "Pocos botones -- lo que se está empujando ahora (último video, Spotify, canal, merch)." },
@@ -59,17 +64,17 @@ const PURPOSE_OPTIONS: { value: SmartlinkPurpose; label: string; description: st
 // al abrir el formulario para CREAR (nunca pisa lo que ya tiene uno existente).
 const PURPOSE_PRESETS: Record<SmartlinkPurpose, DraftLink[]> = {
   rrss: [
-    { platform: "youtube", url: "", label: "Último video" },
-    { platform: "spotify", url: "", label: "" },
-    { platform: "youtube", url: "", label: "Canal de YouTube" },
-    { platform: "merch", url: "", label: "" },
+    { platform: "youtube", url: "", label: "Último video", featured: true },
+    { platform: "spotify", url: "", label: "", featured: false },
+    { platform: "youtube", url: "", label: "Canal de YouTube", featured: false },
+    { platform: "merch", url: "", label: "", featured: false },
   ],
   ventas: [
-    { platform: "instagram", url: "", label: "" },
-    { platform: "tiktok", url: "", label: "" },
-    { platform: "spotify", url: "", label: "" },
-    { platform: "youtube", url: "", label: "" },
-    { platform: "merch", url: "", label: "" },
+    { platform: "instagram", url: "", label: "", featured: false },
+    { platform: "tiktok", url: "", label: "", featured: false },
+    { platform: "spotify", url: "", label: "", featured: false },
+    { platform: "youtube", url: "", label: "", featured: false },
+    { platform: "merch", url: "", label: "", featured: false },
   ],
 };
 
@@ -96,6 +101,7 @@ export function SmartlinkFormDialog({
   const [coverImageUrl, setCoverImageUrl] = useState("");
   const [customSlug, setCustomSlug] = useState("");
   const [purpose, setPurpose] = useState<SmartlinkPurpose>("ventas");
+  const [theme, setTheme] = useState(DEFAULT_SMARTLINK_THEME);
   const [links, setLinks] = useState<DraftLink[]>([{ ...EMPTY_LINK }]);
   const [saving, setSaving] = useState(false);
   const [autofilling, setAutofilling] = useState(false);
@@ -107,9 +113,10 @@ export function SmartlinkFormDialog({
     setCoverImageUrl(editing?.coverImageUrl ?? "");
     setCustomSlug("");
     setPurpose(editing?.purpose ?? "ventas");
+    setTheme(editing?.theme ?? DEFAULT_SMARTLINK_THEME);
     setLinks(
       editing && editing.links.length > 0
-        ? editing.links.map((l) => ({ platform: l.platform, url: l.url, label: l.label ?? "" }))
+        ? editing.links.map((l) => ({ platform: l.platform, url: l.url, label: l.label ?? "", featured: l.featured }))
         : editing
         ? [{ ...EMPTY_LINK }]
         : PURPOSE_PRESETS.ventas.map((l) => ({ ...l }))
@@ -126,6 +133,12 @@ export function SmartlinkFormDialog({
 
   function removeLink(index: number) {
     setLinks((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  // Solo un destacado a la vez: marcar uno desmarca el resto. Volver a
+  // tocar el mismo lo apaga (smartlink sin destacado es valido).
+  function toggleFeatured(index: number) {
+    setLinks((prev) => prev.map((l, i) => ({ ...l, featured: i === index ? !l.featured : false })));
   }
 
   // Cambiar el proposito de un smartlink NUEVO reemplaza el set de filas
@@ -163,7 +176,7 @@ export function SmartlinkFormDialog({
           if (emptySlot) {
             emptySlot.url = saved[key];
           } else if (!next.some((l) => l.platform === key && l.url.trim() === saved[key].trim())) {
-            next.push({ platform: key, url: saved[key], label: "" });
+            next.push({ platform: key, url: saved[key], label: "", featured: false });
           } else {
             continue;
           }
@@ -201,7 +214,8 @@ export function SmartlinkFormDialog({
         artistName: artistName.trim(),
         coverImageUrl: coverImageUrl.trim(),
         purpose,
-        links: cleanLinks.map((l) => ({ platform: l.platform, url: l.url.trim(), label: l.label.trim() || undefined })),
+        theme,
+        links: cleanLinks.map((l) => ({ platform: l.platform, url: l.url.trim(), label: l.label.trim() || undefined, featured: l.featured })),
       };
 
       const res = editing
@@ -275,6 +289,8 @@ export function SmartlinkFormDialog({
             </p>
           </div>
 
+          <SmartlinkThemePicker value={theme} onChange={setTheme} />
+
           {!editing && (
             <div className="space-y-2">
               <Label htmlFor="sl-slug">Link corto personalizado (opcional)</Label>
@@ -335,6 +351,15 @@ export function SmartlinkFormDialog({
                     onChange={(e) => updateLink(i, { url: e.target.value })}
                     className="flex-1"
                   />
+                  <button
+                    type="button"
+                    onClick={() => toggleFeatured(i)}
+                    className={`cursor-pointer p-1 shrink-0 ${link.featured ? "text-amber-500" : "text-muted-foreground hover:text-amber-500"}`}
+                    title={link.featured ? "Destacado: sale con anillo y etiqueta Recomendado en la página" : "Destacar este botón"}
+                    aria-pressed={link.featured}
+                  >
+                    <Star className="h-3.5 w-3.5" fill={link.featured ? "currentColor" : "none"} />
+                  </button>
                   <button
                     onClick={() => removeLink(i)}
                     className="text-muted-foreground hover:text-destructive cursor-pointer p-1 shrink-0"
