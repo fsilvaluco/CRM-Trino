@@ -131,15 +131,26 @@ export async function GET(
   const placement = sp.get("placement");
   const fbclid = sp.get("fbclid");
 
-  // x-forwarded-for puede traer una cadena "cliente, proxy1, proxy2" --
-  // el primero es el visitante real. cf-ipcountry solo existe si el
-  // dominio pasa por Cloudflare; si no, país queda NULL a propósito (fuera
-  // de alcance por ahora, ver BITACORA).
+  // IP real del visitante. Detrás de Cloudflare, x-forwarded-for[0] puede ser
+  // la IP del edge de CF (se veía así en qr_scans: rangos 172.64/104.x). El
+  // header cf-connecting-ip trae la IP real del cliente -- se prefiere ese, y
+  // se cae a x-forwarded-for[0] solo si no está (entornos sin Cloudflare).
   const forwardedFor = request.headers.get("x-forwarded-for");
-  const ipAddress = forwardedFor ? forwardedFor.split(",")[0].trim() : null;
+  const ipAddress =
+    request.headers.get("cf-connecting-ip") ||
+    (forwardedFor ? forwardedFor.split(",")[0].trim() : null);
   const country = request.headers.get("cf-ipcountry");
 
-  const fbpCookie = request.cookies.get("_fbp")?.value ?? null;
+  // _fbp: cookie de primera parte que normalmente pone el Pixel de Meta. Como
+  // la interstitial vive en artistpro.app (sin Pixel), la cookie no existía
+  // (0% en el diagnóstico). Se genera una en el formato de Meta
+  // (fb.1.<ts>.<rand>) y se setea en la respuesta, para que persista entre
+  // visitas y mejore el match de la CAPI (y sirva a futuro en la landing).
+  let fbpCookie = request.cookies.get("_fbp")?.value ?? null;
+  const generatedFbp = !fbpCookie;
+  if (!fbpCookie) {
+    fbpCookie = `fb.1.${Date.now()}.${Math.floor(Math.random() * 1e10)}`;
+  }
   const fbcCookie = request.cookies.get("_fbc")?.value ?? null;
   const fbc = buildFbc(fbclid, fbcCookie);
   const deviceType = detectDeviceType(userAgent);
@@ -241,11 +252,27 @@ export async function GET(
       beaconUrl: `${base}/api/q/beacon`,
     });
     redirectMs = Date.now() - startedAt;
-    return new NextResponse(html, {
+    const res = new NextResponse(html, {
       headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
     });
+    setFbpCookie(res, fbpCookie, generatedFbp);
+    return res;
   }
 
   redirectMs = Date.now() - startedAt;
-  return NextResponse.redirect(qr.destination_url, { headers: { "Cache-Control": "no-store" } });
+  const res = NextResponse.redirect(qr.destination_url, { headers: { "Cache-Control": "no-store" } });
+  setFbpCookie(res, fbpCookie, generatedFbp);
+  return res;
+}
+
+// Persiste el _fbp generado (formato Meta) como cookie de primera parte, 90
+// días, para que las visitas siguientes lo reusen y la CAPI tenga un fbp
+// estable. Solo se setea si lo generamos nosotros (si ya venía, no se toca).
+function setFbpCookie(res: NextResponse, fbp: string, generated: boolean) {
+  if (!generated) return;
+  res.cookies.set("_fbp", fbp, {
+    maxAge: 60 * 60 * 24 * 90,
+    path: "/",
+    sameSite: "lax",
+  });
 }

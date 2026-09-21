@@ -246,6 +246,16 @@ export function renderAppOpenHtml(
     window.addEventListener("pagehide", function () { markHidden("pagehide"); });
     window.addEventListener("blur", function () { markHidden("blur"); });
 
+    // Evento explícito de salida: la persona dejó la página (navegó a la app,
+    // al fallback web, o cerró). Separado de hidden:* para poder medir bounce.
+    var unloaded = false;
+    function onUnload() { if (unloaded) return; unloaded = true; log("Unload"); }
+    window.addEventListener("pagehide", onUnload);
+    window.addEventListener("beforeunload", onUnload);
+
+    // La interstitial se mostró (denominador del embudo).
+    log("InterstitialShown");
+
     function goTop(url, m) { log(m); try { window.location.href = url; } catch (e) { log(m + ":err"); } }
     function goFrame(url, m) {
       log(m);
@@ -288,7 +298,7 @@ export function renderAppOpenHtml(
       if (tapAt != null && now() - tapAt > 3500) { log("fallback:skipped-throttled"); return; }
       fellBack = true;
       outcome = "tap_fallback_web";
-      log("fallback:" + src);
+      log("FallbackFired:" + src);
       window.location.replace(C.dest);
     }
 
