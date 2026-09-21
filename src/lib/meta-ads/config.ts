@@ -20,6 +20,19 @@ export const CAMPAIGN_PREFIXES = (
   process.env.BOT_CAMPAIGN_PREFIXES || "LUR_DOPA_TEST_TRAF,LUR_DOPA_ESCALA_TRAF"
 ).split(",").map((s) => s.trim()).filter(Boolean);
 
+/** Conjuntos cuyo nombre contenga alguno de estos textos quedan EXCLUIDOS de
+ *  las reglas/alertas (pero sus métricas SÍ se guardan, para comparar en el
+ *  reporte). Caso: BROAD_DIRECTO_TEST lleva directo a Spotify (sin Artist Pro),
+ *  así que no tiene qr_scans -> 0 SpotifyClicks es esperado y no debe alertar. */
+export const EXCLUDE_ADSET_SUBSTR = (process.env.BOT_EXCLUDE_ADSET_SUBSTR || "DIRECTO")
+  .split(",").map((s) => s.trim()).filter(Boolean);
+
+/** True si el conjunto está excluido de reglas/alertas por su nombre. */
+export function isExcludedAdset(adsetName: string | null): boolean {
+  if (!adsetName) return false;
+  return EXCLUDE_ADSET_SUBSTR.some((sub) => adsetName.includes(sub));
+}
+
 /** Interruptores. Arranca DESACTIVADO para escribir y en DRY-RUN por defecto:
  *  evalúa y registra/notifica, pero NO toca Meta hasta que se diga explícito. */
 export const BOT_ENABLED = process.env.BOT_ENABLED === "true";
