@@ -111,13 +111,22 @@ test("CPC vuelve a la normalidad resetea la racha (no pausa)", () => {
 });
 
 // ── hook rate < 20% y CPC > mediana ─────────────────────────────────────────
-test("hook débil + CPC sobre mediana pausa en una sola lectura", () => {
-  const base = ["b1", "b2"].map((id) => ad({ adId: id, spend: 2000, linkClicks: 20 })); // cpc 100
-  const weak = ad({ adId: "weak", spend: 1500, linkClicks: 10, video3s: 200, impressions: 2000 }); // cpc150>100, hook .1
+test("hook débil + CPC sobre mediana + costo/SC sobre mediana pausa", () => {
+  const base = ["b1", "b2"].map((id) => ad({ adId: id, spend: 2000, linkClicks: 20, spotifyClicks: 20 })); // cpc100, cost/SC 100
+  // cpc 150 > mediana, hook .1, y costo/SC 300 > mediana 100 -> pausa.
+  const weak = ad({ adId: "weak", spend: 1500, linkClicks: 10, video3s: 200, impressions: 2000, spotifyClicks: 5 });
   const r = evaluateAdRules([...base, weak], new Map());
   const p = pauses(r.decisions, "weak");
   assert.equal(p.length, 1);
   assert.equal(p[0].ruleKey, "low_hook_high_cpc");
+});
+
+test("hook débil + CPC alto pero costo/SC BAJO NO pausa (regla nueva)", () => {
+  const base = ["b1", "b2"].map((id) => ad({ adId: id, spend: 2000, linkClicks: 20, spotifyClicks: 20 })); // cost/SC 100
+  // hook .1, cpc 150 > mediana, PERO costo/SC 10 < mediana 100 (trae escuchas baratas) -> NO pausa.
+  const good = ad({ adId: "good", spend: 1500, linkClicks: 10, video3s: 200, impressions: 2000, spotifyClicks: 150 });
+  const r = evaluateAdRules([...base, good], new Map());
+  assert.equal(pauses(r.decisions, "good").length, 0);
 });
 
 // ── alertas ─────────────────────────────────────────────────────────────────

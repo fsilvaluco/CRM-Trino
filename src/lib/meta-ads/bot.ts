@@ -4,7 +4,7 @@
 import { createAdminClient } from "@/lib/supabase-admin";
 import { BOT_ENABLED, BOT_DRY_RUN, DAILY_BUDGET_CAP_CLP, CAMPAIGN_PREFIXES, RULES } from "./config";
 import {
-  fetchAdInsights, fetchCampaignAds, getAdSet, pauseAd, setAdSetDailyBudget,
+  fetchAdInsights, fetchCampaignAds, fetchAdPeriodReach, getAdSet, pauseAd, setAdSetDailyBudget,
   type AdInsightRow, type AdStructureRow,
 } from "./meta-client";
 import { resolveCampaign, fetchSpotifyClicks } from "./spotify-clicks";
@@ -75,6 +75,19 @@ export async function runMetaAdsBot(): Promise<BotRunSummary> {
   const ads = aggregateAds(rows, spotifyUnique);
   summary.adsSeen = ads.length;
 
+  // Frecuencia del PERÍODO desde Meta (alcance no aditivo entre días): corrige
+  // el cálculo que inflaba la frecuencia (impresiones sumadas / alcance-máx
+  // diario). Si Meta no la trae, se deja el fallback de aggregateAds.
+  try {
+    const periodReach = await fetchAdPeriodReach();
+    for (const w of ads) {
+      const p = periodReach.get(w.adId);
+      if (p) { w.frequency = p.frequency; w.reachMax = p.reach; }
+    }
+  } catch (err) {
+    summary.errors.push(`Alcance período: ${err instanceof Error ? err.message : err}`);
+  }
+
   if (rows.length === 0) {
     // Sin ENTREGA todavía (ads en revisión) o cuenta vacía. La confirmación de
     // estructura ya la mandó detectAndReportStructure si hubo cambio -- no se
@@ -130,9 +143,17 @@ export async function runMetaAdsBot(): Promise<BotRunSummary> {
   const decisions = [...adDecisions, ...budgetDecisions];
   summary.decisions = decisions.length;
 
-  // 6) Aplicar guardrail de cooldown + ejecutar/loguear cada decisión.
-  for (const d of decisions) {
+  // 6) Aplicar. Las decisiones de anuncio (pausa/alerta) y las alertas de
+  //    presupuesto se aplican individualmente. El par subir/bajar presupuesto
+  //    es ATÓMICO: si CUALQUIERA de las dos patas está en cooldown, no se hace
+  //    ninguna (si no, se subiría una sin bajar la otra y se rompería el tope).
+  const budgetPair = budgetDecisions.filter((d) => d.action === "budget_up" || d.action === "budget_down");
+  const individual = [...adDecisions, ...budgetDecisions.filter((d) => d.action === "alert")];
+  for (const d of individual) {
     await applyDecision(supabase, d, summary, campaign.projectId);
+  }
+  if (budgetPair.length > 0) {
+    await applyBudgetPairAtomic(supabase, budgetPair, summary, campaign.projectId);
   }
 
   // 7) Aviso de cierre si hubo algo.
@@ -271,9 +292,36 @@ async function hasRecentAction(supabase: Supabase, d: Decision): Promise<boolean
   return (data?.length ?? 0) > 0;
 }
 
-async function applyDecision(supabase: Supabase, d: Decision, summary: BotRunSummary, projectId: string | null): Promise<void> {
-  // Cooldown solo para acciones reales (no alertas).
-  if (d.action !== "alert" && (await hasRecentAction(supabase, d))) {
+/** Aplica el par subir/bajar presupuesto de forma ATÓMICA: si cualquiera de
+ *  las dos patas tuvo una acción en las últimas 24h (cooldown), no se ejecuta
+ *  NINGUNA -- así nunca se sube un conjunto sin bajar el otro (rompería el
+ *  tope diario). Si ambas pasan, se aplican las dos (con cooldown ya validado). */
+async function applyBudgetPairAtomic(
+  supabase: Supabase, pair: Decision[], summary: BotRunSummary, projectId: string | null
+): Promise<void> {
+  for (const d of pair) {
+    if (await hasRecentAction(supabase, d)) {
+      summary.skippedCooldown += pair.length;
+      await sendTelegram(
+        `⏸️ <b>Movimiento de presupuesto OMITIDO</b> (cooldown)\n` +
+        `Una pata (adset <code>${d.adsetId}</code>) tuvo una acción en las últimas 24h. ` +
+        `No se hace ninguna, para no romper el tope diario.`
+      );
+      return;
+    }
+  }
+  for (const d of pair) {
+    await applyDecision(supabase, d, summary, projectId, true);
+  }
+}
+
+async function applyDecision(
+  supabase: Supabase, d: Decision, summary: BotRunSummary, projectId: string | null,
+  skipCooldown = false
+): Promise<void> {
+  // Cooldown solo para acciones reales (no alertas). Se puede omitir cuando el
+  // llamador ya validó el cooldown (ej. el par de presupuesto atómico).
+  if (!skipCooldown && d.action !== "alert" && (await hasRecentAction(supabase, d))) {
     summary.skippedCooldown++;
     return;
   }
