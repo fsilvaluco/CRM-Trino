@@ -216,6 +216,36 @@ export async function fetchCampaignAds(): Promise<AdStructureRow[]> {
   return rows;
 }
 
+/** Alcance y frecuencia del PERÍODO por anuncio (sin time_increment). La
+ *  frecuencia = impresiones_período / alcance_período; NO se puede derivar de
+ *  las filas diarias (el alcance no es aditivo entre días). El bot usa este
+ *  valor para la regla de fatiga, en vez de calcular impresiones/alcance-máx-
+ *  diario, que inflaba la frecuencia. Devuelve Map ad_id -> {reach, frequency}. */
+export async function fetchAdPeriodReach(): Promise<Map<string, { reach: number; frequency: number }>> {
+  const timeRange = JSON.stringify({ since: santiagoDay(2), until: santiagoDay(0) });
+  const map = new Map<string, { reach: number; frequency: number }>();
+  let after: string | null = null;
+  do {
+    const params: Record<string, string> = {
+      level: "ad",
+      time_range: timeRange, // SIN time_increment -> una fila por anuncio en todo el rango
+      fields: "ad_id,reach,frequency",
+      limit: "200",
+    };
+    if (after) params.after = after;
+    const page = (await graph(`${AD_ACCOUNT_ID}/insights`, params)) as {
+      data?: { ad_id?: string; reach?: string; frequency?: string }[];
+      paging?: { cursors?: { after?: string }; next?: string };
+    };
+    for (const r of page.data ?? []) {
+      if (!r.ad_id) continue;
+      map.set(r.ad_id, { reach: num(r.reach), frequency: num(r.frequency) });
+    }
+    after = page.paging?.next ? page.paging?.cursors?.after ?? null : null;
+  } while (after);
+  return map;
+}
+
 export interface AdSetInfo {
   id: string;
   name: string | null;

@@ -100,6 +100,10 @@ export function evaluateAdRules(
   // Solo anuncios con datos suficientes entran a comparaciones/mediana.
   const eligible = ads.filter((a) => a.impressions >= RULES.MIN_IMPRESSIONS);
   const medianCpc = median(eligible.filter((a) => a.linkClicks > 0).map((a) => a.cpc));
+  // Mediana del costo por SpotifyClick único del conjunto (para la regla de hook).
+  const medianCostPerSC = median(
+    eligible.filter((a) => Number.isFinite(a.costPerSpotify)).map((a) => a.costPerSpotify)
+  );
 
   for (const a of ads) {
     // Piso de datos: no se evalúa nada accionable bajo el mínimo.
@@ -124,13 +128,20 @@ export function evaluateAdRules(
       paused = true;
     }
 
-    // Regla hook débil: hook rate < 20% Y CPC sobre mediana. (una sola lectura)
-    if (!paused && a.hookRate < RULES.HOOK_RATE_MIN && medianCpc > 0 && a.cpc > medianCpc) {
+    // Regla hook débil: hook rate < 20% Y CPC sobre mediana Y ADEMÁS el costo
+    // por SpotifyClick único del anuncio sobre la mediana del conjunto -- así
+    // no se pausa un anuncio de hook bajo que igual trae escuchas baratas.
+    if (
+      !paused &&
+      a.hookRate < RULES.HOOK_RATE_MIN &&
+      medianCpc > 0 && a.cpc > medianCpc &&
+      medianCostPerSC > 0 && a.costPerSpotify > medianCostPerSC
+    ) {
       decisions.push({
         action: "pause", adId: a.adId, adsetId: a.adsetId, campaignId: a.campaignId,
         ruleKey: "low_hook_high_cpc",
-        reason: `hook rate ${(a.hookRate * 100).toFixed(1)}% < ${RULES.HOOK_RATE_MIN * 100}% y CPC ${fmt(a.cpc)} > mediana ${fmt(medianCpc)}`,
-        before: { hookRate: fmt(a.hookRate), cpc: fmt(a.cpc), medianCpc: fmt(medianCpc), impressions: a.impressions },
+        reason: `hook rate ${(a.hookRate * 100).toFixed(1)}% < ${RULES.HOOK_RATE_MIN * 100}%, CPC ${fmt(a.cpc)} > mediana ${fmt(medianCpc)} y costo/SC ${fmt(a.costPerSpotify)} > mediana ${fmt(medianCostPerSC)}`,
+        before: { hookRate: fmt(a.hookRate), cpc: fmt(a.cpc), medianCpc: fmt(medianCpc), costPerSpotify: fmt(a.costPerSpotify), medianCostPerSC: fmt(medianCostPerSC), impressions: a.impressions },
       });
       paused = true;
     }
