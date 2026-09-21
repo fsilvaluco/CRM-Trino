@@ -95,6 +95,7 @@ El archivo en `public/crm-config.json` es la copia por defecto (template).
 ## Reglas de codigo
 
 - **Idioma UI**: Espanol por defecto. Soporte bilingue con `const t = { en: {...}, es: {...} }`
+- **Idioma de conversacion**: Responder siempre en espanol neutro (sin regionalismos), tanto en chat como en comentarios de codigo y mensajes de commit
 - **Max ~300 lineas por componente**. Dividir si crece mas
 - **No emojis como iconos** — usar Lucide React (SVG)
 - **Valores monetarios**: Centavos (integer). Usar `formatCurrency()` para mostrar
