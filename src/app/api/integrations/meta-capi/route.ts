@@ -12,17 +12,18 @@ import { canManageTeam, getProjectPermissions } from "@/lib/project-roles";
 const projectIdSchema = z.string().uuid();
 
 async function authorize(projectId: string | null, write: boolean) {
-  const { supabase, user, orgId, allowedProjectIds, error } = await requireAuth();
+  const { supabase, user, orgId, isAdmin, allowedProjectIds, error } = await requireAuth();
   if (error) return { error };
   const parsed = projectIdSchema.safeParse(projectId);
   if (!parsed.success) return { error: NextResponse.json({ error: "Proyecto invalido" }, { status: 400 }) };
   if (!allowedProjectIds?.includes(parsed.data)) {
     return { error: NextResponse.json({ error: "Sin acceso al proyecto" }, { status: 403 }) };
   }
-  if (write) {
+  // Pueden escribir: owner/admin de la organizacion, o quien gestiona el equipo del proyecto.
+  if (write && !isAdmin) {
     const perm = await getProjectPermissions(supabase, user!.id, parsed.data);
     if (!canManageTeam(perm)) {
-      return { error: NextResponse.json({ error: "Solo un admin del proyecto puede cambiar el pixel" }, { status: 403 }) };
+      return { error: NextResponse.json({ error: "Solo el owner/admin o un admin del proyecto puede cambiar el pixel" }, { status: 403 }) };
     }
   }
   return { projectId: parsed.data, orgId: orgId! };
