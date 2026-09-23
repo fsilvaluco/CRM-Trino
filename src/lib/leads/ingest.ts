@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { LeadFormConfig } from "./forms";
 import type { LeadIngestInput } from "./schema";
 import { normalizeEmail, normalizePhone } from "./normalize";
+import { appendNotes, formatLeadNotes, leadOrigin } from "./notes";
 
 // Logica de base de datos del ingreso de leads (sin HTTP): busca o crea el
 // contacto, evita tratos duplicados y deja una actividad en el historial.
@@ -51,8 +52,7 @@ async function findContact(
 }
 
 function buildLeadMeta(input: LeadIngestInput, form: LeadFormConfig, key: string) {
-  const origin =
-    key === "quick" ? input.heard_from ?? "manual" : input.utm_source || input.fbclid ? "ads" : input.heard_from ? "organico" : "web";
+  const origin = leadOrigin(input, key);
   const meta: Record<string, unknown> = {
     form: key,
     product: form.productName,
@@ -157,7 +157,7 @@ export async function ingestLead(
   // Si la pareja ya tiene un trato abierto, no se duplica: se deja constancia del nuevo envio.
   let openQuery = db
     .from("deals")
-    .select("id")
+    .select("id, notes")
     .eq("project_id", form.projectId)
     .eq("contact_id", contact.id)
     .is("deleted_at", null)
@@ -165,7 +165,14 @@ export async function ingestLead(
   if (closedStageIds.length) openQuery = openQuery.not("stage_id", "in", `(${closedStageIds.join(",")})`);
   const { data: open } = await openQuery;
 
+  const notesParams = { formKey, form, input, phone, email, receivedAt: new Date() };
+
   if (open?.[0]) {
+    const block = formatLeadNotes({ ...notesParams, kind: "resubmit" });
+    await db
+      .from("deals")
+      .update({ notes: appendNotes(open[0].notes as string | null, block) })
+      .eq("id", open[0].id);
     await db.from("activities").insert({
       type: "note",
       description: `Volvio a enviar el formulario ${form.productName}${summary ? ` (${summary})` : ""}`,
@@ -186,7 +193,7 @@ export async function ingestLead(
       stage_id: firstStage.id,
       contact_id: contact.id,
       probability: 10,
-      notes: input.message,
+      notes: formatLeadNotes({ ...notesParams, kind: "new" }),
       lead_meta: leadMeta,
       organization_id: orgId,
       project_id: form.projectId,
