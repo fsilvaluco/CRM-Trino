@@ -51,7 +51,8 @@ async function findContact(
 }
 
 function buildLeadMeta(input: LeadIngestInput, form: LeadFormConfig, key: string) {
-  const origin = input.utm_source || input.fbclid ? "ads" : input.heard_from ? "organico" : "web";
+  const origin =
+    key === "quick" ? input.heard_from ?? "manual" : input.utm_source || input.fbclid ? "ads" : input.heard_from ? "organico" : "web";
   const meta: Record<string, unknown> = {
     form: key,
     product: form.productName,
@@ -80,8 +81,10 @@ export async function ingestLead(
   db: SupabaseClient,
   formKey: string,
   form: LeadFormConfig,
-  input: LeadIngestInput
+  input: LeadIngestInput,
+  options: { createdBy?: string | null; contactSource?: string } = {}
 ): Promise<IngestResult> {
+  const createdBy = options.createdBy ?? null;
   const phone = normalizePhone(input.phone);
   const email = normalizeEmail(input.email);
 
@@ -126,7 +129,8 @@ export async function ingestLead(
         name: input.name,
         phone,
         email,
-        source: "website",
+        source: options.contactSource ?? "website",
+        created_by: createdBy,
         temperature: "warm",
         score: 0,
         notes: input.message,
@@ -169,6 +173,7 @@ export async function ingestLead(
       deal_id: open[0].id,
       organization_id: orgId,
       project_id: form.projectId,
+      created_by: createdBy,
     });
     return { status: "existing_deal", dealId: open[0].id, contactId: contact.id, organizationId: orgId, phone, email };
   }
@@ -185,6 +190,7 @@ export async function ingestLead(
       lead_meta: leadMeta,
       organization_id: orgId,
       project_id: form.projectId,
+      created_by: createdBy,
     })
     .select("id")
     .single();
@@ -192,11 +198,12 @@ export async function ingestLead(
 
   await db.from("activities").insert({
     type: "note",
-    description: `Lead desde el formulario ${form.productName}${summary ? ` (${summary})` : ""}`,
+    description: `${formKey === "quick" ? "Lead cargado a mano" : "Lead desde el formulario"} ${form.productName}${summary ? ` (${summary})` : ""}`,
     contact_id: contact.id,
     deal_id: deal.id,
     organization_id: orgId,
     project_id: form.projectId,
+    created_by: createdBy,
   });
 
   return { status: "created", dealId: deal.id, contactId: contact.id, organizationId: orgId, phone, email };

@@ -81,6 +81,17 @@ export interface LeadCandidate {
   updatedAt: Date;
 }
 
+// Datos del lead (deals.lead_meta) que se muestran en la tarjeta del Kanban.
+export interface DealLeadInfo {
+  eventDate: string | null;
+  venue: string | null;
+  comuna: string | null;
+  guests: string | null;
+  origin: string | null;
+  /** Horas desde el ultimo contacto; null en etapas cerradas. */
+  staleHours: number | null;
+}
+
 export interface Deal {
   id: string;
   title: string;
@@ -98,6 +109,7 @@ export interface Deal {
   updatedAt: Date;
   hasUnseenActivity?: boolean;
   isShow?: boolean;
+  lead?: DealLeadInfo | null;
   projectId?: string | null;
   artistProjectId?: string | null;
   tagProjectName?: string | null;

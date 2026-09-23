@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { useLocale } from "@/lib/locale-context";
 import type { AssigneeRef } from "@/components/shared/AssigneeAvatarStack";
+import type { DealLeadInfo } from "@/types";
 
 interface Deal {
   id: string;
@@ -21,6 +22,7 @@ interface Deal {
   probability: number;
   expectedClose?: string | Date | null;
   hasUnseenActivity?: boolean;
+  lead?: DealLeadInfo | null;
   tagProjectName?: string | null;
   tagProjectColor?: string | null;
   tagProjectAvatarUrl?: string | null;
