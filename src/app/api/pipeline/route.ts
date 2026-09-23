@@ -28,6 +28,7 @@ function mapStage(stage: any, deals: any[], unseenMap: Map<string, boolean>) {
         probability: d.probability,
         notes: d.notes ?? null,
         isShow: d.is_show ?? false,
+        lead: toLeadInfo(d, stage.is_won || stage.is_lost),
         projectId: d.project_id ?? null,
         artistProjectId: d.artist_project_id ?? null,
         createdAt: d.created_at,
@@ -139,6 +140,24 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(pipeline);
 }
 
+// Solo los deals que vienen de un lead (formulario o lead rapido) traen
+// lead_meta; el resto de los deals del Kanban no cambia.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toLeadInfo(d: any, isClosed: boolean) {
+  const m = (d.lead_meta ?? {}) as Record<string, unknown>;
+  if (!m.form && !m.event_date) return null;
+  const str = (v: unknown) => (typeof v === "string" && v ? v : null);
+  const since = new Date(d.last_contact_at ?? d.created_at).getTime();
+  return {
+    eventDate: str(m.event_date),
+    venue: str(m.venue),
+    comuna: str(m.comuna),
+    guests: str(m.guests),
+    origin: str(m.origin),
+    staleHours: isClosed || Number.isNaN(since) ? null : Math.floor((Date.now() - since) / 3_600_000),
+  };
+}
+
 export async function PUT(request: NextRequest) {
   const { supabase, orgId, user, error } = await requireAuth();
   if (error) return error;
@@ -170,7 +189,8 @@ export async function PUT(request: NextRequest) {
 
     const { data, error: dbError } = await supabase
       .from("deals")
-      .update({ stage_id: body.stageId, updated_at: new Date().toISOString() })
+      // Mover de etapa cuenta como contacto con el lead (reinicia el contador de la tarjeta).
+      .update({ stage_id: body.stageId, updated_at: new Date().toISOString(), last_contact_at: new Date().toISOString() })
       .eq("id", body.dealId)
       .select()
       .single();

@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Download } from "lucide-react";
+import { Plus, Download, Zap } from "lucide-react";
 import { DealForm } from "@/components/deals/DealForm";
+import { QuickLeadDialog } from "@/components/deals/QuickLeadDialog";
 import { CrmTabs } from "@/components/crm/CrmTabs";
-import type { PipelineColumn } from "@/types";
+import type { DealLeadInfo, PipelineColumn } from "@/types";
 import { useProject } from "@/lib/project-context";
 import { useNotifications } from "@/lib/notifications-context";
 import { toast } from "sonner";
@@ -28,6 +29,7 @@ interface StageDeal {
   notes: string | null;
   contactName: string | null;
   isShow?: boolean;
+  lead?: DealLeadInfo | null;
   projectId?: string | null;
   artistProjectId?: string | null;
   tagProjectName?: string | null;
@@ -74,6 +76,7 @@ export default function CrmPageClient() {
   const [dealList, setDealList] = useState<DealListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showQuickLead, setShowQuickLead] = useState(false);
   const [addToStageId, setAddToStageId] = useState<string | undefined>();
   const [editingDealId, setEditingDealId] = useState<string | undefined>();
   const { activeProject, isAllProjects } = useProject();
@@ -143,6 +146,7 @@ export default function CrmPageClient() {
             expectedClose: d.expectedClose ? new Date(d.expectedClose) : null,
             notes: d.notes ?? null,
             isShow: d.isShow ?? false,
+            lead: d.lead ?? null,
             projectId: d.projectId ?? null,
             artistProjectId: d.artistProjectId ?? null,
             createdAt: d.createdAt ? new Date(d.createdAt) : new Date(),
@@ -217,6 +221,16 @@ export default function CrmPageClient() {
             Exportar
           </Button>
           <Button
+            variant="outline"
+            onClick={() => setShowQuickLead(true)}
+            className="cursor-pointer"
+            disabled={isAllProjects}
+            title={isAllProjects ? "Selecciona un proyecto para crear un lead" : undefined}
+          >
+            <Zap className="h-4 w-4 mr-2" />
+            Lead rápido
+          </Button>
+          <Button
             onClick={() => setShowForm(true)}
             className="cursor-pointer"
             disabled={isAllProjects}
@@ -235,6 +249,15 @@ export default function CrmPageClient() {
         onAddDeal={handleAddDeal}
         onDealClick={handleEditDeal}
       />
+
+      {showQuickLead && activeProject && (
+        <QuickLeadDialog
+          open={showQuickLead}
+          onClose={() => setShowQuickLead(false)}
+          projectId={activeProject.id}
+          onSaved={loadData}
+        />
+      )}
 
       {showForm && (
         <DealForm

@@ -25,8 +25,13 @@ export interface MetaCapiConfig {
 export async function resolveMetaCapiConfig(
   supabase: SupabaseClient,
   organizationId: string,
-  projectId: string
+  projectId: string,
+  // false = solo el pixel propio del proyecto. Lo usan los leads de
+  // formularios: mandar un Lead al pixel global (de otro cliente) le
+  // ensuciaria la optimizacion de su campaña.
+  options: { allowEnvFallback?: boolean } = {}
 ): Promise<MetaCapiConfig | null> {
+  const allowEnvFallback = options.allowEnvFallback ?? true;
   const { data } = await supabase
     .from("artist_integrations")
     .select("account_id, access_token")
@@ -35,8 +40,8 @@ export async function resolveMetaCapiConfig(
     .eq("platform", "meta_capi")
     .maybeSingle();
 
-  const pixelId = data?.account_id || process.env.META_PIXEL_ID || "";
-  const accessToken = data?.access_token || process.env.META_CAPI_TOKEN || "";
+  const pixelId = data?.account_id || (allowEnvFallback ? process.env.META_PIXEL_ID : "") || "";
+  const accessToken = data?.access_token || (allowEnvFallback ? process.env.META_CAPI_TOKEN : "") || "";
 
   if (!pixelId || !accessToken) return null;
   return { pixelId, accessToken };
@@ -76,6 +81,10 @@ export interface SendCapiEventParams {
   fbc: string | null;
   fbp: string | null;
   testEventCode?: string;
+  /** Datos de usuario adicionales YA hasheados (em, ph, external_id...). */
+  hashedUserData?: Record<string, string>;
+  /** custom_data del evento (ej. value/currency/content_name). */
+  customData?: Record<string, unknown>;
 }
 
 // Manda UN evento a la Conversions API. IP y user-agent van en claro (no
@@ -88,7 +97,7 @@ export async function sendMetaCapiEvent(
 ): Promise<{ ok: boolean; status?: number; body?: unknown; error?: string }> {
   const { config, eventName, eventId, eventSourceUrl, clientIpAddress, clientUserAgent, fbc, fbp, testEventCode } = params;
 
-  const userData: Record<string, string> = {};
+  const userData: Record<string, string> = { ...(params.hashedUserData ?? {}) };
   if (clientIpAddress) userData.client_ip_address = clientIpAddress;
   if (clientUserAgent) userData.client_user_agent = clientUserAgent;
   if (fbc) userData.fbc = fbc;
@@ -103,6 +112,7 @@ export async function sendMetaCapiEvent(
         action_source: "website",
         event_source_url: eventSourceUrl,
         user_data: userData,
+        ...(params.customData ? { custom_data: params.customData } : {}),
       },
     ],
   };

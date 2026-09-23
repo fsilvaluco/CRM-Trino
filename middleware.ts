@@ -9,7 +9,7 @@ import { getClientIp as clientIp } from "@/lib/client-ip";
 // /api/public/firma expone un flujo de firma a cualquiera con el link:
 // pedir codigo al correo y probarlo. El limite por link (cooldown de envio,
 // 5 intentos por codigo) vive en las rutas; esto es el techo por IP.
-const STRICT_RATE_LIMIT_PREFIXES = ["/api/webhook", "/api/auth", "/api/public/firma"];
+const STRICT_RATE_LIMIT_PREFIXES = ["/api/webhook", "/api/auth", "/api/public/firma", "/api/leads/ingest"];
 
 const PUBLIC_PATHS = new Set([
   "/login",
