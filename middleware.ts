@@ -34,6 +34,11 @@ const PUBLIC_PATHS = new Set([
   "/auth/activate",
   "/auth/callback",
   "/sin-acceso",
+  // Webhook de Meta Lead Ads: lo llama Meta sin sesion (lo protege la firma
+  // X-Hub-Signature-256). /api/* nunca pasa por el gate de sesion de abajo,
+  // queda listado para dejar explicito que es publico. Va en el limite
+  // normal (no el estricto) para no cortar rafagas de Meta.
+  "/api/leads/meta-webhook",
 ]);
 
 const ADMIN_ONLY_PREFIXES = ["/settings/team", "/settings/project", "/settings/org"];

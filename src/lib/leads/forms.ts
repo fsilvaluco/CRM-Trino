@@ -20,6 +20,12 @@ export interface LeadFormConfig {
   promo?: LeadFormPromo;
   /** Aviso por email + Telegram de cada lead nuevo (src/lib/leads/notify.ts). */
   notify?: LeadFormNotify;
+  /**
+   * Recibe leads de formularios instantaneos de Meta Lead Ads (Facebook /
+   * Instagram) via /api/leads/meta-webhook. Las credenciales de la pagina
+   * viven en artist_integrations (platform='meta_leadgen') del proyecto.
+   */
+  metaLeadAds?: boolean;
 }
 
 export interface LeadFormPromo {
@@ -63,6 +69,7 @@ export const LEAD_FORMS: Record<string, LeadFormConfig> = {
       headline: "Reserva en octubre y te regalamos un tercio",
     },
     notify: SISOY_NOTIFY,
+    metaLeadAds: true,
   },
   // Formulario general "Hablemos" de sisoy.pro: la pareja aun no eligio
   // servicio, asi que el trato parte en $0 y sin Precio Fundador.
@@ -87,4 +94,13 @@ export function isAllowedOrigin(form: LeadFormConfig, origin: string | null): bo
 /** Busca el formulario cuyo dominio calza con el Origin (para responder el preflight). */
 export function formForOrigin(origin: string | null): LeadFormConfig | null {
   return Object.values(LEAD_FORMS).find((f) => isAllowedOrigin(f, origin)) ?? null;
+}
+
+/** Formulario que recibe los leads de Meta Lead Ads para un proyecto (o null). */
+export function metaLeadAdsFormForProject(
+  projectId: string | null | undefined
+): { key: string; form: LeadFormConfig } | null {
+  if (!projectId) return null;
+  const entry = Object.entries(LEAD_FORMS).find(([, f]) => f.metaLeadAds && f.projectId === projectId);
+  return entry ? { key: entry[0], form: entry[1] } : null;
 }

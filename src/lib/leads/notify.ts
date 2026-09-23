@@ -3,7 +3,7 @@ import { esc, sendTelegram } from "@/lib/meta-ads/telegram";
 import type { LeadFormConfig } from "./forms";
 import type { IngestResult } from "./ingest";
 import type { LeadIngestInput } from "./schema";
-import { formatLeadNotes } from "./notes";
+import { formatLeadNotes, isMetaLeadAds } from "./notes";
 
 // Aviso de cada lead nuevo (o repetido) por email y Telegram. Se llama desde
 // after() en /api/leads/ingest y /api/leads/quick: nunca bloquea la respuesta
@@ -37,9 +37,10 @@ export function shouldNotifyLead(form: LeadFormConfig, result: IngestResult): bo
 
 export function buildLeadNotifySubject(input: LeadIngestInput, repeated: boolean): string {
   const when = input.event_date ?? "sin fecha";
+  const via = isMetaLeadAds(input) ? " (Meta Lead Ads)" : "";
   return repeated
-    ? `🔁 Lead repetido SiSoy: ${input.name} (${when})`
-    : `🎙️ Nuevo lead SiSoy: ${input.name} (${when})`;
+    ? `🔁 Lead repetido SiSoy${via}: ${input.name} (${when})`
+    : `🎙️ Nuevo lead SiSoy${via}: ${input.name} (${when})`;
 }
 
 export async function notifyNewLead({ formKey, form, input, result }: LeadNotifyParams): Promise<void> {

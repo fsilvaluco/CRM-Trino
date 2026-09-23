@@ -21,9 +21,20 @@ export function formatChileDateTime(date: Date): string {
   return `${get("day")}-${get("month")}-${get("year")} ${get("hour")}:${get("minute")}`;
 }
 
-/** Origen del lead: canal manual, pauta (ads), organico o web. */
+// Leads de formularios instantaneos de Meta (/api/leads/meta-webhook): llegan
+// con utm_source=meta_lead_ads, utm_medium=plataforma (fb/ig),
+// utm_campaign=campaña, utm_term=conjunto de anuncios y utm_content=anuncio.
+export const META_LEAD_ADS_SOURCE = "meta_lead_ads";
+export const META_LEAD_ADS_LABEL = "Meta Lead Ads (formulario instantáneo)";
+
+export function isMetaLeadAds(input: LeadIngestInput): boolean {
+  return input.utm_source === META_LEAD_ADS_SOURCE;
+}
+
+/** Origen del lead: canal manual, Meta Lead Ads, pauta (ads), organico o web. */
 export function leadOrigin(input: LeadIngestInput, formKey: string): string {
   if (formKey === "quick") return input.heard_from ?? "manual";
+  if (isMetaLeadAds(input)) return META_LEAD_ADS_SOURCE;
   if (input.utm_source || input.fbclid) return "ads";
   return input.heard_from ? "organico" : "web";
 }
@@ -39,6 +50,8 @@ export interface LeadNotesParams {
   kind?: "new" | "resubmit";
 }
 
+const PLATFORM_LABEL: Record<string, string> = { fb: "Facebook", ig: "Instagram", an: "Audience Network", ms: "Messenger" };
+
 const joinParts = (parts: (string | null | false | undefined)[]) => parts.filter(Boolean).join(" · ");
 
 export function formatLeadNotes({
@@ -51,8 +64,13 @@ export function formatLeadNotes({
   kind = "new",
 }: LeadNotesParams): string {
   const isQuick = formKey === "quick";
+  const isMeta = !isQuick && isMetaLeadAds(input);
   const when = `${formatChileDateTime(receivedAt)} (Chile)`;
-  const source = isQuick ? `Canal: ${input.heard_from ?? "manual"}` : `Formulario ${form.productName}`;
+  const source = isQuick
+    ? `Canal: ${input.heard_from ?? "manual"}`
+    : isMeta
+      ? `${META_LEAD_ADS_LABEL} · ${form.productName}`
+      : `Formulario ${form.productName}`;
   const title =
     kind === "resubmit" ? "📥 Nuevo envío" : isQuick ? "📥 Lead cargado a mano" : "📥 Lead recibido";
 
@@ -61,6 +79,15 @@ export function formatLeadNotes({
     input.utm_campaign && `utm_campaign=${input.utm_campaign}`,
     input.utm_content && `utm_content=${input.utm_content}`,
   ].filter(Boolean);
+
+  const metaAd = isMeta
+    ? joinParts([
+        input.utm_medium && `Plataforma: ${PLATFORM_LABEL[input.utm_medium] ?? input.utm_medium}`,
+        input.utm_campaign && `Campaña: ${input.utm_campaign}`,
+        input.utm_term && `Conjunto: ${input.utm_term}`,
+        input.utm_content && `Anuncio: ${input.utm_content}`,
+      ])
+    : "";
 
   const lines = [
     `${title} ${when} · ${source}`,
@@ -77,7 +104,9 @@ export function formatLeadNotes({
       !isQuick && input.heard_from && `Cómo nos conoció: ${input.heard_from}`,
       input.contact_time && `Contactar: ${input.contact_time}`,
     ]),
-    !isQuick && `Origen: ${leadOrigin(input, formKey)}${utm.length ? ` (${utm.join(", ")})` : ""}`,
+    isMeta
+      ? `Origen: ${META_LEAD_ADS_LABEL}${metaAd ? ` (${metaAd})` : ""}`
+      : !isQuick && `Origen: ${leadOrigin(input, formKey)}${utm.length ? ` (${utm.join(", ")})` : ""}`,
     input.message && `Mensaje: ${input.message}`,
   ];
   return lines.filter(Boolean).join("\n");
