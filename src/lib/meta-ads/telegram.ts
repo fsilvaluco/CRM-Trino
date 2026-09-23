@@ -16,8 +16,9 @@ export function esc(s: unknown): string {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-export async function sendTelegram(text: string): Promise<void> {
-  if (!telegramConfigured()) {
+/** chatId opcional: otro chat con el mismo bot (ej. SISOY_TELEGRAM_CHAT_ID). */
+export async function sendTelegram(text: string, chatId: string = CHAT_ID): Promise<void> {
+  if (!TOKEN || !chatId) {
     console.log("[meta-ads-bot] Telegram no configurado, mensaje omitido:", text.slice(0, 120));
     return;
   }
@@ -26,7 +27,7 @@ export async function sendTelegram(text: string): Promise<void> {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        chat_id: CHAT_ID,
+        chat_id: chatId,
         text,
         parse_mode: "HTML",
         disable_web_page_preview: true,

@@ -40,8 +40,13 @@ export async function resolveMetaCapiConfig(
     .eq("platform", "meta_capi")
     .maybeSingle();
 
-  const pixelId = data?.account_id || (allowEnvFallback ? process.env.META_PIXEL_ID : "") || "";
-  const accessToken = data?.access_token || (allowEnvFallback ? process.env.META_CAPI_TOKEN : "") || "";
+  // Si el proyecto tiene pixel propio, el token tambien tiene que ser el
+  // suyo: nunca mezclar su pixel con el token global de otro cliente.
+  if (data?.account_id) {
+    return data.access_token ? { pixelId: data.account_id, accessToken: data.access_token } : null;
+  }
+  const pixelId = allowEnvFallback ? process.env.META_PIXEL_ID || "" : "";
+  const accessToken = allowEnvFallback ? process.env.META_CAPI_TOKEN || "" : "";
 
   if (!pixelId || !accessToken) return null;
   return { pixelId, accessToken };
