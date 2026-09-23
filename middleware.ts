@@ -9,7 +9,23 @@ import { getClientIp as clientIp } from "@/lib/client-ip";
 // /api/public/firma expone un flujo de firma a cualquiera con el link:
 // pedir codigo al correo y probarlo. El limite por link (cooldown de envio,
 // 5 intentos por codigo) vive en las rutas; esto es el techo por IP.
-const STRICT_RATE_LIMIT_PREFIXES = ["/api/webhook", "/api/auth", "/api/public/firma", "/api/leads/ingest"];
+// /api/public/promo (cupos de la promo en la landing) queda a proposito en el
+// limite por defecto: es solo lectura y la landing lo consulta en cada visita.
+// /api/public/testimonials: envio de testimonios con codigo al correo y
+// links de moderacion. El listado publico (GET exacto de la raiz) queda en
+// el limite normal: lo pide cada visita del sitio y va cacheado en CDN.
+const STRICT_RATE_LIMIT_PREFIXES = [
+  "/api/webhook",
+  "/api/auth",
+  "/api/public/firma",
+  "/api/leads/ingest",
+  "/api/public/testimonials",
+];
+
+function isStrictRateLimited(pathname: string, method: string): boolean {
+  if (method === "GET" && pathname.replace(/\/+$/, "") === "/api/public/testimonials") return false;
+  return STRICT_RATE_LIMIT_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
 
 const PUBLIC_PATHS = new Set([
   "/login",
@@ -64,7 +80,7 @@ export async function middleware(request: NextRequest) {
 
   const pathnameForRateLimit = request.nextUrl.pathname;
   if (pathnameForRateLimit.startsWith("/api")) {
-    const isStrict = STRICT_RATE_LIMIT_PREFIXES.some((prefix) => pathnameForRateLimit.startsWith(prefix));
+    const isStrict = isStrictRateLimited(pathnameForRateLimit, request.method);
     const ip = clientIp(request);
     const result = await checkRateLimit(`${ip}:${isStrict ? "strict" : "default"}`, isStrict);
     if (!result.success) {

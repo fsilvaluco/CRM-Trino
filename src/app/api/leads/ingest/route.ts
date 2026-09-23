@@ -6,6 +6,7 @@ import { LEAD_FORMS, formForOrigin, isAllowedOrigin, type LeadFormConfig } from 
 import { leadIngestSchema, normalizeIncomingKeys, type LeadIngestInput } from "@/lib/leads/schema";
 import { ingestLead, type IngestResult } from "@/lib/leads/ingest";
 import { sha256 } from "@/lib/leads/normalize";
+import { notifyNewLead } from "@/lib/leads/notify";
 
 // POST /api/leads/ingest -- recibe leads de formularios publicos (landing
 // sisoy.pro/podcast) y los deja como contacto + trato en la primera etapa
@@ -75,6 +76,11 @@ export async function POST(request: NextRequest) {
     const ip = getClientIp(request);
     const userAgent = request.headers.get("user-agent");
     after(() => sendLeadToMeta({ db, form, input, result, ip, userAgent, origin }));
+  }
+
+  // Aviso al equipo (email + Telegram) en segundo plano; solo forms con `notify`.
+  if (form.notify && result.status !== "duplicate_event") {
+    after(() => notifyNewLead({ formKey, form, input, result }).catch((err) => console.error("[leads/notify]", err)));
   }
 
   return json({ ok: true, status: result.status }, result.status === "created" ? 201 : 200, origin);

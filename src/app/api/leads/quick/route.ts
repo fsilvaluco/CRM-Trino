@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { z } from "zod";
 import { requireAuth } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
@@ -6,6 +6,7 @@ import { canEditDeals, getProjectPermissions } from "@/lib/project-roles";
 import { LEAD_FORMS, type LeadFormConfig } from "@/lib/leads/forms";
 import { leadIngestSchema } from "@/lib/leads/schema";
 import { ingestLead } from "@/lib/leads/ingest";
+import { notifyNewLead } from "@/lib/leads/notify";
 
 // POST /api/leads/quick -- "Lead rapido": el equipo carga en ~20 s un lead
 // que llego por WhatsApp o DM. Reutiliza la misma logica que el formulario
@@ -61,6 +62,15 @@ export async function POST(request: NextRequest) {
       createdBy: user!.id,
       contactSource: CHANNEL_TO_CONTACT_SOURCE[channel],
     });
+    // Aviso al equipo en segundo plano si el formulario del proyecto tiene `notify`.
+    const leadForm = form;
+    if (leadForm.notify && result.status !== "duplicate_event") {
+      after(() =>
+        notifyNewLead({ formKey: "quick", form: leadForm, input: parsed.data, result }).catch((err) =>
+          console.error("[leads/notify]", err)
+        )
+      );
+    }
     return NextResponse.json({ ok: true, ...result }, { status: result.status === "created" ? 201 : 200 });
   } catch (err) {
     console.error("[leads/quick]", err instanceof Error ? err.message : err);
