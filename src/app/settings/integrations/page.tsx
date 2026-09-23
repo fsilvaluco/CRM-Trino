@@ -1,9 +1,10 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mail, Route } from "lucide-react";
+import { Mail, Route, Target } from "lucide-react";
 import { GmailConnectionsPanel } from "@/components/settings/GmailConnectionsPanel";
 import { AliasRulesPanel } from "@/components/settings/AliasRulesPanel";
+import { MetaCapiPanel } from "@/components/settings/MetaCapiPanel";
 
 export default function IntegrationsSettingsPage() {
   return (
@@ -25,6 +26,18 @@ export default function IntegrationsSettingsPage() {
         </CardHeader>
         <CardContent>
           <GmailConnectionsPanel />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Target className="h-4 w-4" />
+            Meta Pixel y API de conversiones (proyecto activo)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <MetaCapiPanel />
         </CardContent>
       </Card>
 
