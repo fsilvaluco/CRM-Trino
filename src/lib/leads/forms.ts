@@ -16,7 +16,36 @@ export interface LeadFormConfig {
   metaValue: number;
   /** Si el lead entra con Precio Fundador (default true). */
   promoFundador?: boolean;
+  /** Promo con cupos visibles en la landing (GET /api/public/promo/[form]). */
+  promo?: LeadFormPromo;
+  /** Aviso por email + Telegram de cada lead nuevo (src/lib/leads/notify.ts). */
+  notify?: LeadFormNotify;
 }
+
+export interface LeadFormPromo {
+  /** Cupos totales que se muestran ("quedan X de 10"). */
+  total: number;
+  /** Cupos disponibles al arrancar el conteo (antes de restar ventas nuevas). */
+  startRemaining: number;
+  /** Desde cuando se cuentan los tratos ganados (ISO con offset de Chile). */
+  countSince: string;
+  /** Fecha limite de la promo (ISO con offset de Chile). */
+  deadline: string;
+  discountLabel: string;
+  headline: string;
+}
+
+export interface LeadFormNotify {
+  to: string[];
+  cc: string[];
+}
+
+// Destinatarios del aviso de leads de SiSoy.
+// TODO: agregar el correo de Joaquin a `cc` cuando lo tengamos.
+const SISOY_NOTIFY: LeadFormNotify = {
+  to: ["hola@sisoy.pro"],
+  cc: ["diego@agenciakatarsis.cl", "francisco@agenciakatarsis.cl"],
+};
 
 export const LEAD_FORMS: Record<string, LeadFormConfig> = {
   "sisoy-podcast": {
@@ -25,6 +54,15 @@ export const LEAD_FORMS: Record<string, LeadFormConfig> = {
     productName: "SiSoy Podcast Live",
     dealValueCents: 636500_00, // Precio Fundador IVA incluido
     metaValue: 636500,
+    promo: {
+      total: 10,
+      startRemaining: 7,
+      countSince: "2026-09-23T00:00:00-03:00",
+      deadline: "2026-10-31T23:59:59-03:00",
+      discountLabel: "33% OFF",
+      headline: "Reserva en octubre y te regalamos un tercio",
+    },
+    notify: SISOY_NOTIFY,
   },
   // Formulario general "Hablemos" de sisoy.pro: la pareja aun no eligio
   // servicio, asi que el trato parte en $0 y sin Precio Fundador.
@@ -35,6 +73,7 @@ export const LEAD_FORMS: Record<string, LeadFormConfig> = {
     dealValueCents: 0,
     metaValue: 0,
     promoFundador: false,
+    notify: SISOY_NOTIFY,
   },
 };
 

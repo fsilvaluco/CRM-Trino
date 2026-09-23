@@ -18,7 +18,8 @@ export interface EmailAttachment {
  * nada -- el invite en si (via Supabase) ya funciona igual, solo que sin
  * el correo lindo hasta que se configure Resend. */
 export async function sendEmail(params: {
-  to: string;
+  to: string | string[];
+  cc?: string[];
   subject: string;
   html: string;
   attachments?: EmailAttachment[];
@@ -37,6 +38,7 @@ export async function sendEmail(params: {
     body: JSON.stringify({
       from: FROM_ADDRESS,
       to: params.to,
+      ...(params.cc?.length ? { cc: params.cc } : {}),
       subject: params.subject,
       html: params.html,
       ...(params.attachments?.length ? { attachments: params.attachments } : {}),
