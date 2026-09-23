@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { LeadFormConfig } from "./forms";
 import type { LeadIngestInput } from "./schema";
 import { normalizeEmail, normalizePhone } from "./normalize";
-import { appendNotes, formatLeadNotes, leadOrigin } from "./notes";
+import { META_LEAD_ADS_LABEL, appendNotes, formatLeadNotes, isMetaLeadAds, leadOrigin } from "./notes";
 
 // Logica de base de datos del ingreso de leads (sin HTTP): busca o crea el
 // contacto, evita tratos duplicados y deja una actividad en el historial.
@@ -82,7 +82,12 @@ export async function ingestLead(
   formKey: string,
   form: LeadFormConfig,
   input: LeadIngestInput,
-  options: { createdBy?: string | null; contactSource?: string } = {}
+  options: {
+    createdBy?: string | null;
+    contactSource?: string;
+    /** Datos extra para deals.lead_meta del trato nuevo (ej. ids de Meta Lead Ads). */
+    extraLeadMeta?: Record<string, unknown>;
+  } = {}
 ): Promise<IngestResult> {
   const createdBy = options.createdBy ?? null;
   const phone = normalizePhone(input.phone);
@@ -143,7 +148,13 @@ export async function ingestLead(
     contact = created;
   }
 
-  const leadMeta = buildLeadMeta(input, form, formKey);
+  const leadMeta = { ...buildLeadMeta(input, form, formKey), ...(options.extraLeadMeta ?? {}) };
+  const channelLabel =
+    formKey === "quick"
+      ? "Lead cargado a mano"
+      : isMetaLeadAds(input)
+        ? `Lead desde ${META_LEAD_ADS_LABEL}`
+        : "Lead desde el formulario";
   const summary = [
     input.event_date && `fecha ${input.event_date}`,
     input.venue,
@@ -175,7 +186,7 @@ export async function ingestLead(
       .eq("id", open[0].id);
     await db.from("activities").insert({
       type: "note",
-      description: `Volvio a enviar el formulario ${form.productName}${summary ? ` (${summary})` : ""}`,
+      description: `${isMetaLeadAds(input) ? `Volvio a llegar por ${META_LEAD_ADS_LABEL}:` : "Volvio a enviar el formulario"} ${form.productName}${summary ? ` (${summary})` : ""}`,
       contact_id: contact.id,
       deal_id: open[0].id,
       organization_id: orgId,
@@ -205,7 +216,7 @@ export async function ingestLead(
 
   await db.from("activities").insert({
     type: "note",
-    description: `${formKey === "quick" ? "Lead cargado a mano" : "Lead desde el formulario"} ${form.productName}${summary ? ` (${summary})` : ""}`,
+    description: `${channelLabel} ${form.productName}${summary ? ` (${summary})` : ""}`,
     contact_id: contact.id,
     deal_id: deal.id,
     organization_id: orgId,

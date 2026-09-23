@@ -117,6 +117,7 @@ export function DealCard({
 
 const ORIGIN_LABEL: Record<string, string> = {
   ads: "Ads",
+  meta_lead_ads: "Meta Lead Ads",
   organico: "Orgánico",
   web: "Web",
   whatsapp: "WhatsApp",
