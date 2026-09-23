@@ -107,7 +107,9 @@ async function sendLeadToMeta(params: {
     fbc: buildFbc(input.fbclid, input.fbc),
     fbp: input.fbp,
     hashedUserData: hashed,
-    customData: { value: form.metaValue, currency: "CLP", content_name: form.productName },
+    customData: form.metaValue
+      ? { value: form.metaValue, currency: "CLP", content_name: form.productName }
+      : { content_name: form.productName },
     testEventCode: process.env.META_TEST_EVENT_CODE || undefined,
   });
 
