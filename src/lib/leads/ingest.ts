@@ -63,7 +63,7 @@ function buildLeadMeta(input: LeadIngestInput, form: LeadFormConfig, key: string
     comuna: input.comuna,
     heard_from: input.heard_from,
     contact_time: input.contact_time,
-    promo_fundador: true,
+    promo_fundador: form.promoFundador ?? true,
     utm_source: input.utm_source,
     utm_medium: input.utm_medium,
     utm_campaign: input.utm_campaign,

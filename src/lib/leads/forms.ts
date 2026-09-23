@@ -12,8 +12,10 @@ export interface LeadFormConfig {
   productName: string;
   /** Valor del trato en centavos (convencion del CRM). */
   dealValueCents: number;
-  /** Valor que se informa a Meta en el evento Lead (CLP, sin centavos). */
+  /** Valor que se informa a Meta en el evento Lead (CLP, sin centavos). 0 = sin valor. */
   metaValue: number;
+  /** Si el lead entra con Precio Fundador (default true). */
+  promoFundador?: boolean;
 }
 
 export const LEAD_FORMS: Record<string, LeadFormConfig> = {
@@ -23,6 +25,16 @@ export const LEAD_FORMS: Record<string, LeadFormConfig> = {
     productName: "SiSoy Podcast Live",
     dealValueCents: 636500_00, // Precio Fundador IVA incluido
     metaValue: 636500,
+  },
+  // Formulario general "Hablemos" de sisoy.pro: la pareja aun no eligio
+  // servicio, asi que el trato parte en $0 y sin Precio Fundador.
+  "sisoy-hablemos": {
+    projectId: "6258e9d5-a455-4d15-b331-5c09a5e85e0b",
+    allowedOrigins: ["https://sisoy.pro", "https://www.sisoy.pro"],
+    productName: "SiSoy",
+    dealValueCents: 0,
+    metaValue: 0,
+    promoFundador: false,
   },
 };
 
