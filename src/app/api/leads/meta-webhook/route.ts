@@ -6,7 +6,7 @@ import { ingestLead } from "@/lib/leads/ingest";
 import { notifyNewLead } from "@/lib/leads/notify";
 import {
   extractLeadgenChanges,
-  fetchGraphLead,
+  fetchGraphLeadForPage,
   isValidMetaSignature,
   listMetaLeadgenIntegrations,
   mapGraphLeadToIngest,
@@ -118,7 +118,7 @@ async function processLeadgen(
     .limit(1);
   if (seen?.[0]) return;
 
-  const lead = await fetchGraphLead(change.leadgenId, integration.pageAccessToken);
+  const lead = await fetchGraphLeadForPage(change.leadgenId, integration.pageId, integration.pageAccessToken);
   const parsed = leadIngestSchema.safeParse(mapGraphLeadToIngest(formKey, lead, change));
   if (!parsed.success) {
     const fields = Object.keys(parsed.error.flatten().fieldErrors).join(", ");
