@@ -126,6 +126,65 @@ export interface GraphLead {
   is_organic?: boolean;
 }
 
+async function graphRequest(
+  path: string,
+  token: string,
+  init: { method?: "GET" | "POST"; params?: Record<string, string> } = {}
+): Promise<Record<string, unknown>> {
+  const qs = new URLSearchParams({ ...(init.params ?? {}), access_token: token });
+  const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${path}?${qs.toString()}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const res = await fetch(url, { method: init.method ?? "GET", signal: controller.signal, cache: "no-store" });
+    const body = (await res.json().catch(() => null)) as (Record<string, unknown> & { error?: { message?: string } }) | null;
+    if (!res.ok || !body || body.error) {
+      throw new Error(`Graph API ${res.status}: ${body?.error?.message ?? "respuesta invalida"}`);
+    }
+    return body;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * El token guardado puede ser de pagina o de usuario del sistema. Con un token
+ * de usuario (del sistema) se pide el token de la pagina; si no se puede, se
+ * usa el guardado tal cual.
+ */
+export async function resolvePageAccessToken(pageId: string, token: string): Promise<string> {
+  try {
+    const body = await graphRequest(encodeURIComponent(pageId), token, { params: { fields: "access_token" } });
+    return typeof body.access_token === "string" && body.access_token ? body.access_token : token;
+  } catch {
+    return token;
+  }
+}
+
+/** Suscribe la pagina a la app (campo leadgen). Devuelve las apps suscritas despues. */
+export async function subscribePageToLeadgen(pageId: string, token: string): Promise<string[]> {
+  const pageToken = await resolvePageAccessToken(pageId, token);
+  await graphRequest(`${encodeURIComponent(pageId)}/subscribed_apps`, pageToken, {
+    method: "POST",
+    params: { subscribed_fields: "leadgen" },
+  });
+  const list = await graphRequest(`${encodeURIComponent(pageId)}/subscribed_apps`, pageToken);
+  const data = Array.isArray(list.data) ? (list.data as Array<Record<string, unknown>>) : [];
+  return data.map((a) => String(a.name ?? a.id ?? ""));
+}
+
+/** Pide el lead; si el token guardado no sirve directo, reintenta con el token de la pagina. */
+export async function fetchGraphLeadForPage(leadgenId: string, pageId: string | null, token: string): Promise<GraphLead> {
+  try {
+    return await fetchGraphLead(leadgenId, token);
+  } catch (err) {
+    if (!pageId) throw err;
+    const pageToken = await resolvePageAccessToken(pageId, token);
+    if (pageToken === token) throw err;
+    return fetchGraphLead(leadgenId, pageToken);
+  }
+}
+
 /** Pide el lead a la Graph API. Lanza con el mensaje de Meta si falla (sin el token). */
 export async function fetchGraphLead(leadgenId: string, pageAccessToken: string): Promise<GraphLead> {
   const fields = "created_time,field_data,ad_id,ad_name,adset_name,campaign_name,form_id,platform,is_organic";

@@ -58,6 +58,7 @@ export function MetaLeadgenPanel() {
   const [pageToken, setPageToken] = useState("");
   const [appSecret, setAppSecret] = useState("");
   const [saving, setSaving] = useState(false);
+  const [subscribing, setSubscribing] = useState(false);
 
   // Depende solo del id del proyecto: el contexto se refresca en segundo plano y
   // no debe borrar lo que el usuario esta escribiendo.
@@ -115,6 +116,25 @@ export function MetaLeadgenPanel() {
     }
   }
 
+  async function subscribePage() {
+    setSubscribing(true);
+    try {
+      const res = await fetch("/api/integrations/meta-leadgen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: activeProject!.id, action: "subscribe" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "No se pudo suscribir la página");
+      const apps = Array.isArray(data.apps) && data.apps.length ? ` Apps suscritas: ${data.apps.join(", ")}.` : "";
+      toast.success(`Página suscrita a los leads.${apps}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al suscribir");
+    } finally {
+      setSubscribing(false);
+    }
+  }
+
   const ready = status?.pageId && status.hasPageToken && status.hasAppSecret;
   const missing = [
     !status?.pageId && "ID de la página",
@@ -151,8 +171,8 @@ export function MetaLeadgenPanel() {
           abajo, verifica y suscribe el campo <code>leadgen</code>.
         </li>
         <li>
-          Suscribe la página a la app (Graph API: <code>POST /{"{page-id}"}/subscribed_apps?subscribed_fields=leadgen</code>{" "}
-          con el token de la página) y prueba con la herramienta de pruebas de anuncios para clientes potenciales.
+          Aprieta <strong>Suscribir página a la app</strong> (abajo) y prueba con la herramienta de pruebas de anuncios
+          para clientes potenciales.
         </li>
       </ol>
 
@@ -197,9 +217,22 @@ export function MetaLeadgenPanel() {
         )}
       </div>
 
-      <Button type="submit" disabled={saving || !pageId} className="cursor-pointer">
-        {saving ? "Guardando..." : "Guardar"}
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" disabled={saving || !pageId} className="cursor-pointer">
+          {saving ? "Guardando..." : "Guardar"}
+        </Button>
+        {ready && (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={subscribing}
+            onClick={subscribePage}
+            className="cursor-pointer"
+          >
+            {subscribing ? "Suscribiendo..." : "Suscribir página a la app"}
+          </Button>
+        )}
+      </div>
     </form>
   );
 }

@@ -4,7 +4,12 @@ import { requireAuth } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { canManageTeam, getProjectPermissions } from "@/lib/project-roles";
 import { metaLeadAdsFormForProject } from "@/lib/leads/forms";
-import { META_LEADGEN_PLATFORM, generateVerifyToken, metaLeadgenCallbackUrl } from "@/lib/leads/meta-leadgen";
+import {
+  META_LEADGEN_PLATFORM,
+  generateVerifyToken,
+  metaLeadgenCallbackUrl,
+  subscribePageToLeadgen,
+} from "@/lib/leads/meta-leadgen";
 
 // Credenciales de Meta Lead Ads por proyecto (artist_integrations,
 // platform='meta_leadgen'): pagina, token de la pagina, App Secret y el
@@ -83,8 +88,30 @@ const saveSchema = z.object({
     .optional(),
 });
 
+// Suscribe la pagina guardada a la app (POST /{page-id}/subscribed_apps, campo leadgen)
+// usando el token guardado en el servidor. Asi nadie tiene que usar el Graph API Explorer.
+async function subscribe(projectId: unknown) {
+  const auth = await authorize(typeof projectId === "string" ? projectId : null, true);
+  if ("error" in auth) return auth.error;
+  const row = await loadRow(auth.projectId);
+  if (!row?.account_id || !row.access_token) {
+    return NextResponse.json({ error: "Primero guarda el ID de la página y el token" }, { status: 400 });
+  }
+  try {
+    const apps = await subscribePageToLeadgen(row.account_id, row.access_token);
+    return NextResponse.json({ ok: true, apps });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Error desconocido";
+    console.error("[integrations/meta-leadgen] subscribe:", message);
+    return NextResponse.json({ error: `Meta no aceptó la suscripción: ${message}` }, { status: 502 });
+  }
+}
+
 async function save(request: NextRequest) {
   const body = await request.json().catch(() => null);
+  if (body && typeof body === "object" && (body as { action?: unknown }).action === "subscribe") {
+    return subscribe((body as { projectId?: unknown }).projectId);
+  }
   const parsed = saveSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Datos invalidos" }, { status: 400 });
