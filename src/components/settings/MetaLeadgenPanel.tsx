@@ -59,15 +59,18 @@ export function MetaLeadgenPanel() {
   const [appSecret, setAppSecret] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // Depende solo del id del proyecto: el contexto se refresca en segundo plano y
+  // no debe borrar lo que el usuario esta escribiendo.
+  const projectId = activeProject?.id;
   const load = useCallback(async () => {
-    if (!activeProject) return;
-    const res = await fetch(`/api/integrations/meta-leadgen?projectId=${activeProject.id}`);
+    if (!projectId) return;
+    const res = await fetch(`/api/integrations/meta-leadgen?projectId=${projectId}`);
     if (!res.ok) return setStatus(null);
     const data: Status = await res.json();
     setStatus(data);
-    setPageId(data.pageId ?? "");
-    setPageName(data.pageName ?? "");
-  }, [activeProject]);
+    setPageId((cur) => cur || (data.pageId ?? ""));
+    setPageName((cur) => cur || (data.pageName ?? ""));
+  }, [projectId]);
 
   useEffect(() => {
     void load();

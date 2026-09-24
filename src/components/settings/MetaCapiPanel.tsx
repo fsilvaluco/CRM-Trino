@@ -27,15 +27,18 @@ export function MetaCapiPanel() {
   const [token, setToken] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // Depende solo del id del proyecto: el contexto se refresca en segundo plano y
+  // no debe borrar lo que el usuario esta escribiendo.
+  const projectId = activeProject?.id;
   const load = useCallback(async () => {
-    if (!activeProject) return;
-    const res = await fetch(`/api/integrations/meta-capi?projectId=${activeProject.id}`);
+    if (!projectId) return;
+    const res = await fetch(`/api/integrations/meta-capi?projectId=${projectId}`);
     if (!res.ok) return setStatus(null);
     const data: Status = await res.json();
     setStatus(data);
-    setPixelId(data.pixelId ?? "");
-    setPixelName(data.pixelName ?? "");
-  }, [activeProject]);
+    setPixelId((cur) => cur || (data.pixelId ?? ""));
+    setPixelName((cur) => cur || (data.pixelName ?? ""));
+  }, [projectId]);
 
   useEffect(() => {
     void load();
