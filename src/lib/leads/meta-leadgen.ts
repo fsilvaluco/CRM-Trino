@@ -280,6 +280,18 @@ export function mapGraphLeadToIngest(formKey: string, lead: GraphLead, change: L
     else extra.push(`${prettyQuestion(field.name)}: ${value}`);
   }
 
+  // Leads de la herramienta de pruebas de Meta: traen textos como
+  // "<test lead: dummy data for phone_number>". Se reemplazan por datos de
+  // prueba validos para poder verificar el flujo completo (trato + avisos).
+  const isDummy = (v: string | null) => Boolean(v && /^<test lead/i.test(v));
+  if ([fullName, firstName, lastName, phone, email].some(isDummy)) {
+    fullName = "Prueba Meta Lead Ads";
+    firstName = lastName = null;
+    phone = "+56 9 0000 0000";
+    email = null;
+    extra.unshift("Lead de prueba enviado desde la herramienta de pruebas de Meta.");
+  }
+
   const name = fullName ?? ([firstName, lastName].filter(Boolean).join(" ") || email || phone || "Lead Meta");
   const platform = lead.platform?.toLowerCase() || null;
 
