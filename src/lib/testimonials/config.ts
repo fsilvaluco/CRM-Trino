@@ -11,6 +11,12 @@ export interface TestimonialSiteConfig {
   adminEmails: string[];
   /** Nombre de la marca en los correos. */
   brandName: string;
+  /**
+   * Si es true, /start manda un codigo de 6 digitos al correo y el testimonio
+   * queda en pending_code hasta que se valide en /verify. Si es false, /start
+   * deja el testimonio verificado directo y avisa al equipo para aprobar.
+   */
+  requireEmailCode: boolean;
 }
 
 export const TESTIMONIAL_SITES: Record<string, TestimonialSiteConfig> = {
@@ -19,6 +25,7 @@ export const TESTIMONIAL_SITES: Record<string, TestimonialSiteConfig> = {
     allowedOrigins: ["https://sisoy.pro", "https://www.sisoy.pro"],
     adminEmails: ["hola@sisoy.pro", "francisco@agenciakatarsis.cl"],
     brandName: "SiSoy",
+    requireEmailCode: false,
   },
 };
 

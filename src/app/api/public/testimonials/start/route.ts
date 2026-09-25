@@ -8,10 +8,14 @@ import { startSchema } from "@/lib/testimonials/schema";
 import { startTestimonial } from "@/lib/testimonials/service";
 
 // POST /api/public/testimonials/start -- recibe el testimonio desde el
-// formulario publico (sisoy.pro/experiencia), lo guarda como pending_code y
-// manda un codigo de 6 digitos al correo. Lo protegen: Origin permitido por
-// sitio, rate limit estricto por IP (middleware.ts), honeypot y maximo 3
-// solicitudes por correo por hora.
+// formulario publico (sisoy.pro/experiencia). Segun site.requireEmailCode:
+//  - true: lo guarda como pending_code y manda un codigo de 6 digitos al
+//    correo (se confirma en /verify). Responde { ok, id, verified: false }.
+//  - false (SiSoy): lo guarda verificado directo y avisa al equipo con los
+//    links aprobar/rechazar. Responde { ok, id, verified: true }.
+// En ambos casos nada se publica sin moderacion. Lo protegen: Origin
+// permitido por sitio, rate limit estricto por IP (middleware.ts), honeypot y
+// maximo 3 solicitudes por correo por hora.
 
 export async function OPTIONS(request: NextRequest) {
   const origin = request.headers.get("origin");
@@ -42,7 +46,7 @@ export async function POST(request: NextRequest) {
   const input = parsed.data;
 
   // Honeypot: se responde igual que un envio real para no darle pistas al bot.
-  if (input.website) return jsonCors({ ok: true, id: randomUUID() }, 200, origin);
+  if (input.website) return jsonCors({ ok: true, id: randomUUID(), verified: !site.requireEmailCode }, 200, origin);
 
   const ip = getClientIp(request);
   try {
@@ -51,7 +55,7 @@ export async function POST(request: NextRequest) {
       userAgent: request.headers.get("user-agent"),
     });
     if (!result.ok) return jsonCors({ ok: false, error: result.error }, result.status, origin);
-    return jsonCors({ ok: true, id: result.id }, 201, origin);
+    return jsonCors({ ok: true, id: result.id, verified: result.verified }, 201, origin);
   } catch (err) {
     console.error("[testimonials/start]", err instanceof Error ? err.message : err);
     return jsonCors({ ok: false, error: "No pudimos registrar tu testimonio. Intenta de nuevo." }, 500, origin);

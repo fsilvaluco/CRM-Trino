@@ -30,6 +30,53 @@ function appBaseUrl(): string {
   return (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/+$/, "");
 }
 
+// ─── Aviso al equipo para moderar ────────────────────────────────────────────
+
+interface ModerationEmailRow {
+  id: string;
+  name: string;
+  email: string;
+  rating: number;
+  body: string;
+  relation: string | null;
+}
+
+/**
+ * Manda a cada admin del sitio el testimonio con los links aprobar/rechazar.
+ * Un correo por admin: si uno falla, los demas igual llegan. La persona ya
+ * cumplio su parte, asi que los fallos solo se registran en el log.
+ */
+async function notifyAdminsForModeration(
+  site: TestimonialSiteConfig,
+  row: ModerationEmailRow,
+  token: string,
+  logTag: string,
+): Promise<void> {
+  const link = (action: "approve" | "reject") =>
+    `${appBaseUrl()}/api/public/testimonials/moderate?id=${row.id}&action=${action}&token=${token}`;
+  const html = buildTestimonialModerationEmailHtml({
+    brandName: site.brandName,
+    name: row.name,
+    email: row.email,
+    rating: row.rating,
+    body: row.body,
+    relation: row.relation,
+    approveUrl: link("approve"),
+    rejectUrl: link("reject"),
+    expiresDays: MODERATION_TOKEN_TTL_DAYS,
+  });
+  const results = await Promise.allSettled(
+    site.adminEmails.map((to) =>
+      sendEmail({ to, subject: `Nuevo testimonio de ${row.name} (${row.rating}/5) para aprobar`, html }),
+    ),
+  );
+  results.forEach((r, i) => {
+    if (r.status === "rejected") {
+      console.error(`[${logTag}] correo al admin`, site.adminEmails[i], r.reason instanceof Error ? r.reason.message : r.reason);
+    }
+  });
+}
+
 // ─── POST /start ─────────────────────────────────────────────────────────────
 
 export async function startTestimonial(
@@ -37,7 +84,7 @@ export async function startTestimonial(
   site: TestimonialSiteConfig,
   input: StartInput,
   meta: { ip: string | null; userAgent: string | null },
-): Promise<ServiceResult<{ id: string }>> {
+): Promise<ServiceResult<{ id: string; verified: boolean }>> {
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const { count, error: countError } = await db
     .from("testimonials")
@@ -46,7 +93,45 @@ export async function startTestimonial(
     .gte("created_at", since);
   if (countError) throw new Error(`count: ${countError.message}`);
   if ((count ?? 0) >= MAX_STARTS_PER_EMAIL_PER_HOUR) {
-    return fail(429, "Ya pediste varios codigos para este correo. Intenta de nuevo en una hora.");
+    return fail(
+      429,
+      site.requireEmailCode
+        ? "Ya pediste varios codigos para este correo. Intenta de nuevo en una hora."
+        : "Ya recibimos varios testimonios de este correo. Intenta de nuevo en una hora.",
+    );
+  }
+
+  // Sitio sin codigo: el testimonio queda verificado directo y se avisa al
+  // equipo para aprobar/rechazar. Nada se publica sin moderacion.
+  if (!site.requireEmailCode) {
+    const id = randomUUID();
+    const token = generateToken();
+    const { error: insertError } = await db.from("testimonials").insert({
+      id,
+      project_id: site.projectId,
+      name: input.name,
+      email: input.email,
+      rating: input.rating,
+      body: input.body,
+      relation: input.relation,
+      status: "verified",
+      verified_at: new Date().toISOString(),
+      code_hash: null,
+      code_expires_at: null,
+      code_attempts: 0,
+      approve_token_hash: hashToken(token),
+      ip: meta.ip,
+      user_agent: meta.userAgent?.slice(0, 500) ?? null,
+    });
+    if (insertError) throw new Error(`insert: ${insertError.message}`);
+
+    await notifyAdminsForModeration(
+      site,
+      { id, name: input.name, email: input.email, rating: input.rating, body: input.body, relation: input.relation ?? null },
+      token,
+      "testimonials/start",
+    );
+    return { ok: true, id, verified: true };
   }
 
   // El id se genera aqui para poder amarrar el hash del codigo a la fila en un solo insert.
@@ -80,7 +165,7 @@ export async function startTestimonial(
     return fail(502, "No pudimos enviarte el codigo. Revisa tu correo e intenta de nuevo.");
   }
 
-  return { ok: true, id };
+  return { ok: true, id, verified: false };
 }
 
 // ─── POST /verify ────────────────────────────────────────────────────────────
@@ -159,31 +244,7 @@ export async function verifyTestimonial(
   if (updError) throw new Error(`verify: ${updError.message}`);
   if (!updated?.length) return { ok: true }; // Otra request lo verifico primero.
 
-  const link = (action: "approve" | "reject") =>
-    `${appBaseUrl()}/api/public/testimonials/moderate?id=${row.id}&action=${action}&token=${token}`;
-  const html = buildTestimonialModerationEmailHtml({
-    brandName: site.brandName,
-    name: row.name,
-    email: row.email,
-    rating: row.rating,
-    body: row.body,
-    relation: row.relation,
-    approveUrl: link("approve"),
-    rejectUrl: link("reject"),
-    expiresDays: MODERATION_TOKEN_TTL_DAYS,
-  });
-  // Un correo por admin: si uno falla, los demas igual llegan. La persona ya
-  // cumplio su parte, asi que un fallo aqui no se le devuelve como error.
-  const results = await Promise.allSettled(
-    site.adminEmails.map((to) =>
-      sendEmail({ to, subject: `Nuevo testimonio de ${row.name} (${row.rating}/5) para aprobar`, html }),
-    ),
-  );
-  results.forEach((r, i) => {
-    if (r.status === "rejected") {
-      console.error("[testimonials/verify] correo al admin", site.adminEmails[i], r.reason instanceof Error ? r.reason.message : r.reason);
-    }
-  });
+  await notifyAdminsForModeration(site, row, token, "testimonials/verify");
 
   return { ok: true };
 }
