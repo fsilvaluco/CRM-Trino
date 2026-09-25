@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { THEME_PALETTES, type ThemeColorKey } from "@/lib/theme-palettes";
 import { useProject } from "@/lib/project-context";
 import { useNotifications } from "@/lib/notifications-context";
-import { navConfig, settingsConfig, computeActiveHref, type NavLeaf, type NavGroup } from "./nav-config";
+import { navConfig, settingsConfig, computeActiveHref, filterNavForProject, type NavLeaf, type NavGroup } from "./nav-config";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { APP_VERSION } from "@/lib/constants";
 
@@ -173,9 +173,10 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
   // Rol "staff" (sonidista, asistente de producción, etc.): el módulo de
   // Deals/CRM queda oculto por completo del menú -- ver src/lib/project-roles.ts.
+  const projectNavConfig = filterNavForProject(navConfig, activeProject?.id);
   const visibleNavConfig = canViewDealsModule
-    ? navConfig
-    : navConfig.map((item) =>
+    ? projectNavConfig
+    : projectNavConfig.map((item) =>
         item.type === "group"
           ? { ...item, children: item.children.filter((c) => c.moduleKey !== "deals") }
           : item

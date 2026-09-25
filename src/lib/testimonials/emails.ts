@@ -55,8 +55,10 @@ export function buildTestimonialModerationEmailHtml(params: {
   approveUrl: string;
   rejectUrl: string;
   expiresDays: number;
+  /** Seccion Testimonios de Artist Pro, para moderar sin depender de los links. */
+  appUrl?: string;
 }): string {
-  const { brandName, name, email, rating, body, relation, approveUrl, rejectUrl, expiresDays } = params;
+  const { brandName, name, email, rating, body, relation, approveUrl, rejectUrl, expiresDays, appUrl } = params;
   const button = (href: string, label: string, color: string) =>
     `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer"
       style="display: inline-block; margin: 4px 8px 4px 0; padding: 12px 24px; background: ${color}; color: white; text-decoration: none; border-radius: 100px; font-size: 14px; font-weight: 600;">${label}</a>`;
@@ -74,6 +76,9 @@ export function buildTestimonialModerationEmailHtml(params: {
       </div>
       ${button(approveUrl, "Aprobar", "#15803d")}
       ${button(rejectUrl, "Rechazar", "#b91c1c")}
+      ${appUrl ? `<p style="font-size: 13px; color: #14162B; margin-top: 16px; line-height: 1.5;">
+        También puedes revisarlo en Artist Pro: <a href="${esc(appUrl)}" target="_blank" rel="noopener noreferrer" style="color: #4338ca;">${esc(appUrl)}</a>
+      </p>` : ""}
       <p style="font-size: 12px; color: #14162B66; margin-top: 24px; line-height: 1.5;">
         Cada link abre una página de confirmación. Los links vencen en ${expiresDays} días; puedes cambiar la decisión mientras estén vigentes.
         No reenvíes este correo: quien tenga los links puede moderar el testimonio.
