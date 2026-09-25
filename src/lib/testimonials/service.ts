@@ -7,6 +7,7 @@ import {
   MAX_STARTS_PER_EMAIL_PER_HOUR,
   MODERATION_TOKEN_TTL_DAYS,
   PUBLIC_LIST_LIMIT,
+  TESTIMONIALS_APP_PATH,
   type TestimonialSiteConfig,
 } from "./config";
 import { generateCode, generateToken, hashCode, hashToken, safeEqualHex } from "./crypto";
@@ -64,6 +65,7 @@ async function notifyAdminsForModeration(
     approveUrl: link("approve"),
     rejectUrl: link("reject"),
     expiresDays: MODERATION_TOKEN_TTL_DAYS,
+    appUrl: `${appBaseUrl()}${TESTIMONIALS_APP_PATH}`,
   });
   const results = await Promise.allSettled(
     site.adminEmails.map((to) =>

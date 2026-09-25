@@ -7,7 +7,7 @@ import { ChevronDown } from "lucide-react";
 import { THEME_PALETTES, type ThemeColorKey } from "@/lib/theme-palettes";
 import { cn } from "@/lib/utils";
 import { useProject } from "@/lib/project-context";
-import { navConfig, settingsConfig, computeActiveHref, type NavLeaf, type NavGroup } from "./nav-config";
+import { navConfig, settingsConfig, computeActiveHref, filterNavForProject, type NavLeaf, type NavGroup } from "./nav-config";
 import { useNotifications } from "@/lib/notifications-context";
 
 function LeafLink({ item, activeHref, indent = false }: { item: NavLeaf; activeHref: string; indent?: boolean }) {
@@ -103,7 +103,7 @@ export function MobileNav() {
       </div>
 
       <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-1">
-        {navConfig.map((item) =>
+        {filterNavForProject(navConfig, activeProject?.id).map((item) =>
           item.type === "group" ? (
             <GroupNav key={item.label} item={item} activeHref={activeHref} />
           ) : (

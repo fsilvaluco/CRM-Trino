@@ -32,8 +32,10 @@ import {
   FileCheck2,
   KeyRound,
   FileText,
+  MessageSquareQuote,
 } from "lucide-react";
 import { type LucideIcon } from "lucide-react";
+import { getTestimonialSiteForProject, TESTIMONIALS_APP_PATH } from "@/lib/testimonials/sites-public";
 
 export interface NavLeaf {
   type: "leaf";
@@ -51,6 +53,11 @@ export interface NavLeaf {
   managesTeamOnly?: boolean;
   /** Si esta seteado, muestra un punto rojo cuando hay items nuevos sin ver en este modulo */
   moduleKey?: string;
+  /**
+   * Solo visible si el proyecto activo tiene un sitio de testimonios
+   * configurado (src/lib/testimonials/sites-public.ts).
+   */
+  requiresTestimonialSite?: boolean;
 }
 
 export interface NavGroup {
@@ -120,6 +127,7 @@ export const navConfig: NavItem[] = [
       { type: "leaf", href: "/smartlinks", label: "Smartlink", icon: Link2 },
       { type: "leaf", href: "/qr-codes", label: "Links", icon: QrCode },
       { type: "leaf", href: "/dossier", label: "Dossier", icon: FileText },
+      { type: "leaf", href: TESTIMONIALS_APP_PATH, label: "Testimonios", icon: MessageSquareQuote, requiresTestimonialSite: true },
     ],
   },
   {
@@ -199,6 +207,19 @@ export const settingsConfig: NavLeaf[] = [
     managesTeamOnly: true,
   },
 ];
+
+/**
+ * Quita del menú los ítems que dependen del proyecto activo (hoy solo
+ * Testimonios, que aparece únicamente si el proyecto tiene un sitio de
+ * testimonios configurado). Los grupos que quedan sin hijos se ocultan.
+ */
+export function filterNavForProject(items: NavItem[], activeProjectId: string | null | undefined): NavItem[] {
+  const hasTestimonials = Boolean(getTestimonialSiteForProject(activeProjectId));
+  const keep = (leaf: NavLeaf) => !leaf.requiresTestimonialSite || hasTestimonials;
+  return items
+    .map((item) => (item.type === "group" ? { ...item, children: item.children.filter(keep) } : item))
+    .filter((item) => (item.type === "group" ? item.children.length > 0 : keep(item)));
+}
 
 /**
  * Determina cuál href está "activo" para el pathname actual, usando la

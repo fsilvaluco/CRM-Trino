@@ -2,6 +2,14 @@
 // /api/public/testimonials/*. Igual que en src/lib/leads/forms.ts, el
 // navegador solo manda la clave del sitio: el project_id, los dominios
 // permitidos y a quien se le pide moderar quedan fijos del lado del servidor.
+//
+// SOLO SERVIDOR: este archivo tiene los correos de los admins. El codigo
+// del navegador (menu, pagina /testimonios) usa sites-public.ts, que solo
+// expone projectId y brandName.
+
+import { TESTIMONIAL_PUBLIC_SITES } from "./sites-public";
+
+export { TESTIMONIALS_APP_PATH } from "./sites-public";
 
 export interface TestimonialSiteConfig {
   projectId: string;
@@ -21,10 +29,10 @@ export interface TestimonialSiteConfig {
 
 export const TESTIMONIAL_SITES: Record<string, TestimonialSiteConfig> = {
   sisoy: {
-    projectId: "6258e9d5-a455-4d15-b331-5c09a5e85e0b",
+    projectId: TESTIMONIAL_PUBLIC_SITES.sisoy.projectId,
     allowedOrigins: ["https://sisoy.pro", "https://www.sisoy.pro"],
     adminEmails: ["hola@sisoy.pro", "francisco@agenciakatarsis.cl"],
-    brandName: "SiSoy",
+    brandName: TESTIMONIAL_PUBLIC_SITES.sisoy.brandName,
     requireEmailCode: false,
   },
 };
@@ -39,6 +47,12 @@ export function isAllowedTestimonialOrigin(site: TestimonialSiteConfig, origin: 
   if (site.allowedOrigins.includes(origin)) return true;
   if (process.env.NODE_ENV !== "production" && /^http:\/\/localhost(:\d+)?$/.test(origin)) return true;
   return false;
+}
+
+/** Configuracion completa (servidor) del sitio de testimonios de un proyecto, o null. */
+export function getTestimonialSiteConfigForProject(projectId: string | null | undefined): TestimonialSiteConfig | null {
+  if (!projectId) return null;
+  return Object.values(TESTIMONIAL_SITES).find((s) => s.projectId === projectId) ?? null;
 }
 
 /** Busca el sitio cuyo dominio calza con el Origin (para responder el preflight). */
