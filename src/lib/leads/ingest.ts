@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { LeadFormConfig } from "./forms";
 import type { LeadIngestInput } from "./schema";
 import { normalizeEmail, normalizePhone } from "./normalize";
-import { META_LEAD_ADS_LABEL, appendNotes, formatLeadNotes, isMetaLeadAds, leadOrigin } from "./notes";
+import { META_LEAD_ADS_LABEL, appendNotes, formatLeadNotes, isMetaLeadAds, leadOrigin, type LeadAnswer } from "./notes";
 
 // Logica de base de datos del ingreso de leads (sin HTTP): busca o crea el
 // contacto, evita tratos duplicados y deja una actividad en el historial.
@@ -87,6 +87,8 @@ export async function ingestLead(
     contactSource?: string;
     /** Datos extra para deals.lead_meta del trato nuevo (ej. ids de Meta Lead Ads). */
     extraLeadMeta?: Record<string, unknown>;
+    /** Respuestas del formulario: las no mapeadas se agregan a las notas del trato. */
+    answers?: LeadAnswer[];
   } = {}
 ): Promise<IngestResult> {
   const createdBy = options.createdBy ?? null;
@@ -176,7 +178,7 @@ export async function ingestLead(
   if (closedStageIds.length) openQuery = openQuery.not("stage_id", "in", `(${closedStageIds.join(",")})`);
   const { data: open } = await openQuery;
 
-  const notesParams = { formKey, form, input, phone, email, receivedAt: new Date() };
+  const notesParams = { formKey, form, input, phone, email, receivedAt: new Date(), answers: options.answers };
 
   if (open?.[0]) {
     const block = formatLeadNotes({ ...notesParams, kind: "resubmit" });

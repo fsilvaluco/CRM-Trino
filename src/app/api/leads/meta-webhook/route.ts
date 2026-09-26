@@ -7,9 +7,10 @@ import { notifyNewLead } from "@/lib/leads/notify";
 import {
   extractLeadgenChanges,
   fetchGraphLeadForPage,
+  fetchLeadFormLabels,
   isValidMetaSignature,
   listMetaLeadgenIntegrations,
-  mapGraphLeadToIngest,
+  mapGraphLead,
   metaLeadAdsMeta,
   verifyTokenMatches,
   type LeadgenChange,
@@ -119,7 +120,10 @@ async function processLeadgen(
   if (seen?.[0]) return;
 
   const lead = await fetchGraphLeadForPage(change.leadgenId, integration.pageId, integration.pageAccessToken);
-  const parsed = leadIngestSchema.safeParse(mapGraphLeadToIngest(formKey, lead, change));
+  // Etiquetas de las preguntas (una vez por formulario); si falla se usan las keys.
+  const labels = await fetchLeadFormLabels(lead.form_id ?? change.formId, integration.pageId, integration.pageAccessToken);
+  const { ingest, answers } = mapGraphLead(formKey, lead, change, labels);
+  const parsed = leadIngestSchema.safeParse(ingest);
   if (!parsed.success) {
     const fields = Object.keys(parsed.error.flatten().fieldErrors).join(", ");
     console.error(LOG, `lead ${change.leadgenId} con datos invalidos (${fields}); revisa las preguntas del formulario`);
@@ -130,7 +134,8 @@ async function processLeadgen(
 
   const result = await ingestLead(db, formKey, form, input, {
     contactSource: "redes_sociales",
-    extraLeadMeta: { leadgen_id: change.leadgenId, leadgen_ids: [change.leadgenId], meta_lead_ads: metaInfo },
+    extraLeadMeta: { leadgen_id: change.leadgenId, leadgen_ids: [change.leadgenId], meta_lead_ads: metaInfo, answers },
+    answers,
   });
 
   // Si cayo sobre un trato abierto del mismo contacto, se deja el leadgen_id
@@ -141,7 +146,7 @@ async function processLeadgen(
     const ids = Array.isArray(meta.leadgen_ids) ? (meta.leadgen_ids as unknown[]).map(String) : [];
     await db
       .from("deals")
-      .update({ lead_meta: { ...meta, leadgen_ids: [...new Set([...ids, change.leadgenId])], meta_lead_ads: metaInfo } })
+      .update({ lead_meta: { ...meta, leadgen_ids: [...new Set([...ids, change.leadgenId])], meta_lead_ads: metaInfo, answers } })
       .eq("id", result.dealId);
   }
 
@@ -151,6 +156,6 @@ async function processLeadgen(
     .eq("id", integration.id);
 
   if (form.notify && result.status !== "duplicate_event") {
-    await notifyNewLead({ formKey, form, input, result }).catch((err) => console.error("[leads/notify]", err));
+    await notifyNewLead({ formKey, form, input, result, answers }).catch((err) => console.error("[leads/notify]", err));
   }
 }

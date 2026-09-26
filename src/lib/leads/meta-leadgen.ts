@@ -1,6 +1,6 @@
 import { createHmac, createHash, randomBytes, timingSafeEqual } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { META_LEAD_ADS_SOURCE } from "./notes";
+import { META_LEAD_ADS_SOURCE, type LeadAnswer } from "./notes";
 
 // Leads de formularios instantaneos de Meta Lead Ads (Facebook / Instagram).
 // Meta avisa por webhook (objeto Page, campo leadgen) solo con el leadgen_id;
@@ -124,6 +124,8 @@ export interface GraphLead {
   form_id?: string;
   platform?: string;
   is_organic?: boolean;
+  /** Casillas de consentimiento del formulario: no son respuestas, se ignoran. */
+  custom_disclaimer_responses?: { checkbox_key?: string; is_checked?: string | boolean }[];
 }
 
 async function graphRequest(
@@ -173,16 +175,63 @@ export async function subscribePageToLeadgen(pageId: string, token: string): Pro
   return data.map((a) => String(a.name ?? a.id ?? ""));
 }
 
-/** Pide el lead; si el token guardado no sirve directo, reintenta con el token de la pagina. */
-export async function fetchGraphLeadForPage(leadgenId: string, pageId: string | null, token: string): Promise<GraphLead> {
+/** Corre `fn` con el token guardado; si falla, reintenta con el token de la pagina. */
+async function withPageTokenFallback<T>(pageId: string | null, token: string, fn: (t: string) => Promise<T>): Promise<T> {
   try {
-    return await fetchGraphLead(leadgenId, token);
+    return await fn(token);
   } catch (err) {
     if (!pageId) throw err;
     const pageToken = await resolvePageAccessToken(pageId, token);
     if (pageToken === token) throw err;
-    return fetchGraphLead(leadgenId, pageToken);
+    return fn(pageToken);
   }
+}
+
+/** Pide el lead; si el token guardado no sirve directo, reintenta con el token de la pagina. */
+export async function fetchGraphLeadForPage(leadgenId: string, pageId: string | null, token: string): Promise<GraphLead> {
+  return withPageTokenFallback(pageId, token, (t) => fetchGraphLead(leadgenId, t));
+}
+
+// Etiquetas de las preguntas por formulario (form_id -> key -> label). Las
+// preguntas de un formulario publicado no cambian, asi que se piden una vez
+// por proceso. Los errores no se cachean (se reintenta con el proximo lead).
+const formLabelsCache = new Map<string, Map<string, string>>();
+
+/**
+ * Etiquetas de las preguntas del formulario instantaneo (/{form_id}?fields=questions).
+ * Nunca lanza: si la Graph API falla devuelve un mapa vacio y se usan las keys.
+ */
+export async function fetchLeadFormLabels(
+  formId: string | null | undefined,
+  pageId: string | null,
+  token: string
+): Promise<Map<string, string>> {
+  if (!formId) return new Map();
+  const cached = formLabelsCache.get(formId);
+  if (cached) return cached;
+  try {
+    const body = await withPageTokenFallback(pageId, token, (t) =>
+      graphRequest(encodeURIComponent(formId), t, { params: { fields: "questions" } })
+    );
+    const labels = new Map<string, string>();
+    const questions = Array.isArray(body.questions) ? (body.questions as Array<Record<string, unknown>>) : [];
+    for (const q of questions) {
+      const key = typeof q.key === "string" ? q.key : null;
+      const label = typeof q.label === "string" ? q.label.trim() : "";
+      if (key && label) labels.set(key, label);
+    }
+    formLabelsCache.set(formId, labels);
+    return labels;
+  } catch (err) {
+    console.error("[leads/meta-leadgen]", `preguntas del formulario ${formId}:`, err instanceof Error ? err.message : err);
+    return new Map();
+  }
+}
+
+/** "cuando_prefieres_que_te_contactemos" -> "Cuando prefieres que te contactemos". */
+export function humanizeFieldKey(key: string): string {
+  const text = key.replace(/_+/g, " ").replace(/\s+/g, " ").trim();
+  return text ? text.replace(/\p{L}/u, (c) => c.toUpperCase()) : key;
 }
 
 /** Pide el lead a la Graph API. Lanza con el mensaje de Meta si falla (sin el token). */
@@ -247,12 +296,28 @@ function normKey(name: string): string {
     .toLowerCase();
 }
 
-function prettyQuestion(name: string): string {
-  return name.replace(/[_]+/g, " ").replace(/\s+/g, " ").trim();
+export interface MappedGraphLead {
+  /** Objeto crudo que valida leadIngestSchema. */
+  ingest: Record<string, unknown>;
+  /**
+   * Todas las respuestas del formulario (field_data), en orden. Las que no
+   * quedaron en un campo conocido van con mapped=false y se muestran en
+   * notas, Telegram y email. Se guardan en deals.lead_meta.answers.
+   */
+  answers: LeadAnswer[];
 }
 
-/** Arma el objeto crudo que valida leadIngestSchema a partir del lead de Meta. */
-export function mapGraphLeadToIngest(formKey: string, lead: GraphLead, change: LeadgenChange): Record<string, unknown> {
+/**
+ * Arma el lead para ingestLead + todas las respuestas del formulario.
+ * `labels` (key -> pregunta) viene de fetchLeadFormLabels; sin etiqueta se
+ * usa la key legible.
+ */
+export function mapGraphLead(
+  formKey: string,
+  lead: GraphLead,
+  change: LeadgenChange,
+  labels: Map<string, string> = new Map()
+): MappedGraphLead {
   let fullName: string | null = null;
   let firstName: string | null = null;
   let lastName: string | null = null;
@@ -262,40 +327,48 @@ export function mapGraphLeadToIngest(formKey: string, lead: GraphLead, change: L
   let venue: string | null = null;
   let comuna: string | null = null;
   let guests: string | null = null;
-  const extra: string[] = [];
+  const answers: LeadAnswer[] = [];
 
   for (const field of lead.field_data ?? []) {
     const value = (field.values ?? []).map((x) => String(x).trim()).filter(Boolean).join(", ");
     if (!value) continue;
     const key = normKey(field.name);
-    if (key === "full_name" || key === "nombre_completo" || key === "nombre") fullName ??= value;
-    else if (key === "first_name") firstName ??= value;
-    else if (key === "last_name") lastName ??= value;
-    else if (key === "phone_number" || key === "phone" || key.includes("telefono") || key.includes("whatsapp")) phone ??= value;
-    else if (key === "email" || key.includes("correo")) email ??= value;
-    else if (!eventDate && /fecha|date|matrimonio|boda/.test(key) && parseLeadDate(value)) eventDate = parseLeadDate(value);
-    else if (!venue && /lugar|donde|venue|centro_de_evento|recinto/.test(key)) venue = value;
-    else if (!comuna && /comuna|ciudad|city/.test(key)) comuna = value;
-    else if (!guests && /invitad|guest|personas/.test(key)) guests = value;
-    else extra.push(`${prettyQuestion(field.name)}: ${value}`);
+    // Solo cuenta como mapeada si efectivamente llena un campo vacio; si el
+    // campo ya estaba lleno (ej. dos preguntas de telefono) la respuesta se
+    // conserva como respuesta extra en vez de perderse.
+    let mapped = true;
+    if ((key === "full_name" || key === "nombre_completo" || key === "nombre") && fullName === null) fullName = value;
+    else if (key === "first_name" && firstName === null) firstName = value;
+    else if (key === "last_name" && lastName === null) lastName = value;
+    else if ((key === "phone_number" || key === "phone") && phone === null) phone = value;
+    else if ((key === "email" || key.includes("correo")) && email === null && !/\s/.test(value)) email = value;
+    else if (eventDate === null && /fecha|date|matrimonio|boda/.test(key) && parseLeadDate(value)) eventDate = parseLeadDate(value);
+    else if (venue === null && /lugar|donde|venue|centro_de_evento|recinto/.test(key)) venue = value;
+    else if (comuna === null && /comuna|ciudad|city/.test(key)) comuna = value;
+    else if (guests === null && /invitad|guest|personas/.test(key)) guests = value;
+    else if (phone === null && (key.includes("telefono") || key.includes("whatsapp")) && /^[\d\s+()-]{8,}$/.test(value)) phone = value;
+    else mapped = false;
+    answers.push({ key: field.name, label: labels.get(field.name) ?? humanizeFieldKey(field.name), value, mapped });
   }
+  // custom_disclaimer_responses (consentimientos) no se guardan como respuestas.
 
   // Leads de la herramienta de pruebas de Meta: traen textos como
   // "<test lead: dummy data for phone_number>". Se reemplazan por datos de
   // prueba validos para poder verificar el flujo completo (trato + avisos).
+  let message: string | null = null;
   const isDummy = (v: string | null) => Boolean(v && /^<test lead/i.test(v));
   if ([fullName, firstName, lastName, phone, email].some(isDummy)) {
     fullName = "Prueba Meta Lead Ads";
     firstName = lastName = null;
     phone = "+56 9 0000 0000";
     email = null;
-    extra.unshift("Lead de prueba enviado desde la herramienta de pruebas de Meta.");
+    message = "Lead de prueba enviado desde la herramienta de pruebas de Meta.";
   }
 
   const name = fullName ?? ([firstName, lastName].filter(Boolean).join(" ") || email || phone || "Lead Meta");
   const platform = lead.platform?.toLowerCase() || null;
 
-  return {
+  const ingest = {
     form: formKey,
     name,
     phone,
@@ -304,7 +377,7 @@ export function mapGraphLeadToIngest(formKey: string, lead: GraphLead, change: L
     venue,
     comuna,
     guests,
-    message: extra.length ? extra.join("\n") : null,
+    message,
     utm_source: META_LEAD_ADS_SOURCE,
     utm_medium: platform,
     utm_campaign: lead.campaign_name ?? null,
@@ -312,6 +385,12 @@ export function mapGraphLeadToIngest(formKey: string, lead: GraphLead, change: L
     utm_content: lead.ad_name ?? null,
     event_id: leadgenEventId(change.leadgenId),
   };
+  return { ingest, answers };
+}
+
+/** Compatibilidad: solo el objeto para leadIngestSchema. */
+export function mapGraphLeadToIngest(formKey: string, lead: GraphLead, change: LeadgenChange): Record<string, unknown> {
+  return mapGraphLead(formKey, lead, change).ingest;
 }
 
 /**
