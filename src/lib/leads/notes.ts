@@ -39,6 +39,24 @@ export function leadOrigin(input: LeadIngestInput, formKey: string): string {
   return input.heard_from ? "organico" : "web";
 }
 
+/**
+ * Una respuesta del formulario (ej. formularios instantaneos de Meta). Se
+ * guardan todas en deals.lead_meta.answers; las que no calzan con un campo
+ * conocido (nombre, telefono, email, fecha...) se muestran en notas y avisos.
+ */
+export interface LeadAnswer {
+  key: string;
+  label: string;
+  value: string;
+  /** true si ya quedo en un campo conocido del lead (no se repite en notas). */
+  mapped?: boolean;
+}
+
+/** "Etiqueta: valor" por cada respuesta que no quedo en un campo conocido. */
+export function formatAnswerLines(answers: LeadAnswer[] | null | undefined): string[] {
+  return (answers ?? []).filter((a) => !a.mapped && a.value).map((a) => `${a.label}: ${a.value}`);
+}
+
 export interface LeadNotesParams {
   formKey: string;
   form: LeadFormConfig;
@@ -48,6 +66,8 @@ export interface LeadNotesParams {
   receivedAt?: Date;
   /** "new": trato recien creado; "resubmit": nuevo envio sobre un trato abierto. */
   kind?: "new" | "resubmit";
+  /** Respuestas del formulario; las no mapeadas se agregan al final. */
+  answers?: LeadAnswer[];
 }
 
 const PLATFORM_LABEL: Record<string, string> = { fb: "Facebook", ig: "Instagram", an: "Audience Network", ms: "Messenger" };
@@ -62,6 +82,7 @@ export function formatLeadNotes({
   email,
   receivedAt = new Date(),
   kind = "new",
+  answers,
 }: LeadNotesParams): string {
   const isQuick = formKey === "quick";
   const isMeta = !isQuick && isMetaLeadAds(input);
@@ -108,6 +129,7 @@ export function formatLeadNotes({
       ? `Origen: ${META_LEAD_ADS_LABEL}${metaAd ? ` (${metaAd})` : ""}`
       : !isQuick && `Origen: ${leadOrigin(input, formKey)}${utm.length ? ` (${utm.join(", ")})` : ""}`,
     input.message && `Mensaje: ${input.message}`,
+    ...formatAnswerLines(answers),
   ];
   return lines.filter(Boolean).join("\n");
 }

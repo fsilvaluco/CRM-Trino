@@ -3,7 +3,7 @@ import { esc, sendTelegram } from "@/lib/meta-ads/telegram";
 import type { LeadFormConfig } from "./forms";
 import type { IngestResult } from "./ingest";
 import type { LeadIngestInput } from "./schema";
-import { formatLeadNotes, isMetaLeadAds } from "./notes";
+import { formatLeadNotes, isMetaLeadAds, type LeadAnswer } from "./notes";
 
 // Aviso de cada lead nuevo (o repetido) por email y Telegram. Se llama desde
 // after() en /api/leads/ingest y /api/leads/quick: nunca bloquea la respuesta
@@ -15,6 +15,8 @@ export interface LeadNotifyParams {
   form: LeadFormConfig;
   input: LeadIngestInput;
   result: IngestResult;
+  /** Respuestas del formulario (Meta Lead Ads); las no mapeadas van al aviso. */
+  answers?: LeadAnswer[];
 }
 
 function crmUrl(): string {
@@ -43,7 +45,7 @@ export function buildLeadNotifySubject(input: LeadIngestInput, repeated: boolean
     : `🎙️ Nuevo lead SiSoy${via}: ${input.name} (${when})`;
 }
 
-export async function notifyNewLead({ formKey, form, input, result }: LeadNotifyParams): Promise<void> {
+export async function notifyNewLead({ formKey, form, input, result, answers }: LeadNotifyParams): Promise<void> {
   if (!shouldNotifyLead(form, result) || !form.notify) return;
   const repeated = result.status === "existing_deal";
   const subject = buildLeadNotifySubject(input, repeated);
@@ -54,6 +56,7 @@ export async function notifyNewLead({ formKey, form, input, result }: LeadNotify
     phone: result.phone,
     email: result.email,
     kind: repeated ? "resubmit" : "new",
+    answers,
   });
   const url = crmUrl();
 
