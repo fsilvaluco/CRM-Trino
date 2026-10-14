@@ -8,6 +8,8 @@ import {
   canEditModule,
 } from "@/lib/project-roles";
 import { sendEmail, buildSettlementPendingSignatureEmailHtml, isResendEnabled } from "@/lib/resend";
+import { isSettlementCurrency } from "@/lib/settlement-money";
+import { approvalExternalSigners, type ExternalSignerRow } from "@/lib/external-signature";
 
 function siteUrl(path: string): string {
   const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -31,6 +33,7 @@ function mapSettlement(
     periodYear: row.period_year ?? null,
     payerName: row.payer_name,
     payeeName: row.payee_name,
+    currency: row.currency ?? "CLP",
     sourceAmount: row.source_amount,
     // Paths crudos del bucket privado "finances" -- el cliente los resuelve
     // a URL firmada al vuelo con SignedFileLink/getFinanceSignedUrl, igual
@@ -111,6 +114,23 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Firmas de la contraparte externa (migración 109), de una vez. Se
+  // agrupan por persona igual que en el recuadro de Aprobación.
+  const externalBySettlement = new Map<string, ExternalSignerRow[]>();
+  if (ids.length > 0) {
+    const { data: extRows } = await supabase
+      .from("event_external_signers")
+      .select(
+        "id, settlement_id, role_label, invited_name, invited_email, signer_name, signer_email, signed_at, invalidated_at, revoked_at, expires_at, created_at"
+      )
+      .in("settlement_id", ids);
+    for (const r of (extRows ?? []) as (ExternalSignerRow & { settlement_id: string })[]) {
+      const list = externalBySettlement.get(r.settlement_id) ?? [];
+      list.push(r);
+      externalBySettlement.set(r.settlement_id, list);
+    }
+  }
+
   // Nombres de los firmantes elegidos a mano (todas las filas de una vez).
   const allSignerIds = Array.from(new Set(rows.flatMap((r) => (r.required_signer_ids ?? []) as string[])));
   const profileById = new Map<string, { full_name: string | null; email: string | null }>();
@@ -130,7 +150,13 @@ export async function GET(request: NextRequest) {
         userId,
         name: profileById.get(userId)?.full_name ?? profileById.get(userId)?.email ?? "Alguien",
       }));
-      return mapSettlement(row, signaturesBySettlement.get(row.id) ?? [], requiredSigners);
+      return {
+        ...mapSettlement(row, signaturesBySettlement.get(row.id) ?? [], requiredSigners),
+        externalSigners: approvalExternalSigners(externalBySettlement.get(row.id) ?? []).map((e) => ({
+          name: e.name,
+          signedAt: e.signedAt,
+        })),
+      };
     })
   );
 }
@@ -157,6 +183,7 @@ export async function POST(request: NextRequest) {
     payoutProofName,
     notes,
     requiredSignerIds,
+    currency,
   } = body as {
     projectId?: string;
     type?: string;
@@ -173,6 +200,7 @@ export async function POST(request: NextRequest) {
     payoutProofName?: string | null;
     notes?: string | null;
     requiredSignerIds?: string[];
+    currency?: string;
   };
 
   if (!projectId || !allowedProjectIds.includes(projectId)) {
@@ -180,6 +208,9 @@ export async function POST(request: NextRequest) {
   }
   if (!type || !SETTLEMENT_TYPES.includes(type as SettlementType)) {
     return NextResponse.json({ error: `type debe ser uno de: ${SETTLEMENT_TYPES.join(", ")}` }, { status: 400 });
+  }
+  if (currency !== undefined && !isSettlementCurrency(currency)) {
+    return NextResponse.json({ error: "Moneda no soportada (CLP o USD)" }, { status: 400 });
   }
   if (!payerName?.trim() || !payeeName?.trim()) {
     return NextResponse.json({ error: "payerName y payeeName son requeridos" }, { status: 400 });
@@ -221,6 +252,7 @@ export async function POST(request: NextRequest) {
       payout_proof_path: payoutProofPath ?? null,
       payout_proof_name: payoutProofName ?? null,
       notes: notes ?? null,
+      currency: currency ?? "CLP",
       created_by: user!.id,
       required_signer_ids: validSignerIds,
     })
@@ -260,6 +292,7 @@ export async function POST(request: NextRequest) {
         payoutAmount: data.payout_amount,
         percentage: Number(data.percentage),
         signUrl,
+        currency: isSettlementCurrency(data.currency) ? data.currency : "CLP",
       });
       sendEmail({ to: p.email, subject: `Nueva liquidación pendiente de firmar -- ${data.payer_name} → ${data.payee_name}`, html }).catch(
         (err) => console.error("[settlements] fallo enviando aviso de firma a", p.email, err)

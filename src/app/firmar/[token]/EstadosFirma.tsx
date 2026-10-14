@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import type { ExternalSignatureView } from "@/types/external-signature";
 import { DocumentoCierre } from "@/components/events/DocumentoCierre";
+import { DocumentoLiquidacion } from "@/components/finances/DocumentoLiquidacion";
 
 // Las pantallas de la firma externa que NO son el formulario: link roto,
 // link vencido/anulado, y la constancia de una firma ya registrada.
@@ -55,7 +56,30 @@ export function EstadoError({ title, hint }: { title: string; hint?: string }) {
   );
 }
 
-export function EstadoCerrado({ status }: { status: "vencido" | "revocado" | "invalidado" }) {
+export function EstadoCerrado({
+  status,
+  kind = "evento",
+}: {
+  status: "vencido" | "revocado" | "invalidado";
+  kind?: "evento" | "liquidacion";
+}) {
+  if (status === "invalidado" && kind === "liquidacion") {
+    return (
+      <Shell>
+        <Card>
+          <CardContent className="py-10 text-center space-y-2">
+            <RotateCcw className="h-8 w-8 mx-auto text-orange-600" />
+            <p className="font-medium">La liquidación cambió después de tu firma</p>
+            <p className="text-sm text-muted-foreground">
+              Tu firma anterior quedó registrada y te queda como respaldo, pero el equipo corrigió la liquidación.
+              Te van a mandar un link nuevo para que revises y firmes la versión final.
+            </p>
+          </CardContent>
+        </Card>
+      </Shell>
+    );
+  }
+
   if (status === "invalidado") {
     return (
       <Shell>
@@ -123,7 +147,8 @@ export function EstadoFirmado({
           <Evidence label="Huella del documento" value={s.documentHash.slice(0, 32) + "…"} />
           {!s.documentUnchanged && (
             <p className="pt-2 text-amber-600">
-              Atención: el cierre de caja cambió después de tu firma. Tu comprobante conserva la versión que firmaste.
+              Atención: {data.kind === "liquidacion" ? "la liquidación" : "el cierre de caja"} cambió después de tu
+              firma. Tu comprobante conserva la versión que firmaste.
             </p>
           )}
           <a
@@ -138,13 +163,13 @@ export function EstadoFirmado({
         </CardContent>
       </Card>
 
-      {data.document && (
+      {(data.document || data.settlement) && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium">Documento firmado</CardTitle>
           </CardHeader>
           <CardContent>
-            <DocumentoCierre doc={data.document} />
+            {data.settlement ? <DocumentoLiquidacion doc={data.settlement} /> : data.document ? <DocumentoCierre doc={data.document} /> : null}
           </CardContent>
         </Card>
       )}

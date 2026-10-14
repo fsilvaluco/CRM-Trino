@@ -306,7 +306,7 @@ export async function buildClosingDocument(
 /** JSON con las llaves siempre en el mismo orden -- sin esto el hash
  * cambiaria segun el orden en que Postgres devolvio las columnas, y dos
  * documentos identicos darian hashes distintos. */
-function stableStringify(value: unknown): string {
+export function stableStringify(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
   if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
   const entries = Object.entries(value as Record<string, unknown>)
@@ -329,6 +329,13 @@ export function documentHash(doc: ClosingDocument): string {
     costItems: doc.costItems.map(({ label, responsable, amount }) => ({ label, responsable, amount })),
   };
   return createHash("sha256").update(stableStringify(forHash)).digest("hex");
+}
+
+/** SHA-256 de cualquier objeto serializado de forma estable. Lo usa el
+ * documento de una liquidacion (settlement-document.ts), que tiene su
+ * propia regla de que campos entran a la huella. */
+export function hashStable(value: unknown): string {
+  return createHash("sha256").update(stableStringify(value)).digest("hex");
 }
 
 /** Los 8 primeros caracteres, para mostrarlo en pantalla sin que sea un

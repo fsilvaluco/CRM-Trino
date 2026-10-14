@@ -4,7 +4,12 @@ import { sendClosingActa } from "@/lib/closing-acta";
 import { getClientIp } from "@/lib/client-ip";
 import { dbErrorResponse } from "@/lib/api-errors";
 import { sendPushToUsers } from "@/lib/push";
-import { sendEmail, isResendEnabled, buildExternalSignatureReceiptEmailHtml } from "@/lib/resend";
+import {
+  sendEmail,
+  isResendEnabled,
+  buildExternalSignatureReceiptEmailHtml,
+  buildSettlementSignatureReceiptEmailHtml,
+} from "@/lib/resend";
 import {
   hashToken,
   externalSignerStatus,
@@ -14,6 +19,14 @@ import {
   buildReceiptPdf,
   OTP_MAX_ATTEMPTS,
 } from "@/lib/external-signature";
+import {
+  buildSettlementDocument,
+  settlementDocumentHash,
+  buildSettlementReceiptPdf,
+  settlementTitle,
+  type SettlementDocument,
+} from "@/lib/settlement-document";
+import { formatSettlementAmount } from "@/lib/settlement-money";
 
 function siteUrl(path: string): string {
   const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -35,7 +48,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { data: signer } = await admin
     .from("event_external_signers")
     .select(
-      "id, show_id, role_label, created_at, first_viewed_at, expires_at, revoked_at, invalidated_at, signed_at, signer_name, signer_rut, signer_email, signer_phone, otp_hash, otp_sent_to, otp_expires_at, otp_attempts, created_by"
+      "id, show_id, settlement_id, invited_name, role_label, created_at, first_viewed_at, expires_at, revoked_at, invalidated_at, signed_at, signer_name, signer_rut, signer_email, signer_phone, otp_hash, otp_sent_to, otp_expires_at, otp_attempts, created_by"
     )
     .eq("token_hash", tokenHash)
     .maybeSingle();
@@ -83,6 +96,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       },
       { status: 400 }
     );
+  }
+
+  // Link de una liquidación (migración 109): misma verificación de arriba,
+  // otro documento y otro aviso.
+  if (signer.settlement_id) {
+    return signSettlement({ admin, request, signer, shownHash: body.documentHash });
   }
 
   const doc = await buildClosingDocument(admin, signer.show_id);
@@ -243,5 +262,153 @@ async function sendReceipts(args: {
       .eq("id", signerRow.id);
   } catch (err) {
     console.error("[firma-externa:comprobante] no se pudo generar/enviar el comprobante", err);
+  }
+}
+
+// ─── Firma de una liquidación ───────────────────────────────────────────────
+async function signSettlement(args: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any;
+  request: NextRequest;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  signer: any;
+  shownHash: unknown;
+}) {
+  const { admin, request, signer, shownHash } = args;
+
+  const doc = await buildSettlementDocument(admin, signer.settlement_id);
+  if (!doc) return NextResponse.json({ error: "La liquidación de este link ya no existe" }, { status: 404 });
+
+  // Se firma lo que la persona VIO en pantalla: si el equipo corrigió la
+  // liquidación mientras pedía el código, no firma la versión nueva a ciegas.
+  const hash = settlementDocumentHash(doc);
+  if (typeof shownHash !== "string" || shownHash !== hash) {
+    return NextResponse.json(
+      { error: "La liquidación cambió mientras firmabas. Recarga la página, revisa la versión actual y vuelve a firmar." },
+      { status: 409 }
+    );
+  }
+  const signedAt = new Date().toISOString();
+  const userAgent = request.headers.get("user-agent");
+  const ipAddress = getClientIp(request);
+
+  const { data: updated, error: updateError } = await admin
+    .from("event_external_signers")
+    .update({
+      signed_at: signedAt,
+      otp_verified_at: signedAt,
+      ip_address: ipAddress,
+      user_agent: userAgent,
+      document_hash: hash,
+      document_snapshot: doc,
+      otp_hash: null,
+    })
+    .eq("id", signer.id)
+    .is("signed_at", null)
+    .select("id");
+
+  if (updateError) return dbErrorResponse("firma-externa-liquidacion:firmar", updateError);
+  if (!updated || updated.length === 0) {
+    return NextResponse.json({ error: "Este documento ya está firmado" }, { status: 409 });
+  }
+
+  void sendSettlementReceipts({ admin, signerRow: signer, doc, hash, signedAt, userAgent, ipAddress });
+
+  return NextResponse.json({ ok: true, signedAt, documentHash: hash }, { status: 201 });
+}
+
+/** Comprobante PDF al firmante, a quien emitió el link y a quienes del
+ * equipo ya firmaron la liquidación. Fire-and-forget. */
+async function sendSettlementReceipts(args: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  signerRow: any;
+  doc: SettlementDocument;
+  hash: string;
+  signedAt: string;
+  userAgent: string | null;
+  ipAddress: string | null;
+}) {
+  const { admin, signerRow, doc, hash, signedAt, userAgent, ipAddress } = args;
+  const title = settlementTitle(doc);
+
+  if (signerRow.created_by) {
+    void sendPushToUsers([signerRow.created_by], {
+      title: "Liquidación firmada por la contraparte",
+      body: `${signerRow.signer_name} firmó ${title}`,
+      url: siteUrl(`/finances/comprobantes/${doc.settlementId}/firmar`),
+    });
+  }
+
+  if (!isResendEnabled()) return;
+
+  try {
+    const pdf = await buildSettlementReceiptPdf(doc, {
+      signerName: signerRow.signer_name,
+      signerRut: signerRow.signer_rut,
+      signerEmail: signerRow.signer_email,
+      signerPhone: signerRow.signer_phone,
+      roleLabel: signerRow.role_label ?? null,
+      signedAt,
+      otpVerifiedAt: signedAt,
+      otpSentTo: signerRow.otp_sent_to ?? null,
+      ipAddress,
+      userAgent,
+      linkCreatedAt: signerRow.created_at ?? null,
+      firstViewedAt: signerRow.first_viewed_at ?? null,
+      documentHash: hash,
+    });
+
+    const html = buildSettlementSignatureReceiptEmailHtml({
+      title,
+      periodLabel: doc.periodLabel,
+      payoutLabel: formatSettlementAmount(doc.payoutAmount, doc.currency),
+      signerName: signerRow.signer_name,
+      signerRut: signerRow.signer_rut,
+      signerEmail: signerRow.signer_email,
+      signerPhone: signerRow.signer_phone,
+      roleLabel: signerRow.role_label ?? null,
+      signedAt,
+      ipAddress,
+      documentHash: hash,
+    });
+
+    const attachments = [
+      {
+        filename: `comprobante-liquidacion-${`${doc.payerName}-${doc.payeeName}`.replace(/[^\w-]+/g, "-").toLowerCase()}.pdf`,
+        content: Buffer.from(pdf).toString("base64"),
+      },
+    ];
+
+    const recipients = new Set<string>([signerRow.signer_email]);
+    const { data: internal } = await admin
+      .from("settlement_signatures")
+      .select("profiles ( email )")
+      .eq("settlement_id", doc.settlementId);
+    for (const row of internal ?? []) {
+      const email = row?.profiles?.email;
+      if (email) recipients.add(email);
+    }
+    if (signerRow.created_by) {
+      const { data: creator } = await admin.from("profiles").select("email").eq("id", signerRow.created_by).single();
+      if (creator?.email) recipients.add(creator.email);
+    }
+
+    const subject = `Liquidación firmada -- ${doc.payerName} → ${doc.payeeName}`;
+    for (const to of recipients) {
+      try {
+        await sendEmail({ to, subject, html, attachments });
+      } catch (err) {
+        console.error("[firma-externa-liquidacion:comprobante] fallo enviando a", to, err);
+      }
+    }
+
+    await admin
+      .from("event_external_signers")
+      .update({ receipt_sent_at: new Date().toISOString() })
+      .eq("id", signerRow.id);
+  } catch (err) {
+    console.error("[firma-externa-liquidacion:comprobante] no se pudo generar/enviar el comprobante", err);
   }
 }
