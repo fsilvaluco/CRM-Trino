@@ -1,3 +1,5 @@
+import { formatSettlementAmount, type SettlementCurrency } from "@/lib/settlement-money";
+
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 // onboarding@resend.dev funciona sin verificar ningun dominio -- sirve para
 // probar de inmediato. Una vez que artistpro.app este verificado en Resend,
@@ -251,8 +253,11 @@ export function buildSettlementPendingSignatureEmailHtml(params: {
   payoutAmount: number;
   percentage: number;
   signUrl: string;
+  /** Moneda de la liquidación (migración 109). Montos en su unidad mínima. */
+  currency?: SettlementCurrency;
 }): string {
   const { signerName, type, payerName, payeeName, sourceAmount, payoutAmount, percentage, signUrl } = params;
+  const currency = params.currency ?? "CLP";
   const greeting = signerName ? `<p style="font-size: 16px; color: #14162B; margin-bottom: 4px;">Hola ${signerName},</p>` : "";
 
   return `
@@ -264,8 +269,8 @@ export function buildSettlementPendingSignatureEmailHtml(params: {
       </p>
       <p style="font-size: 14px; color: #14162B; line-height: 1.6; background:#F4F4F8; border-radius:12px; padding:14px 16px; margin: 16px 0;">
         <strong>${payerName} → ${payeeName}</strong><br/>
-        Origen: ${CLP_FMT.format(sourceAmount)}<br/>
-        A pagar (${percentage}%): ${CLP_FMT.format(payoutAmount)}
+        Origen: ${formatSettlementAmount(sourceAmount, currency)}<br/>
+        A pagar (${percentage}%): ${formatSettlementAmount(payoutAmount, currency)}
       </p>
       <a href="${signUrl}" target="_blank" rel="noopener noreferrer"
         style="display: inline-block; margin-top: 4px; padding: 12px 24px; background: #4338CA; color: white; text-decoration: none; border-radius: 100px; font-size: 14px; font-weight: 600;">
@@ -287,14 +292,18 @@ export function buildExternalSignatureOtpEmailHtml(params: {
   eventName: string;
   signerName: string;
   minutes: number;
+  /** Qué se firma, para la frase del correo. Por defecto el cierre de caja
+   * de un evento; las liquidaciones (migración 109) pasan "la liquidación". */
+  documentLabel?: string;
 }): string {
   const { code, eventName, signerName, minutes } = params;
+  const documentLabel = params.documentLabel ?? "la conformidad del cierre de caja de";
   return `
     <div style="font-family: -apple-system, Inter, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
       <img src="https://artistpro.app/logo-black.png" alt="Artist Pro" style="width: 120px; height: auto; margin-bottom: 20px;" />
       <p style="font-size: 16px; color: #14162B; margin-bottom: 4px;">Hola ${signerName},</p>
       <p style="font-size: 15px; color: #14162B; line-height: 1.5;">
-        Tu código para firmar la conformidad del cierre de caja de <strong>${eventName}</strong> es:
+        Tu código para firmar ${documentLabel} <strong>${eventName}</strong> es:
       </p>
       <p style="font-size: 34px; font-weight: 700; letter-spacing: 10px; color: #14162B; background: #F4F4F8; border-radius: 12px; padding: 18px; text-align: center; margin: 20px 0;">
         ${code}
@@ -441,6 +450,107 @@ export function buildExternalSignatureInviteEmailHtml(params: {
       <p style="font-size: 14px; color: #14162B; line-height: 1.6; background:#F4F4F8; border-radius:12px; padding:14px 16px; margin: 16px 0;">
         <strong>${eventName}</strong>${projectName ? ` — ${projectName}` : ""}<br/>
         <span style="color:#14162B99;">${formatDateForEmail(eventDate)} · ${venue}</span>
+        ${roleLabel ? `<br/><span style="color:#14162B99;">Firmas como: ${roleLabel}</span>` : ""}
+      </p>
+      <a href="${signUrl}" target="_blank" rel="noopener noreferrer"
+        style="display: inline-block; margin-top: 4px; padding: 12px 24px; background: #4338CA; color: white; text-decoration: none; border-radius: 100px; font-size: 14px; font-weight: 600;">
+        Revisar y firmar
+      </a>
+      <p style="font-size: 13px; color: #14162B99; line-height: 1.6; margin-top: 20px;">
+        No necesitas crear una cuenta. Para firmar te vamos a mandar un código de 6 dígitos a este mismo correo.
+      </p>
+      <p style="font-size: 12px; color: #14162B66; margin-top: 20px;">
+        Este link es personal y vence el ${formatDateForEmail(expiresAt.slice(0, 10))}. No lo reenvíes.
+      </p>
+    </div>
+  `;
+}
+
+/**
+ * Comprobante de la firma externa de una LIQUIDACIÓN (migración 109) -- al
+ * firmante y al equipo, con el PDF adjunto.
+ */
+export function buildSettlementSignatureReceiptEmailHtml(params: {
+  title: string;
+  periodLabel: string | null;
+  payoutLabel: string;
+  signerName: string;
+  signerRut: string;
+  signerEmail: string;
+  signerPhone: string;
+  roleLabel: string | null;
+  signedAt: string;
+  ipAddress: string | null;
+  documentHash: string;
+}): string {
+  const {
+    title, periodLabel, payoutLabel, signerName, signerRut, signerEmail, signerPhone,
+    roleLabel, signedAt, ipAddress, documentHash,
+  } = params;
+
+  const line = (label: string, value: string) =>
+    `<tr><td style="padding:3px 0;color:#14162B99;font-size:13px;">${label}</td><td style="padding:3px 0;text-align:right;font-size:13px;color:#14162B;font-weight:600;">${value}</td></tr>`;
+
+  return `
+    <div style="font-family: -apple-system, Inter, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px;">
+      <img src="https://artistpro.app/logo-black.png" alt="Artist Pro" style="width: 120px; height: auto; margin-bottom: 20px;" />
+      <p style="font-size: 18px; font-weight: 700; color: #14162B; margin-bottom: 4px;">Liquidación firmada</p>
+      <p style="font-size: 15px; color: #14162B; margin-bottom: 2px;"><strong>${title}</strong></p>
+      ${periodLabel ? `<p style="font-size: 13px; color: #14162B99; margin-bottom: 20px;">Periodo: ${periodLabel}</p>` : ""}
+
+      <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+        ${line("Monto a pagar", payoutLabel)}
+        ${line("Firmante", signerName)}
+        ${roleLabel ? line("Calidad en que firma", roleLabel) : ""}
+        ${line("RUT / identificación", signerRut)}
+        ${line("Correo", signerEmail)}
+        ${line("Teléfono", signerPhone)}
+        ${line("Fecha y hora", formatDateTimeForEmail(signedAt))}
+        ${ipAddress ? line("IP", ipAddress) : ""}
+      </table>
+
+      <p style="font-size:12px;color:#14162B99;line-height:1.6;border-top:1px solid #E5E7EB;padding-top:14px;">
+        Huella SHA-256 del documento firmado:<br/>
+        <span style="font-family:ui-monospace,Menlo,monospace;font-size:11px;color:#14162B;word-break:break-all;">${documentHash}</span>
+      </p>
+      <p style="font-size:12px;color:#14162B99;line-height:1.6;">
+        Adjuntamos el comprobante en PDF con el detalle de la liquidación y la evidencia de la firma. Guárdalo como respaldo.
+      </p>
+    </div>
+  `;
+}
+
+/**
+ * "Necesitamos tu firma" para la contraparte externa de una LIQUIDACIÓN
+ * (migración 109). Igual que la invitación del cierre de caja: el link es
+ * el secreto, así que va solo a la casilla que dejó fijada el equipo.
+ */
+export function buildSettlementExternalInviteEmailHtml(params: {
+  invitedName: string | null;
+  roleLabel: string | null;
+  title: string;
+  periodLabel: string | null;
+  payoutLabel: string;
+  senderName: string | null;
+  signUrl: string;
+  expiresAt: string;
+}): string {
+  const { invitedName, roleLabel, title, periodLabel, payoutLabel, senderName, signUrl, expiresAt } = params;
+  const greeting = invitedName
+    ? `<p style="font-size: 16px; color: #14162B; margin-bottom: 4px;">Hola ${invitedName.split(" ")[0]},</p>`
+    : "";
+
+  return `
+    <div style="font-family: -apple-system, Inter, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
+      <img src="https://artistpro.app/logo-black.png" alt="Artist Pro" style="width: 120px; height: auto; margin-bottom: 20px;" />
+      ${greeting}
+      <p style="font-size: 15px; color: #14162B; line-height: 1.5;">
+        ${senderName ? `<strong>${senderName}</strong> te pide` : "Te pedimos"} que revises y firmes tu conformidad con esta liquidación:
+      </p>
+      <p style="font-size: 14px; color: #14162B; line-height: 1.6; background:#F4F4F8; border-radius:12px; padding:14px 16px; margin: 16px 0;">
+        <strong>${title}</strong><br/>
+        ${periodLabel ? `<span style="color:#14162B99;">Periodo: ${periodLabel}</span><br/>` : ""}
+        <span style="color:#14162B99;">Monto a pagar: ${payoutLabel}</span>
         ${roleLabel ? `<br/><span style="color:#14162B99;">Firmas como: ${roleLabel}</span>` : ""}
       </p>
       <a href="${signUrl}" target="_blank" rel="noopener noreferrer"

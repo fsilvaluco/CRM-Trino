@@ -25,7 +25,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const { data: signer } = await admin
     .from("event_external_signers")
-    .select("show_id, signed_at, revoked_at, invalidated_at, expires_at")
+    .select("show_id, settlement_id, signed_at, revoked_at, invalidated_at, expires_at")
     .eq("token_hash", hashToken(token))
     .maybeSingle();
 
@@ -39,10 +39,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   // El path guardado puede ser relativo o una URL pública vieja (ver
   // extractFinancePath) -- se compara contra las dos formas para no fallar
   // con los costos cargados antes de que el bucket pasara a privado.
-  const { data: costItems } = await admin
-    .from("event_cost_items")
-    .select("comprobante_url")
-    .eq("show_id", signer.show_id);
+  // En una liquidación (migración 109) los únicos archivos que se pueden
+  // abrir son sus dos comprobantes (origen y pago).
+  const { data: costItems } = signer.settlement_id
+    ? await admin
+        .from("settlements")
+        .select("source_proof_path, payout_proof_path")
+        .eq("id", signer.settlement_id)
+        .single()
+        .then(({ data }: { data: { source_proof_path: string | null; payout_proof_path: string | null } | null }) => ({
+          data: [data?.source_proof_path, data?.payout_proof_path].filter(Boolean).map((p) => ({ comprobante_url: p })),
+        }))
+    : await admin.from("event_cost_items").select("comprobante_url").eq("show_id", signer.show_id);
 
   const pertenece = (costItems ?? []).some(
     (c: { comprobante_url: string | null }) =>

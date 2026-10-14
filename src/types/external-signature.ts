@@ -28,8 +28,38 @@ export interface ClosingDocumentView {
   profitSplitNote: string | null;
 }
 
+/** Una liquidación de regalías/merch/otro tal como se firma (migración
+ * 109). Los montos van en la unidad mínima de `currency` -- ver
+ * src/lib/settlement-money.ts. */
+export interface SettlementDocumentView {
+  kind: "liquidacion";
+  settlementId: string;
+  projectName: string | null;
+  type: string;
+  typeLabel: string;
+  periodLabel: string | null;
+  payerName: string;
+  payeeName: string;
+  currency: "CLP" | "USD";
+  sourceAmount: number;
+  percentage: number;
+  payoutAmount: number;
+  notes: string | null;
+  /** Adjuntos: se pueden abrir desde la pantalla de firma pero quedan FUERA
+   * de la huella (ver settlementDocumentHash). */
+  sourceProofPath: string | null;
+  sourceProofName: string | null;
+  payoutProofPath: string | null;
+  payoutProofName: string | null;
+}
+
 /** Lo que ve el firmante externo en /firmar/[token]. */
 export interface ExternalSignatureView {
+  /** Qué se firma con este link: el cierre de caja de un evento, o una
+   * liquidación (migración 109). */
+  kind: "evento" | "liquidacion";
+  /** Título corto del documento, para el encabezado de la pantalla. */
+  title: string;
   status: ExternalSignerStatus;
   expiresAt: string;
   invitation: {
@@ -38,8 +68,11 @@ export interface ExternalSignatureView {
     invitedEmailMasked: string | null;
     emailLocked: boolean;
   };
-  /** null cuando el link está vencido o anulado. */
+  /** Cierre de caja (kind "evento"). null cuando el link está vencido o
+   * anulado, o cuando es una liquidación. */
   document: ClosingDocumentView | null;
+  /** Liquidación (kind "liquidacion"). Mismas reglas que `document`. */
+  settlement: SettlementDocumentView | null;
   documentHash: string | null;
   invalidatedAt: string | null;
   otp: {

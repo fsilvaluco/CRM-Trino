@@ -31,7 +31,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { data: signer } = await admin
     .from("event_external_signers")
-    .select("id, show_id, invited_email, invited_name, expires_at, revoked_at, invalidated_at, signed_at, otp_sent_at")
+    .select("id, show_id, settlement_id, invited_email, invited_name, expires_at, revoked_at, invalidated_at, signed_at, otp_sent_at")
     .eq("token_hash", tokenHash)
     .maybeSingle();
 
@@ -87,7 +87,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     );
   }
 
-  const { data: show } = await admin.from("shows").select("name").eq("id", signer.show_id).single();
+  // Para el asunto y el cuerpo del correo: el nombre del evento, o el de la
+  // liquidación si el link es de una (migración 109).
+  let documentName = "el documento";
+  let documentLabel: string | undefined;
+  if (signer.settlement_id) {
+    const { data: st } = await admin
+      .from("settlements")
+      .select("payer_name, payee_name")
+      .eq("id", signer.settlement_id)
+      .single();
+    documentName = st ? `${st.payer_name} → ${st.payee_name}` : "la liquidación";
+    documentLabel = "la liquidación";
+  } else {
+    const { data: show } = await admin.from("shows").select("name").eq("id", signer.show_id).single();
+    documentName = show?.name ?? "el evento";
+  }
 
   const code = generateOtp();
   const nowIso = new Date().toISOString();
@@ -114,10 +129,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     await sendEmail({
       to: email,
-      subject: `Tu código para firmar -- ${show?.name ?? "cierre de caja"}`,
+      subject: `Tu código para firmar -- ${documentName}`,
       html: buildExternalSignatureOtpEmailHtml({
         code,
-        eventName: show?.name ?? "el evento",
+        eventName: documentName,
+        documentLabel,
         signerName: name.split(" ")[0] || name,
         minutes: OTP_TTL_MINUTES,
       }),

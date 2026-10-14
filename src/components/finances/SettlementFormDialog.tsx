@@ -23,6 +23,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Paperclip, Check } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import {
+  amountToInput,
+  parseAmountInput,
+  type SettlementCurrency,
+} from "@/lib/settlement-money";
 
 interface ProjectMemberOption {
   userId: string;
@@ -77,6 +82,8 @@ export interface SettlementInitialData {
   periodYear: number | null;
   payerName: string;
   payeeName: string;
+  /** Moneda (migración 109). Montos en su unidad mínima (centavos en USD). */
+  currency?: SettlementCurrency;
   sourceAmount: number;
   sourceProofPath: string | null;
   sourceProofName: string | null;
@@ -107,6 +114,9 @@ export function SettlementFormDialog({
   const [periodYear, setPeriodYear] = useState(String(new Date().getFullYear()));
   const [payerName, setPayerName] = useState(TYPE_DEFAULTS.regalias.payer);
   const [payeeName, setPayeeName] = useState(TYPE_DEFAULTS.regalias.payee);
+  const [currency, setCurrency] = useState<SettlementCurrency>("CLP");
+  // Montos tal como se escriben ("40,53" en USD, "1077427" en CLP); se
+  // pasan a unidad mínima recién al guardar (parseAmountInput).
   const [sourceAmount, setSourceAmount] = useState("");
   const [percentage, setPercentage] = useState(TYPE_DEFAULTS.regalias.pct);
   const [payoutAmount, setPayoutAmount] = useState("");
@@ -125,13 +135,15 @@ export function SettlementFormDialog({
   useEffect(() => {
     if (!open || !initialData) return;
     setType(initialData.type);
-    setPeriodMonth(initialData.periodMonth ? String(initialData.periodMonth) : String(new Date().getMonth() + 1));
+    setPeriodMonth(initialData.periodMonth ? String(initialData.periodMonth) : "0");
     setPeriodYear(initialData.periodYear ? String(initialData.periodYear) : String(new Date().getFullYear()));
     setPayerName(initialData.payerName);
     setPayeeName(initialData.payeeName);
-    setSourceAmount(initialData.sourceAmount ? String(initialData.sourceAmount) : "");
+    const cur = initialData.currency ?? "CLP";
+    setCurrency(cur);
+    setSourceAmount(amountToInput(initialData.sourceAmount, cur));
     setPercentage(initialData.percentage ? String(initialData.percentage) : "");
-    setPayoutAmount(initialData.payoutAmount ? String(initialData.payoutAmount) : "");
+    setPayoutAmount(amountToInput(initialData.payoutAmount, cur));
     setPayoutOverridden(true); // no recalcular solo mientras se edita algo ya guardado
     setNotes(initialData.notes ?? "");
     setSourceProof(
@@ -184,14 +196,25 @@ export function SettlementFormDialog({
   // tocado a mano (ej. para ajustar redondeos de la transferencia real).
   useEffect(() => {
     if (payoutOverridden) return;
-    const source = parseInt(sourceAmount || "0", 10);
+    const source = parseAmountInput(sourceAmount, currency);
     const pct = parseFloat(percentage || "0");
     if (!source || !pct) { setPayoutAmount(""); return; }
-    setPayoutAmount(String(Math.round((source * pct) / 100)));
-  }, [sourceAmount, percentage, payoutOverridden]);
+    setPayoutAmount(amountToInput(Math.round((source * pct) / 100), currency));
+  }, [sourceAmount, percentage, payoutOverridden, currency]);
+
+  // Cambiar de moneda cambia el significado de los montos escritos -- se
+  // limpian en vez de reinterpretarlos.
+  const changeCurrency = (next: SettlementCurrency) => {
+    if (next === currency) return;
+    setCurrency(next);
+    setSourceAmount("");
+    setPayoutAmount("");
+    setPayoutOverridden(false);
+  };
 
   const reset = () => {
     setType("regalias");
+    setCurrency("CLP");
     setSourceAmount("");
     setPayoutAmount("");
     setPayoutOverridden(false);
@@ -219,7 +242,7 @@ export function SettlementFormDialog({
     if (uploaded) setPayoutProof(uploaded);
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (confirmResetSignatures = false) => {
     if (!projectId) return;
     if (!payerName.trim() || !payeeName.trim()) {
       toast.error("Falta quién paga y quién recibe");
@@ -233,11 +256,12 @@ export function SettlementFormDialog({
         periodYear: Number(periodYear) || null,
         payerName,
         payeeName,
-        sourceAmount: Number(sourceAmount) || 0,
+        currency,
+        sourceAmount: parseAmountInput(sourceAmount, currency),
         sourceProofPath: sourceProof?.path ?? null,
         sourceProofName: sourceProof?.name ?? null,
         percentage: Number(percentage) || 0,
-        payoutAmount: Number(payoutAmount) || 0,
+        payoutAmount: parseAmountInput(payoutAmount, currency),
         payoutProofPath: payoutProof?.path ?? null,
         payoutProofName: payoutProof?.name ?? null,
         notes: notes || null,
@@ -246,7 +270,7 @@ export function SettlementFormDialog({
         ? await fetch(`/api/settlements/${initialData!.id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(commonBody),
+            body: JSON.stringify({ ...commonBody, confirmResetSignatures }),
           })
         : await fetch("/api/settlements", {
             method: "POST",
@@ -255,6 +279,20 @@ export function SettlementFormDialog({
           });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
+        // Cambiar cifras de una liquidación ya firmada (migración 109): las
+        // firmas del equipo se borran y las de la contraparte quedan
+        // invalidadas. Se pide confirmación explícita antes de hacerlo.
+        if (res.status === 409 && body.needsConfirmation) {
+          const ok = confirm(
+            `${body.error}\n\nFirmas del equipo que se borran: ${body.internalCount}. ` +
+              `Firmas de la contraparte que quedan invalidadas (se conservan como respaldo): ${body.externalCount}.\n\n¿Guardar igual?`
+          );
+          if (ok) {
+            setSaving(false);
+            await handleSubmit(true);
+          }
+          return;
+        }
         toast.error(body.error || `Error al ${isEdit ? "editar" : "crear"} la liquidación`);
         return;
       }
@@ -294,9 +332,10 @@ export function SettlementFormDialog({
               <Label>Mes</Label>
               <Select value={periodMonth} onValueChange={(v) => v && setPeriodMonth(v)}>
                 <SelectTrigger className="cursor-pointer w-full">
-                  <SelectValue>{MONTHS[Number(periodMonth) - 1] ?? ""}</SelectValue>
+                  <SelectValue>{periodMonth === "0" ? "Sin mes (todo el periodo)" : MONTHS[Number(periodMonth) - 1] ?? ""}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="0">Sin mes (todo el periodo)</SelectItem>
                   {MONTHS.map((m, i) => (
                     <SelectItem key={m} value={String(i + 1)}>{m}</SelectItem>
                   ))}
@@ -321,8 +360,21 @@ export function SettlementFormDialog({
           </div>
 
           <div className="space-y-1.5">
+            <Label>Moneda</Label>
+            <Select value={currency} onValueChange={(v) => v && changeCurrency(v as SettlementCurrency)}>
+              <SelectTrigger className="cursor-pointer w-full">
+                <SelectValue>{currency === "USD" ? "Dólares (USD)" : "Pesos chilenos (CLP)"}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="CLP">Pesos chilenos (CLP)</SelectItem>
+                <SelectItem value="USD">Dólares (USD)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
             <Label>Monto de origen (lo retirado / lo vendido)</Label>
-            <MoneyInput value={sourceAmount} onChange={setSourceAmount} />
+            <AmountField currency={currency} value={sourceAmount} onChange={setSourceAmount} />
           </div>
 
           <div className="space-y-1.5">
@@ -358,7 +410,8 @@ export function SettlementFormDialog({
             </div>
             <div className="space-y-1.5">
               <Label>Monto a pagar</Label>
-              <MoneyInput
+              <AmountField
+                currency={currency}
                 value={payoutAmount}
                 onChange={(v) => { setPayoutOverridden(true); setPayoutAmount(v); }}
               />
@@ -416,12 +469,37 @@ export function SettlementFormDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose} className="cursor-pointer">Cancelar</Button>
-          <Button onClick={handleSubmit} disabled={saving} className="cursor-pointer">
+          <Button onClick={() => handleSubmit()} disabled={saving} className="cursor-pointer">
             {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
             {isEdit ? "Guardar cambios" : "Crear liquidación"}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Pesos con puntos de miles (MoneyInput) o dólares con decimales. */
+function AmountField({
+  currency,
+  value,
+  onChange,
+}: {
+  currency: SettlementCurrency;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  if (currency === "CLP") return <MoneyInput value={value} onChange={onChange} />;
+  return (
+    <div className="relative">
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">US$</span>
+      <Input
+        inputMode="decimal"
+        placeholder="0,00"
+        value={value}
+        onChange={(e) => onChange(e.target.value.replace(/[^0-9.,]/g, ""))}
+        className="pl-11"
+      />
+    </div>
   );
 }

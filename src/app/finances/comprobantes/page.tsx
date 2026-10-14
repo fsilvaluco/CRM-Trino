@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
@@ -22,6 +22,7 @@ import { SignedFileLink } from "@/components/finances/SignedFileLink";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { parseFlexibleDate } from "@/lib/constants";
+import { formatSettlementAmount, type SettlementCurrency } from "@/lib/settlement-money";
 
 interface Signer {
   userId: string;
@@ -41,6 +42,7 @@ interface Settlement {
   periodYear: number | null;
   payerName: string;
   payeeName: string;
+  currency: SettlementCurrency;
   sourceAmount: number;
   sourceProofPath: string | null;
   sourceProofName: string | null;
@@ -53,6 +55,8 @@ interface Settlement {
   createdAt: string;
   requiredSigners: Signer[];
   signatures: Signature[];
+  /** Contraparte sin cuenta (migración 109), una entrada por persona. */
+  externalSigners: { name: string; signedAt: string | null }[];
 }
 
 interface EventReceipt {
@@ -71,9 +75,6 @@ interface EventReceipt {
 
 const MONTHS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
-function formatCLP(amount: number) {
-  return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(amount);
-}
 
 function typeLabel(type: Settlement["type"]) {
   if (type === "regalias") return "Regalías";
@@ -82,11 +83,10 @@ function typeLabel(type: Settlement["type"]) {
 }
 
 function SettlementCard({
-  settlement, userId, onSign, onEdit, onDelete,
+  settlement, userId, onEdit, onDelete,
 }: {
   settlement: Settlement;
   userId: string | undefined;
-  onSign: (id: string) => void;
   onEdit: (settlement: Settlement) => void;
   onDelete: (id: string) => void;
 }) {
@@ -136,7 +136,7 @@ function SettlementCard({
       <div className="grid grid-cols-2 gap-3 text-sm">
         <div>
           <p className="text-xs text-muted-foreground">Origen</p>
-          <p className="font-semibold">{formatCLP(settlement.sourceAmount)}</p>
+          <p className="font-semibold">{formatSettlementAmount(settlement.sourceAmount, settlement.currency)}</p>
           {settlement.sourceProofPath && (
             <SignedFileLink path={settlement.sourceProofPath} className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-0.5">
               <ExternalLink className="h-3 w-3" /> Comprobante
@@ -145,7 +145,7 @@ function SettlementCard({
         </div>
         <div>
           <p className="text-xs text-muted-foreground">A pagar ({settlement.percentage}%)</p>
-          <p className="font-semibold">{formatCLP(settlement.payoutAmount)}</p>
+          <p className="font-semibold">{formatSettlementAmount(settlement.payoutAmount, settlement.currency)}</p>
           {settlement.payoutProofPath && (
             <SignedFileLink path={settlement.payoutProofPath} className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-0.5">
               <ExternalLink className="h-3 w-3" /> Comprobante
@@ -186,13 +186,31 @@ function SettlementCard({
             <Button size="sm" variant="ghost" className="cursor-pointer h-7 text-xs" onClick={copySignLink} title="Copiar link para compartir">
               <Link2 className="h-3 w-3 mr-1" /> Link
             </Button>
-            {canSign && (
-              <Button size="sm" variant="outline" className="cursor-pointer h-7 text-xs" onClick={() => onSign(settlement.id)}>
-                <PenLine className="h-3 w-3 mr-1" /> Firmar
-              </Button>
-            )}
+            {/* Firmar ahora pide datos + código al correo (migración 109),
+                así que se hace en la pantalla de la liquidación. */}
+            <Link
+              href={`/finances/comprobantes/${settlement.id}/firmar`}
+              className={`${buttonVariants({ size: "sm", variant: canSign ? "outline" : "ghost" })} cursor-pointer h-7 text-xs`}
+            >
+              <PenLine className="h-3 w-3 mr-1" /> {canSign ? "Firmar" : "Ver"}
+            </Link>
           </div>
         </div>
+
+        {settlement.externalSigners.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[11px] text-muted-foreground">Contraparte:</span>
+            {settlement.externalSigners.map((e, i) => (
+              <Badge
+                key={i}
+                variant="outline"
+                className={`text-[10px] gap-1 ${e.signedAt ? "border-green-600/40 text-green-700 dark:text-green-400" : "text-muted-foreground border-dashed"}`}
+              >
+                {e.signedAt ? <Check className="h-2.5 w-2.5" /> : <PenLine className="h-2.5 w-2.5" />} {e.name}
+              </Badge>
+            ))}
+          </div>
+        )}
 
         {/* Registro de firmas -- fecha/hora + IP de cada firma, respaldo de
             identidad además del login (ver migración 089). */}
@@ -281,17 +299,6 @@ export default function ComprobantesPage() {
     return () => window.clearTimeout(t);
   }, [load]);
 
-  const handleSign = async (id: string) => {
-    const res = await fetch(`/api/settlements/${id}/sign`, { method: "POST" });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      toast.error(body.error || "Error al firmar");
-      return;
-    }
-    toast.success("Firmado");
-    await load();
-  };
-
   const handleEdit = (settlement: Settlement) => {
     setEditingSettlement(settlement);
     setShowForm(true);
@@ -364,7 +371,7 @@ export default function ComprobantesPage() {
                   <div className="space-y-2">
                     <h2 className="text-sm font-semibold text-muted-foreground">Regalías</h2>
                     <div className="grid sm:grid-cols-2 gap-3">
-                      {regalias.map((s) => <SettlementCard key={s.id} settlement={s} userId={user?.id} onSign={handleSign} onEdit={handleEdit} onDelete={handleDelete} />)}
+                      {regalias.map((s) => <SettlementCard key={s.id} settlement={s} userId={user?.id} onEdit={handleEdit} onDelete={handleDelete} />)}
                     </div>
                   </div>
                 )}
@@ -372,7 +379,7 @@ export default function ComprobantesPage() {
                   <div className="space-y-2">
                     <h2 className="text-sm font-semibold text-muted-foreground">Merchandising</h2>
                     <div className="grid sm:grid-cols-2 gap-3">
-                      {merch.map((s) => <SettlementCard key={s.id} settlement={s} userId={user?.id} onSign={handleSign} onEdit={handleEdit} onDelete={handleDelete} />)}
+                      {merch.map((s) => <SettlementCard key={s.id} settlement={s} userId={user?.id} onEdit={handleEdit} onDelete={handleDelete} />)}
                     </div>
                   </div>
                 )}
@@ -380,7 +387,7 @@ export default function ComprobantesPage() {
                   <div className="space-y-2">
                     <h2 className="text-sm font-semibold text-muted-foreground">Otros</h2>
                     <div className="grid sm:grid-cols-2 gap-3">
-                      {otros.map((s) => <SettlementCard key={s.id} settlement={s} userId={user?.id} onSign={handleSign} onEdit={handleEdit} onDelete={handleDelete} />)}
+                      {otros.map((s) => <SettlementCard key={s.id} settlement={s} userId={user?.id} onEdit={handleEdit} onDelete={handleDelete} />)}
                     </div>
                   </div>
                 )}
@@ -415,6 +422,7 @@ export default function ComprobantesPage() {
           periodYear: editingSettlement.periodYear,
           payerName: editingSettlement.payerName,
           payeeName: editingSettlement.payeeName,
+          currency: editingSettlement.currency,
           sourceAmount: editingSettlement.sourceAmount,
           sourceProofPath: editingSettlement.sourceProofPath,
           sourceProofName: editingSettlement.sourceProofName,

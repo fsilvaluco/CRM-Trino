@@ -17,11 +17,27 @@ export async function generateMetadata({
 
   const { data: signer } = await admin
     .from("event_external_signers")
-    .select("show_id")
+    .select("show_id, settlement_id")
     .eq("token_hash", hashToken(token))
     .maybeSingle();
 
   if (!signer) return { title: "Link no válido — Artist Pro", robots: { index: false, follow: false } };
+
+  // Link de una liquidación (migración 109): las partes, sin el monto.
+  if (signer.settlement_id) {
+    const { data: st } = await admin
+      .from("settlements")
+      .select("payer_name, payee_name")
+      .eq("id", signer.settlement_id)
+      .single();
+    const title = st ? `Firma de liquidación — ${st.payer_name} → ${st.payee_name}` : "Firma de liquidación — Artist Pro";
+    return {
+      title,
+      description: "Revisa la liquidación y firma tu conformidad. No necesitas crear una cuenta.",
+      robots: { index: false, follow: false },
+      openGraph: { title, description: "Revisa la liquidación y firma tu conformidad.", type: "website" },
+    };
+  }
 
   const { data: show } = await admin.from("shows").select("name").eq("id", signer.show_id).single();
   const title = show?.name ? `Firma de conformidad — ${show.name}` : "Firma de conformidad — Artist Pro";
