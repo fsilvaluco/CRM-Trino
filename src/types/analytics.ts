@@ -155,8 +155,26 @@ export interface SpotifyStatsSnapshot {
   saves: number | null;
   playlistAdds: number | null;
   followers: number | null;
-  source: "manual" | "screenshot";
+  /** "spotify_for_artists" = cargado por la revisión semanal automática. */
+  source: "manual" | "screenshot" | "spotify_for_artists";
   createdAt: string;
+}
+
+// ── Spotify: oyentes por país y ciudad ───────────────────────────────────────
+// Cortes de 28 días que carga la revisión semanal (migración 109). Solo lectura
+// en la app.
+
+export interface SpotifyGeoSnapshot {
+  periodStart: string;
+  periodEnd: string;
+  scope: "country" | "city";
+  country: string;
+  /** "" en filas de país. */
+  city: string;
+  region: string | null;
+  rank: number | null;
+  listeners: number | null;
+  activeListeners: number | null;
 }
 
 // ── Zod schemas & inferred input types ───────────────────────────────────────
@@ -206,7 +224,7 @@ export const createSpotifyStatsSchema = z.object({
   saves: z.coerce.number().int().nonnegative().optional().nullable(),
   playlistAdds: z.coerce.number().int().nonnegative().optional().nullable(),
   followers: z.coerce.number().int().nonnegative().optional().nullable(),
-  source: z.enum(["manual", "screenshot"]).default("manual"),
+  source: z.enum(["manual", "screenshot", "spotify_for_artists"]).default("manual"),
 });
 
 export type CreateSpotifyStatsInput = z.infer<typeof createSpotifyStatsSchema>;

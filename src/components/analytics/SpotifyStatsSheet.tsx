@@ -82,7 +82,7 @@ export function SpotifyStatsSheet({ open, onOpenChange, onRegistered, editingSna
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [extracting, setExtracting] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [source, setSource] = useState<"manual" | "screenshot">("manual");
+  const [source, setSource] = useState<"manual" | "screenshot" | "spotify_for_artists">("manual");
   const [notFound, setNotFound] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { activeProject } = useProject();

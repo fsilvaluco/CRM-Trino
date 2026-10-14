@@ -19,6 +19,12 @@ import type { SpotifyStatsSnapshot } from "@/types/analytics";
 
 const NUM = new Intl.NumberFormat("es-CL");
 
+const SOURCE_LABEL: Record<SpotifyStatsSnapshot["source"], string> = {
+  manual: "Manual",
+  screenshot: "Pantallazo",
+  spotify_for_artists: "Spotify for Artists",
+};
+
 interface SpotifyStatsTableProps {
   snapshots: SpotifyStatsSnapshot[];
   onEdit: (snapshot: SpotifyStatsSnapshot) => void;
@@ -89,8 +95,8 @@ export function SpotifyStatsTable({ snapshots, onEdit, onDeleted }: SpotifyStats
               <TableCell className="text-right">{fmt(s.playlistAdds)}</TableCell>
               <TableCell className="text-right">{fmt(s.followers)}</TableCell>
               <TableCell>
-                <Badge variant={s.source === "screenshot" ? "default" : "secondary"}>
-                  {s.source === "screenshot" ? "Pantallazo" : "Manual"}
+                <Badge variant={s.source === "manual" ? "secondary" : "default"}>
+                  {SOURCE_LABEL[s.source] ?? "Manual"}
                 </Badge>
               </TableCell>
               <TableCell>
