@@ -10,6 +10,34 @@ _Checkpoint anterior: v1.12 — 15 de septiembre de 2026 (forzar apertura de app
 
 ---
 
+## 🌎 Spotify: países y ciudades (14 oct 2026)
+
+**Pedido:** ver en Artist Pro el ranking de ciudades y la evolución por país de los oyentes de
+Spotify, para planificar giras (Gamuza → Perú / México).
+
+**Datos:** tabla nueva `spotify_geo_snapshots` (migración `109`, ya aplicada vía MCP). Cada corte
+es la ventana de 28 días de Spotify for Artists que termina en `period_end`; filas `scope=country`
+(oyentes + oyentes activos) y `scope=city` (top 50 mundial; para Gamuza además todas las ciudades
+de México y Perú). La carga la hace una **tarea programada de Claude los viernes 7:47** que lee
+Spotify for Artists en el Chrome de Windows y escribe directo en Supabase (también llena los meses
+faltantes de `spotify_stats_snapshots` con `source='spotify_for_artists'`). Primer corte cargado a
+mano: Gamuza, 8 sep – 5 oct 2026.
+
+**Implementación:**
+- `GET /api/analytics/spotify/geo` (solo lectura): `?projectId` → lista de cortes + corte actual y
+  anterior; `&countries=A,B` → serie de esos países en todos los cortes. Separado en dos consultas
+  para no topar el límite de 1.000 filas a medida que se acumulan cortes.
+- `SpotifyGeoSection` (selector de corte) → `SpotifyCountryEvolution` (tabla top 10 países con %
+  activos y variación vs corte anterior; se marcan hasta 5 para el gráfico de líneas; el color
+  sigue al país, no a su posición) + `SpotifyCityRanking` (top mundial o filtrado por país, con %
+  del país y variación). Se muestra en `/analytics/spotify` solo con un artista elegido.
+- `source` de `spotify_stats_snapshots` acepta `spotify_for_artists` (badge "Spotify for Artists").
+
+**Por verificar:** con un solo corte el gráfico muestra "aparece desde el segundo corte"; revisar
+después del viernes 16 que la tarea haya cargado LUR, Simplemente Yo y Deni Li.
+
+---
+
 ## 🤖 Bot de Meta Ads — optimización automática de CP_LUR (16 sep 2026)
 
 **Pedido:** bot que baje insights de la campaña de ads (cuenta `act_1734662137756560` = CP_LUR,

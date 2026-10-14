@@ -8,6 +8,7 @@ import { SpotifyOverviewCards } from "@/components/analytics/SpotifyOverviewCard
 import { SpotifyStatsSheet } from "@/components/analytics/SpotifyStatsSheet";
 import { SpotifyStatsTable } from "@/components/analytics/SpotifyStatsTable";
 import { SpotifyStatsCharts } from "@/components/analytics/SpotifyStatsCharts";
+import { SpotifyGeoSection } from "@/components/analytics/SpotifyGeoSection";
 import { SocialLinkField } from "@/components/analytics/SocialLinkField";
 import { useAnalyticsData } from "@/lib/use-analytics-data";
 import { useProject } from "@/lib/project-context";
@@ -15,7 +16,7 @@ import type { SpotifyStatsSnapshot } from "@/types/analytics";
 
 export default function AnalyticsSpotifyPage() {
   const { social, spotifyStats, loading, refresh } = useAnalyticsData();
-  const { activeProject } = useProject();
+  const { activeProject, isAllProjects } = useProject();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingSnapshot, setEditingSnapshot] = useState<SpotifyStatsSnapshot | null>(null);
 
@@ -44,6 +45,8 @@ export default function AnalyticsSpotifyPage() {
           <SpotifyOverviewCards snapshots={spotifyStats} followerMetrics={social} />
 
           <SpotifyStatsCharts snapshots={spotifyStats} followerMetrics={social} />
+
+          {!isAllProjects && <SpotifyGeoSection key={activeProject?.id} projectId={activeProject?.id} />}
 
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium">Estadísticas detalladas</p>
