@@ -76,9 +76,14 @@ CREATE POLICY "org access external signers select" ON event_external_signers
     )
   );
 
+-- Desde la sesion del equipo solo se emiten links EN BLANCO: nada de
+-- crear una fila que ya venga "firmada" o con codigo verificado, que es
+-- evidencia que solo escriben las rutas publicas con el service role.
 CREATE POLICY "org access external signers insert" ON event_external_signers
   FOR INSERT WITH CHECK (
-    show_id IN (
+    signed_at IS NULL AND otp_hash IS NULL AND otp_verified_at IS NULL
+    AND document_hash IS NULL AND invalidated_at IS NULL
+    AND (show_id IN (
       SELECT id FROM shows WHERE organization_id IN (
         SELECT organization_id FROM organization_members WHERE user_id = auth.uid()
       )
@@ -87,6 +92,7 @@ CREATE POLICY "org access external signers insert" ON event_external_signers
       SELECT id FROM settlements WHERE organization_id IN (
         SELECT organization_id FROM organization_members WHERE user_id = auth.uid()
       )
+    )
     )
   );
 
@@ -103,6 +109,14 @@ CREATE POLICY "org access external signers update" ON event_external_signers
       )
     )
   );
+
+-- La policy UPDATE dejaba que cualquier miembro de la org cambiara
+-- CUALQUIER columna de un link pendiente (signed_at, la evidencia, el
+-- settlement_id) con la sesion del navegador. El equipo solo necesita
+-- anular (`revoked_at`); todo lo demas lo escribe el backend con el
+-- service role, que no pasa por estos permisos. Se restringe por columna.
+REVOKE UPDATE ON event_external_signers FROM anon, authenticated;
+GRANT UPDATE (revoked_at) ON event_external_signers TO authenticated;
 
 -- ─── 2. Evidencia en la firma interna de una liquidacion ────────────────
 ALTER TABLE settlement_signatures ADD COLUMN IF NOT EXISTS signer_name TEXT;
@@ -135,20 +149,13 @@ CREATE TABLE IF NOT EXISTS settlement_signature_otps (
 
 ALTER TABLE settlement_signature_otps ENABLE ROW LEVEL SECURITY;
 
--- Una firma interna ya no se borra desde la app salvo que se cambien las
--- cifras de la liquidacion (ver PUT /api/settlements/[id]), y eso lo hace
--- el backend con el service role. Hace falta la policy DELETE para el
--- caso en que la ruta use la sesion del usuario -- se deja explicita y
--- acotada a la organizacion.
-DROP POLICY IF EXISTS "org access settlement signatures delete" ON settlement_signatures;
-CREATE POLICY "org access settlement signatures delete" ON settlement_signatures
-  FOR DELETE USING (
-    settlement_id IN (
-      SELECT id FROM settlements WHERE organization_id IN (
-        SELECT organization_id FROM organization_members WHERE user_id = auth.uid()
-      )
-    )
-  );
+-- La firma interna con evidencia la inserta el backend con el service role
+-- despues de verificar el codigo (POST /api/settlements/[id]/sign). La
+-- policy INSERT de la 087 dejaba que cualquier miembro de la org insertara
+-- su propia fila directo con la sesion del navegador -- saltandose el
+-- codigo, la lista de firmantes y el permiso de Finanzas, y con evidencia
+-- inventada. Se elimina: sin policy, solo el service role inserta.
+DROP POLICY IF EXISTS "org access settlement signatures insert" ON settlement_signatures;
 
 -- ============================================================
 -- VERIFICATION QUERIES

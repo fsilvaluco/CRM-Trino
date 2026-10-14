@@ -46,7 +46,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         .from("settlements")
         .select("source_proof_path, payout_proof_path")
         .eq("id", signer.settlement_id)
-        .single()
+        .is("deleted_at", null)
+        .maybeSingle()
         .then(({ data }: { data: { source_proof_path: string | null; payout_proof_path: string | null } | null }) => ({
           data: [data?.source_proof_path, data?.payout_proof_path].filter(Boolean).map((p) => ({ comprobante_url: p })),
         }))

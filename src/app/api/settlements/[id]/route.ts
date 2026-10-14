@@ -230,7 +230,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   };
   const touchesDocument = SETTLEMENT_DOCUMENT_COLUMNS.some((col) => col in updates && !same(updates[col], currentRow[col]));
 
-  let resetSignatures = false;
   if (touchesDocument) {
     const [{ count: internalCount }, { data: extSigned }] = await Promise.all([
       admin.from("settlement_signatures").select("user_id", { count: "exact", head: true }).eq("settlement_id", id),
@@ -254,7 +253,17 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           { status: 409 }
         );
       }
-      resetSignatures = true;
+    }
+  }
+
+  // Primera pasada, ANTES de tocar la liquidación: si no se pueden anular
+  // las firmas, no se cambia nada -- nunca quedan firmas vigentes sobre
+  // cifras que ya no son las de la liquidación.
+  if (touchesDocument) {
+    const err = await resetSettlementSignatures(admin, id);
+    if (err) {
+      console.error("[settlements:PUT] no se pudieron anular las firmas", err);
+      return NextResponse.json({ error: "No se pudieron anular las firmas anteriores. No se guardó el cambio." }, { status: 500 });
     }
   }
 
@@ -270,14 +279,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
 
-  if (resetSignatures) {
-    await admin.from("settlement_signatures").delete().eq("settlement_id", id);
-    await admin
-      .from("event_external_signers")
-      .update({ invalidated_at: new Date().toISOString(), invalidated_reason: "Se corrigió la liquidación después de esta firma" })
-      .eq("settlement_id", id)
-      .not("signed_at", "is", null)
-      .is("invalidated_at", null);
+  // Después del UPDATE se repite la anulación: una firma que entró entre el
+  // conteo y el UPDATE aprobaba las cifras viejas y tampoco puede quedar
+  // vigente. La primera pasada (antes del UPDATE) es la que bloquea si falla.
+  if (touchesDocument) {
+    const err = await resetSettlementSignatures(admin, id);
+    if (err) console.error("[settlements:PUT] segunda pasada de anulación falló", err);
   }
 
   await logActivity({
@@ -327,4 +334,25 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   }
 
   return NextResponse.json({ ok: true });
+}
+
+/** Borra las firmas del equipo y los códigos en vuelo, e invalida las firmas
+ * de la contraparte (se conservan con su evidencia). Devuelve el primer
+ * error, si hubo. */
+async function resetSettlementSignatures(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  id: string
+): Promise<unknown> {
+  const [{ error: delErr }, { error: invErr }, { error: otpErr }] = await Promise.all([
+    admin.from("settlement_signatures").delete().eq("settlement_id", id),
+    admin
+      .from("event_external_signers")
+      .update({ invalidated_at: new Date().toISOString(), invalidated_reason: "Se corrigió la liquidación después de esta firma" })
+      .eq("settlement_id", id)
+      .not("signed_at", "is", null)
+      .is("invalidated_at", null),
+    admin.from("settlement_signature_otps").delete().eq("settlement_id", id),
+  ]);
+  return delErr ?? invErr ?? otpErr ?? null;
 }

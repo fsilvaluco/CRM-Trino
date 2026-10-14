@@ -84,14 +84,19 @@ export async function buildSettlementDocument(
  * transferencia DESPUES de que la contraparte firmo no cambia lo que
  * aprobo (cuanto, a quien, por que) y no tiene por que invalidar su firma. */
 export function settlementDocumentHash(doc: SettlementDocument): string {
+  // Tampoco entran el nombre del proyecto ni la etiqueta del tipo: son
+  // presentación (renombrar el proyecto no cambia lo que se aprobó). El
+  // tipo en sí (`type`) sí entra.
   const {
     sourceProofPath: _sp,
     sourceProofName: _sn,
     payoutProofPath: _pp,
     payoutProofName: _pn,
+    projectName: _pj,
+    typeLabel: _tl,
     ...forHash
   } = doc;
-  void _sp; void _sn; void _pp; void _pn;
+  void _sp; void _sn; void _pp; void _pn; void _pj; void _tl;
   return hashStable(forHash);
 }
 

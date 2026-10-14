@@ -66,9 +66,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const doc = await buildSettlementDocument(admin, id);
   if (!doc) return NextResponse.json({ error: "Liquidación no encontrada" }, { status: 404 });
+
+  // Se firma lo que la persona VIO: si la liquidación cambió mientras
+  // estaba pidiendo el código, no se firma la versión nueva a ciegas.
+  const hash = settlementDocumentHash(doc);
+  if (typeof body.documentHash !== "string" || body.documentHash !== hash) {
+    return NextResponse.json(
+      { error: "La liquidación cambió mientras firmabas. Revisa la versión actual y vuelve a firmar." },
+      { status: 409 }
+    );
+  }
   const signedAt = new Date().toISOString();
 
-  const { error: insertError } = await ctx.supabase.from("settlement_signatures").insert({
+  // Con el service role: desde la migración 109 no hay policy INSERT -- la
+  // única forma de dejar una firma es pasar por esta verificación.
+  const { error: insertError } = await admin.from("settlement_signatures").insert({
     settlement_id: id,
     user_id: ctx.user.id,
     signed_at: signedAt,
@@ -79,7 +91,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     signer_rut: otp.signer_rut,
     signer_email: otp.signer_email,
     signer_phone: otp.signer_phone,
-    document_hash: settlementDocumentHash(doc),
+    document_hash: hash,
     document_snapshot: doc,
   });
 

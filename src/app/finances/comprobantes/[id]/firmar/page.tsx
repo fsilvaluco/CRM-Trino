@@ -49,6 +49,7 @@ interface SettlementDetail {
   payerName: string;
   payeeName: string;
   document: SettlementDocumentView | null;
+  documentHash: string | null;
   approval: { team: Person[]; external: Person[] };
   signatures: Signature[];
   allSigned: boolean;
@@ -124,7 +125,7 @@ export default function FirmarLiquidacionPage() {
     const res = await fetch(`/api/settlements/${id}/sign`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code }),
+      body: JSON.stringify({ code, documentHash: data?.documentHash ?? null }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {

@@ -96,8 +96,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .from("settlements")
       .select("payer_name, payee_name")
       .eq("id", signer.settlement_id)
-      .single();
-    documentName = st ? `${st.payer_name} → ${st.payee_name}` : "la liquidación";
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (!st) return NextResponse.json({ error: "La liquidación de este link ya no existe" }, { status: 404 });
+    documentName = `${st.payer_name} → ${st.payee_name}`;
     documentLabel = "la liquidación";
   } else {
     const { data: show } = await admin.from("shows").select("name").eq("id", signer.show_id).single();

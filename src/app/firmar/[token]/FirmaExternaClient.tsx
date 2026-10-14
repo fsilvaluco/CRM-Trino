@@ -70,7 +70,9 @@ export default function FirmaExternaClient() {
       const res = await fetch(`/api/public/firma/${token}/firmar`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
+        // La huella de lo que se le mostró: si la liquidación cambió
+        // entremedio, el backend rechaza la firma (migración 109).
+        body: JSON.stringify({ code, documentHash: data?.documentHash ?? null }),
       });
       const body = await res.json();
       if (!res.ok) {

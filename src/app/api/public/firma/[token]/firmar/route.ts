@@ -101,7 +101,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // Link de una liquidación (migración 109): misma verificación de arriba,
   // otro documento y otro aviso.
   if (signer.settlement_id) {
-    return signSettlement({ admin, request, signer });
+    return signSettlement({ admin, request, signer, shownHash: body.documentHash });
   }
 
   const doc = await buildClosingDocument(admin, signer.show_id);
@@ -272,13 +272,22 @@ async function signSettlement(args: {
   request: NextRequest;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   signer: any;
+  shownHash: unknown;
 }) {
-  const { admin, request, signer } = args;
+  const { admin, request, signer, shownHash } = args;
 
   const doc = await buildSettlementDocument(admin, signer.settlement_id);
   if (!doc) return NextResponse.json({ error: "La liquidación de este link ya no existe" }, { status: 404 });
 
+  // Se firma lo que la persona VIO en pantalla: si el equipo corrigió la
+  // liquidación mientras pedía el código, no firma la versión nueva a ciegas.
   const hash = settlementDocumentHash(doc);
+  if (typeof shownHash !== "string" || shownHash !== hash) {
+    return NextResponse.json(
+      { error: "La liquidación cambió mientras firmabas. Recarga la página, revisa la versión actual y vuelve a firmar." },
+      { status: 409 }
+    );
+  }
   const signedAt = new Date().toISOString();
   const userAgent = request.headers.get("user-agent");
   const ipAddress = getClientIp(request);
