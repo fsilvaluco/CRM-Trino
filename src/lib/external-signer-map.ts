@@ -1,6 +1,6 @@
 // Fila de event_external_signers -> lo que ve el equipo en la ficha (del
 // evento o de la liquidacion). Salio de /api/eventos/[id]/external-signers
-// cuando las liquidaciones empezaron a usar la misma tabla (migracion 109).
+// cuando las liquidaciones empezaron a usar la misma tabla (migracion 110).
 
 import { externalSignerStatus } from "@/lib/external-signature";
 

@@ -1,6 +1,6 @@
 // ─── El documento que se firma en una liquidacion ──────────────────────────
 // Equivalente de buildClosingDocument (external-signature.ts) para las
-// liquidaciones de regalias/merch/otro (migracion 109). Lo firman igual el
+// liquidaciones de regalias/merch/otro (migracion 110). Lo firman igual el
 // equipo (/finances/comprobantes/[id]/firmar) y la contraparte externa
 // (/firmar/[token]): mismo documento, misma huella, mismo PDF.
 

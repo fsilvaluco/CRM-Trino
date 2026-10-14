@@ -1,6 +1,6 @@
 // Carga una liquidacion para una ruta del EQUIPO y chequea el permiso de
 // Finanzas en su proyecto. Lo usan las rutas de firmantes externos y la
-// firma interna con codigo (migracion 109), que necesitaban todas el mismo
+// firma interna con codigo (migracion 110), que necesitaban todas el mismo
 // "existe + es de mi org + tengo acceso al proyecto + mi rol puede X".
 
 import { NextResponse } from "next/server";
