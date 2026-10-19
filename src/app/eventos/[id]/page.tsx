@@ -727,17 +727,20 @@ export default function EventDetailPage() {
     }
   }
 
-  // Bruto -> se descuentan IVA/comisión/SCD (cada uno % del bruto, no
-  // compuestos) -> Neto -> se reparte el % que le corresponde al
-  // proyecto (el resto se lo queda el venue/productora). Si no hay ningún
-  // % configurado, montoProyecto = bruto (mismo comportamiento de antes).
+  // Bruto -> se descuentan IVA/comisión/SCD -> Neto -> se reparte el % que
+  // le corresponde al proyecto (el resto se lo queda el venue/productora).
+  // El precio de la entrada ya incluye IVA, así que el IVA se extrae del
+  // bruto (bruto - bruto/1,19), no se calcula como % encima. Comisión y SCD
+  // sí son % directos del bruto. Si no hay ningún % configurado,
+  // montoProyecto = bruto (mismo comportamiento de antes).
   const ticketBreakdown = useMemo(() => {
     const bruto = ticketTiers.reduce((sum, t) => sum + t.unitPrice * t.quantitySold, 0);
     const ivaPct = parseFloat(ticketIvaPct) || 0;
     const comisionPct = parseFloat(ticketComisionPct) || 0;
     const scdPct = parseFloat(ticketScdPct) || 0;
     const splitPct = ticketSplitProjectPct.trim() === "" ? 100 : parseFloat(ticketSplitProjectPct) || 0;
-    const descuentos = Math.round(bruto * ((ivaPct + comisionPct + scdPct) / 100));
+    const iva = bruto - bruto / (1 + ivaPct / 100);
+    const descuentos = Math.round(iva + bruto * ((comisionPct + scdPct) / 100));
     const neto = bruto - descuentos;
     const montoProyecto = Math.round(neto * (splitPct / 100));
     const hasDescuentos = ivaPct > 0 || comisionPct > 0 || scdPct > 0 || ticketSplitProjectPct.trim() !== "";
@@ -2312,7 +2315,7 @@ export default function EventDetailPage() {
                 <div className="text-xs text-muted-foreground space-y-0.5 bg-muted/40 rounded-md p-2">
                   <p>Bruto: <span className="font-medium text-foreground">{formatCents(ticketBreakdown.bruto)}</span></p>
                   <p>
-                    Descuentos ({(ticketBreakdown.ivaPct + ticketBreakdown.comisionPct + ticketBreakdown.scdPct).toFixed(1)}%):{" "}
+                    Descuentos (IVA {ticketBreakdown.ivaPct}% incluido · comisión {ticketBreakdown.comisionPct}% · SCD {ticketBreakdown.scdPct}%):{" "}
                     <span className="font-medium text-foreground">-{formatCents(ticketBreakdown.descuentos)}</span>
                   </p>
                   <p>Neto: <span className="font-medium text-foreground">{formatCents(ticketBreakdown.neto)}</span></p>
