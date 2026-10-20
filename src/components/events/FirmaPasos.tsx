@@ -50,6 +50,7 @@ export function FirmaPasos({
   otp,
   onRequestCode,
   onSign,
+  documentNoun = "el cierre de caja",
 }: {
   initial?: Partial<DatosFirmante>;
   emailLocked?: boolean;
@@ -58,6 +59,9 @@ export function FirmaPasos({
   otp: OtpEnVuelo | null;
   onRequestCode: (datos: DatosFirmante) => Promise<void>;
   onSign: (code: string) => Promise<void>;
+  /** Qué se está firmando, para la declaración de conformidad. Por defecto
+   * el cierre de caja; las liquidaciones (migración 109) pasan "la liquidación". */
+  documentNoun?: string;
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [rut, setRut] = useState(initial?.rut ?? "");
@@ -119,7 +123,7 @@ export function FirmaPasos({
                 onCheckedChange={(v) => guardarPerfil.onChange(v === true)}
               />
               <span>
-                Guardar estos datos para próximos cierres
+                Guardar estos datos para próximas firmas
                 <span className="block text-muted-foreground">
                   Te los dejamos prellenados la próxima vez. El código de 6 dígitos se pide igual, siempre.
                 </span>
@@ -163,7 +167,7 @@ export function FirmaPasos({
           />
 
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Al firmar declaro que revisé el cierre de caja de arriba y doy mi conformidad con las cifras que contiene.
+            Al firmar declaro que revisé {documentNoun} de arriba y doy mi conformidad con las cifras que contiene.
             Queda registrada la fecha y hora, mi dirección IP, mi dispositivo y una huella digital (SHA-256) del
             documento exacto que estoy firmando. Es una firma electrónica simple (Ley 19.799) y es irreversible.
           </p>

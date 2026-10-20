@@ -10,6 +10,8 @@ import {
   maskEmail,
   OTP_MAX_ATTEMPTS,
 } from "@/lib/external-signature";
+import { buildSettlementDocument, settlementDocumentHash, settlementTitle } from "@/lib/settlement-document";
+import { getSettlementApproval } from "@/lib/settlement-signatures";
 
 // GET /api/public/firma/[token] -- SIN autenticación: el control de acceso
 // es el token del link (32 bytes aleatorios, del que en la base solo vive
@@ -28,7 +30,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const { data: signer } = await admin
     .from("event_external_signers")
     .select(
-      "id, show_id, role_label, invited_name, invited_email, created_at, expires_at, revoked_at, invalidated_at, first_viewed_at, signed_at, signer_name, signer_rut, signer_email, signer_phone, otp_sent_to, otp_sent_at, otp_expires_at, otp_attempts, otp_verified_at, ip_address, document_hash"
+      "id, show_id, settlement_id, role_label, invited_name, invited_email, created_at, expires_at, revoked_at, invalidated_at, first_viewed_at, signed_at, signer_name, signer_rut, signer_email, signer_phone, otp_sent_to, otp_sent_at, otp_expires_at, otp_attempts, otp_verified_at, ip_address, document_hash"
     )
     .eq("token_hash", hashToken(token))
     .maybeSingle();
@@ -47,6 +49,11 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       .from("event_external_signers")
       .update({ first_viewed_at: new Date().toISOString() })
       .eq("id", signer.id);
+  }
+
+  // Link de una liquidación (migración 109): mismo flujo, otro documento.
+  if (signer.settlement_id) {
+    return settlementView(admin, signer, status);
   }
 
   const doc = await buildClosingDocument(admin, signer.show_id);
@@ -82,6 +89,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     status === "pendiente" && signer.otp_expires_at && new Date(signer.otp_expires_at).getTime() > now;
 
   return NextResponse.json({
+    kind: "evento",
+    title: doc.eventName,
+    settlement: null,
     status,
     expiresAt: signer.expires_at,
     invitation: {
@@ -137,6 +147,72 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
             documentHash: signer.document_hash,
             // Si alguien reabrió la caja y cambió cifras después de firmar,
             // el hash guardado deja de calzar con el del cierre actual.
+            documentUnchanged: signer.document_hash === currentHash,
+          }
+        : null,
+  });
+}
+
+// ─── Link de una liquidación ────────────────────────────────────────────────
+// Misma forma de respuesta que el cierre de caja, con `settlement` en vez de
+// `document`. Lo que cambia es de dónde sale el documento y quiénes van en
+// el recuadro de Aprobación (los firmantes elegidos en la liquidación).
+async function settlementView(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  signer: any,
+  status: ReturnType<typeof externalSignerStatus>
+) {
+  const doc = await buildSettlementDocument(admin, signer.settlement_id);
+  if (!doc) {
+    return NextResponse.json({ error: "La liquidación de este link ya no existe" }, { status: 404 });
+  }
+
+  const approval = await getSettlementApproval(admin, signer.settlement_id);
+  const currentHash = settlementDocumentHash(doc);
+  const otpPending =
+    status === "pendiente" && signer.otp_expires_at && new Date(signer.otp_expires_at).getTime() > Date.now();
+  const visible = status === "pendiente" || status === "firmado";
+
+  return NextResponse.json({
+    kind: "liquidacion",
+    title: settlementTitle(doc),
+    status,
+    expiresAt: signer.expires_at,
+    invitation: {
+      roleLabel: signer.role_label ?? null,
+      invitedName: signer.invited_name ?? null,
+      invitedEmailMasked: signer.invited_email ? maskEmail(signer.invited_email) : null,
+      emailLocked: Boolean(signer.invited_email),
+    },
+    approval: {
+      requiredSigners: approval.team.map((t) => ({ name: t.name, email: t.email, signedAt: t.signedAt })),
+      externalSigners: approvalExternalSigners(approval.externalRows).map((e) => ({ ...e, isMe: e.id === signer.id })),
+    },
+    document: null,
+    settlement: visible ? doc : null,
+    documentHash: visible ? currentHash : null,
+    invalidatedAt: signer.invalidated_at ?? null,
+    otp: otpPending
+      ? {
+          sentToMasked: signer.otp_sent_to ? maskEmail(signer.otp_sent_to) : null,
+          sentAt: signer.otp_sent_at,
+          expiresAt: signer.otp_expires_at,
+          attemptsLeft: Math.max(0, OTP_MAX_ATTEMPTS - (signer.otp_attempts ?? 0)),
+        }
+      : null,
+    signature:
+      status === "firmado"
+        ? {
+            name: signer.signer_name,
+            rut: signer.signer_rut,
+            email: signer.signer_email,
+            phone: signer.signer_phone,
+            signedAt: signer.signed_at,
+            otpVerifiedAt: signer.otp_verified_at,
+            ipAddress: signer.ip_address,
+            documentHash: signer.document_hash,
             documentUnchanged: signer.document_hash === currentHash,
           }
         : null,

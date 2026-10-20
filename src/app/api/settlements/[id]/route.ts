@@ -2,9 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { logActivity } from "@/lib/activity-logs";
 import { getProjectPermissions, canEditModule, canDeleteModule, canViewModule } from "@/lib/project-roles";
+import { createAdminClient } from "@/lib/supabase-admin";
+import { approvalExternalSigners, maskEmail, OTP_MAX_ATTEMPTS } from "@/lib/external-signature";
+import { buildSettlementDocument, settlementDocumentHash, SETTLEMENT_DOCUMENT_COLUMNS } from "@/lib/settlement-document";
+import { getSettlementApproval } from "@/lib/settlement-signatures";
+import { isSettlementCurrency } from "@/lib/settlement-money";
 
-// GET /api/settlements/[id] -- detalle de una liquidación (usado por la
-// pantalla de firma, que necesita cargar UNA sin traer la lista completa).
+// GET /api/settlements/[id] -- detalle de una liquidación para su pantalla
+// de firma: el documento tal cual se firma, el recuadro de Aprobación
+// (equipo + contraparte externa) y lo que necesita el formulario de firma
+// con código (migración 109).
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { supabase, user, orgId, allowedProjectIds, error } = await requireAuth();
@@ -29,40 +36,60 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "Sin acceso a Finanzas para tu rol" }, { status: 403 });
   }
 
-  const [{ data: sigRows }, { data: requiredProfiles }] = await Promise.all([
+  const admin = createAdminClient();
+  const [doc, approval, { data: sigRows }, { data: me }, { data: otpRow }] = await Promise.all([
+    buildSettlementDocument(admin, id),
+    getSettlementApproval(admin, id),
     supabase
       .from("settlement_signatures")
-      .select("user_id, signed_at, ip_address, profiles ( full_name, email )")
+      .select(
+        "user_id, signed_at, ip_address, signer_name, signer_rut, signer_email, signer_phone, otp_verified_at, document_hash, profiles ( full_name, email )"
+      )
       .eq("settlement_id", id),
-    row.required_signer_ids?.length
-      ? supabase.from("profiles").select("id, full_name, email").in("id", row.required_signer_ids)
-      : Promise.resolve({ data: [] }),
+    supabase.from("profiles").select("full_name, email, phone, rut").eq("id", user!.id).single(),
+    admin
+      .from("settlement_signature_otps")
+      .select("sent_to, sent_at, expires_at, attempts")
+      .eq("settlement_id", id)
+      .eq("user_id", user!.id)
+      .maybeSingle(),
   ]);
 
+  const currentHash = doc ? settlementDocumentHash(doc) : null;
   const signatures = ((sigRows ?? []) as unknown as {
     user_id: string;
     signed_at: string;
     ip_address: string | null;
+    signer_name: string | null;
+    signer_rut: string | null;
+    signer_email: string | null;
+    signer_phone: string | null;
+    otp_verified_at: string | null;
+    document_hash: string | null;
     profiles: { full_name: string | null; email: string | null } | null;
   }[]).map((s) => ({
     userId: s.user_id,
     signedAt: s.signed_at,
     ipAddress: s.ip_address ?? null,
     name: s.profiles?.full_name ?? s.profiles?.email ?? null,
+    signerName: s.signer_name ?? null,
+    signerRut: s.signer_rut ?? null,
+    signerEmail: s.signer_email ?? null,
+    signerPhone: s.signer_phone ?? null,
+    otpVerifiedAt: s.otp_verified_at ?? null,
+    documentHash: s.document_hash ?? null,
+    documentUnchanged: s.document_hash ? s.document_hash === currentHash : null,
   }));
 
-  const requiredSigners = ((requiredProfiles ?? []) as { id: string; full_name: string | null; email: string | null }[]).map(
-    (p) => ({ userId: p.id, name: p.full_name ?? p.email ?? "Alguien" })
-  );
-
-  const signedIds = new Set(signatures.map((s) => s.userId));
-  const isRequiredSigner = (row.required_signer_ids ?? []).includes(user!.id);
-  const alreadySigned = signedIds.has(user!.id);
+  const required: string[] = row.required_signer_ids ?? [];
+  const alreadySigned = signatures.some((s) => s.userId === user!.id);
+  const otpPending = otpRow && new Date(otpRow.expires_at).getTime() > Date.now() ? otpRow : null;
 
   return NextResponse.json({
     id: row.id,
     projectId: row.project_id,
     type: row.type,
+    currency: row.currency ?? "CLP",
     periodMonth: row.period_month ?? null,
     periodYear: row.period_year ?? null,
     payerName: row.payer_name,
@@ -74,13 +101,40 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     payoutProofPath: row.payout_proof_path ?? null,
     paid: row.paid ?? false,
     notes: row.notes ?? null,
-    requiredSigners,
+    document: doc,
+    documentHash: currentHash,
+    requiredSigners: approval.team.filter((t) => required.includes(t.userId)).map((t) => ({ userId: t.userId, name: t.name })),
+    approval: {
+      team: approval.team.map((t) => ({ name: t.name, detail: t.email, signedAt: t.signedAt })),
+      external: approvalExternalSigners(approval.externalRows).map((e) => ({
+        name: e.name,
+        detail: e.roleLabel,
+        signedAt: e.signedAt,
+      })),
+    },
     signatures,
-    allSigned: requiredSigners.length > 0 && requiredSigners.every((r) => signedIds.has(r.userId)),
+    allSigned: approval.allSigned,
+    alreadySigned,
     // Si no se eligió a nadie en particular, cae al criterio general
     // (cualquiera que vea Finanzas puede firmar) -- mismo fallback que el
     // endpoint de firma.
-    canSign: (row.required_signer_ids?.length ? isRequiredSigner : canViewModule(perm, "finanzas")) && !alreadySigned,
+    canSign: (required.length ? required.includes(user!.id) : true) && !alreadySigned,
+    canManageSigners: canEditModule(perm, "finanzas"),
+    me: {
+      fullName: me?.full_name ?? null,
+      rut: me?.rut ?? null,
+      email: me?.email ?? user!.email ?? null,
+      phone: me?.phone ?? null,
+      accountEmailMasked: user!.email ? maskEmail(user!.email) : null,
+    },
+    otp: otpPending
+      ? {
+          sentToMasked: maskEmail(otpPending.sent_to),
+          sentAt: otpPending.sent_at,
+          expiresAt: otpPending.expires_at,
+          attemptsLeft: Math.max(0, OTP_MAX_ATTEMPTS - (otpPending.attempts ?? 0)),
+        }
+      : null,
   });
 }
 
@@ -141,10 +195,78 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   if (body.payoutProofPath !== undefined) updates.payout_proof_path = body.payoutProofPath ?? null;
   if (body.payoutProofName !== undefined) updates.payout_proof_name = body.payoutProofName ?? null;
   if (body.notes !== undefined) updates.notes = body.notes ?? null;
+  if (body.currency !== undefined) {
+    if (!isSettlementCurrency(body.currency)) {
+      return NextResponse.json({ error: "Moneda no soportada (CLP o USD)" }, { status: 400 });
+    }
+    updates.currency = body.currency;
+  }
   if (typeof body.paid === "boolean") {
     updates.paid = body.paid;
     updates.paid_at = body.paid ? new Date().toISOString() : null;
   }
+
+  // ¿Cambia algo de lo que se firmó? (migración 109). Los comprobantes y el
+  // "pagado" no: se pueden agregar después de las firmas sin tocarlas.
+  // Montos, partes, %, moneda, periodo o notas sí: las firmas existentes
+  // aprobaban otra cosa. Se pide confirmación explícita y, con ella, las
+  // firmas del equipo se borran (hay que volver a firmar) y las de la
+  // contraparte quedan invalidadas -- se conservan con toda su evidencia,
+  // como cuando se reabre un cierre de caja (migración 103).
+  const admin = createAdminClient();
+  const { data: current } = await admin
+    .from("settlements")
+    .select(SETTLEMENT_DOCUMENT_COLUMNS.join(", "))
+    .eq("id", id)
+    .single();
+  const currentRow = (current ?? {}) as Record<string, unknown>;
+  // "20" y "20.00" (numeric de Postgres) son lo mismo; null y "" también.
+  const same = (a: unknown, b: unknown) => {
+    const na = a === null || a === undefined || a === "" ? null : a;
+    const nb = b === null || b === undefined || b === "" ? null : b;
+    if (na === null || nb === null) return na === nb;
+    if (!Number.isNaN(Number(na)) && !Number.isNaN(Number(nb))) return Number(na) === Number(nb);
+    return String(na) === String(nb);
+  };
+  const touchesDocument = SETTLEMENT_DOCUMENT_COLUMNS.some((col) => col in updates && !same(updates[col], currentRow[col]));
+
+  if (touchesDocument) {
+    const [{ count: internalCount }, { data: extSigned }] = await Promise.all([
+      admin.from("settlement_signatures").select("user_id", { count: "exact", head: true }).eq("settlement_id", id),
+      admin
+        .from("event_external_signers")
+        .select("id")
+        .eq("settlement_id", id)
+        .not("signed_at", "is", null)
+        .is("invalidated_at", null),
+    ]);
+    const externalCount = (extSigned ?? []).length;
+    if ((internalCount ?? 0) + externalCount > 0) {
+      if (body.confirmResetSignatures !== true) {
+        return NextResponse.json(
+          {
+            error: "Esta liquidación ya tiene firmas. Si cambias montos, partes o condiciones, hay que volver a firmarla.",
+            needsConfirmation: true,
+            internalCount: internalCount ?? 0,
+            externalCount,
+          },
+          { status: 409 }
+        );
+      }
+    }
+  }
+
+  // Primera pasada, ANTES de tocar la liquidación: si no se pueden anular
+  // las firmas, no se cambia nada -- nunca quedan firmas vigentes sobre
+  // cifras que ya no son las de la liquidación.
+  if (touchesDocument) {
+    const err = await resetSettlementSignatures(admin, id);
+    if (err) {
+      console.error("[settlements:PUT] no se pudieron anular las firmas", err);
+      return NextResponse.json({ error: "No se pudieron anular las firmas anteriores. No se guardó el cambio." }, { status: 500 });
+    }
+  }
+
   updates.updated_at = new Date().toISOString();
 
   const { data, error: dbError } = await supabase
@@ -156,6 +278,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     .single();
 
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
+
+  // Después del UPDATE se repite la anulación: una firma que entró entre el
+  // conteo y el UPDATE aprobaba las cifras viejas y tampoco puede quedar
+  // vigente. La primera pasada (antes del UPDATE) es la que bloquea si falla.
+  if (touchesDocument) {
+    const err = await resetSettlementSignatures(admin, id);
+    if (err) console.error("[settlements:PUT] segunda pasada de anulación falló", err);
+  }
 
   await logActivity({
     supabase,
@@ -204,4 +334,25 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   }
 
   return NextResponse.json({ ok: true });
+}
+
+/** Borra las firmas del equipo y los códigos en vuelo, e invalida las firmas
+ * de la contraparte (se conservan con su evidencia). Devuelve el primer
+ * error, si hubo. */
+async function resetSettlementSignatures(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  id: string
+): Promise<unknown> {
+  const [{ error: delErr }, { error: invErr }, { error: otpErr }] = await Promise.all([
+    admin.from("settlement_signatures").delete().eq("settlement_id", id),
+    admin
+      .from("event_external_signers")
+      .update({ invalidated_at: new Date().toISOString(), invalidated_reason: "Se corrigió la liquidación después de esta firma" })
+      .eq("settlement_id", id)
+      .not("signed_at", "is", null)
+      .is("invalidated_at", null),
+    admin.from("settlement_signature_otps").delete().eq("settlement_id", id),
+  ]);
+  return delErr ?? invErr ?? otpErr ?? null;
 }

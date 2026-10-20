@@ -39,19 +39,53 @@ function fmt(iso: string | null) {
  * Es independiente de la Aprobación interna: no cuenta para el "X/Y
  * firmaron" del cierre, es el respaldo frente al cliente.
  */
+export interface ExternalSignersCopy {
+  title: string;
+  defaultRole: string;
+  /** Se muestra cuando todavía no se puede emitir (ej. caja abierta). */
+  notReady: string;
+  empty: string;
+  invalidatedFallback: string;
+  namePlaceholder: string;
+  emailPlaceholder: string;
+}
+
+const EVENT_COPY: ExternalSignersCopy = {
+  title: "Firma del cliente (sin cuenta)",
+  defaultRole: "Cliente / Productor del evento",
+  notReady: "Cierra la caja para poder emitir el link -- lo que firma el cliente es el cierre definitivo.",
+  empty:
+    "Todavía no emitiste ningún link. Sirve para que el cliente del evento dé su conformidad del cierre sin tener que crearle un proyecto ni una cuenta.",
+  invalidatedFallback: "El cierre se reabrió después de esta firma",
+  namePlaceholder: "Ennio Pérez",
+  emailPlaceholder: "ennio@correo.cl",
+};
+
 export function ExternalSignersCard({
   showId,
   costSheetClosed,
+  apiBase,
+  ready,
+  copy: copyTexts,
 }: {
-  showId: string;
-  costSheetClosed: boolean;
+  /** Evento (uso original). Alternativa: `apiBase` + `ready`. */
+  showId?: string;
+  costSheetClosed?: boolean;
+  /** Base de las rutas de firmantes externos -- para usar la tarjeta en
+   * una liquidación (migración 109): `/api/settlements/[id]/external-signers`. */
+  apiBase?: string;
+  ready?: boolean;
+  copy?: Partial<ExternalSignersCopy>;
 }) {
+  const base = apiBase ?? `/api/eventos/${showId}/external-signers`;
+  const canIssue = ready ?? Boolean(costSheetClosed);
+  const t = { ...EVENT_COPY, ...copyTexts };
   const [signers, setSigners] = useState<ExternalSigner[]>([]);
   const [canCreate, setCanCreate] = useState(false);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [roleLabel, setRoleLabel] = useState("Cliente / Productor del evento");
+  const [roleLabel, setRoleLabel] = useState(t.defaultRole);
   const [invitedName, setInvitedName] = useState("");
   const [invitedEmail, setInvitedEmail] = useState("");
   // Link recién emitido: el token en claro existe solo en esta respuesta,
@@ -62,7 +96,7 @@ export function ExternalSignersCard({
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/eventos/${showId}/external-signers`);
+      const res = await fetch(base);
       if (!res.ok) return;
       const body = await res.json();
       setSigners(body.signers ?? []);
@@ -70,7 +104,7 @@ export function ExternalSignersCard({
     } finally {
       setLoading(false);
     }
-  }, [showId]);
+  }, [base]);
 
   useEffect(() => {
     load();
@@ -88,7 +122,7 @@ export function ExternalSignersCard({
   async function create() {
     setCreating(true);
     try {
-      const res = await fetch(`/api/eventos/${showId}/external-signers`, {
+      const res = await fetch(base, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ roleLabel, invitedName, invitedEmail }),
@@ -119,7 +153,7 @@ export function ExternalSignersCard({
   async function copyExisting(signer: ExternalSigner) {
     setCopying(signer.id);
     try {
-      const res = await fetch(`/api/eventos/${showId}/external-signers/${signer.id}/link`);
+      const res = await fetch(`${base}/${signer.id}/link`);
       const body = await res.json();
       if (!res.ok) {
         toast.error(body.error ?? "No se pudo recuperar el link");
@@ -144,7 +178,7 @@ export function ExternalSignersCard({
       return;
     setResending(signer.id);
     try {
-      const res = await fetch(`/api/eventos/${showId}/external-signers/${signer.id}/reenviar`, { method: "POST" });
+      const res = await fetch(`${base}/${signer.id}/reenviar`, { method: "POST" });
       const body = await res.json();
       if (!res.ok) {
         toast.error(body.error ?? "No se pudo reenviar");
@@ -161,7 +195,7 @@ export function ExternalSignersCard({
 
   async function revoke(signer: ExternalSigner) {
     if (!confirm(`¿Anular el link de ${signer.invitedName || signer.roleLabel || "este firmante"}? Deja de funcionar al instante.`)) return;
-    const res = await fetch(`/api/eventos/${showId}/external-signers/${signer.id}`, { method: "DELETE" });
+    const res = await fetch(`${base}/${signer.id}`, { method: "DELETE" });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       toast.error(body.error ?? "No se pudo anular");
@@ -180,9 +214,9 @@ export function ExternalSignersCard({
       <CardHeader className="flex flex-row items-center justify-between pb-3">
         <CardTitle className="text-sm font-medium flex items-center gap-2">
           <UserCheck className="h-4 w-4" />
-          Firma del cliente (sin cuenta)
+          {t.title}
         </CardTitle>
-        {canCreate && costSheetClosed && !formOpen && (
+        {canCreate && canIssue && !formOpen && (
           <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => setFormOpen(true)}>
             <Plus className="h-3.5 w-3.5 sm:mr-1" />
             <span className="hidden sm:inline">Crear link de firma</span>
@@ -191,11 +225,7 @@ export function ExternalSignersCard({
       </CardHeader>
 
       <CardContent className="space-y-3">
-        {!costSheetClosed && (
-          <p className="text-xs text-muted-foreground">
-            Cierra la caja para poder emitir el link -- lo que firma el cliente es el cierre definitivo.
-          </p>
-        )}
+        {!canIssue && <p className="text-xs text-muted-foreground">{t.notReady}</p>}
 
         {freshLink && (
           <div className="rounded-lg border bg-muted/40 p-3 space-y-2">
@@ -220,11 +250,11 @@ export function ExternalSignersCard({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="ext-name" className="text-xs">Nombre (opcional)</Label>
-              <Input id="ext-name" value={invitedName} onChange={(e) => setInvitedName(e.target.value)} placeholder="Ennio Pérez" />
+              <Input id="ext-name" value={invitedName} onChange={(e) => setInvitedName(e.target.value)} placeholder={t.namePlaceholder} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="ext-email" className="text-xs">Correo al que fijar el link (opcional)</Label>
-              <Input id="ext-email" type="email" value={invitedEmail} onChange={(e) => setInvitedEmail(e.target.value)} placeholder="ennio@correo.cl" />
+              <Input id="ext-email" type="email" value={invitedEmail} onChange={(e) => setInvitedEmail(e.target.value)} placeholder={t.emailPlaceholder} />
               <p className="text-[11px] text-muted-foreground">
                 Si lo cargas, le mandamos el link por correo apenas lo crees, y el código de verificación solo se
                 puede mandar a esa casilla -- nadie más puede firmar aunque le reenvíen el link.
@@ -242,12 +272,7 @@ export function ExternalSignersCard({
           </div>
         )}
 
-        {signers.length === 0 && !formOpen && costSheetClosed && (
-          <p className="text-xs text-muted-foreground">
-            Todavía no emitiste ningún link. Sirve para que el cliente del evento dé su conformidad del cierre sin
-            tener que crearle un proyecto ni una cuenta.
-          </p>
-        )}
+        {signers.length === 0 && !formOpen && canIssue && <p className="text-xs text-muted-foreground">{t.empty}</p>}
 
         {signers.map((s) => (
           <div key={s.id} className="rounded-lg border p-3 space-y-1.5 text-xs">
@@ -277,8 +302,8 @@ export function ExternalSignersCard({
                 {s.documentHash && <p className="break-all">Huella {s.documentHash.slice(0, 24)}…</p>}
                 {s.status === "invalidado" && (
                   <p className="text-orange-600 pt-1">
-                    {s.invalidatedReason ?? "El cierre se reabrió después de esta firma"}. La firma queda de
-                    respaldo, pero ya no aprueba el cierre vigente -- hay que pedírsela de nuevo.
+                    {s.invalidatedReason ?? t.invalidatedFallback}. La firma queda de respaldo, pero ya no aprueba
+                    la versión vigente -- hay que pedírsela de nuevo.
                   </p>
                 )}
                 <div className="flex items-center gap-1 flex-wrap mt-2">
@@ -300,7 +325,7 @@ export function ExternalSignersCard({
                     </Button>
                   )}
                 <a
-                  href={`/api/eventos/${showId}/external-signers/${s.id}/comprobante`}
+                  href={`${base}/${s.id}/comprobante`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className={`${buttonVariants({ variant: "outline", size: "sm" })} h-7 text-xs cursor-pointer`}

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import type { ExternalSignatureView } from "@/types/external-signature";
 import { DocumentoCierre } from "@/components/events/DocumentoCierre";
+import { DocumentoLiquidacion } from "@/components/finances/DocumentoLiquidacion";
 import { ApprovalSummary } from "@/components/events/ApprovalSummary";
 import { FirmaPasos, type DatosFirmante } from "@/components/events/FirmaPasos";
 import { Shell, EstadoError, EstadoCerrado, EstadoFirmado } from "./EstadosFirma";
@@ -69,7 +70,9 @@ export default function FirmaExternaClient() {
       const res = await fetch(`/api/public/firma/${token}/firmar`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
+        // La huella de lo que se le mostró: si la liquidación cambió
+        // entremedio, el backend rechaza la firma (migración 109).
+        body: JSON.stringify({ code, documentHash: data?.documentHash ?? null }),
       });
       const body = await res.json();
       if (!res.ok) {
@@ -114,10 +117,10 @@ export default function FirmaExternaClient() {
   }
 
   if (data.status !== "pendiente") {
-    return <EstadoCerrado status={data.status} />;
+    return <EstadoCerrado status={data.status} kind={data.kind} />;
   }
 
-  if (!data.document) {
+  if (!data.document && !data.settlement) {
     return <EstadoError title="No se pudo cargar el documento" hint="Avísale al equipo que te mandó el link." />;
   }
 
@@ -125,7 +128,7 @@ export default function FirmaExternaClient() {
     <Shell>
       <div>
         <p className="text-xs uppercase tracking-wider text-muted-foreground">Firma de conformidad</p>
-        <h1 className="text-xl font-semibold leading-tight">{data.document.eventName}</h1>
+        <h1 className="text-xl font-semibold leading-tight">{data.title}</h1>
         {data.invitation.roleLabel && (
           <p className="text-sm text-muted-foreground">Firmas como: {data.invitation.roleLabel}</p>
         )}
@@ -133,10 +136,16 @@ export default function FirmaExternaClient() {
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium">1. Revisa el cierre de caja</CardTitle>
+          <CardTitle className="text-sm font-medium">
+            {data.kind === "liquidacion" ? "1. Revisa la liquidación" : "1. Revisa el cierre de caja"}
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <DocumentoCierre doc={data.document} resolveComprobante={resolveComprobante} />
+          {data.settlement ? (
+            <DocumentoLiquidacion doc={data.settlement} resolveComprobante={resolveComprobante} />
+          ) : data.document ? (
+            <DocumentoCierre doc={data.document} resolveComprobante={resolveComprobante} />
+          ) : null}
         </CardContent>
       </Card>
 
@@ -166,6 +175,7 @@ export default function FirmaExternaClient() {
         otp={data.otp}
         onRequestCode={requestCode}
         onSign={sign}
+        documentNoun={data.kind === "liquidacion" ? "la liquidación" : "el cierre de caja"}
       />
     </Shell>
   );

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { hashToken, buildReceiptPdf } from "@/lib/external-signature";
+import { buildSettlementReceiptPdf } from "@/lib/settlement-document";
 
 // GET /api/public/firma/[token]/comprobante -- descarga el PDF de una firma
 // ya registrada. Se arma desde `document_snapshot` (el documento tal cual
@@ -22,7 +23,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "Todavía no hay una firma registrada en este link" }, { status: 404 });
   }
 
-  const pdf = await buildReceiptPdf(signer.document_snapshot, {
+  const evidence = {
     signerName: signer.signer_name,
     signerRut: signer.signer_rut,
     signerEmail: signer.signer_email,
@@ -36,7 +37,13 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     linkCreatedAt: signer.created_at ?? null,
     firstViewedAt: signer.first_viewed_at ?? null,
     documentHash: signer.document_hash ?? "",
-  });
+  };
+  // El snapshot dice qué se firmó: un cierre de caja o una liquidación
+  // (migración 109), cada uno con su PDF.
+  const pdf =
+    signer.document_snapshot?.kind === "liquidacion"
+      ? await buildSettlementReceiptPdf(signer.document_snapshot, evidence)
+      : await buildReceiptPdf(signer.document_snapshot, evidence);
 
   return new NextResponse(Buffer.from(pdf), {
     headers: {
