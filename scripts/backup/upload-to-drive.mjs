@@ -20,7 +20,7 @@
 import { google } from "googleapis";
 import fs from "node:fs";
 
-const KEEP_LAST_N_BACKUPS = 12; // ~3 meses si corre semanal
+const KEEP_LAST_N_BACKUPS = 90; // ~3 meses si corre diario
 
 const [, , filePath, fileName] = process.argv;
 
