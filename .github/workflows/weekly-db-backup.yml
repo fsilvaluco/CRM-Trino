@@ -1,6 +1,6 @@
-name: Backup semanal de la base de datos
+name: Backup diario de la base de datos
 
-# Corre todos los domingos a las 09:00 UTC (06:00 hora Chile continental en
+# Corre todos los dias a las 09:00 UTC (06:00 hora Chile continental en
 # horario de verano, 05:00 en horario de invierno) -- no depende de que
 # ninguna maquina local este encendida, corre en la infraestructura de
 # GitHub. "workflow_dispatch" permite dispararlo a mano desde la pestaña
@@ -8,7 +8,7 @@ name: Backup semanal de la base de datos
 # riesgoso).
 on:
   schedule:
-    - cron: "0 9 * * 0"
+    - cron: "0 9 * * *"
   workflow_dispatch: {}
 
 permissions:
