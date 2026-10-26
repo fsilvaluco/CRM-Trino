@@ -2798,3 +2798,31 @@ Problema secundario: al hacer clic en el archivo, quedaba en "Cargando archivo..
 - Permite identificar problemas de permisos RLS o rutas incorrectas en BD
 
 **Resultado:** Usuario siempre sabe qué está pasando (cargando / abierto / error) en lugar de quedarse sin feedback.
+   - Logging detallado: `[FileLink] Solicitando URL firmada para: {path}` + resultado
+   - Tooltip "Error al cargar archivo" en estado de error
+   - Manejo de excepciones con try/catch
+
+**Debugging mejorado:**
+- Todos los logs tienen prefijo `[TransactionForm]` o `[FileLink]` para identificar origen
+- Se logea la ruta del archivo solicitado
+- Se logea el éxito o error de la operación
+- Permite identificar problemas de permisos RLS o rutas incorrectas en BD
+
+**Resultado:** Usuario siempre sabe qué está pasando (cargando / abierto / error) en lugar de quedarse sin feedback.
+
+---
+
+## 26 oct 2026 — Módulo de Giras (v1)
+
+**Qué es:** un solo lugar por gira con fechas/tramos, venta vs meta con ritmo y proyección, auspicios/canjes con historial de seguimiento, presupuesto vs real (con lo que bajan los canjes) y alertas diarias. Primer caso: Gamuza Gira Nacional 26-27 (folio 859150).
+
+**Base de datos (migraciones aplicadas vía MCP):** `giras_modulo_esquema`, `giras_modulo_vistas`, `goal_history_period_custom`, `giras_hardening_funciones`.
+- Tablas: `tours`, `tour_legs`, `tour_sponsorships`, `tour_sponsorship_updates`, `tour_budget_lines`, `tour_cost_items`, `tour_cost_category_map` (RLS por organización).
+- `shows` + `tour_id`, `tour_leg_id`, `sales_start_date`. `goals` + `show_id` y metric_type `entradas_show` (una meta por fecha). `goal_history` + `show_id` y period_type `custom`.
+- Trigger en `event_ticket_tiers`: cada cambio de venta deja snapshot en `goal_history` (de ahí sale el ritmo de 7 días). Trigger en `tour_sponsorships`: cada cambio de estado queda en el historial.
+- Vistas (security_invoker): `v_tour_show_sales` (curva esperada: 40% de la venta en los últimos 14 días, configurable en `tours`), `v_tour_budget`, `v_tour_alerts`.
+- Montos en centavos, como el resto.
+
+**Código:** `/giras` (lista), `/giras/[id]` (pestañas Resumen, Fechas, Venta, Auspicios, Presupuesto, Tareas). API en `src/app/api/giras/**`. Permisos: por ahora se rige por el módulo `eventos` del proyecto (ver = ver eventos; presupuesto = ver costos de eventos). Falta un módulo `giras` propio en la matriz para dar a Rayén acceso solo a Auspicios.
+
+**Pendiente:** importador desde el sheet "Auspicios" con revisión previa (los 10 actuales se cargaron directo), fechas reales de inicio de venta, módulo de permiso `giras`, resumen diario de alertas por push/Telegram.

@@ -33,6 +33,7 @@ import {
   KeyRound,
   FileText,
   MessageSquareQuote,
+  Route,
 } from "lucide-react";
 import { type LucideIcon } from "lucide-react";
 import { getTestimonialSiteForProject, TESTIMONIALS_APP_PATH } from "@/lib/testimonials/sites-public";
@@ -112,6 +113,12 @@ export const navConfig: NavItem[] = [
     label: "Eventos",
     icon: Mic2,
     moduleKey: "events_pending",
+  },
+  {
+    type: "leaf",
+    href: "/giras",
+    label: "Giras",
+    icon: Route,
   },
   {
     type: "leaf",
