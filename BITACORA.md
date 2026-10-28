@@ -30,8 +30,10 @@ no estaba en `METRIC_CONFIG`, así que el `.map()` reventaba.
   mandan a `console.error`, en vez de la pantalla genérica. (No existe grupo `(dashboard)`; el
   Dashboard es `src/app/page.tsx`, así que el boundary va en la raíz y cubre todas las rutas.)
 
-**Por verificar:** hay 1 tarea con `priority = 'media'` (debería ser `medium`); no rompe nada pero
-no tiene color/etiqueta de prioridad. Las 9 metas por show de Gamuza ahora se ven en el panel de
+**Dato corregido:** la tarea "Postular a Wild Foods en su formulario de auspicios" tenía
+`priority = 'media'`; se pasó a `medium` directo en Supabase.
+
+**Por verificar:** las 9 metas por show de Gamuza ahora se ven en el panel de
 Metas del Dashboard; decidir si se quieren ahí o se filtran.
 
 ---
