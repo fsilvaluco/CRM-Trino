@@ -19,7 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, DollarSign, Briefcase, CheckSquare, Users2, Target, Music2, Newspaper, ArrowLeft, Sparkles, TrendingUp, TrendingDown, Minus, History } from "lucide-react";
+import { Plus, Pencil, Trash2, DollarSign, Briefcase, CheckSquare, Users2, Target, Music2, Newspaper, Ticket, ArrowLeft, Sparkles, TrendingUp, TrendingDown, Minus, History } from "lucide-react";
 import { useLocale } from "@/lib/locale-context";
 
 type GoalMetricType =
@@ -29,6 +29,7 @@ type GoalMetricType =
   | "seguidores"
   | "oyentes_spotify"
   | "menciones_prensa"
+  | "entradas_show"
   | "manual";
 type GoalPeriodType = "monthly" | "annual" | "custom";
 
@@ -45,15 +46,25 @@ interface Goal {
   periodEnd: string | null;
 }
 
-const METRIC_CONFIG: Record<GoalMetricType, { icon: typeof Target; label: string; isCurrency?: boolean; isPercent?: boolean }> = {
+type MetricConfig = { icon: typeof Target; label: string; isCurrency?: boolean; isPercent?: boolean; internal?: boolean };
+
+const METRIC_CONFIG: Record<GoalMetricType, MetricConfig> = {
   ventas_deals: { icon: DollarSign, label: "Ventas ganadas", isCurrency: true },
   cantidad_deals: { icon: Briefcase, label: "Deals ganados" },
   tareas_completadas: { icon: CheckSquare, label: "% de tareas completadas", isPercent: true },
   seguidores: { icon: Users2, label: "Crecimiento de seguidores" },
   oyentes_spotify: { icon: Music2, label: "Oyentes mensuales Spotify" },
   menciones_prensa: { icon: Newspaper, label: "Menciones de prensa" },
+  // Las crea el modulo de Giras (una meta por show); no se eligen a mano.
+  entradas_show: { icon: Ticket, label: "Entradas vendidas (show)", internal: true },
   manual: { icon: Target, label: "Meta manual" },
 };
+
+// Un metric_type que llegue de la base y no este en el mapa no debe botar
+// la pagina: cae al config de "manual".
+function getMetricConfig(type: string): MetricConfig {
+  return METRIC_CONFIG[type as GoalMetricType] ?? METRIC_CONFIG.manual;
+}
 
 // ─── Biblioteca de plantillas para "Nueva meta" ─────────────────────────────
 // Las que apuntan a un metricType distinto de 'manual' calculan su
@@ -224,7 +235,7 @@ function GoalFormDialog({
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{cat.label}</p>
                 <div className="space-y-1.5">
                   {cat.templates.map((t) => {
-                    const Icon = METRIC_CONFIG[t.metricType].icon;
+                    const Icon = getMetricConfig(t.metricType).icon;
                     return (
                       <button
                         key={t.key}
@@ -276,7 +287,7 @@ function GoalFormDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.entries(METRIC_CONFIG).map(([key, cfg]) => (
+                  {Object.entries(METRIC_CONFIG).filter(([, cfg]) => !cfg.internal).map(([key, cfg]) => (
                     <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
                   ))}
                 </SelectContent>
@@ -380,8 +391,8 @@ function GoalHistoryDialog({
 
   function formatMetric(value: number) {
     if (!goal) return String(value);
-    if (METRIC_CONFIG[goal.metricType].isCurrency) return formatCurrency(Math.round(value * 100));
-    if (METRIC_CONFIG[goal.metricType].isPercent) return `${value}%`;
+    if (getMetricConfig(goal.metricType).isCurrency) return formatCurrency(Math.round(value * 100));
+    if (getMetricConfig(goal.metricType).isPercent) return `${value}%`;
     return Math.round(value).toLocaleString("es-CL");
   }
 
@@ -470,8 +481,8 @@ export function GoalsPanel({ projectId }: { projectId: string }) {
   }
 
   function formatValue(goal: Goal, value: number) {
-    if (METRIC_CONFIG[goal.metricType].isCurrency) return formatCurrency(Math.round(value * 100));
-    if (METRIC_CONFIG[goal.metricType].isPercent) return `${value.toLocaleString("es-CL")}%`;
+    if (getMetricConfig(goal.metricType).isCurrency) return formatCurrency(Math.round(value * 100));
+    if (getMetricConfig(goal.metricType).isPercent) return `${value.toLocaleString("es-CL")}%`;
     return Math.round(value).toLocaleString("es-CL");
   }
 
@@ -531,7 +542,7 @@ export function GoalsPanel({ projectId }: { projectId: string }) {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {goals.map((goal) => {
-            const Icon = METRIC_CONFIG[goal.metricType].icon;
+            const Icon = getMetricConfig(goal.metricType).icon;
             const rawPct = goal.targetValue > 0 ? (goal.currentValue / goal.targetValue) * 100 : 0;
             const pct = Math.min(100, rawPct);
             const over = goal.targetValue > 0 && goal.currentValue > goal.targetValue;

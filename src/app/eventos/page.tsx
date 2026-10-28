@@ -23,6 +23,11 @@ const STATUS_CONFIG: Record<ShowStatus, { label: string; className: string }> = 
   cancelado: { label: "Cancelado", className: "bg-red-100 text-red-700" },
 };
 
+// Un status desconocido que venga de la base no debe botar la pagina.
+function getStatusConfig(status: string): { label: string; className: string } {
+  return STATUS_CONFIG[status as ShowStatus] ?? { label: status, className: "bg-muted text-muted-foreground" };
+}
+
 const CLP = new Intl.NumberFormat("es-CL", {
   style: "currency",
   currency: "CLP",
@@ -285,8 +290,8 @@ export default function EventosPage() {
                       <Link href={`/eventos/${show.id}`} className="font-medium hover:underline">
                         {show.name}
                       </Link>
-                      <Badge variant="secondary" className={`text-xs ${STATUS_CONFIG[show.status].className}`}>
-                        {STATUS_CONFIG[show.status].label}
+                      <Badge variant="secondary" className={`text-xs ${getStatusConfig(show.status).className}`}>
+                        {getStatusConfig(show.status).label}
                       </Badge>
                       {show.projectName && (
                         <Badge variant="outline" className="text-xs">{show.projectName}</Badge>

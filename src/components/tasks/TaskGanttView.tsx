@@ -183,7 +183,7 @@ export function TaskGanttView({
                 const isOverdue = !DONE_STATUSES.includes(task.status) && startOfDay(task._due) < startOfDay(new Date());
                 const x = daysBetween(rangeStart, task._due) * dayWidth;
                 const barWidth = Math.max(dayWidth * 0.85, 6);
-                const hex = resolveProjectHex(task.tagProjectColor) ?? PRIORITY_COLOR[task.priority];
+                const hex = resolveProjectHex(task.tagProjectColor) ?? (PRIORITY_COLOR[task.priority] ?? PRIORITY_COLOR.medium);
                 const isHovered = hoveredId === task.id;
 
                 return (

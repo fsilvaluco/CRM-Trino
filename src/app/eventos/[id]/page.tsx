@@ -74,6 +74,11 @@ const STATUS_CONFIG: Record<ShowStatus, { label: string; className: string }> = 
   cancelado: { label: "Cancelado", className: "bg-red-100 text-red-700" },
 };
 
+// Un status desconocido que venga de la base no debe botar la pagina.
+function getStatusConfig(status: string): { label: string; className: string } {
+  return STATUS_CONFIG[status as ShowStatus] ?? { label: status, className: "bg-muted text-muted-foreground" };
+}
+
 const CLP = new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
 
 function formatCents(cents: number | null | undefined): string {
@@ -1436,8 +1441,8 @@ export default function EventDetailPage() {
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-lg sm:text-2xl font-bold tracking-tight leading-tight">{event.name}</h1>
-            <Badge variant="secondary" className={`text-xs ${STATUS_CONFIG[event.status].className}`}>
-              {STATUS_CONFIG[event.status].label}
+            <Badge variant="secondary" className={`text-xs ${getStatusConfig(event.status).className}`}>
+              {getStatusConfig(event.status).label}
             </Badge>
           </div>
           <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1 flex-wrap">

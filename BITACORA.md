@@ -10,6 +10,32 @@ _Checkpoint anterior: v1.12 — 15 de septiembre de 2026 (forzar apertura de app
 
 ---
 
+## 🐛 Dashboard caído por meta `entradas_show` (28 oct 2026)
+
+**Síntoma:** en producción el Dashboard se caía apenas cargaban los datos (PC y celular) con la
+pantalla genérica de Next y `TypeError: Cannot read properties of undefined (reading 'icon')`.
+
+**Causa:** `GoalsPanel` hacía `METRIC_CONFIG[goal.metricType].icon` y el módulo de Giras (PR #53)
+crea metas con `metric_type = 'entradas_show'` (una por show). Gamuza tiene 9 en `goals`; esa clave
+no estaba en `METRIC_CONFIG`, así que el `.map()` reventaba.
+
+**Fix:**
+- `METRIC_CONFIG` agrega `entradas_show` (ícono Ticket, marcada `internal` para que no aparezca en
+  el selector "Tipo" de nueva meta). Todo acceso pasa por `getMetricConfig()`, que cae a `manual`
+  si llega un tipo desconocido.
+- Mismo patrón en Eventos (`/eventos` y `/eventos/[id]`): `STATUS_CONFIG[show.status].className`
+  ahora pasa por `getStatusConfig()` con fallback. Gantt de Tareas: color de prioridad con fallback
+  a `medium`. Giras y Métricas solo hacen lookups de texto (no rompen con valores desconocidos).
+- `src/app/error.tsx` y `src/app/global-error.tsx`: muestran el mensaje del error + digest y lo
+  mandan a `console.error`, en vez de la pantalla genérica. (No existe grupo `(dashboard)`; el
+  Dashboard es `src/app/page.tsx`, así que el boundary va en la raíz y cubre todas las rutas.)
+
+**Por verificar:** hay 1 tarea con `priority = 'media'` (debería ser `medium`); no rompe nada pero
+no tiene color/etiqueta de prioridad. Las 9 metas por show de Gamuza ahora se ven en el panel de
+Metas del Dashboard; decidir si se quieren ahí o se filtran.
+
+---
+
 ## 🌎 Spotify: países y ciudades (14 oct 2026)
 
 **Pedido:** ver en Artist Pro el ranking de ciudades y la evolución por país de los oyentes de
