@@ -128,15 +128,23 @@ export async function POST(request: NextRequest) {
   // acceso a su propio proyecto (0.4: owner no tiene bypass, se rige 100%
   // por project_members igual que todos) ni forma de agregar a nadie más
   // (ROLES.md, ítem 13 del rediseño de roles -- gestión de gente).
+  // Upsert y no insert: el trigger viejo `trg_auto_add_project_creator`
+  // (scripts/migrations/001) ya metía una fila como `member` sin permiso de
+  // gestión, el insert chocaba contra ella en silencio y el creador quedaba
+  // sin matriz y sin poder gestionar equipo (caso Invica, 30 oct 2026). La
+  // migración 111 borra ese trigger; el upsert queda como red de seguridad.
   const { data: creatorMembership, error: memberSeedError } = await supabase
     .from("project_members")
-    .insert({
-      project_id: data.id,
-      user_id: user!.id,
-      organization_id: orgId,
-      role: "admin",
-      puede_gestionar_equipo: true,
-    })
+    .upsert(
+      {
+        project_id: data.id,
+        user_id: user!.id,
+        organization_id: orgId,
+        role: "admin",
+        puede_gestionar_equipo: true,
+      },
+      { onConflict: "project_id,user_id" }
+    )
     .select("id")
     .single();
   if (memberSeedError) {

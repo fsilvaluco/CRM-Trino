@@ -10,6 +10,30 @@ _Checkpoint anterior: v1.12 — 15 de septiembre de 2026 (forzar apertura de app
 
 ---
 
+## 🐛 Owner sin permiso para gestionar equipo en su propio proyecto nuevo (30 oct 2026)
+
+**Síntoma:** Francisco creó el proyecto Invica e invitó a Joaquín y a Diego. Al intentar asignar
+admin o reenviar la invitación: "No gestionas equipo en este proyecto".
+
+**Causa:** el trigger viejo `trg_auto_add_project_creator` (migración 001) metía al creador en
+`project_members` como `member` sin `puede_gestionar_equipo` justo antes de que
+`POST /api/projects` lo insertara como admin con gestión. Ese insert chocaba con la fila del
+trigger, el error solo quedaba en el log y tampoco se sembraba la matriz: el creador quedaba sin
+módulos y el proyecto sin ningún gestor. Pasó igual con La Sagrada (julio).
+
+**Fix:**
+- Migración 111: borra el trigger y su función (aplicada en producción el 30 oct).
+- `POST /api/projects`: upsert en vez de insert para la fila del creador.
+- Datos: Francisco quedó admin con gestión y matriz admin en Invica y La Sagrada.
+
+**Otros hallazgos (no son bugs de código):**
+- La invitación a Joaquín se mandó a `joaquin@sosmostrino.cl` (typo, "sosmos"). Se creó una cuenta
+  nueva pendiente y el correo no llegó. El Joaquín real es `joaquin@somostrino.cl`, ya activo.
+- Diego sí quedó asignado a Invica con permisos completos; "Activo" es su estado en la
+  organización. La lista de proyectos se carga al abrir la app: tiene que recargar la página.
+
+---
+
 ## 🐛 Dashboard caído por meta `entradas_show` (28 oct 2026)
 
 **Síntoma:** en producción el Dashboard se caía apenas cargaban los datos (PC y celular) con la
