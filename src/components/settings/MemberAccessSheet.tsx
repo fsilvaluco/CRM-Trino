@@ -147,16 +147,23 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
           );
         }
 
+        const allMemberships = Array.isArray(membershipsJson) ? (membershipsJson as ProjectMemberRow[]) : [];
+
+        // /api/project-members solo devuelve filas de los proyectos donde
+        // quien mira gestiona equipo. Mostrar los demás proyectos los dejaba
+        // desmarcados aunque la persona sí estuviera asignada ahí (y marcarlos
+        // daba 403), así que solo se listan los proyectos gestionables.
+        const managedProjectIds = new Set(allMemberships.map((row) => row.project_id));
         const projectOptions = Array.isArray(projectsJson)
-          ? (projectsJson as Array<{ id: string; name: string }>).map((p) => ({
-              id: p.id,
-              name: p.name,
-            }))
+          ? (projectsJson as Array<{ id: string; name: string }>)
+              .filter((p) => managedProjectIds.has(p.id))
+              .map((p) => ({
+                id: p.id,
+                name: p.name,
+              }))
           : [];
 
-        const currentMemberships = Array.isArray(membershipsJson)
-          ? (membershipsJson as ProjectMemberRow[]).filter((row) => row.user_id === member.user_id)
-          : [];
+        const currentMemberships = allMemberships.filter((row) => row.user_id === member.user_id);
         const currentProjectIds = currentMemberships.map((row) => row.project_id);
         const rolesMap: Record<string, "admin" | "member" | "artist" | "staff"> = {};
         currentMemberships.forEach((row) => {
@@ -378,7 +385,9 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
 
               {!isOwner && (
                 <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground font-medium">Proyectos asignados</p>
+                  <p className="text-xs text-muted-foreground font-medium">
+                    Proyectos asignados <span className="font-normal">(solo los que tú gestionas)</span>
+                  </p>
                   {projects.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No hay proyectos para asignar.</p>
                   ) : (
