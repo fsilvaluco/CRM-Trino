@@ -104,9 +104,23 @@ export function DuplicateContactsDialog({ open, onClose, onMerged, projectId }: 
     const mergeIds = Array.from(checkedByGroup[group.matchValue] ?? []);
 
     if (mergeIds.length === 0) {
-      toast.info("No marcaste ningun contacto para fusionar en este grupo");
+      toast.info("No marcaste ningún contacto para fusionar en este grupo");
       return;
     }
+
+    const primaryName =
+      group.contacts.find((c) => c.id === primaryId)?.name ?? "el contacto principal";
+    const mergedNames = group.contacts
+      .filter((c) => mergeIds.includes(c.id))
+      .map((c) => `• ${c.name}`)
+      .join("\n");
+    const confirmed = window.confirm(
+      `¿Fusionar ${mergeIds.length} contacto(s) en "${primaryName}"?\n\n` +
+        `${mergedNames}\n\n` +
+        "Sus deals y actividades pasarán al contacto principal y los duplicados " +
+        "se archivarán. Esta acción no se puede deshacer desde aquí."
+    );
+    if (!confirmed) return;
 
     setMergingGroup(group.matchValue);
     try {
@@ -123,6 +137,8 @@ export function DuplicateContactsDialog({ open, onClose, onMerged, projectId }: 
       toast.success(`Se fusionaron ${data.mergedCount} contacto(s)`);
       setGroups((prev) => prev.filter((g) => g.matchValue !== group.matchValue));
       onMerged();
+    } catch {
+      toast.error("No se pudo fusionar. Revisa tu conexión e inténtalo de nuevo.");
     } finally {
       setMergingGroup(null);
     }

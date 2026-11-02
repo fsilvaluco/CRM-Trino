@@ -10,6 +10,7 @@ import type { DealLeadInfo, PipelineColumn } from "@/types";
 import { useProject } from "@/lib/project-context";
 import { useNotifications } from "@/lib/notifications-context";
 import { toast } from "sonner";
+import { LoadErrorState, readLoadError } from "@/components/shared/LoadErrorState";
 
 // Shape returned by /api/pipeline per stage
 interface StageDeal {
@@ -75,6 +76,9 @@ export default function CrmPageClient() {
   const [columns, setColumns] = useState<PipelineColumn[]>([]);
   const [dealList, setDealList] = useState<DealListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // Proyecto cuyo pipeline esta en pantalla (undefined = nada cargado aun)
+  const loadedProjectIdRef = useRef<string | null | undefined>(undefined);
   const [showForm, setShowForm] = useState(false);
   const [showQuickLead, setShowQuickLead] = useState(false);
   const [addToStageId, setAddToStageId] = useState<string | undefined>();
@@ -114,16 +118,26 @@ export default function CrmPageClient() {
     const requestedProjectId = activeProject?.id ?? null;
     latestRequestedProjectId.current = requestedProjectId;
     const params = activeProject ? `?projectId=${activeProject.id}` : "";
+    const isStale = () => latestRequestedProjectId.current !== requestedProjectId;
     fetch(`/api/pipeline${params}`)
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) {
+          throw new Error(await readLoadError(r, "No se pudo cargar el pipeline. Revisa tu conexión e inténtalo de nuevo."));
+        }
+        return r.json();
+      })
       .then((pipeline: PipelineStageRaw[]) => {
         // Guarda contra condicion de carrera: si el usuario cambio de
         // proyecto mientras este fetch estaba en vuelo, otra llamada mas
         // reciente ya quedo en camino -- descartar esta respuesta obsoleta
         // en vez de pisar los datos del proyecto que esta activo ahora.
-        if (latestRequestedProjectId.current !== requestedProjectId) {
+        if (isStale()) {
           return;
         }
+        if (!Array.isArray(pipeline)) {
+          throw new Error("El servidor devolvió una respuesta inesperada.");
+        }
+        setLoadError(null);
         // Build Kanban columns
         const cols: PipelineColumn[] = pipeline.map((stage) => ({
           id: stage.id,
@@ -159,6 +173,7 @@ export default function CrmPageClient() {
           })),
         }));
         setColumns(cols);
+        loadedProjectIdRef.current = requestedProjectId;
 
         // Build flat list for List tab
         const flat: DealListItem[] = pipeline.flatMap((stage) =>
@@ -180,7 +195,19 @@ export default function CrmPageClient() {
         setDealList(flat);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err: unknown) => {
+        if (isStale()) return;
+        // Solo mostramos el error si no hay datos previos en pantalla; si ya
+        // habia un tablero cargado (recarga tras guardar), basta un toast
+        // para no borrarle al usuario lo que estaba viendo.
+        const message =
+          err instanceof Error && err.message
+            ? err.message
+            : "No se pudo cargar el pipeline. Revisa tu conexión e inténtalo de nuevo.";
+        if (loadedProjectIdRef.current === requestedProjectId) toast.error(message);
+        else setLoadError(message);
+        setLoading(false);
+      });
   }, [activeProject]);
 
   useEffect(() => {
@@ -242,6 +269,16 @@ export default function CrmPageClient() {
         </div>
       </div>
 
+      {loadError ? (
+        <LoadErrorState
+          message={loadError}
+          onRetry={() => {
+            setLoadError(null);
+            setLoading(true);
+            loadData();
+          }}
+        />
+      ) : (
       <CrmTabs
         columns={columns}
         allDeals={dealList}
@@ -249,6 +286,7 @@ export default function CrmPageClient() {
         onAddDeal={handleAddDeal}
         onDealClick={handleEditDeal}
       />
+      )}
 
       {showQuickLead && activeProject && (
         <QuickLeadDialog

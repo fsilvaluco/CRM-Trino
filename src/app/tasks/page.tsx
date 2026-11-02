@@ -316,15 +316,21 @@ export default function TasksPage() {
 
   // ── Actions ──────────────────────────────────────────────────────────────
 
+  // Lanza si falla, para que quien llama pueda revertir su UI optimista
+  // (el Kanban devuelve la tarjeta a su columna y muestra su propio toast).
+  const persistStatus = async (id: string, status: TaskStatus) => {
+    const res = await fetch(`/api/tasks/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    if (!res.ok) throw new Error("No se pudo actualizar la tarea");
+    loadTasks();
+  };
+
   const updateStatus = async (id: string, status: TaskStatus) => {
     try {
-      const res = await fetch(`/api/tasks/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
-      if (!res.ok) throw new Error();
-      loadTasks();
+      await persistStatus(id, status);
     } catch {
       toast.error("Error al actualizar tarea");
     }
@@ -466,7 +472,7 @@ export default function TasksPage() {
         ) : (
           <TaskKanbanBoard
             tasks={kanbanCards}
-            onTaskMoved={async (taskId, newStatus) => { await updateStatus(taskId, newStatus); }}
+            onTaskMoved={persistStatus}
             onTaskClick={(id) => setSelectedTaskId(id)}
           />
         )}

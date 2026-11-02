@@ -52,9 +52,11 @@ function SortableHead({
 
 interface ContactsTableProps {
   contacts: Contact[];
+  /** Abre el formulario de nuevo contacto. Si no se pasa, el estado vacio no ofrece accion. */
+  onAddContact?: () => void;
 }
 
-export function ContactsTable({ contacts }: ContactsTableProps) {
+export function ContactsTable({ contacts, onAddContact }: ContactsTableProps) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("name");
@@ -114,9 +116,13 @@ export function ContactsTable({ contacts }: ContactsTableProps) {
       <EmptyState
         icon={Users}
         title="No hay contactos"
-        description="Agrega tu primer contacto para comenzar a gestionar tu pipeline de ventas."
-        actionLabel="Agregar contacto"
-        onAction={() => router.push("/contacts?new=true")}
+        description={
+          onAddContact
+            ? "Agrega tu primer contacto para comenzar a gestionar tu pipeline de ventas."
+            : "Selecciona un proyecto para agregar contactos."
+        }
+        actionLabel={onAddContact ? "Agregar contacto" : undefined}
+        onAction={onAddContact}
       />
     );
   }

@@ -29,6 +29,7 @@ import { STATUS_LABELS } from "@/components/tasks/TaskKanbanBoard";
 import { useProject } from "@/lib/project-context";
 import { parseFlexibleDate } from "@/lib/constants";
 import { CommentsWithMentions } from "@/components/shared/CommentsWithMentions";
+import { LoadErrorState, readLoadError } from "@/components/shared/LoadErrorState";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -134,6 +135,7 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, p
   const { isAdmin } = useProject();
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Relation options
   const [contacts, setContacts] = useState<Relation[]>([]);
@@ -153,15 +155,32 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, p
   const loadTask = useCallback(() => {
     if (!taskId) return;
     setLoading(true);
+    setLoadError(null);
     fetch(`/api/tasks/${taskId}`)
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) {
+          throw new Error(
+            r.status === 404
+              ? "Esta tarea ya no existe o no tienes acceso a ella."
+              : await readLoadError(r, "No se pudo cargar la tarea. Revisa tu conexión e inténtalo de nuevo.")
+          );
+        }
+        return r.json();
+      })
       .then((data) => {
         setTask(data);
         setSelectedAssignees(Array.isArray(data.assignees) ? data.assignees.map((assignee: { userId: string }) => assignee.userId) : []);
         setAssigneeSearch("");
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err: unknown) => {
+        setLoadError(
+          err instanceof Error && err.message
+            ? err.message
+            : "No se pudo cargar la tarea. Revisa tu conexión e inténtalo de nuevo."
+        );
+        setLoading(false);
+      });
   }, [taskId]);
 
   useEffect(() => {
@@ -502,7 +521,15 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, p
 
   const panelContent = (
     <>
-      {loading || !task ? (
+      {loadError && !loading ? (
+        <LoadErrorState
+          title="No pudimos abrir la tarea"
+          message={loadError}
+          onRetry={loadTask}
+          secondaryLabel="Cerrar"
+          onSecondary={onClose}
+        />
+      ) : loading || !task ? (
         <div className="p-6 space-y-4">
           <div className="h-6 bg-muted rounded animate-pulse w-3/4" />
           <div className="h-4 bg-muted rounded animate-pulse w-1/2" />
