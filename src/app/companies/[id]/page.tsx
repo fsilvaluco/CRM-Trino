@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -213,13 +214,14 @@ export default function CompanyDetailPage() {
             ) : (
               <ul className="space-y-2">
                 {company.contacts.map((c) => (
-                  <li
-                    key={c.id}
-                    className="flex items-center justify-between text-sm cursor-pointer hover:text-primary"
-                    onClick={() => router.push(`/contacts/${c.id}`)}
-                  >
-                    <span>{c.name}</span>
-                    {c.email && <span className="text-muted-foreground text-xs">{c.email}</span>}
+                  <li key={c.id}>
+                    <Link
+                      href={`/contacts/${c.id}`}
+                      className="flex items-center justify-between text-sm rounded-sm hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    >
+                      <span>{c.name}</span>
+                      {c.email && <span className="text-muted-foreground text-xs">{c.email}</span>}
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -241,13 +243,14 @@ export default function CompanyDetailPage() {
             ) : (
               <ul className="space-y-2">
                 {company.deals.map((d) => (
-                  <li
-                    key={d.id}
-                    className="flex items-center justify-between text-sm cursor-pointer hover:text-primary"
-                    onClick={() => router.push(`/deals/${d.id}`)}
-                  >
-                    <span>{d.title}</span>
-                    <span className="font-medium text-primary">{formatCurrency(d.value)}</span>
+                  <li key={d.id}>
+                    <Link
+                      href={`/deals/${d.id}`}
+                      className="flex items-center justify-between text-sm rounded-sm hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    >
+                      <span>{d.title}</span>
+                      <span className="font-medium text-primary">{formatCurrency(d.value)}</span>
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -269,13 +272,14 @@ export default function CompanyDetailPage() {
             ) : (
               <ul className="space-y-2">
                 {company.projects.map((p) => (
-                  <li
-                    key={p.id}
-                    className="flex items-center justify-between text-sm cursor-pointer hover:text-primary"
-                    onClick={() => router.push(`/projects/${p.id}`)}
-                  >
-                    <span>{p.name}</span>
-                    <Badge variant="secondary" className="text-xs">{p.status}</Badge>
+                  <li key={p.id}>
+                    <Link
+                      href={`/projects/${p.id}`}
+                      className="flex items-center justify-between text-sm rounded-sm hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    >
+                      <span>{p.name}</span>
+                      <Badge variant="secondary" className="text-xs">{p.status}</Badge>
+                    </Link>
                   </li>
                 ))}
               </ul>

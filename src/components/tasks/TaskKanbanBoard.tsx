@@ -17,6 +17,8 @@ import { ProjectTag } from "@/components/shared/ProjectTag";
 import { AssigneeAvatarStack } from "@/components/shared/AssigneeAvatarStack";
 import { useKanbanDnd } from "@/lib/hooks/use-kanban-dnd";
 import type { TaskStatus, TaskPriority } from "@/types";
+import { MoveToMenu } from "@/components/shared/MoveToMenu";
+import { clickableProps } from "@/lib/a11y";
 
 // ─── Column definitions ──────────────────────────────────────────────────────
 
@@ -80,10 +82,12 @@ function DraggableTaskCard({
   task,
   isDragging = false,
   onTaskClick,
+  onMove,
 }: {
   task: TaskCard;
   isDragging?: boolean;
   onTaskClick?: (id: string) => void;
+  onMove?: (columnId: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: task.id });
 
@@ -111,25 +115,40 @@ function DraggableTaskCard({
         <span
           className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-card"
           title="Actividad nueva sin ver"
-        />
+        >
+          <span className="sr-only">Actividad nueva sin ver</span>
+        </span>
       )}
 
       {/* Handle de arrastre dedicado -- el resto de la tarjeta queda libre
           para hacer scroll horizontal del tablero sin ninguna ambigüedad.
           touchAction:none va SOLO acá (no en toda la tarjeta), que es la
           recomendación oficial de dnd-kit para este caso. */}
-      <button
-        {...listeners}
-        {...attributes}
-        style={{ touchAction: "none" }}
-        className="absolute top-2 right-2 p-1 text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing touch-none"
-        aria-label="Arrastrar para mover"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <GripVertical className="h-4 w-4" />
-      </button>
+      <div className="absolute top-2 right-2 flex items-center gap-0.5">
+        {onMove && (
+          <MoveToMenu
+            itemLabel={task.title}
+            currentId={TASK_COLUMNS.find((c) => c.statuses.includes(task.status))?.id ?? task.status}
+            targets={TASK_COLUMNS.map((c) => ({ id: c.id, label: c.label, color: c.color }))}
+            onMove={onMove}
+          />
+        )}
+        <button
+          {...listeners}
+          {...attributes}
+          style={{ touchAction: "none" }}
+          className="p-1 text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing touch-none"
+          aria-label={`Arrastrar "${task.title}"`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className="h-4 w-4" aria-hidden="true" />
+        </button>
+      </div>
 
-      <div onClick={() => onTaskClick?.(task.id)} className="cursor-pointer pr-5">
+      <div
+        {...(onTaskClick ? clickableProps(() => onTaskClick(task.id)) : {})}
+        className={`rounded-sm pr-14 ${onTaskClick ? "cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" : ""}`}
+      >
         <p className="text-sm font-medium leading-snug">{task.title}</p>
 
         <div className="flex items-center gap-1.5 mt-2 flex-wrap">
@@ -178,11 +197,13 @@ function DroppableColumn({
   tasks,
   activeId,
   onTaskClick,
+  onMoveTask,
 }: {
   column: TaskKanbanColumn;
   tasks: TaskCard[];
   activeId: string | null;
   onTaskClick?: (id: string) => void;
+  onMoveTask?: (taskId: string, columnId: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
 
@@ -215,6 +236,7 @@ function DroppableColumn({
             task={task}
             isDragging={activeId === task.id}
             onTaskClick={onTaskClick}
+            onMove={onMoveTask ? (columnId) => onMoveTask(task.id, columnId) : undefined}
           />
         ))}
         {tasks.length === 0 && (
@@ -237,7 +259,6 @@ interface TaskKanbanBoardProps {
 
 export function TaskKanbanBoard({ tasks, onTaskMoved, onTaskClick }: TaskKanbanBoardProps) {
   const [localTasks, setLocalTasks] = useState(tasks);
-  const snapshot = useRef(tasks);
   const [activeId, setActiveId] = useState<string | null>(null);
 
   // Sync with parent whenever tasks prop changes, but not during an active drag
@@ -248,7 +269,11 @@ export function TaskKanbanBoard({ tasks, onTaskMoved, onTaskClick }: TaskKanbanB
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks]);
 
-  const { sensors, collisionDetectionStrategy } = useKanbanDnd();
+  const { sensors, collisionDetectionStrategy, accessibility } = useKanbanDnd({
+    columnIds: TASK_COLUMNS.map((c) => c.id),
+    getItemLabel: (id) => localTasks.find((t) => t.id === id)?.title ?? "tarea",
+    getColumnLabel: (id) => TASK_COLUMNS.find((c) => c.id === id)?.label ?? null,
+  });
 
   const getColumnForTask = useCallback(
     (status: TaskStatus) =>
@@ -267,24 +292,18 @@ export function TaskKanbanBoard({ tasks, onTaskMoved, onTaskClick }: TaskKanbanB
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
       setActiveId(event.active.id as string);
-      snapshot.current = localTasks;
     },
-    [localTasks]
+    []
   );
 
-  const handleDragEnd = useCallback(
-    async (event: DragEndEvent) => {
-      const { active, over } = event;
-      setActiveId(null);
-
-      if (!over) return;
-
-      const taskId = active.id as string;
-      const targetColumnId = over.id as string;
+  // Usado por el arrastre (mouse, tactil o teclado) y por el menu "Mover a".
+  const moveTask = useCallback(
+    async (taskId: string, targetColumnId: string) => {
       const targetColumn = TASK_COLUMNS.find((c) => c.id === targetColumnId);
 
       if (!targetColumn) return;
 
+      const before = localTasks;
       const task = localTasks.find((t) => t.id === taskId);
       if (!task) return;
 
@@ -302,11 +321,22 @@ export function TaskKanbanBoard({ tasks, onTaskMoved, onTaskClick }: TaskKanbanB
       try {
         await onTaskMoved(taskId, newStatus);
       } catch {
-        setLocalTasks(snapshot.current);
+        setLocalTasks(before);
         toast.error("Error al mover la tarea");
       }
     },
     [localTasks, getColumnForTask, onTaskMoved]
+  );
+
+  const handleDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      const { active, over } = event;
+      setActiveId(null);
+
+      if (!over) return;
+      await moveTask(active.id as string, over.id as string);
+    },
+    [moveTask]
   );
 
   return (
@@ -315,6 +345,8 @@ export function TaskKanbanBoard({ tasks, onTaskMoved, onTaskClick }: TaskKanbanB
       collisionDetection={collisionDetectionStrategy}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      onDragCancel={() => setActiveId(null)}
+      accessibility={accessibility}
     >
       <div className="flex gap-4 overflow-x-auto pb-4">
         {TASK_COLUMNS.map((col) => (
@@ -324,6 +356,7 @@ export function TaskKanbanBoard({ tasks, onTaskMoved, onTaskClick }: TaskKanbanB
             tasks={getTasksForColumn(col)}
             activeId={activeId}
             onTaskClick={onTaskClick}
+            onMoveTask={(taskId, columnId) => void moveTask(taskId, columnId)}
           />
         ))}
       </div>

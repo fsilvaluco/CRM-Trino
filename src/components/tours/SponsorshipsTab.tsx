@@ -110,7 +110,15 @@ export function SponsorshipsTab({ data, onChanged }: { data: TourDetail; onChang
                 const value = s.confirmedValue ?? s.estimatedValue;
                 return (
                   <tr key={s.id} onClick={() => setSelectedId(s.id)} className="cursor-pointer border-t hover:bg-muted/40">
-                    <td className="px-3 py-2 font-medium">{s.brand}</td>
+                    <td className="px-3 py-2 font-medium">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setSelectedId(s.id); }}
+                        className="text-left rounded-sm hover:underline cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                      >
+                        {s.brand}
+                      </button>
+                    </td>
                     <td className="px-3 py-2">{SPONSORSHIP_CATEGORY_LABEL[s.category]}</td>
                     <td className="px-3 py-2">{s.city ?? "Toda la gira"}</td>
                     <td className="px-3 py-2">

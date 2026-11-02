@@ -1,5 +1,7 @@
 "use client";
 
+import { clickableProps } from "@/lib/a11y";
+import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -106,10 +108,18 @@ function SortableHead({
 }: SortableHeadProps) {
   const isActive = field && sortField === field;
   return (
-    <TableHead style={{ width: colWidths[colKey], minWidth: MIN_COL_WIDTH, position: "relative" }}>
+    <TableHead
+      style={{ width: colWidths[colKey], minWidth: MIN_COL_WIDTH, position: "relative" }}
+      aria-sort={isActive ? (sortDir === "asc" ? "ascending" : "descending") : undefined}
+    >
       <div
-        className={`flex items-center gap-1 select-none ${field ? "cursor-pointer hover:text-foreground" : ""}`}
-        onClick={field ? () => onSort(field) : undefined}
+        className={`flex items-center gap-1 select-none ${field ? "cursor-pointer hover:text-foreground rounded-sm focus-visible:outline-2 focus-visible:outline-ring" : ""}`}
+        {...(field
+          ? {
+              ...clickableProps(() => onSort(field)),
+              "aria-label": `Ordenar por ${typeof children === "string" ? children : field}`,
+            }
+          : {})}
       >
         {children}
         {field && (
@@ -294,7 +304,9 @@ export default function CompaniesPage() {
                         <Building2 className="h-4 w-4 text-primary" />
                       </div>
                       <div className="min-w-0">
-                        <p className="font-medium truncate">{company.name}</p>
+                        <Link href={`/companies/${company.id}`} onClick={(e) => e.stopPropagation()} className="block font-medium truncate rounded-sm hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                          {company.name}
+                        </Link>
                         {company.industry && (
                           <p className="text-xs text-muted-foreground truncate">{company.industry}</p>
                         )}

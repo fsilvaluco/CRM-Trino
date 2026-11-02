@@ -547,6 +547,7 @@ export default function TasksPage() {
                         }}
                         className="mt-0.5 shrink-0 cursor-pointer text-muted-foreground hover:text-primary transition-colors"
                         title="Cambiar estado"
+                        aria-label={`Cambiar estado de "${task.title}" (ahora: ${STATUS_LABELS[task.status]})`}
                       >
                         {done ? (
                           <CheckCircle2 className="h-5 w-5 text-green-600" />
@@ -563,11 +564,19 @@ export default function TasksPage() {
                             <span
                               className="h-2 w-2 rounded-full bg-red-500 shrink-0"
                               title="Actividad nueva sin ver"
-                            />
+                            >
+                              <span className="sr-only">Actividad nueva sin ver</span>
+                            </span>
                           )}
-                          <span className={`text-sm font-medium ${done ? "line-through text-muted-foreground" : ""}`}>
+                          {/* El <li> responde al clic en toda la fila; este boton da el
+                              mismo acceso con teclado y lector de pantalla. */}
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setSelectedTaskId(task.id); }}
+                            className={`text-left text-sm font-medium rounded-sm cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${done ? "line-through text-muted-foreground" : ""}`}
+                          >
                             {task.title}
-                          </span>
+                          </button>
                           <Badge className={`text-xs ${priority.className}`} variant="secondary">
                             {priority.label}
                           </Badge>
@@ -612,6 +621,7 @@ export default function TasksPage() {
                           }}
                           className="text-muted-foreground hover:text-destructive transition-colors cursor-pointer shrink-0"
                           title="Eliminar tarea"
+                          aria-label={`Eliminar tarea "${task.title}"`}
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>

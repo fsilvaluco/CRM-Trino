@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -201,7 +202,9 @@ export function ContactsTable({ contacts, onAddContact }: ContactsTableProps) {
               >
                 <TableCell>
                   <div>
-                    <p className="font-medium">{contact.name}</p>
+                    <Link href={`/contacts/${contact.id}`} onClick={(e) => e.stopPropagation()} className="font-medium rounded-sm hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                      {contact.name}
+                    </Link>
                     <p className="text-xs text-muted-foreground">
                       {contact.email || "Sin email"}
                     </p>

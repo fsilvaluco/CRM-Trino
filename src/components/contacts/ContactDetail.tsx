@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -238,10 +239,10 @@ export function ContactDetailClient({
             ) : (
               <div className="space-y-3">
                 {deals.map((deal) => (
-                  <div
+                  <Link
                     key={deal.id}
-                    className="p-3 rounded-lg border cursor-pointer hover:bg-muted/50"
-                    onClick={() => router.push(`/deals/${deal.id}`)}
+                    href={`/deals/${deal.id}`}
+                    className="block p-3 rounded-lg border hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                   >
                     <p className="text-sm font-medium">{deal.title}</p>
                     <div className="flex items-center justify-between mt-1">
@@ -258,7 +259,7 @@ export function ContactDetailClient({
                         {deal.stageName}
                       </Badge>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}
