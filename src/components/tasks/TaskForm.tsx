@@ -253,7 +253,9 @@ export function TaskForm({
                 }
               >
                 <SelectTrigger id="task-priority" className="cursor-pointer">
-                  <SelectValue />
+                  <SelectValue>
+                    {({ low: "Baja", medium: "Media", high: "Alta" } as Record<string, string>)[watch("priority")]}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="low">Baja</SelectItem>

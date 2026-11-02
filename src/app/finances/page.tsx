@@ -335,14 +335,14 @@ export default function FinancesPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Finanzas</h1>
           <p className="text-muted-foreground text-sm">
             {isAllProjects || !activeProject ? "Todos los proyectos" : `Proyecto: ${activeProject.name}`}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex-wrap flex items-center gap-2">
           <Button
             variant={hasActiveFilters ? "default" : "outline"}
             onClick={() => setShowFilters((v) => !v)}

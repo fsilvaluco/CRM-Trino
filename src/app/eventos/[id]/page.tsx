@@ -1512,7 +1512,7 @@ export default function EventDetailPage() {
       {/* Resumen financiero -- oculto para roles restringidos (artist/staff),
           ver canViewCosts en GET /api/eventos/[id]. */}
       {event.canViewCosts !== false && (
-        <div className="grid grid-cols-4 gap-3" data-section="summary">
+        <div className="grid grid-cols-2 sm:grid-cols-4 print:grid-cols-4 gap-3" data-section="summary">
           <Card><CardContent className="p-3 print:p-1.5"><p className="text-xs print:text-[9px] text-muted-foreground">Fee</p><p className="font-semibold print:text-xs print:whitespace-nowrap">{formatCents(event.fee)}</p></CardContent></Card>
           <Card><CardContent className="p-3 print:p-1.5"><p className="text-xs print:text-[9px] text-muted-foreground">Entradas</p><p className="font-semibold print:text-xs print:whitespace-nowrap">{formatCents(event.ticketIncome)}</p></CardContent></Card>
           <Card><CardContent className="p-3 print:p-1.5"><p className="text-xs print:text-[9px] text-muted-foreground">Egresos</p><p className="font-semibold print:text-xs print:whitespace-nowrap">{formatCents(event.expenses)}</p></CardContent></Card>

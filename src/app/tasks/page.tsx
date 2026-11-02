@@ -28,6 +28,7 @@ import { formatDate } from "@/lib/constants";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/shared/ConfirmProvider";
 import { deleteWithUndo } from "@/lib/undo-toast";
+import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import type { TaskStatus, TaskPriority } from "@/types";
 import { useProject } from "@/lib/project-context";
 import { useNotifications } from "@/lib/notifications-context";
@@ -176,6 +177,8 @@ export default function TasksPage() {
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [activeTab, setActiveTab] = useState<"kanban" | "lista" | "gantt">("kanban");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  // Bajo md no hay espacio para lista + panel: el detalle se abre a pantalla completa.
+  const isMobile = useMediaQuery("(max-width: 767px)");
 
   useEffect(() => {
     const fromUrl = searchParams.get("taskId");
@@ -672,7 +675,7 @@ export default function TasksPage() {
 
   // ── Vista Lista con tarea seleccionada: split layout ─────────────────────
 
-  if (selectedTaskId && activeTab === "lista") {
+  if (selectedTaskId && activeTab === "lista" && !isMobile) {
     return (
       <>
         {taskFormDialog}
@@ -725,8 +728,28 @@ export default function TasksPage() {
       {filterBar}
       {tabsContent}
 
+      {/* Movil (cualquier vista): detalle a pantalla completa, sobre la
+          barra de navegacion inferior. */}
+      {selectedTaskId && isMobile && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Detalle de la tarea"
+          className="fixed inset-0 z-50 flex flex-col bg-background"
+        >
+          <TaskDetailSheet
+            taskId={selectedTaskId}
+            open={true}
+            onClose={() => setSelectedTaskId(null)}
+            onUpdated={handleTaskUpdated}
+            onDeleteRequest={deleteTask}
+            panelMode={true}
+          />
+        </div>
+      )}
+
       {/* Kanban o Gantt con tarea: overlay superpuesto + redimensionable */}
-      {selectedTaskId && (activeTab === "kanban" || activeTab === "gantt") && (
+      {selectedTaskId && !isMobile && (activeTab === "kanban" || activeTab === "gantt") && (
         <>
           {/* Capa 2: overlay sin blur */}
           <div

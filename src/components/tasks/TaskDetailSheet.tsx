@@ -594,7 +594,8 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, o
                     onValueChange={(v) => patch({ status: v })}
                   >
                     <SelectTrigger className="h-8 text-sm">
-                      <SelectValue />
+                      {/* Base UI muestra el value crudo ("en_curso") si no se le da la etiqueta. */}
+                      <SelectValue>{STATUS_LABELS[task.status as TaskStatus] ?? task.status}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {ALL_STATUSES.map((s) => (
@@ -612,7 +613,7 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, o
                     onValueChange={(v) => patch({ priority: v })}
                   >
                     <SelectTrigger className="h-8 text-sm">
-                      <SelectValue />
+                      <SelectValue>{PRIORITY_CONFIG[task.priority as TaskPriority]?.label ?? task.priority}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {(["low", "medium", "high"] as TaskPriority[]).map((p) => (

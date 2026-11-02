@@ -175,14 +175,14 @@ export default function EventosPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Eventos</h1>
           <p className="text-muted-foreground">
             {isAllProjects || !activeProject ? "Todos los proyectos" : `Proyecto: ${activeProject.name}`}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex-wrap flex items-center gap-2">
           <Link href="/analytics/eventos" className={buttonVariants({ variant: "outline" })}>
             <BarChart2 className="h-4 w-4 mr-1.5" />
             Ver en Métricas

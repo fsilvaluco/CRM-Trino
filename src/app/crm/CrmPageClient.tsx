@@ -231,7 +231,7 @@ export default function CrmPageClient() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">CRM</h1>
           <p className="text-muted-foreground">
@@ -240,7 +240,7 @@ export default function CrmPageClient() {
               : `${totalDeals} deal${totalDeals !== 1 ? "s" : ""} en el pipeline`}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex-wrap flex gap-2">
           <Button
             variant="outline"
             onClick={() => window.open("/api/export?type=deals")}
