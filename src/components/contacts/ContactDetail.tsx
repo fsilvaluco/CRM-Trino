@@ -23,6 +23,7 @@ import { useLocale } from "@/lib/locale-context";
 import { SOURCE_LABELS } from "@/lib/constants";
 import { toast } from "sonner";
 import type { LeadSource } from "@/types";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 
 interface ContactDetailClientProps {
@@ -53,6 +54,7 @@ export function ContactDetailClient({
   contact,
   deals,
 }: ContactDetailClientProps) {
+  const confirm = useConfirm();
   const router = useRouter();
   const { formatCurrency, formatDate } = useLocale();
   const [showEditForm, setShowEditForm] = useState(false);
@@ -70,7 +72,14 @@ export function ContactDetailClient({
   };
 
   const handleDelete = async () => {
-    if (!confirm("Estas seguro de eliminar este contacto? Esta accion no se puede deshacer.")) {
+    if (
+      !(await confirm({
+        title: "¿Seguro que quieres eliminar este contacto?",
+        description: "Esta acción no se puede deshacer.",
+        confirmLabel: "Eliminar contacto",
+        destructive: true,
+      }))
+    ) {
       return;
     }
 

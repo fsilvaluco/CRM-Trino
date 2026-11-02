@@ -21,6 +21,7 @@ import {
 import { toast } from "sonner";
 import { Loader2, ChevronDown, ChevronRight, Settings2, Trash2, UserPlus, ShieldAlert } from "lucide-react";
 import { ModulePermissionsEditor, type ModuleKey, type ModulePermission } from "@/components/settings/ModulePermissionsEditor";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 type ProjectRole = "admin" | "member" | "artist" | "staff";
 
@@ -57,6 +58,7 @@ interface Overview {
 }
 
 export default function PermissionsAdminPage() {
+  const confirm = useConfirm();
   const [data, setData] = useState<Overview | null>(null);
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
@@ -108,7 +110,7 @@ export default function PermissionsAdminPage() {
   };
 
   const handleRemove = async (membershipId: string, name: string) => {
-    if (!confirm(`¿Sacar a ${name} de este proyecto?`)) return;
+    if (!(await confirm({ title: `¿Sacar a ${name} de este proyecto?`, confirmLabel: "Sacar del proyecto", destructive: true }))) return;
     const res = await fetch("/api/admin/project-members", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },

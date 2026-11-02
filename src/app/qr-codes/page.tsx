@@ -13,8 +13,10 @@ import { toast } from "sonner";
 import { QrCode, Plus, Pencil, Trash2, Copy, Download, ScanLine } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 export default function QrCodesPage() {
+  const confirm = useConfirm();
   const { activeProject } = useProject();
   const [items, setItems] = useState<QrCodeItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,7 +70,7 @@ export default function QrCodesPage() {
   }
 
   async function handleDelete(item: QrCodeItem) {
-    if (!confirm(`¿Eliminar el link "${item.label}"? Si ya está impreso o compartido en algún lado, dejará de funcionar. Esta acción no se puede deshacer.`)) return;
+    if (!(await confirm({ title: `¿Eliminar el link "${item.label}"?`, description: "Si ya está impreso o compartido en algún lado, dejará de funcionar. Esta acción no se puede deshacer.", confirmLabel: "Eliminar link", destructive: true }))) return;
     setDeletingId(item.id);
     try {
       const res = await fetch(`/api/qr/${item.id}`, { method: "DELETE" });

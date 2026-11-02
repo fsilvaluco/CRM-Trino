@@ -18,6 +18,7 @@ import { supabase } from "@/lib/supabase";
 import { SignedFileLink } from "@/components/finances/SignedFileLink";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 const CLP = new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
 function formatCents(cents: number): string {
@@ -363,6 +364,7 @@ function NewContributionDialog({ open, onClose, projectId, onCreated }: { open: 
 }
 
 function LoanCard({ loan, onChanged, onEdit }: { loan: Loan; onChanged: () => void; onEdit: (loan: Loan) => void }) {
+  const confirm = useConfirm();
   const [expanded, setExpanded] = useState(false);
   const [showRepayment, setShowRepayment] = useState(false);
   const pct = loan.principalAmount > 0 ? Math.min(100, Math.round((loan.repaidAmount / loan.principalAmount) * 100)) : 0;
@@ -379,7 +381,7 @@ function LoanCard({ loan, onChanged, onEdit }: { loan: Loan; onChanged: () => vo
   }
 
   async function deleteLoan() {
-    if (!confirm(`¿Eliminar el préstamo de ${loan.lenderName}? Se borran también sus abonos.`)) return;
+    if (!(await confirm({ title: `¿Eliminar el préstamo de ${loan.lenderName}?`, description: "Se borran también sus abonos.", confirmLabel: "Eliminar préstamo", destructive: true }))) return;
     const res = await fetch(`/api/loans/${loan.id}`, { method: "DELETE" });
     if (!res.ok) { toast.error("No se pudo eliminar"); return; }
     toast.success("Préstamo eliminado");
@@ -387,7 +389,7 @@ function LoanCard({ loan, onChanged, onEdit }: { loan: Loan; onChanged: () => vo
   }
 
   async function deleteRepayment(repaymentId: string) {
-    if (!confirm("¿Eliminar este abono?")) return;
+    if (!(await confirm({ title: "¿Eliminar este abono?", confirmLabel: "Eliminar abono", destructive: true }))) return;
     const res = await fetch(`/api/loans/${loan.id}/repayments/${repaymentId}`, { method: "DELETE" });
     if (!res.ok) { toast.error("No se pudo eliminar"); return; }
     onChanged();
@@ -472,6 +474,7 @@ function LoanCard({ loan, onChanged, onEdit }: { loan: Loan; onChanged: () => vo
 }
 
 export default function LoansPage() {
+  const confirm = useConfirm();
   const { activeProject } = useProject();
   const projectId = activeProject?.id ?? null;
   const [loans, setLoans] = useState<Loan[]>([]);
@@ -501,7 +504,7 @@ export default function LoansPage() {
   useEffect(() => { void load(); }, [load]);
 
   async function deleteContribution(id: string) {
-    if (!confirm("¿Eliminar este aporte?")) return;
+    if (!(await confirm({ title: "¿Eliminar este aporte?", confirmLabel: "Eliminar aporte", destructive: true }))) return;
     const res = await fetch(`/api/loan-contributions/${id}`, { method: "DELETE" });
     if (!res.ok) { toast.error("No se pudo eliminar"); return; }
     toast.success("Aporte eliminado");

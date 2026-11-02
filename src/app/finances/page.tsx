@@ -21,6 +21,7 @@ import { useAuth } from "@/lib/auth-context";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { parseFlexibleDate } from "@/lib/constants";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 interface Transaction {
   id: string;
@@ -209,6 +210,7 @@ function TransactionList({
 }
 
 export default function FinancesPage() {
+  const confirm = useConfirm();
   const { user } = useAuth();
   const { activeProject, isAllProjects } = useProject();
   const activeProjectId = activeProject?.id ?? null;
@@ -275,7 +277,7 @@ export default function FinancesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("¿Eliminar este comprobante?")) return;
+    if (!(await confirm({ title: "¿Eliminar este comprobante?", confirmLabel: "Eliminar comprobante", destructive: true }))) return;
     const res = await fetch(`/api/finances/${id}`, { method: "DELETE" });
     if (!res.ok) { toast.error("Error al eliminar"); return; }
     toast.success("Comprobante eliminado");

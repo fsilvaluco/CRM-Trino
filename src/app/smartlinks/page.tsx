@@ -11,8 +11,10 @@ import { PlatformIcon } from "@/components/smartlinks/PlatformIcon";
 import { useProject } from "@/lib/project-context";
 import { toast } from "sonner";
 import { Link2, Plus, Pencil, Trash2, Copy, BarChart2, Music2 } from "lucide-react";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 export default function SmartlinksPage() {
+  const confirm = useConfirm();
   const { activeProject } = useProject();
   const [items, setItems] = useState<SmartlinkItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,7 +56,7 @@ export default function SmartlinksPage() {
   }
 
   async function handleDelete(item: SmartlinkItem) {
-    if (!confirm(`¿Eliminar el smartlink "${item.title}"? Si ya lo compartiste en algún lado, dejará de funcionar. Esta acción no se puede deshacer.`)) return;
+    if (!(await confirm({ title: `¿Eliminar el smartlink "${item.title}"?`, description: "Si ya lo compartiste en algún lado, dejará de funcionar. Esta acción no se puede deshacer.", confirmLabel: "Eliminar smartlink", destructive: true }))) return;
     setDeletingId(item.id);
     try {
       const res = await fetch(`/api/smartlinks/${item.id}`, { method: "DELETE" });

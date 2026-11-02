@@ -28,6 +28,7 @@ import {
   parseAmountInput,
   type SettlementCurrency,
 } from "@/lib/settlement-money";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 interface ProjectMemberOption {
   userId: string;
@@ -108,6 +109,7 @@ export function SettlementFormDialog({
   /** Si viene seteado, el diálogo edita esta liquidación (PUT) en vez de crear una nueva (POST). */
   initialData?: SettlementInitialData | null;
 }) {
+  const confirm = useConfirm();
   const isEdit = Boolean(initialData);
   const [type, setType] = useState<SettlementType>("regalias");
   const [periodMonth, setPeriodMonth] = useState(String(new Date().getMonth() + 1));
@@ -283,10 +285,14 @@ export function SettlementFormDialog({
         // firmas del equipo se borran y las de la contraparte quedan
         // invalidadas. Se pide confirmación explícita antes de hacerlo.
         if (res.status === 409 && body.needsConfirmation) {
-          const ok = confirm(
-            `${body.error}\n\nFirmas del equipo que se borran: ${body.internalCount}. ` +
-              `Firmas de la contraparte que quedan invalidadas (se conservan como respaldo): ${body.externalCount}.\n\n¿Guardar igual?`
-          );
+          const ok = await confirm({
+            title: "¿Guardar igual?",
+            description:
+              `${body.error}\n\nFirmas del equipo que se borran: ${body.internalCount}. ` +
+              `Firmas de la contraparte que quedan invalidadas (se conservan como respaldo): ${body.externalCount}.`,
+            confirmLabel: "Guardar y borrar firmas",
+            destructive: true,
+          });
           if (ok) {
             setSaving(false);
             await handleSubmit(true);

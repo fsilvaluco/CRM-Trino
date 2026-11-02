@@ -24,6 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 interface Member {
   user_id: string;
@@ -55,6 +56,7 @@ const STATUS_LABELS: Record<Member["status"], string> = {
 };
 
 export function OrgMembersPanel() {
+  const confirm = useConfirm();
   const router = useRouter();
   const { activeProject } = useProject();
   const [members, setMembers] = useState<Member[]>([]);
@@ -154,7 +156,14 @@ export function OrgMembersPanel() {
   };
 
   const handleRemove = async (userId: string, name: string) => {
-    if (!confirm(`¿Eliminar a ${name} de la organización?`)) return;
+    if (
+      !(await confirm({
+        title: `¿Eliminar a ${name} de la organización?`,
+        confirmLabel: "Eliminar miembro",
+        destructive: true,
+      }))
+    )
+      return;
     setDeletingUserId(userId);
     try {
       const res = await fetch("/api/org-members", {

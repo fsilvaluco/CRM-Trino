@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import type { Dossier, ProjectFont } from "@/types/analytics";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 // pdf.js solo se usa para contar páginas al subir -- carga dinámica, mismo
 // motivo que en usePdfDocument (no existe en SSR). El worker se sirve
@@ -31,6 +32,7 @@ async function countPdfPages(file: File): Promise<number> {
 }
 
 export default function DossierListPage() {
+  const confirm = useConfirm();
   const { activeProject } = useProject();
   const [dossiers, setDossiers] = useState<Dossier[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,7 +60,7 @@ export default function DossierListPage() {
   }, [loadFonts]);
 
   const handleDeleteFont = async (id: string) => {
-    if (!confirm("¿Eliminar esta tipografía? Los campos del Dossier que la usan van a dejar de verse con ella.")) return;
+    if (!(await confirm({ title: "¿Eliminar esta tipografía?", description: "Los campos del Dossier que la usan van a dejar de verse con ella.", confirmLabel: "Eliminar tipografía", destructive: true }))) return;
     try {
       const res = await fetch(`/api/project-fonts/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
@@ -132,7 +134,7 @@ export default function DossierListPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("¿Eliminar este dossier? Se pierde el PDF y las posiciones guardadas.")) return;
+    if (!(await confirm({ title: "¿Eliminar este dossier?", description: "Se pierde el PDF y las posiciones guardadas.", confirmLabel: "Eliminar dossier", destructive: true }))) return;
     try {
       const res = await fetch(`/api/dossiers/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();

@@ -21,6 +21,7 @@ import {
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, DollarSign, Briefcase, CheckSquare, Users2, Target, Music2, Newspaper, Ticket, ArrowLeft, Sparkles, TrendingUp, TrendingDown, Minus, History } from "lucide-react";
 import { useLocale } from "@/lib/locale-context";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 type GoalMetricType =
   | "ventas_deals"
@@ -448,6 +449,7 @@ function GoalHistoryDialog({
 }
 
 export function GoalsPanel({ projectId }: { projectId: string }) {
+  const confirm = useConfirm();
   const { formatCurrency } = useLocale();
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -469,7 +471,15 @@ export function GoalsPanel({ projectId }: { projectId: string }) {
   }, [loadGoals]);
 
   async function handleDelete(goal: Goal) {
-    if (!confirm(`¿Borrar la meta "${goal.title}"? No la vas a usar más en este proyecto.`)) return;
+    if (
+      !(await confirm({
+        title: `¿Borrar la meta "${goal.title}"?`,
+        description: "No la vas a usar más en este proyecto.",
+        confirmLabel: "Borrar meta",
+        destructive: true,
+      }))
+    )
+      return;
     try {
       const res = await fetch(`/api/goals/${goal.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();

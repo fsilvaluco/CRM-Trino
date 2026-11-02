@@ -8,6 +8,7 @@ import { Mail, Plus, Trash2, Loader2, Play, ChevronDown, ChevronUp, AlertTriangl
 import { useProject } from "@/lib/project-context";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 interface SyncRun {
   id: string;
@@ -32,6 +33,7 @@ interface GmailConnection {
 }
 
 export function GmailConnectionsPanel() {
+  const confirm = useConfirm();
   const { activeProject } = useProject();
   const [connections, setConnections] = useState<GmailConnection[]>([]);
   const [loading, setLoading] = useState(true);
@@ -121,7 +123,15 @@ export function GmailConnectionsPanel() {
   };
 
   const handleDisconnect = async (id: string, email: string) => {
-    if (!confirm(`¿Desconectar ${email}? El detector dejara de leer esta cuenta.`)) return;
+    if (
+      !(await confirm({
+        title: `¿Desconectar ${email}?`,
+        description: "El detector dejará de leer esta cuenta.",
+        confirmLabel: "Desconectar",
+        destructive: true,
+      }))
+    )
+      return;
     setRemovingId(id);
     try {
       const res = await fetch(`/api/integrations/gmail/connections/${id}`, { method: "DELETE" });

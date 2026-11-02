@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Loader2, Users } from "lucide-react";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 interface DuplicateContact {
   id: string;
@@ -39,6 +40,7 @@ interface DuplicateContactsDialogProps {
 }
 
 export function DuplicateContactsDialog({ open, onClose, onMerged, projectId }: DuplicateContactsDialogProps) {
+  const confirm = useConfirm();
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState<DuplicateGroup[]>([]);
   // Por grupo (indexado por matchValue): id del contacto principal + set de ids marcados para fusionar
@@ -114,12 +116,15 @@ export function DuplicateContactsDialog({ open, onClose, onMerged, projectId }: 
       .filter((c) => mergeIds.includes(c.id))
       .map((c) => `• ${c.name}`)
       .join("\n");
-    const confirmed = window.confirm(
-      `¿Fusionar ${mergeIds.length} contacto(s) en "${primaryName}"?\n\n` +
+    const confirmed = await confirm({
+      title: `¿Fusionar ${mergeIds.length} contacto(s) en "${primaryName}"?`,
+      description:
         `${mergedNames}\n\n` +
         "Sus deals y actividades pasarán al contacto principal y los duplicados " +
-        "se archivarán. Esta acción no se puede deshacer desde aquí."
-    );
+        "se archivarán. Esta acción no se puede deshacer desde aquí.",
+      confirmLabel: "Fusionar contactos",
+      destructive: true,
+    });
     if (!confirmed) return;
 
     setMergingGroup(group.matchValue);

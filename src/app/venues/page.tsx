@@ -11,8 +11,10 @@ import { useProject } from "@/lib/project-context";
 import { toast } from "sonner";
 import { MapPin, Plus, Pencil, Trash2, Search, Users2, Building2 } from "lucide-react";
 import type { VenueWithDetails } from "@/types/venues";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 export default function VenuesPage() {
+  const confirm = useConfirm();
   const { activeProject } = useProject();
   const [venues, setVenues] = useState<VenueWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,7 +51,7 @@ export default function VenuesPage() {
 
   async function handleDelete(venue: VenueWithDetails) {
     if (!activeProject?.id) return;
-    if (!confirm(`¿Quitar "${venue.name}" de tus venues? El lugar sigue existiendo en el catálogo si otro proyecto lo usa -- esto solo quita tus datos privados (capacidad, contacto, etc.). Esta acción no se puede deshacer.`)) return;
+    if (!(await confirm({ title: `¿Quitar "${venue.name}" de tus venues?`, description: "El lugar sigue existiendo en el catálogo si otro proyecto lo usa; esto solo quita tus datos privados (capacidad, contacto, etc.). Esta acción no se puede deshacer.", confirmLabel: "Quitar venue", destructive: true }))) return;
     setDeletingId(venue.id);
     try {
       const res = await fetch(`/api/venues/${venue.id}?projectId=${activeProject.id}`, { method: "DELETE" });

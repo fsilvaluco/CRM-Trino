@@ -23,6 +23,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
 import { PRESS_TYPE_LABELS, PRESS_SOURCE_LABELS, type PressMention, type PressMentionType, type PressMentionSource } from "@/types/press";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 interface PressMentionsTableProps {
   mentions: PressMention[];
@@ -37,6 +38,7 @@ const SOURCE_BADGE_VARIANT: Record<PressMentionSource, "default" | "secondary" |
 };
 
 export function PressMentionsTable({ mentions, onEdit, onDeleted }: PressMentionsTableProps) {
+  const confirm = useConfirm();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<PressMentionType | "all">("all");
   const [sourceFilter, setSourceFilter] = useState<PressMentionSource | "all">("all");
@@ -48,7 +50,14 @@ export function PressMentionsTable({ mentions, onEdit, onDeleted }: PressMention
   );
 
   const handleDelete = async (mention: PressMention) => {
-    if (!confirm(`¿Eliminar la mención de "${mention.outlet}"?`)) return;
+    if (
+      !(await confirm({
+        title: `¿Eliminar la mención de "${mention.outlet}"?`,
+        confirmLabel: "Eliminar mención",
+        destructive: true,
+      }))
+    )
+      return;
     setDeletingId(mention.id);
     try {
       const res = await fetch(`/api/analytics/press/${mention.id}`, { method: "DELETE" });

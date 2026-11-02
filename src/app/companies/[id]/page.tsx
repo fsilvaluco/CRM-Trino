@@ -26,6 +26,7 @@ import { formatDate } from "@/lib/constants";
 import { useLocale } from "@/lib/locale-context";
 import { toast } from "sonner";
 import type { Company, Contact, Deal, Project, Task } from "@/types";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 interface CompanyDetail extends Company {
   contacts: Contact[];
@@ -35,6 +36,7 @@ interface CompanyDetail extends Company {
 }
 
 export default function CompanyDetailPage() {
+  const confirm = useConfirm();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { formatCurrency } = useLocale();
@@ -58,7 +60,7 @@ export default function CompanyDetailPage() {
   }, [loadCompany]);
 
   const handleDelete = async () => {
-    if (!confirm("¿Eliminar esta empresa?")) return;
+    if (!(await confirm({ title: "¿Eliminar esta empresa?", confirmLabel: "Eliminar empresa", destructive: true }))) return;
     try {
       const res = await fetch(`/api/companies/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();

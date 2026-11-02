@@ -23,6 +23,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { parseFlexibleDate } from "@/lib/constants";
 import { formatSettlementAmount, type SettlementCurrency } from "@/lib/settlement-money";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 interface Signer {
   userId: string;
@@ -265,6 +266,7 @@ function EventReceiptFolder({ receipt }: { receipt: EventReceipt }) {
 }
 
 export default function ComprobantesPage() {
+  const confirm = useConfirm();
   const { user } = useAuth();
   const { activeProject, isAllProjects } = useProject();
   const activeProjectId = activeProject?.id ?? null;
@@ -310,7 +312,7 @@ export default function ComprobantesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("¿Eliminar esta liquidación?")) return;
+    if (!(await confirm({ title: "¿Eliminar esta liquidación?", confirmLabel: "Eliminar liquidación", destructive: true }))) return;
     const res = await fetch(`/api/settlements/${id}`, { method: "DELETE" });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));

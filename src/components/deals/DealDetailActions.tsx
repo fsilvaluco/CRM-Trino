@@ -5,15 +5,25 @@ import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useProject } from "@/lib/project-context";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 export function DealDetailActions({ dealId, dealTitle }: { dealId: string; dealTitle: string }) {
+  const confirm = useConfirm();
   const { isAdmin } = useProject();
   const router = useRouter();
 
   if (!isAdmin) return null;
 
   async function handleDelete() {
-    if (!confirm(`¿Eliminar "${dealTitle}"? Esta accion no se puede deshacer.`)) return;
+    if (
+      !(await confirm({
+        title: `¿Eliminar "${dealTitle}"?`,
+        description: "Esta acción no se puede deshacer.",
+        confirmLabel: "Eliminar deal",
+        destructive: true,
+      }))
+    )
+      return;
     try {
       const res = await fetch(`/api/deals/${dealId}`, { method: "DELETE" });
       if (!res.ok) {

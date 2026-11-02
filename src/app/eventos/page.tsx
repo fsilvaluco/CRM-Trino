@@ -15,6 +15,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import type { LiveShow, ShowStatus } from "@/types/shows";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 const STATUS_CONFIG: Record<ShowStatus, { label: string; className: string }> = {
   cotizando: { label: "Cotizando", className: "bg-yellow-100 text-yellow-700" },
@@ -59,6 +60,7 @@ function needsConfirmation(show: LiveShow): boolean {
 }
 
 export default function EventosPage() {
+  const confirm = useConfirm();
   const { activeProject, isAllProjects, projects } = useProject();
   const [shows, setShows] = useState<LiveShow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -133,7 +135,7 @@ export default function EventosPage() {
   }
 
   async function handleDelete(show: LiveShow) {
-    if (!confirm(`¿Eliminar el evento "${show.name}"? Esta acción no se puede deshacer.`)) return;
+    if (!(await confirm({ title: `¿Eliminar el evento "${show.name}"?`, description: "Esta acción no se puede deshacer.", confirmLabel: "Eliminar evento", destructive: true }))) return;
     try {
       const res = await fetch(`/api/eventos/${show.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();

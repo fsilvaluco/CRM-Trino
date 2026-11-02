@@ -20,6 +20,7 @@ import {
 import { formatDate } from "@/lib/constants";
 import { toast } from "sonner";
 import type { Project, Subproject, Task } from "@/types";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 interface ProjectDetail extends Project {
   subprojects: Subproject[];
@@ -41,6 +42,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export default function ProjectDetailPage() {
+  const confirm = useConfirm();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [project, setProject] = useState<ProjectDetail | null>(null);
@@ -63,7 +65,7 @@ export default function ProjectDetailPage() {
   }, [loadProject]);
 
   const handleDelete = async () => {
-    if (!confirm("¿Eliminar este proyecto?")) return;
+    if (!(await confirm({ title: "¿Eliminar este proyecto?", confirmLabel: "Eliminar proyecto", destructive: true }))) return;
     try {
       const res = await fetch(`/api/projects/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
@@ -75,7 +77,7 @@ export default function ProjectDetailPage() {
   };
 
   const deleteSubproject = async (subId: string) => {
-    if (!confirm("¿Eliminar este subproyecto?")) return;
+    if (!(await confirm({ title: "¿Eliminar este subproyecto?", confirmLabel: "Eliminar subproyecto", destructive: true }))) return;
     try {
       await fetch(`/api/subprojects/${subId}`, { method: "DELETE" });
       toast.success("Subproyecto eliminado");

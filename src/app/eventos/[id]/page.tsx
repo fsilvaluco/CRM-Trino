@@ -47,6 +47,8 @@ import { supabase } from "@/lib/supabase";
 import { SignedFileLink } from "@/components/finances/SignedFileLink";
 import { fileToBase64 } from "@/components/finances/TransactionForm";
 import { extractAddressCandidate, mapsSearchUrl } from "@/lib/address-detect";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
+import { useUnsavedChangesWarning } from "@/lib/hooks/use-unsaved-changes-warning";
 
 // Vía por la que se actualizaron por última vez los tramos de venta
 // (migración 094). Se muestra junto a la fecha para saber si los números
@@ -234,6 +236,11 @@ export default function EventDetailPage() {
   const [ticketSalesUrl, setTicketSalesUrl] = useState("");
   const [syncingTickets, setSyncingTickets] = useState(false);
   const [detailsDirty, setDetailsDirty] = useState(false);
+  const confirm = useConfirm();
+  useUnsavedChangesWarning(
+    setlistDirty || contactsDirty || timingDirty || ticketsDirty || costsDirty || detailsDirty,
+    "Tienes cambios sin guardar en este evento (setlist, contactos, timing, entradas, costos o detalles). Si sales ahora, se pierden."
+  );
   const [savingDetails, setSavingDetails] = useState(false);
 
   // Bug real reportado por Francisco el 27 ago 2026 -- "se me ha borrado
@@ -848,7 +855,14 @@ export default function EventDetailPage() {
       toast.error("Pega primero el link de estadísticas de la ticketera");
       return;
     }
-    if (ticketsDirty && !confirm("Tienes cambios sin guardar en los tramos -- sincronizar los va a reemplazar. ¿Seguir?")) {
+    if (
+      ticketsDirty &&
+      !(await confirm({
+        title: "¿Sincronizar y reemplazar los tramos?",
+        description: "Tienes cambios sin guardar en los tramos. Sincronizar con la ticketera los va a reemplazar.",
+        confirmLabel: "Sincronizar igual",
+      }))
+    ) {
       return;
     }
     setSyncingTickets(true);
@@ -1165,7 +1179,15 @@ export default function EventDetailPage() {
       toast.error("Guarda los costos primero antes de cerrar la caja");
       return;
     }
-    if (!confirm("¿Cerrar la caja de este evento? Los costos quedarán de solo lectura hasta que la reabras.")) return;
+    if (
+      !(await confirm({
+        title: "¿Cerrar la caja de este evento?",
+        description: "Los costos quedarán de solo lectura hasta que la reabras.",
+        confirmLabel: "Cerrar caja",
+        destructive: false,
+      }))
+    )
+      return;
     setClosingCosts(true);
     try {
       const res = await fetch(`/api/eventos/${id}/costs/close`, { method: "POST" });
@@ -1200,11 +1222,22 @@ export default function EventDetailPage() {
   async function informClosing() {
     const already = Boolean(event?.costSheetInformedAt);
     if (
-      !confirm(
+      !(await confirm(
         already
-          ? "¿Reenviar el acta del cierre a todos los que firmaron?"
-          : "¿Mandar el acta del cierre? Va por correo a todos los que firmaron, con el resumen y el PDF de todas las firmas. Normalmente sale sola cuando termina de firmar todo el mundo -- esto sirve para adelantarla o reenviarla."
-      )
+          ? {
+              title: "¿Reenviar el acta del cierre?",
+              description: "Se envía de nuevo por correo a todos los que firmaron.",
+              confirmLabel: "Reenviar acta",
+              destructive: false,
+            }
+          : {
+              title: "¿Mandar el acta del cierre?",
+              description:
+                "Va por correo a todos los que firmaron, con el resumen y el PDF de todas las firmas. Normalmente sale sola cuando termina de firmar todo el mundo; esto sirve para adelantarla.",
+              confirmLabel: "Mandar acta",
+              destructive: false,
+            }
+      ))
     )
       return;
     setInformingClosing(true);
@@ -1222,7 +1255,13 @@ export default function EventDetailPage() {
   }
 
   async function handleRemoveClosingAttachment() {
-    if (!confirm("¿Quitar el documento adjunto del cierre?")) return;
+    if (
+      !(await confirm({
+        title: "¿Quitar el documento adjunto del cierre?",
+        confirmLabel: "Quitar documento",
+      }))
+    )
+      return;
     try {
       const res = await fetch(`/api/eventos/${id}/costs/attachment`, { method: "DELETE" });
       if (!res.ok) throw new Error();

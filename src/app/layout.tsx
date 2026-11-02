@@ -3,6 +3,7 @@ import { Inter, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
+import { ConfirmProvider } from "@/components/shared/ConfirmProvider";
 import { LocaleProvider } from "@/lib/locale-context";
 import { ThemeInitializer } from "@/components/layout/ThemeInitializer";
 import { ServiceWorkerRegistrar } from "@/components/layout/ServiceWorkerRegistrar";
@@ -66,6 +67,7 @@ export default function RootLayout({
             <ProjectProvider>
               <NotificationsProvider>
               <LocaleProvider>
+              <ConfirmProvider>
                 <ThemeInitializer />
                 <ServiceWorkerRegistrar />
                 <AppShell>
@@ -73,6 +75,7 @@ export default function RootLayout({
                 </AppShell>
                 <Toaster />
                 <UpdateNotifier />
+              </ConfirmProvider>
               </LocaleProvider>
               </NotificationsProvider>
             </ProjectProvider>

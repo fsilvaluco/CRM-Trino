@@ -33,6 +33,7 @@ import { DealCloseReasonDialog } from "@/components/deals/DealCloseReasonDialog"
 import { EventSetupDialog } from "@/components/events/EventSetupDialog";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 const CREATE_CONTACT_VALUE = "__create_new_contact__";
 const CREATE_COMPANY_VALUE = "__create_new_company__";
@@ -143,6 +144,7 @@ function toDateInputValue(value: string | null): string {
 }
 
 export function DealForm({ open, onClose, initialStageId, initialDealId, prefill }: DealFormProps) {
+  const confirm = useConfirm();
   const router = useRouter();
   const { settings } = useLocale();
   const { activeProject, projects, isAdmin } = useProject();
@@ -535,7 +537,15 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
   const handleDeleteDeal = async () => {
     if (!initialDealId) return;
     const title = watch("title") || "este deal";
-    if (!confirm(`¿Eliminar "${title}"? Esta accion no se puede deshacer.`)) return;
+    if (
+      !(await confirm({
+        title: `¿Eliminar "${title}"?`,
+        description: "Esta acción no se puede deshacer.",
+        confirmLabel: "Eliminar deal",
+        destructive: true,
+      }))
+    )
+      return;
     try {
       const res = await fetch(`/api/deals/${initialDealId}`, { method: "DELETE" });
       if (!res.ok) {

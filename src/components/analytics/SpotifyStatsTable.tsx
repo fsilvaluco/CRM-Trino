@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
 import type { SpotifyStatsSnapshot } from "@/types/analytics";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 const NUM = new Intl.NumberFormat("es-CL");
 
@@ -36,10 +37,18 @@ function fmt(n: number | null): string {
 }
 
 export function SpotifyStatsTable({ snapshots, onEdit, onDeleted }: SpotifyStatsTableProps) {
+  const confirm = useConfirm();
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const handleDelete = async (snapshot: SpotifyStatsSnapshot) => {
-    if (!confirm("¿Eliminar este registro? También se quita del gráfico de seguidores si aportaba un punto ahí.")) {
+    if (
+      !(await confirm({
+        title: "¿Eliminar este registro?",
+        description: "También se quita del gráfico de seguidores si aportaba un punto ahí.",
+        confirmLabel: "Eliminar registro",
+        destructive: true,
+      }))
+    ) {
       return;
     }
     setDeletingId(snapshot.id);

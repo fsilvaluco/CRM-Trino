@@ -26,6 +26,8 @@ import {
 } from "lucide-react";
 import { formatDate } from "@/lib/constants";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
+import { deleteWithUndo } from "@/lib/undo-toast";
 import type { TaskStatus, TaskPriority } from "@/types";
 import { useProject } from "@/lib/project-context";
 import { useNotifications } from "@/lib/notifications-context";
@@ -165,6 +167,10 @@ export default function TasksPage() {
   }, []);
   const { user } = useAuth();
   const [taskList, setTasks] = useState<TaskItem[]>([]);
+  // Tareas borradas con "Deshacer" pendiente: se ocultan aunque una recarga
+  // las traiga del servidor (todavia no se borraron alla).
+  const pendingDeleteIds = useRef<Set<string>>(new Set());
+  const confirm = useConfirm();
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
@@ -272,7 +278,11 @@ export default function TasksPage() {
     const url = activeProject ? `/api/tasks?projectId=${activeProject.id}` : "/api/tasks";
     fetch(url)
       .then((r) => r.json())
-      .then((data) => { setTasks(Array.isArray(data) ? data : []); setLoading(false); })
+      .then((data) => {
+        const list: TaskItem[] = Array.isArray(data) ? data : [];
+        setTasks(list.filter((t) => !pendingDeleteIds.current.has(t.id)));
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
   }, [activeProject]);
 
@@ -343,19 +353,37 @@ export default function TasksPage() {
     loadTasks();
   }, [loadTasks]);
 
-  const deleteTask = async (id: string) => {
-    try {
-      const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        toast.error(data.error ?? "Error al eliminar tarea");
-        return;
-      }
-      toast.success("Tarea eliminada");
-      loadTasks();
-    } catch {
-      toast.error("Error al eliminar tarea");
-    }
+  // Borrado diferido: la tarea desaparece al tiro y se borra en el servidor
+  // cuando vence el toast, salvo que el usuario presione "Deshacer".
+  const deleteTask = (task: { id: string; title: string }) => {
+    const id = task.id;
+    deleteWithUndo({
+      message: `Tarea "${task.title}" eliminada`,
+      hide: () => {
+        pendingDeleteIds.current.add(id);
+        setTasks((prev) => prev.filter((t) => t.id !== id));
+        setSelectedTaskId((current) => (current === id ? null : current));
+      },
+      restore: () => {
+        pendingDeleteIds.current.delete(id);
+        loadTasks();
+      },
+      commit: async () => {
+        const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+        pendingDeleteIds.current.delete(id);
+        if (!res.ok) throw new Error();
+      },
+      errorMessage: "No se pudo eliminar la tarea",
+    });
+  };
+
+  const requestDeleteTask = async (task: { id: string; title: string }) => {
+    const ok = await confirm({
+      title: `¿Eliminar la tarea "${task.title}"?`,
+      description: "Podrás deshacerlo durante unos segundos.",
+      confirmLabel: "Eliminar tarea",
+    });
+    if (ok) deleteTask(task);
   };
 
   // ── Derived values ───────────────────────────────────────────────────────
@@ -580,9 +608,7 @@ export default function TasksPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (confirm(`¿Eliminar la tarea "${task.title}"? Esta accion no se puede deshacer.`)) {
-                              deleteTask(task.id);
-                            }
+                            void requestDeleteTask(task);
                           }}
                           className="text-muted-foreground hover:text-destructive transition-colors cursor-pointer shrink-0"
                           title="Eliminar tarea"
@@ -670,7 +696,7 @@ export default function TasksPage() {
               open={true}
               onClose={() => setSelectedTaskId(null)}
               onUpdated={handleTaskUpdated}
-              onDeleted={loadTasks}
+              onDeleteRequest={deleteTask}
               panelMode={true}
               panelWidth={panelWidth}
             />
@@ -751,7 +777,7 @@ export default function TasksPage() {
               open={true}
               onClose={() => setSelectedTaskId(null)}
               onUpdated={handleTaskUpdated}
-              onDeleted={loadTasks}
+              onDeleteRequest={deleteTask}
               panelMode={true}
               panelWidth={panelWidth}
             />

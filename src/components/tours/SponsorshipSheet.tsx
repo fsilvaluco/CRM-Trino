@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SponsorshipFields, type SponsorshipDraft } from "@/components/tours/SponsorshipFields";
 import { SponsorshipFollowUp } from "@/components/tours/SponsorshipFollowUp";
 import type { BudgetLine, Sponsorship } from "@/types/tours";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 const EMPTY: SponsorshipDraft = { brand: "", category: "otro", status: "identificada", dossierDone: false };
 
@@ -30,6 +31,7 @@ export function SponsorshipSheet({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const confirm = useConfirm();
   const [draft, setDraft] = useState<SponsorshipDraft>(sp ?? EMPTY);
   const [saving, setSaving] = useState(false);
 
@@ -58,7 +60,16 @@ export function SponsorshipSheet({
   }
 
   async function remove() {
-    if (!sp || !confirm(`¿Eliminar "${sp.brand}" y su historial? No se puede deshacer.`)) return;
+    if (
+      !sp ||
+      !(await confirm({
+        title: `¿Eliminar "${sp.brand}" y su historial?`,
+        description: "No se puede deshacer.",
+        confirmLabel: "Eliminar marca",
+        destructive: true,
+      }))
+    )
+      return;
     const res = await fetch(`/api/giras/${tourId}/auspicios/${sp.id}`, { method: "DELETE" });
     if (!res.ok) return toast.error("No se pudo eliminar");
     onSaved();

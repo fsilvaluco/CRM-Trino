@@ -30,6 +30,7 @@ import { useProject } from "@/lib/project-context";
 import { parseFlexibleDate } from "@/lib/constants";
 import { CommentsWithMentions } from "@/components/shared/CommentsWithMentions";
 import { LoadErrorState, readLoadError } from "@/components/shared/LoadErrorState";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -94,6 +95,11 @@ interface TaskDetailSheetProps {
   onClose: () => void;
   onUpdated: (patch: TaskPatch) => void;
   onDeleted?: () => void;
+  /**
+   * Si se pasa, el sheet solo confirma y delega el borrado al padre (que lo
+   * hace con "Deshacer"). Si no, borra directo como antes.
+   */
+  onDeleteRequest?: (task: { id: string; title: string }) => void;
   /** When true, renders as an inline resizable panel instead of a Sheet overlay */
   panelMode?: boolean;
   panelWidth?: number;
@@ -131,8 +137,9 @@ function FieldRow({ label, children }: { label: string; children: React.ReactNod
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, panelMode = false, panelWidth = DEFAULT_PANEL_WIDTH }: TaskDetailSheetProps) {
+export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, onDeleteRequest, panelMode = false, panelWidth = DEFAULT_PANEL_WIDTH }: TaskDetailSheetProps) {
   const { isAdmin } = useProject();
+  const confirm = useConfirm();
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -471,7 +478,19 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, p
 
   const handleDeleteTask = async () => {
     if (!taskId || !task) return;
-    if (!confirm(`¿Eliminar la tarea "${task.title}"? Esta accion no se puede deshacer.`)) return;
+    const ok = await confirm({
+      title: `¿Eliminar la tarea "${task.title}"?`,
+      description: onDeleteRequest
+        ? "Podrás deshacerlo durante unos segundos."
+        : "Esta acción no se puede deshacer.",
+      confirmLabel: "Eliminar tarea",
+    });
+    if (!ok) return;
+    if (onDeleteRequest) {
+      onClose();
+      onDeleteRequest({ id: taskId, title: task.title });
+      return;
+    }
     try {
       const res = await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
       if (!res.ok) {

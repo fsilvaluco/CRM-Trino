@@ -8,8 +8,10 @@ import { useLocale } from "@/lib/locale-context";
 import { AddTourCostDialog } from "@/components/tours/AddTourCostDialog";
 import { BUDGET_CATEGORY_LABEL, shortDate } from "@/components/tours/labels";
 import type { TourDetail } from "@/types/tours";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 export function TourBudgetTab({ data, onChanged }: { data: TourDetail; onChanged: () => void }) {
+  const confirm = useConfirm();
   const { formatCurrency } = useLocale();
   const [adding, setAdding] = useState(false);
   const budget = data.budget;
@@ -21,7 +23,7 @@ export function TourBudgetTab({ data, onChanged }: { data: TourDetail; onChanged
   const lineLabel = new Map(budget.lines.map((l) => [l.id, l.label]));
 
   async function removeCost(id: string) {
-    if (!confirm("¿Eliminar este gasto?")) return;
+    if (!(await confirm({ title: "¿Eliminar este gasto?", confirmLabel: "Eliminar gasto", destructive: true }))) return;
     const res = await fetch(`/api/giras/${data.tour.id}/costos/${id}`, { method: "DELETE" });
     if (!res.ok) return toast.error("No se pudo eliminar");
     onChanged();
