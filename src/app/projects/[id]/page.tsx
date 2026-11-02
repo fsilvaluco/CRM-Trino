@@ -144,13 +144,13 @@ export default function ProjectDetailPage() {
             <Pencil className="h-4 w-4 mr-1" />
             Editar
           </Button>
-          <Button
+          <Button aria-label="Eliminar proyecto"
             variant="outline"
             size="sm"
             onClick={handleDelete}
             className="cursor-pointer text-destructive hover:text-destructive"
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 aria-hidden="true" className="h-4 w-4" />
           </Button>
         </div>
       </div>
@@ -255,11 +255,11 @@ export default function ProjectDetailPage() {
                     >
                       {STATUS_LABELS[sub.status] || sub.status}
                     </Badge>
-                    <button
+                    <button aria-label={`Eliminar subproyecto ${sub.name}`}
                       onClick={() => deleteSubproject(sub.id)}
                       className="text-muted-foreground hover:text-destructive cursor-pointer"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 </li>

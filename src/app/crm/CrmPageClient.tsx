@@ -235,7 +235,9 @@ export default function CrmPageClient() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">CRM</h1>
           <p className="text-muted-foreground">
-            {totalDeals} deal{totalDeals !== 1 ? "s" : ""} en el pipeline
+            {loadError
+              ? "Pipeline no disponible"
+              : `${totalDeals} deal${totalDeals !== 1 ? "s" : ""} en el pipeline`}
           </p>
         </div>
         <div className="flex gap-2">

@@ -232,24 +232,29 @@ export default function CampanasPage() {
               <Card
                 key={campaign.id}
                 className="hover:shadow-md transition-shadow cursor-pointer"
-                role="button"
-                tabIndex={0}
                 onClick={() => handleCampaignClick(campaign)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    handleCampaignClick(campaign);
-                  }
-                }}
               >
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-semibold leading-tight">{campaign.name}</h3>
+                    {/* La tarjeta completa responde al clic; el boton del titulo da
+                        el mismo acceso con teclado sin anidar interactivos. */}
+                    <h3 className="font-semibold leading-tight">
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleCampaignClick(campaign);
+                        }}
+                        className="text-left rounded-sm cursor-pointer hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                      >
+                        {campaign.name}
+                      </button>
+                    </h3>
                     <div className="flex items-center gap-2">
                       <Badge className={`shrink-0 text-xs ${statusCfg.className}`}>
                         {statusCfg.label}
                       </Badge>
-                      <Button
+                      <Button aria-label={`Eliminar campaña ${campaign.name}`}
                         type="button"
                         variant="ghost"
                         size="icon"
@@ -261,7 +266,7 @@ export default function CampanasPage() {
                           void handleDeleteCampaign(campaign);
                         }}
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
                       </Button>
                     </div>
                   </div>

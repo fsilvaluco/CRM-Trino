@@ -17,6 +17,7 @@ function LeafLink({ item, activeHref, indent = false }: { item: NavLeaf; activeH
   return (
     <Link
       href={item.href}
+      aria-current={active ? "page" : undefined}
       className={cn(
         "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer",
         indent && "pl-8",
@@ -25,9 +26,13 @@ function LeafLink({ item, activeHref, indent = false }: { item: NavLeaf; activeH
           : "text-[var(--sidebar-foreground)]/70 hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-accent-foreground)]"
       )}
     >
-      <item.icon className="h-5 w-5 shrink-0" />
+      <item.icon className="h-5 w-5 shrink-0" aria-hidden="true" />
       {item.label}
-      {hasUnseen && <span className="h-2 w-2 rounded-full bg-red-500 shrink-0" />}
+      {hasUnseen && (
+        <span className="h-2 w-2 rounded-full bg-red-500 shrink-0">
+          <span className="sr-only">Actividad nueva</span>
+        </span>
+      )}
     </Link>
   );
 }
@@ -46,6 +51,7 @@ function GroupNav({ item, activeHref }: { item: NavGroup; activeHref: string }) 
     <div>
       <button
         onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
         className={cn(
           "w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer",
           groupActive
@@ -53,9 +59,12 @@ function GroupNav({ item, activeHref }: { item: NavGroup; activeHref: string }) 
             : "text-[var(--sidebar-foreground)]/70 hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-accent-foreground)]"
         )}
       >
-        <item.icon className="h-5 w-5 shrink-0" />
+        <item.icon className="h-5 w-5 shrink-0" aria-hidden="true" />
         <span className="flex-1 text-left">{item.label}</span>
-        <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", open && "rotate-180")} />
+        <ChevronDown
+          className={cn("h-4 w-4 shrink-0 transition-transform", open && "rotate-180")}
+          aria-hidden="true"
+        />
       </button>
       {open && (
         <div className="mt-0.5 space-y-0.5">
@@ -102,7 +111,7 @@ export function MobileNav() {
         <span className="text-lg font-bold tracking-tight">Artist Pro</span>
       </div>
 
-      <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-1">
+      <nav aria-label="Navegación móvil" className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-1">
         {filterNavForProject(navConfig, activeProject?.id).map((item) =>
           item.type === "group" ? (
             <GroupNav key={item.label} item={item} activeHref={activeHref} />

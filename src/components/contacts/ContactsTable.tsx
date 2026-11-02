@@ -132,8 +132,10 @@ export function ContactsTable({ contacts, onAddContact }: ContactsTableProps) {
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
           <Input
+            type="search"
+            aria-label="Buscar contactos por nombre, email o empresa"
             placeholder="Buscar por nombre, email o empresa..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}

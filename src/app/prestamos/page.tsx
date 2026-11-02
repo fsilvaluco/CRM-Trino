@@ -410,11 +410,11 @@ function LoanCard({ loan, onChanged, onEdit }: { loan: Loan; onChanged: () => vo
             <HandCoins className="h-3.5 w-3.5 sm:mr-1" />
             <span className="hidden sm:inline">Registrar abono</span>
           </Button>
-          <button onClick={() => onEdit(loan)} className="text-muted-foreground hover:text-foreground p-1 cursor-pointer" title="Editar préstamo">
-            <Pencil className="h-3.5 w-3.5" />
+          <button aria-label={`Editar préstamo de ${loan.lenderName}`} onClick={() => onEdit(loan)} className="text-muted-foreground hover:text-foreground p-1 cursor-pointer" title="Editar préstamo">
+            <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
           </button>
-          <button onClick={deleteLoan} className="text-muted-foreground hover:text-destructive p-1 cursor-pointer" title="Eliminar préstamo">
-            <Trash2 className="h-3.5 w-3.5" />
+          <button aria-label={`Eliminar préstamo de ${loan.lenderName}`} onClick={deleteLoan} className="text-muted-foreground hover:text-destructive p-1 cursor-pointer" title="Eliminar préstamo">
+            <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
@@ -454,12 +454,12 @@ function LoanCard({ loan, onChanged, onEdit }: { loan: Loan; onChanged: () => vo
                 <span>{formatCents(r.amount)} {r.repaymentDate && `· ${format(new Date(`${r.repaymentDate}T00:00:00`), "d MMM yyyy", { locale: es })}`}</span>
                 <div className="flex items-center gap-1.5 shrink-0">
                   {r.comprobanteUrl && (
-                    <SignedFileLink path={r.comprobanteUrl} className="text-muted-foreground hover:text-foreground">
-                      <ExternalLink className="h-3 w-3" />
+                    <SignedFileLink aria-label="Ver comprobante del abono" path={r.comprobanteUrl} className="text-muted-foreground hover:text-foreground">
+                      <ExternalLink aria-hidden="true" className="h-3 w-3" />
                     </SignedFileLink>
                   )}
-                  <button onClick={() => deleteRepayment(r.id)} className="text-muted-foreground hover:text-destructive cursor-pointer">
-                    <Trash2 className="h-3 w-3" />
+                  <button aria-label="Eliminar abono" onClick={() => deleteRepayment(r.id)} className="text-muted-foreground hover:text-destructive cursor-pointer">
+                    <Trash2 aria-hidden="true" className="h-3 w-3" />
                   </button>
                 </div>
               </div>
@@ -605,12 +605,12 @@ export default function LoansPage() {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {c.comprobanteUrl && (
-                        <SignedFileLink path={c.comprobanteUrl} className="text-muted-foreground hover:text-foreground">
-                          <ExternalLink className="h-3.5 w-3.5" />
+                        <SignedFileLink aria-label="Ver comprobante del aporte" path={c.comprobanteUrl} className="text-muted-foreground hover:text-foreground">
+                          <ExternalLink aria-hidden="true" className="h-3.5 w-3.5" />
                         </SignedFileLink>
                       )}
-                      <button onClick={() => deleteContribution(c.id)} className="text-muted-foreground hover:text-destructive cursor-pointer">
-                        <Trash2 className="h-3.5 w-3.5" />
+                      <button aria-label="Eliminar aporte" onClick={() => deleteContribution(c.id)} className="text-muted-foreground hover:text-destructive cursor-pointer">
+                        <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   </div>

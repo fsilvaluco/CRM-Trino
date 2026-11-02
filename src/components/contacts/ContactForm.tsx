@@ -263,7 +263,7 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label>Empresa (opcional)</Label>
+            <Label htmlFor="contact-company">Empresa (opcional)</Label>
             <Select
               value={watch("companyId")}
               onValueChange={(v) => {
@@ -274,7 +274,7 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
                 setValue("companyId", v, { shouldValidate: true, shouldDirty: true });
               }}
             >
-              <SelectTrigger className="cursor-pointer">
+              <SelectTrigger id="contact-company" className="cursor-pointer">
                 <SelectValue placeholder="Selecciona una empresa" />
               </SelectTrigger>
               <SelectContent>
@@ -316,14 +316,14 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
 
           {artistProjects.length > 0 && (
             <div className="space-y-2">
-              <Label>Artista beneficiado (opcional)</Label>
+              <Label htmlFor="contact-artist-project">Artista beneficiado (opcional)</Label>
               <Select
                 value={watch("artistProjectId") || NO_ARTIST_VALUE}
                 onValueChange={(v) =>
                   setValue("artistProjectId", !v || v === NO_ARTIST_VALUE ? "" : v)
                 }
               >
-                <SelectTrigger className="cursor-pointer">
+                <SelectTrigger id="contact-artist-project" className="cursor-pointer">
                   <SelectValue placeholder="Ninguno" />
                 </SelectTrigger>
                 <SelectContent>
@@ -340,9 +340,9 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
           )}
 
           <div className="space-y-2">
-            <Label>Fuente</Label>
+            <Label htmlFor="contact-source">Fuente</Label>
             <Select value={watch("source")} onValueChange={(v) => v && setValue("source", v)}>
-              <SelectTrigger className="cursor-pointer">
+              <SelectTrigger id="contact-source" className="cursor-pointer">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

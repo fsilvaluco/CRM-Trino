@@ -101,14 +101,14 @@ export function ManualStatsTable({ platform, snapshots, onDeleted }: ManualStats
                 </TableCell>
               ))}
               <TableCell>
-                <Button
+                <Button aria-label="Eliminar registro"
                   size="icon"
                   variant="ghost"
                   className="h-7 w-7 text-destructive hover:text-destructive"
                   onClick={() => handleDelete(s)}
                   disabled={deletingId === s.id}
                 >
-                  {deletingId === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  {deletingId === s.id ? <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" /> : <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />}
                 </Button>
               </TableCell>
             </TableRow>

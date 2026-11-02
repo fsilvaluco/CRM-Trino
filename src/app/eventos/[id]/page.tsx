@@ -1609,14 +1609,14 @@ export default function EventDetailPage() {
                         <Checkbox checked={c.visibleOnShare} onCheckedChange={(v) => updateContact({ visibleOnShare: Boolean(v) })} />
                         <Share2 className="h-3.5 w-3.5" />
                       </label>
-                      <button
+                      <button aria-label={c.name ? `Eliminar contacto ${c.name}` : "Eliminar contacto"}
                         onClick={() => {
                           setEventContacts((prev) => prev.filter((x) => x.id !== c.id));
                           setContactsDirty(true);
                         }}
                         className="text-muted-foreground hover:text-destructive cursor-pointer p-1 shrink-0"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 aria-hidden="true" className="h-4 w-4" />
                       </button>
                     </div>
                   );
@@ -1645,7 +1645,7 @@ export default function EventDetailPage() {
                 onChange={(e) => setNewContactPhone(e.target.value)}
                 className="h-7 text-xs w-24 sm:w-36 shrink-0"
               />
-              <Button
+              <Button aria-label="Agregar contacto"
                 size="sm"
                 variant="outline"
                 className="h-8 shrink-0 cursor-pointer"
@@ -1670,7 +1670,7 @@ export default function EventDetailPage() {
                   setContactsDirty(true);
                 }}
               >
-                <Plus className="h-4 w-4" />
+                <Plus aria-hidden="true" className="h-4 w-4" />
               </Button>
             </div>
             <p className="text-xs text-muted-foreground flex items-center gap-1">
@@ -1747,14 +1747,14 @@ export default function EventDetailPage() {
                       }}
                       className="h-8 text-sm"
                     />
-                    <button
+                    <button aria-label={song.title ? `Eliminar canción ${song.title}` : "Eliminar canción"}
                       onClick={() => {
                         setSetlist((prev) => prev.filter((s) => s.id !== song.id));
                         setSetlistDirty(true);
                       }}
                       className="text-muted-foreground hover:text-destructive cursor-pointer p-1 shrink-0"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 aria-hidden="true" className="h-4 w-4" />
                     </button>
                   </div>
                 )}
@@ -1773,7 +1773,7 @@ export default function EventDetailPage() {
                 }}
                 className="h-8 text-sm"
               />
-              <Button
+              <Button aria-label="Agregar canción"
                 size="sm"
                 variant="outline"
                 className="h-8 shrink-0 cursor-pointer"
@@ -1784,7 +1784,7 @@ export default function EventDetailPage() {
                   setSetlistDirty(true);
                 }}
               >
-                <Plus className="h-4 w-4" />
+                <Plus aria-hidden="true" className="h-4 w-4" />
               </Button>
             </div>
 
@@ -1915,14 +1915,14 @@ export default function EventDetailPage() {
                         onChange={(e) => updateTimingItem({ activity: e.target.value })}
                         className="h-7 text-xs flex-1"
                       />
-                      <button
+                      <button aria-label={item.activity ? `Eliminar actividad ${item.activity}` : "Eliminar actividad"}
                         onClick={() => {
                           setTiming((prev) => prev.filter((t) => t.id !== item.id));
                           setTimingDirty(true);
                         }}
                         className="text-muted-foreground hover:text-destructive cursor-pointer p-1 shrink-0"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 aria-hidden="true" className="h-4 w-4" />
                       </button>
                     </div>
                     <div className="flex items-center gap-2 pl-0.5 flex-wrap">
@@ -1949,14 +1949,14 @@ export default function EventDetailPage() {
                         const candidate = extractAddressCandidate(item.notes);
                         if (!candidate) return null;
                         return (
-                          <a
+                          <a aria-label={`Ver "${candidate}" en Maps (se abre en una pestaña nueva)`}
                             href={mapsSearchUrl(candidate)}
                             target="_blank"
                             rel="noopener noreferrer"
                             title={`Ver "${candidate}" en Maps`}
                             className="text-muted-foreground hover:text-primary shrink-0 p-1"
                           >
-                            <MapPin className="h-3.5 w-3.5" />
+                            <MapPin aria-hidden="true" className="h-4 w-4" />
                           </a>
                         );
                       })()}
@@ -2001,18 +2001,18 @@ export default function EventDetailPage() {
                 const candidate = extractAddressCandidate(newTimingNotes);
                 if (!candidate) return null;
                 return (
-                  <a
+                  <a aria-label={`Ver "${candidate}" en Maps (se abre en una pestaña nueva)`}
                     href={mapsSearchUrl(candidate)}
                     target="_blank"
                     rel="noopener noreferrer"
                     title={`Ver "${candidate}" en Maps`}
                     className="text-muted-foreground hover:text-primary shrink-0 p-1"
                   >
-                    <MapPin className="h-3.5 w-3.5" />
+                    <MapPin aria-hidden="true" className="h-4 w-4" />
                   </a>
                 );
               })()}
-              <Button
+              <Button aria-label="Agregar actividad"
                 size="sm"
                 variant="outline"
                 className="h-7 shrink-0 cursor-pointer"
@@ -2038,7 +2038,7 @@ export default function EventDetailPage() {
                   setTimingDirty(true);
                 }}
               >
-                <Plus className="h-4 w-4" />
+                <Plus aria-hidden="true" className="h-4 w-4" />
               </Button>
             </div>
 
@@ -2231,14 +2231,14 @@ export default function EventDetailPage() {
                       onChange={(e) => updateTier({ statusLabel: e.target.value || null })}
                       className="h-7 text-xs w-16 sm:w-28 shrink-0"
                     />
-                    <button
+                    <button aria-label={tier.label ? `Eliminar entrada ${tier.label}` : "Eliminar entrada"}
                       onClick={() => {
                         setTicketTiers((prev) => prev.filter((t) => t.id !== tier.id));
                         markTicketsEdited();
                       }}
                       className="text-muted-foreground hover:text-destructive cursor-pointer p-1 shrink-0"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 aria-hidden="true" className="h-4 w-4" />
                     </button>
                   </div>
                 );
@@ -2272,7 +2272,7 @@ export default function EventDetailPage() {
               onChange={(e) => setNewTierCapacity(e.target.value)}
               className="h-7 text-xs w-14 sm:w-20 shrink-0"
             />
-            <Button
+            <Button aria-label="Agregar entrada"
               size="sm"
               variant="outline"
               className="h-8 shrink-0 cursor-pointer"
@@ -2297,7 +2297,7 @@ export default function EventDetailPage() {
                 markTicketsEdited();
               }}
             >
-              <Plus className="h-4 w-4" />
+              <Plus aria-hidden="true" className="h-4 w-4" />
             </Button>
           </div>
           </div>
@@ -2585,12 +2585,12 @@ export default function EventDetailPage() {
               >
                 {event.costSheetClosingFileName ?? "Documento adjunto"}
               </SignedFileLink>
-              <button
+              <button aria-label="Quitar documento adjunto"
                 onClick={handleRemoveClosingAttachment}
                 className="text-muted-foreground hover:text-destructive cursor-pointer ml-auto shrink-0"
                 title="Quitar"
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
               </button>
             </div>
           )}
@@ -2737,7 +2737,7 @@ export default function EventDetailPage() {
                           className="h-7 text-xs"
                         />
                       </div>
-                      <button
+                      <button aria-label={item.label ? `Eliminar costo ${item.label}` : "Eliminar costo"}
                         onClick={() => {
                           setCostItems((prev) => prev.filter((c) => c.id !== item.id));
                           setCostsDirty(true);
@@ -2745,7 +2745,7 @@ export default function EventDetailPage() {
                         disabled={costSheetClosed || !canEditCosts}
                         className="text-muted-foreground hover:text-destructive cursor-pointer p-1 shrink-0 disabled:opacity-30 no-print"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 aria-hidden="true" className="h-4 w-4" />
                       </button>
                     </div>
 
@@ -2815,8 +2815,8 @@ export default function EventDetailPage() {
                           <Paperclip className="h-3.5 w-3.5" />
                         </label>
                         {item.comprobanteUrl && (
-                          <SignedFileLink path={item.comprobanteUrl} className="text-muted-foreground hover:text-foreground">
-                            <Receipt className="h-3.5 w-3.5" />
+                          <SignedFileLink aria-label="Ver comprobante" path={item.comprobanteUrl} className="text-muted-foreground hover:text-foreground">
+                            <Receipt aria-hidden="true" className="h-3.5 w-3.5" />
                           </SignedFileLink>
                         )}
                       </div>
@@ -2896,8 +2896,8 @@ export default function EventDetailPage() {
                         {item.comprobantePagoUrl ? "Cambiar comprobante de pago" : "Adjuntar comprobante de pago"}
                       </label>
                       {item.comprobantePagoUrl && (
-                        <SignedFileLink path={item.comprobantePagoUrl} className="text-muted-foreground hover:text-foreground" title="Ver comprobante de pago">
-                          <Banknote className="h-3.5 w-3.5" />
+                        <SignedFileLink aria-label="Ver comprobante de pago" path={item.comprobantePagoUrl} className="text-muted-foreground hover:text-foreground" title="Ver comprobante de pago">
+                          <Banknote aria-hidden="true" className="h-3.5 w-3.5" />
                         </SignedFileLink>
                       )}
                     </div>
@@ -2968,7 +2968,7 @@ export default function EventDetailPage() {
                   <Checkbox checked={newCostEsBhe} onCheckedChange={(v) => setNewCostEsBhe(Boolean(v))} />
                   BHE
                 </label>
-                <Button
+                <Button aria-label="Agregar costo"
                   size="sm"
                   variant="outline"
                   className="h-7 shrink-0 cursor-pointer"
@@ -3008,7 +3008,7 @@ export default function EventDetailPage() {
                     setCostsDirty(true);
                   }}
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus aria-hidden="true" className="h-4 w-4" />
                 </Button>
               </div>
             </div>
@@ -3235,8 +3235,8 @@ export default function EventDetailPage() {
                   onChange={(e) => { setEventLink(e.target.value); setDetailsDirty(true); }}
                 />
                 {eventLink && (
-                  <a href={eventLink} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground shrink-0">
-                    <ExternalLink className="h-4 w-4" />
+                  <a aria-label="Abrir link del evento (se abre en una pestaña nueva)" href={eventLink} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground shrink-0">
+                    <ExternalLink aria-hidden="true" className="h-4 w-4" />
                   </a>
                 )}
               </div>

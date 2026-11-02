@@ -119,13 +119,13 @@ export default function CompanyDetailPage() {
             <Pencil className="h-4 w-4 mr-1" />
             Editar
           </Button>
-          <Button
+          <Button aria-label="Eliminar empresa"
             variant="outline"
             size="sm"
             onClick={handleDelete}
             className="cursor-pointer text-destructive hover:text-destructive"
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 aria-hidden="true" className="h-4 w-4" />
           </Button>
         </div>
       </div>

@@ -270,7 +270,7 @@ export function OrgMembersPanel() {
                           <Pencil className="h-3.5 w-3.5" />
                           Gestionar Acceso
                         </Button>
-                        <Button
+                        <Button aria-label={`Eliminar a ${name} de la organización`}
                           type="button"
                           variant="ghost"
                           size="icon"
@@ -279,9 +279,9 @@ export function OrgMembersPanel() {
                           onClick={() => handleRemove(m.user_id, name)}
                         >
                           {isRowDeleting ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
                           ) : (
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 aria-hidden="true" className="h-4 w-4" />
                           )}
                         </Button>
                       </div>

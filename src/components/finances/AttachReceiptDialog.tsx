@@ -230,8 +230,8 @@ export function AttachReceiptDialog({ open, onClose, onDone, projectId }: Attach
               <File className="h-4 w-4 text-muted-foreground shrink-0" />
               <span className="text-sm flex-1 truncate">{file.name}</span>
               {!analyzing && !saving && (
-                <button type="button" onClick={reset} className="cursor-pointer text-muted-foreground hover:text-destructive">
-                  <X className="h-4 w-4" />
+                <button aria-label="Quitar archivo" type="button" onClick={reset} className="cursor-pointer text-muted-foreground hover:text-destructive">
+                  <X aria-hidden="true" className="h-4 w-4" />
                 </button>
               )}
             </div>

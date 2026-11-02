@@ -568,20 +568,20 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, o
               }}
             />
             {isAdmin && (
-              <button
+              <button aria-label="Eliminar tarea"
                 onClick={handleDeleteTask}
                 className="mt-1 shrink-0 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
                 title="Eliminar tarea"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 aria-hidden="true" className="h-4 w-4" />
               </button>
             )}
-            <button
+            <button aria-label="Cerrar detalle de tarea"
               onClick={onClose}
               className="mt-1 shrink-0 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
               title="Cerrar"
             >
-              <X className="h-4 w-4" />
+              <X aria-hidden="true" className="h-4 w-4" />
             </button>
           </div>
 
@@ -681,6 +681,8 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, o
                       <Input
                         value={assigneeSearch}
                         onChange={(event) => setAssigneeSearch(event.target.value)}
+                        type="search"
+                        aria-label="Buscar responsable por nombre o email"
                         placeholder="Buscar por nombre o email..."
                         className="h-8 text-sm mb-2"
                         autoFocus

@@ -383,7 +383,7 @@ export default function EventosPage() {
                       </div>
                     ) : null}
                     <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                      <button
+                      <button aria-label={`Editar evento ${show.name}`}
                         onClick={() => {
                           if (isAllProjects) {
                             toast.warning("Selecciona el proyecto de este evento para editarlo");
@@ -395,22 +395,22 @@ export default function EventosPage() {
                         className="text-muted-foreground hover:text-foreground cursor-pointer p-1.5"
                         title={isAllProjects ? "Selecciona el proyecto de este evento para editarlo" : "Editar"}
                       >
-                        <Pencil className="h-4 w-4" />
+                        <Pencil aria-hidden="true" className="h-4 w-4" />
                       </button>
-                      <button
+                      <button aria-label={`Duplicar evento ${show.name}`}
                         onClick={() => handleDuplicate(show)}
                         disabled={duplicatingId === show.id}
                         className="text-muted-foreground hover:text-foreground cursor-pointer p-1.5 disabled:opacity-50"
                         title="Duplicar"
                       >
-                        <Copy className="h-4 w-4" />
+                        <Copy aria-hidden="true" className="h-4 w-4" />
                       </button>
-                      <button
+                      <button aria-label={`Eliminar evento ${show.name}`}
                         onClick={() => handleDelete(show)}
                         className="text-muted-foreground hover:text-destructive cursor-pointer p-1.5"
                         title="Eliminar"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 aria-hidden="true" className="h-4 w-4" />
                       </button>
                     </div>
                   </div>

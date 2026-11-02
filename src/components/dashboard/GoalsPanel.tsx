@@ -566,14 +566,14 @@ export function GoalsPanel({ projectId }: { projectId: string }) {
                     <p className="text-sm font-medium leading-snug">{goal.title}</p>
                   </div>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
+                    <button aria-label={`Ver historial de ${goal.title}`}
                       onClick={() => setHistoryGoal(goal)}
                       className="text-muted-foreground hover:text-foreground cursor-pointer p-1"
                       title="Ver historial"
                     >
-                      <History className="h-3.5 w-3.5" />
+                      <History aria-hidden="true" className="h-3.5 w-3.5" />
                     </button>
-                    <button
+                    <button aria-label={`Editar meta ${goal.title}`}
                       onClick={() => {
                         setEditingGoal(goal);
                         setFormOpen(true);
@@ -581,14 +581,14 @@ export function GoalsPanel({ projectId }: { projectId: string }) {
                       className="text-muted-foreground hover:text-foreground cursor-pointer p-1"
                       title="Editar"
                     >
-                      <Pencil className="h-3.5 w-3.5" />
+                      <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
                     </button>
-                    <button
+                    <button aria-label={`Borrar meta ${goal.title}`}
                       onClick={() => handleDelete(goal)}
                       className="text-muted-foreground hover:text-destructive cursor-pointer p-1"
                       title="Borrar"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 </CardHeader>

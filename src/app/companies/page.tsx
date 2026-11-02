@@ -259,8 +259,10 @@ export default function CompaniesPage() {
       />
 
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
         <Input
+          type="search"
+          aria-label="Buscar empresas"
           className="pl-9"
           placeholder="Buscar empresas..."
           value={search}

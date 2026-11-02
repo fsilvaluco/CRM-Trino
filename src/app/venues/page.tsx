@@ -102,8 +102,10 @@ export default function VenuesPage() {
       </div>
 
       <div className="relative max-w-sm">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
         <Input
+          type="search"
+          aria-label="Buscar venues por nombre"
           placeholder="Buscar por nombre..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -162,7 +164,7 @@ export default function VenuesPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                    <button
+                    <button aria-label={`Editar venue ${venue.name}`}
                       onClick={() => {
                         setEditingVenue(venue);
                         setFormOpen(true);
@@ -170,15 +172,15 @@ export default function VenuesPage() {
                       className="text-muted-foreground hover:text-foreground cursor-pointer p-1.5"
                       title="Editar"
                     >
-                      <Pencil className="h-4 w-4" />
+                      <Pencil aria-hidden="true" className="h-4 w-4" />
                     </button>
-                    <button
+                    <button aria-label={`Quitar ${venue.name} de mis venues`}
                       onClick={() => handleDelete(venue)}
                       disabled={deletingId === venue.id}
                       className="text-muted-foreground hover:text-destructive cursor-pointer p-1.5 disabled:opacity-50"
                       title="Quitar de mis venues"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 aria-hidden="true" className="h-4 w-4" />
                     </button>
                   </div>
                 </CardContent>

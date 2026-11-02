@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -147,10 +147,15 @@ function TransactionList({
             {/* Acciones */}
             <div className="flex items-center gap-1 shrink-0">
               {t.filePath && t.fileUrl && (
-                <a href={t.fileUrl} target="_blank" rel="noopener noreferrer" title="Ver comprobante">
-                  <Button variant="ghost" size="icon" className="h-7 w-7">
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </Button>
+                <a
+                  href={t.fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Ver comprobante"
+                  aria-label="Ver comprobante (se abre en una pestaña nueva)"
+                  className={buttonVariants({ variant: "ghost", size: "icon", className: "h-7 w-7" })}
+                >
+                  <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
                 </a>
               )}
               {t.attachments && t.attachments.length > 0 && (
@@ -163,43 +168,43 @@ function TransactionList({
                         target="_blank"
                         rel="noopener noreferrer"
                         title={a.fileName ? `Comprobante ${i + 1}: ${a.fileName}` : `Comprobante ${i + 1}`}
+                        aria-label={`${a.fileName ? `Ver comprobante ${i + 1}: ${a.fileName}` : `Ver comprobante ${i + 1}`} (se abre en una pestaña nueva)`}
+                        className={buttonVariants({ variant: "ghost", size: "icon", className: "h-7 w-7 text-blue-600 hover:text-blue-700" })}
                       >
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600 hover:text-blue-700">
-                          <ExternalLink className="h-3.5 w-3.5" />
-                        </Button>
+                        <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
                       </a>
                     )
                   ))}
                 </div>
               )}
-              <Button
+              <Button aria-label="Editar movimiento"
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7 text-blue-600 hover:text-blue-700"
                 title="Editar"
                 onClick={() => onEdit(t)}
               >
-                <Pencil className="h-3.5 w-3.5" />
+                <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
               </Button>
               {t.type === "expense" && t.responsibleName && !t.reimbursed && (
-                <Button
+                <Button aria-label="Marcar como listo"
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7 text-green-600 hover:text-green-700"
                   title="Marcar como listo"
                   onClick={() => onReimburse(t.id, true)}
                 >
-                  <Check className="h-3.5 w-3.5" />
+                  <Check aria-hidden="true" className="h-3.5 w-3.5" />
                 </Button>
               )}
-              <Button
+              <Button aria-label="Eliminar movimiento"
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7 text-muted-foreground hover:text-destructive"
                 title="Eliminar"
                 onClick={() => onDelete(t.id)}
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
               </Button>
             </div>
           </div>
@@ -451,8 +456,8 @@ export default function FinancesPage() {
               <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="h-9" />
             </div>
             {hasActiveFilters && (
-              <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 cursor-pointer text-muted-foreground hover:text-destructive" title="Limpiar filtros" onClick={clearFilters}>
-                <X className="h-4 w-4" />
+              <Button aria-label="Limpiar filtros" variant="ghost" size="icon" className="h-9 w-9 shrink-0 cursor-pointer text-muted-foreground hover:text-destructive" title="Limpiar filtros" onClick={clearFilters}>
+                <X aria-hidden="true" className="h-4 w-4" />
               </Button>
             )}
           </div>

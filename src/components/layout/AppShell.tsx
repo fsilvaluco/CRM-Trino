@@ -108,11 +108,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Autenticado: layout completo con sidebar fijo y contenido aislado
   return (
     <div className="flex h-screen w-screen overflow-hidden">
+      {/* Primer elemento enfocable: permite saltar la navegacion con teclado */}
+      <a
+        href="#contenido-principal"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+      >
+        Saltar al contenido
+      </a>
       <AutoRequestPushPermission />
       <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Header />
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 pb-20 md:pb-6 bg-background">
+        <main
+          id="contenido-principal"
+          tabIndex={-1}
+          className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 pb-20 md:pb-6 bg-background outline-none"
+        >
           {children}
         </main>
       </div>

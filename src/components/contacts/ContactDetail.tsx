@@ -150,15 +150,15 @@ export function ContactDetailClient({
                 <a href={`mailto:${contact.email}`} className="text-primary hover:underline flex-1 truncate">
                   {contact.email}
                 </a>
-                <button
+                <button aria-label="Copiar email"
                   onClick={() => handleCopy(contact.email!, "email")}
                   className="p-1 rounded hover:bg-muted cursor-pointer"
                   title="Copiar email"
                 >
                   {copiedField === "email" ? (
-                    <Check className="h-3.5 w-3.5 text-green-600" />
+                    <Check aria-hidden="true" className="h-3.5 w-3.5 text-green-600" />
                   ) : (
-                    <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                    <Copy aria-hidden="true" className="h-3.5 w-3.5 text-muted-foreground" />
                   )}
                 </button>
               </div>
@@ -168,31 +168,31 @@ export function ContactDetailClient({
                 <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
                 <span className="flex-1">{contact.phone}</span>
                 <div className="flex items-center gap-1">
-                  <a
+                  <a aria-label="Abrir WhatsApp (se abre en una pestaña nueva)"
                     href={`https://wa.me/${cleanPhoneForWhatsApp(contact.phone)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-1 rounded hover:bg-green-50 cursor-pointer"
                     title="Abrir WhatsApp"
                   >
-                    <MessageCircle className="h-3.5 w-3.5 text-green-600" />
+                    <MessageCircle aria-hidden="true" className="h-3.5 w-3.5 text-green-600" />
                   </a>
-                  <a
+                  <a aria-label="Llamar"
                     href={`tel:${contact.phone}`}
                     className="p-1 rounded hover:bg-blue-50 cursor-pointer"
                     title="Llamar"
                   >
-                    <Phone className="h-3.5 w-3.5 text-blue-600" />
+                    <Phone aria-hidden="true" className="h-3.5 w-3.5 text-blue-600" />
                   </a>
-                  <button
+                  <button aria-label="Copiar teléfono"
                     onClick={() => handleCopy(contact.phone!, "phone")}
                     className="p-1 rounded hover:bg-muted cursor-pointer"
                     title="Copiar telefono"
                   >
                     {copiedField === "phone" ? (
-                      <Check className="h-3.5 w-3.5 text-green-600" />
+                      <Check aria-hidden="true" className="h-3.5 w-3.5 text-green-600" />
                     ) : (
-                      <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                      <Copy aria-hidden="true" className="h-3.5 w-3.5 text-muted-foreground" />
                     )}
                   </button>
                 </div>

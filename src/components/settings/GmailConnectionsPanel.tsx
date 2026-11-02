@@ -229,7 +229,7 @@ export function GmailConnectionsPanel() {
                     </>
                   )}
                 </Button>
-                <Button
+                <Button aria-label={`Desconectar ${c.emailAddress}`}
                   size="sm"
                   variant="ghost"
                   className="cursor-pointer text-destructive hover:text-destructive"
@@ -237,9 +237,9 @@ export function GmailConnectionsPanel() {
                   onClick={() => handleDisconnect(c.id, c.emailAddress)}
                 >
                   {removingId === c.id ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
                   ) : (
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 aria-hidden="true" className="h-4 w-4" />
                   )}
                 </Button>
               </div>

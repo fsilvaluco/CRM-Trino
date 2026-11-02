@@ -245,8 +245,8 @@ export function ExternalSignersCard({
             <p className="text-xs font-medium">Link listo -- este es el único momento en que se puede copiar</p>
             <div className="flex items-center gap-2">
               <code className="flex-1 truncate rounded bg-background px-2 py-1 text-[11px]">{freshLink}</code>
-              <Button size="sm" variant="outline" className="h-7 cursor-pointer" onClick={() => copy(freshLink)}>
-                <Copy className="h-3.5 w-3.5" />
+              <Button aria-label="Copiar link de firma" size="sm" variant="outline" className="h-7 cursor-pointer" onClick={() => copy(freshLink)}>
+                <Copy aria-hidden="true" className="h-3.5 w-3.5" />
               </Button>
             </div>
             <p className="text-[11px] text-muted-foreground">

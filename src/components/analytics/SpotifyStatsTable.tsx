@@ -110,17 +110,17 @@ export function SpotifyStatsTable({ snapshots, onEdit, onDeleted }: SpotifyStats
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-1 justify-end">
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEdit(s)}>
-                    <Pencil className="h-3.5 w-3.5" />
+                  <Button aria-label="Editar registro" size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEdit(s)}>
+                    <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
                   </Button>
-                  <Button
+                  <Button aria-label="Eliminar registro"
                     size="icon"
                     variant="ghost"
                     className="h-7 w-7 text-destructive hover:text-destructive"
                     onClick={() => handleDelete(s)}
                     disabled={deletingId === s.id}
                   >
-                    {deletingId === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                    {deletingId === s.id ? <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" /> : <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />}
                   </Button>
                 </div>
               </TableCell>

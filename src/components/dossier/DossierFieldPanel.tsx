@@ -34,8 +34,8 @@ export function DossierFieldPanel({ field, fonts, onChange, onDelete }: DossierF
     <div className="space-y-4 p-3 border rounded-lg bg-card">
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium text-muted-foreground">Campo seleccionado</p>
-        <Button size="sm" variant="ghost" className="h-6 px-1.5 text-muted-foreground hover:text-destructive cursor-pointer" onClick={onDelete}>
-          <Trash2 className="h-3.5 w-3.5" />
+        <Button aria-label="Eliminar campo" size="sm" variant="ghost" className="h-6 px-1.5 text-muted-foreground hover:text-destructive cursor-pointer" onClick={onDelete}>
+          <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
         </Button>
       </div>
 

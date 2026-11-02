@@ -167,10 +167,10 @@ export default function QrCodesPage() {
                     <Download className="h-3.5 w-3.5 mr-1" />
                     PNG
                   </Button>
-                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 cursor-pointer" onClick={() => { setEditing(item); setFormOpen(true); }} title="Editar">
-                    <Pencil className="h-3.5 w-3.5" />
+                  <Button aria-label={`Editar link ${item.label}`} size="sm" variant="ghost" className="h-7 w-7 p-0 cursor-pointer" onClick={() => { setEditing(item); setFormOpen(true); }} title="Editar">
+                    <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
                   </Button>
-                  <Button
+                  <Button aria-label={`Eliminar link ${item.label}`}
                     size="sm"
                     variant="ghost"
                     className="h-7 w-7 p-0 cursor-pointer text-muted-foreground hover:text-destructive"
@@ -178,7 +178,7 @@ export default function QrCodesPage() {
                     onClick={() => handleDelete(item)}
                     title="Eliminar"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </CardContent>

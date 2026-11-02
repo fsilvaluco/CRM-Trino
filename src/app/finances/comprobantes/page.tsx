@@ -125,11 +125,11 @@ function SettlementCard({
           {settlement.paid && (
             <Badge className="bg-green-600 text-white text-[10px]"><Check className="h-2.5 w-2.5 mr-1" />Pagado</Badge>
           )}
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" title="Editar" onClick={() => onEdit(settlement)}>
-            <Pencil className="h-3.5 w-3.5" />
+          <Button aria-label="Editar rendición" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" title="Editar" onClick={() => onEdit(settlement)}>
+            <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" title="Eliminar" onClick={() => onDelete(settlement.id)}>
-            <Trash2 className="h-3.5 w-3.5" />
+          <Button aria-label="Eliminar rendición" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" title="Eliminar" onClick={() => onDelete(settlement.id)}>
+            <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>

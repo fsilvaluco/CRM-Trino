@@ -31,14 +31,14 @@ export function SocialLinkField({
 
   if (connected && derivedUrl) {
     return (
-      <a
+      <a aria-label="Abrir perfil real (se abre en una pestaña nueva)"
         href={derivedUrl}
         target="_blank"
         rel="noopener noreferrer"
         className="inline-flex items-center gap-1 text-muted-foreground hover:text-primary transition-colors"
         title="Abrir perfil real"
       >
-        <ExternalLink className="h-3.5 w-3.5" />
+        <ExternalLink aria-hidden="true" className="h-3.5 w-3.5" />
       </a>
     );
   }
@@ -76,11 +76,11 @@ export function SocialLinkField({
           className="h-6 text-xs w-48"
           autoFocus
         />
-        <button onClick={handleSave} disabled={saving} className="cursor-pointer text-muted-foreground hover:text-primary">
-          <Check className="h-3.5 w-3.5" />
+        <button aria-label="Guardar link" onClick={handleSave} disabled={saving} className="cursor-pointer text-muted-foreground hover:text-primary">
+          <Check aria-hidden="true" className="h-3.5 w-3.5" />
         </button>
-        <button onClick={() => setEditing(false)} className="cursor-pointer text-muted-foreground hover:text-destructive">
-          <X className="h-3.5 w-3.5" />
+        <button aria-label="Cancelar edición" onClick={() => setEditing(false)} className="cursor-pointer text-muted-foreground hover:text-destructive">
+          <X aria-hidden="true" className="h-3.5 w-3.5" />
         </button>
       </div>
     );
@@ -89,16 +89,16 @@ export function SocialLinkField({
   if (manualUrl) {
     return (
       <span className="inline-flex items-center gap-1">
-        <a
+        <a aria-label="Abrir link (se abre en una pestaña nueva)"
           href={manualUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1 text-muted-foreground hover:text-primary transition-colors"
           title="Abrir link"
         >
-          <Link2 className="h-3.5 w-3.5" />
+          <Link2 aria-hidden="true" className="h-3.5 w-3.5" />
         </a>
-        <button
+        <button aria-label="Editar link"
           onClick={() => {
             setDraft(manualUrl);
             setEditing(true);
@@ -106,7 +106,7 @@ export function SocialLinkField({
           className="cursor-pointer text-muted-foreground hover:text-primary"
           title="Editar link"
         >
-          <Pencil className="h-3 w-3" />
+          <Pencil aria-hidden="true" className="h-3 w-3" />
         </button>
       </span>
     );

@@ -202,19 +202,19 @@ export default function PermissionsAdminPage() {
                     <Checkbox checked={m.puedeGestionarEquipo} onCheckedChange={(v) => handleManagerToggle(m.id, v === true)} />
                     Gestiona equipo
                   </label>
-                  <Button
+                  <Button aria-label={`Editar permisos finos por módulo de ${m.name}`}
                     variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer"
                     title="Editar permisos finos por módulo"
                     onClick={() => setExpandedMatrixId(expandedMatrixId === m.id ? null : m.id)}
                   >
-                    <Settings2 className="h-3.5 w-3.5" />
+                    <Settings2 aria-hidden="true" className="h-3.5 w-3.5" />
                   </Button>
-                  <Button
+                  <Button aria-label={`Sacar a ${m.name} del proyecto`}
                     variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer text-muted-foreground hover:text-destructive"
                     title="Sacar del proyecto"
                     onClick={() => handleRemove(m.id, m.name)}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
                   </Button>
                 </div>
                 {expandedMatrixId === m.id && m.modules && (

@@ -46,7 +46,10 @@ export function UserMenu() {
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger className="flex items-center rounded-full outline-none cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all p-0 bg-transparent border-0">
+        <DropdownMenuTrigger
+          aria-label={`Menú de usuario${fullName ? `: ${fullName}` : ""}`}
+          className="flex items-center rounded-full outline-none cursor-pointer hover:ring-2 hover:ring-primary/30 focus-visible:ring-2 focus-visible:ring-ring transition-all p-0 bg-transparent border-0"
+        >
           <Avatar className="h-8 w-8">
             <AvatarImage src={avatarUrl ?? undefined} />
             <AvatarFallback className="text-xs">{initials}</AvatarFallback>

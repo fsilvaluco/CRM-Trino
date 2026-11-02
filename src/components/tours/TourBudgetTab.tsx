@@ -103,8 +103,8 @@ export function TourBudgetTab({ data, onChanged }: { data: TourDetail; onChanged
                 </div>
                 <span className="tabular-nums">{formatCurrency(c.amount)}</span>
                 {data.canEdit && (
-                  <Button size="icon" variant="ghost" onClick={() => removeCost(c.id)} className="cursor-pointer" title="Eliminar">
-                    <Trash2 className="h-4 w-4" />
+                  <Button aria-label={`Eliminar costo ${c.label}`} size="icon" variant="ghost" onClick={() => removeCost(c.id)} className="cursor-pointer" title="Eliminar">
+                    <Trash2 aria-hidden="true" className="h-4 w-4" />
                   </Button>
                 )}
               </li>
