@@ -350,7 +350,7 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
                 <SelectItem value="whatsapp">WhatsApp</SelectItem>
                 <SelectItem value="referido">Referido</SelectItem>
                 <SelectItem value="redes_sociales">Redes sociales</SelectItem>
-                <SelectItem value="llamada_fria">Llamada fria</SelectItem>
+                <SelectItem value="llamada_fria">Llamada fría</SelectItem>
                 <SelectItem value="email">Email</SelectItem>
                 <SelectItem value="formulario">Formulario</SelectItem>
                 <SelectItem value="evento">Evento</SelectItem>

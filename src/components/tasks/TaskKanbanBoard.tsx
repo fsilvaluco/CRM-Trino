@@ -122,7 +122,7 @@ function DraggableTaskCard({
         {...listeners}
         {...attributes}
         style={{ touchAction: "none" }}
-        className="absolute top-2 right-2 p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-grab active:cursor-grabbing touch-none"
+        className="absolute top-2 right-2 p-1 text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing touch-none"
         aria-label="Arrastrar para mover"
         onClick={(e) => e.stopPropagation()}
       >

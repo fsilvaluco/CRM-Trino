@@ -130,7 +130,7 @@ export function TourSalesTab({ data }: { data: TourDetail }) {
               <YAxis tick={{ fontSize: 11 }} allowDecimals={false} width={36} />
               <Tooltip {...TOOLTIP} labelFormatter={(d) => shortDate(String(d))} />
               <Line type="monotone" dataKey="esperado" name="Esperado" stroke="#94a3b8" strokeDasharray="5 4" dot={false} />
-              <Line type="stepAfter" dataKey="real" name="Real" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} connectNulls={false} />
+              <Line type="stepAfter" dataKey="real" name="Real" stroke="var(--primary)" strokeWidth={2} dot={false} connectNulls={false} />
             </LineChart>
           </ResponsiveContainer>
         )}

@@ -185,8 +185,8 @@ export function GmailConnectionsPanel() {
                   variant="outline"
                   className={
                     c.status === "active"
-                      ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/40"
-                      : "bg-amber-500/15 text-amber-300 border-amber-500/40"
+                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"
+                      : "bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/40"
                   }
                 >
                   {c.status === "active" ? "Activa" : c.status === "revoked" ? "Revocada" : "Error"}

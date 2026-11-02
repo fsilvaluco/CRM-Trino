@@ -351,8 +351,8 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
                     variant="outline"
                     className={
                       member.status === "active"
-                        ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/40"
-                        : "bg-amber-500/15 text-amber-300 border-amber-500/40"
+                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"
+                        : "bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/40"
                     }
                   >
                     {member.status === "active" ? "Activo" : "Pendiente"}

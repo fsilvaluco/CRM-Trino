@@ -11,9 +11,10 @@ export const TEMPERATURE_CONFIG: Record<
   Temperature,
   { label: string; color: string; bgColor: string }
 > = {
-  cold: { label: "Frio", color: "#64748b", bgColor: "#f1f5f9" },
-  warm: { label: "Tibio", color: "#ea580c", bgColor: "#fff7ed" },
-  hot: { label: "Caliente", color: "#dc2626", bgColor: "#fef2f2" },
+  // Tonos -600/-700: texto >= 4.5:1 sobre su propio fondo (WCAG AA)
+  cold: { label: "Frío", color: "#475569", bgColor: "#f1f5f9" },
+  warm: { label: "Tibio", color: "#c2410c", bgColor: "#fff7ed" },
+  hot: { label: "Caliente", color: "#b91c1c", bgColor: "#fef2f2" },
 };
 
 export const SOURCE_LABELS: Record<LeadSource, string> = {
@@ -21,7 +22,7 @@ export const SOURCE_LABELS: Record<LeadSource, string> = {
   whatsapp: "WhatsApp",
   referido: "Referido",
   redes_sociales: "Redes sociales",
-  llamada_fria: "Llamada fria",
+  llamada_fria: "Llamada fría",
   email: "Email",
   formulario: "Formulario",
   evento: "Evento",

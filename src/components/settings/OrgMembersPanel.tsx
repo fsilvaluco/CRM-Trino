@@ -42,11 +42,11 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const ROLE_BADGE_CLASSNAMES: Record<string, string> = {
-  owner: "bg-violet-500/15 text-violet-300 border-violet-500/40",
-  admin: "bg-blue-500/15 text-blue-300 border-blue-500/40",
-  member: "bg-slate-500/15 text-slate-300 border-slate-500/40",
-  artist: "bg-emerald-500/15 text-emerald-300 border-emerald-500/40",
-  staff: "bg-amber-500/15 text-amber-300 border-amber-500/40",
+  owner: "bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/40",
+  admin: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/40",
+  member: "bg-slate-500/15 text-slate-700 dark:text-slate-300 border-slate-500/40",
+  artist: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40",
+  staff: "bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/40",
 };
 
 const STATUS_LABELS: Record<Member["status"], string> = {
@@ -242,8 +242,8 @@ export function OrgMembersPanel() {
                         variant={m.status === "pending" ? "secondary" : "outline"}
                         className={
                           m.status === "pending"
-                            ? "bg-amber-500/15 text-amber-300 border-amber-500/40"
-                            : "bg-emerald-500/15 text-emerald-300 border-emerald-500/40"
+                            ? "bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/40"
+                            : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"
                         }
                       >
                         {STATUS_LABELS[m.status]}

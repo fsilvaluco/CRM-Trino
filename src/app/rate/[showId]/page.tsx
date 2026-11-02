@@ -183,7 +183,7 @@ export default function RatePage({
                 }
                 className="w-full h-2 rounded-full accent-indigo-600 cursor-pointer"
               />
-              <div className="flex justify-between text-xs text-gray-400">
+              <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
                 <span>1</span>
                 <span>10</span>
               </div>
@@ -236,7 +236,7 @@ export default function RatePage({
                 }
                 className="w-full h-2 rounded-full accent-indigo-600 cursor-pointer"
               />
-              <div className="flex justify-between text-xs text-gray-400">
+              <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
                 <span>1</span>
                 <span>5</span>
               </div>

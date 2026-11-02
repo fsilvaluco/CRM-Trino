@@ -183,7 +183,7 @@ export function NotificationPopover() {
                         En: {mention.taskTitle}
                       </p>
                     )}
-                    <p className="text-xs text-muted-foreground/80">
+                    <p className="text-xs text-muted-foreground">
                       {formatDateTime(mention.createdAt)}
                     </p>
                   </div>
@@ -230,7 +230,7 @@ export function NotificationPopover() {
                         {task.subprojectName}
                       </p>
                     )}
-                    <p className="text-xs text-muted-foreground/80">
+                    <p className="text-xs text-muted-foreground">
                       Vencía: {formatDateTime(task.dueDate)}
                     </p>
                   </div>
@@ -279,7 +279,7 @@ export function NotificationPopover() {
                         {task.subprojectName}
                       </p>
                     )}
-                    <p className="text-xs text-muted-foreground/80">
+                    <p className="text-xs text-muted-foreground">
                       Vence: {formatDateTime(task.dueDate)}
                     </p>
                   </div>

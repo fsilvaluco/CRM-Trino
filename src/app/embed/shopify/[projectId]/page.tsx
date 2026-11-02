@@ -66,7 +66,7 @@ export default async function ShopifyEmbedPage({
                 <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
                   <p style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#111827" }}>{product.title}</p>
                   {product.price != null && (
-                    <p style={{ fontSize: 14, fontWeight: 700, margin: 0, color: palette.primary }}>
+                    <p style={{ fontSize: 14, fontWeight: 700, margin: 0, color: palette.ui.light.primary }}>
                       {formatCurrency(product.price)}
                     </p>
                   )}
@@ -102,8 +102,8 @@ export default async function ShopifyEmbedPage({
                       type="submit"
                       style={{
                         width: "100%",
-                        background: palette.primary,
-                        color: palette.primaryForeground,
+                        background: palette.ui.light.primary,
+                        color: palette.ui.light.primaryForeground,
                         border: "none",
                         borderRadius: 8,
                         padding: "8px 14px",

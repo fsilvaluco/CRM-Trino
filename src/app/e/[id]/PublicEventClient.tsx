@@ -206,7 +206,7 @@ export function PublicEventClient({ id }: { id: string }) {
             href="https://artistpro.app"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-slate-600"
+            className="flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-slate-600"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo-icon.png" alt="" className="h-3.5 w-3.5 opacity-60" />
@@ -287,13 +287,13 @@ export function PublicEventClient({ id }: { id: string }) {
                           target="_blank"
                           rel="noopener noreferrer"
                           title="Escribir por WhatsApp"
-                          className="text-slate-400 hover:text-green-600"
+                          className="text-slate-500 hover:text-green-600"
                         >
                           <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
                             <path d="M17.6 6.32A8.86 8.86 0 0 0 12.05 4C7.14 4 3.15 7.94 3.15 12.8c0 1.62.44 3.14 1.2 4.46L3 21l3.87-1.28a8.9 8.9 0 0 0 5.18 1.63h.01c4.9 0 8.9-3.94 8.9-8.8 0-2.35-.94-4.55-2.36-6.23ZM12.06 19.9a7.4 7.4 0 0 1-4.36-1.4l-.32-.19-3.06 1 1.02-2.93-.2-.32a7.28 7.28 0 0 1-1.13-3.9c0-4.03 3.32-7.3 7.4-7.3a7.4 7.4 0 0 1 5.24 2.15 7.13 7.13 0 0 1 2.16 5.06c0 4.03-3.32 7.3-7.4 7.3Zm4.05-5.46c-.22-.11-1.3-.63-1.5-.71-.2-.07-.35-.11-.5.11-.14.22-.57.71-.7.86-.13.14-.26.15-.48.05-.22-.11-.94-.34-1.79-1.1-.66-.58-1.11-1.31-1.24-1.53-.13-.22-.01-.34.11-.45.11-.11.25-.28.37-.42.12-.14.16-.25.24-.4.08-.15.04-.29-.02-.4-.06-.11-.5-1.19-.68-1.63-.18-.44-.36-.38-.5-.38-.13 0-.28-.01-.43-.01-.15 0-.39.06-.6.28-.2.22-.78.75-.78 1.83s.8 2.12.91 2.27c.11.14 1.51 2.31 3.68 3.15 1.84.71 2.21.6 2.61.56.4-.04 1.3-.53 1.48-1.04.18-.51.18-.94.13-1.03-.05-.09-.19-.15-.41-.26Z" />
                           </svg>
                         </a>
-                        <a href={`tel:${c.phone.replace(/[^\d+]/g, "")}`} title="Llamar" className="text-slate-400 hover:text-primary">
+                        <a href={`tel:${c.phone.replace(/[^\d+]/g, "")}`} title="Llamar" className="text-slate-500 hover:text-primary">
                           <Phone className="h-4 w-4" />
                         </a>
                       </div>
@@ -312,7 +312,7 @@ export function PublicEventClient({ id }: { id: string }) {
             Timing / Cronograma
           </h2>
           {event.timing.length === 0 ? (
-            <p className="text-sm text-slate-400">Sin timing cargado todavía.</p>
+            <p className="text-sm text-slate-500">Sin timing cargado todavía.</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
@@ -344,7 +344,7 @@ export function PublicEventClient({ id }: { id: string }) {
             Setlist
           </h2>
           {event.setlist.length === 0 ? (
-            <p className="text-sm text-slate-400">Sin setlist cargado todavía.</p>
+            <p className="text-sm text-slate-500">Sin setlist cargado todavía.</p>
           ) : (
             <ol className="list-decimal pl-5 space-y-1 text-sm">
               {event.setlist.map((song) => <li key={song.id}>{song.title}</li>)}
@@ -380,7 +380,7 @@ export function PublicEventClient({ id }: { id: string }) {
           href="https://artistpro.app"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2 pt-4 border-t border-slate-200 text-slate-400 hover:text-slate-600"
+          className="flex items-center gap-2 pt-4 border-t border-slate-200 text-slate-500 hover:text-slate-600"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-icon.png" alt="" className="h-4 w-4 opacity-60" />

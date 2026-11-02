@@ -123,7 +123,7 @@ function TransactionList({
                 <span className="text-xs text-muted-foreground">
                   {format(displayDate, "d MMM yyyy", { locale: es })}
                   {t.transactionDate && (
-                    <span className="ml-1 text-muted-foreground/60">(fecha del gasto)</span>
+                    <span className="ml-1 text-muted-foreground">(fecha del gasto)</span>
                   )}
                 </span>
                 {t.responsibleName && (

@@ -55,18 +55,20 @@
   --card-foreground: #0f172a;
   --popover: #ffffff;
   --popover-foreground: #0f172a;
-  --primary: #4338ca;
-  --primary-foreground: #ffffff;
+  /* --palette-* las escribe applyProjectThemeColor (src/lib/theme-palettes.ts) */
+  --primary: var(--palette-primary, #4338ca);
+  --primary-foreground: var(--palette-primary-foreground, #ffffff);
   --secondary: #f1f5f9;
   --secondary-foreground: #1e293b;
   --muted: #f1f5f9;
-  --muted-foreground: #64748b;
+  /* #5b6779: >= 5.2:1 sobre background, card y muted (antes #64748b: 4.34 sobre muted) */
+  --muted-foreground: #5b6779;
   --accent: #f1f5f9;
   --accent-foreground: #1e293b;
-  --destructive: #dc2626;
+  --destructive: #b91c1c;
   --border: #e2e8f0;
   --input: #e2e8f0;
-  --ring: #4338ca;
+  --ring: var(--palette-primary, #4338ca);
   --chart-1: #4338ca;
   --chart-2: #16a34a;
   --chart-3: #f0653d;
@@ -81,9 +83,9 @@
   --sidebar-accent-foreground: #f8fafc;
   --sidebar-border: #334155;
   --sidebar-ring: #4338ca;
-  --success: #16a34a;
+  --success: #15803d;
   --success-foreground: #ffffff;
-  --warning: #ea580c;
+  --warning: #c2410c;
   --warning-foreground: #ffffff;
 }
 
@@ -104,10 +106,10 @@
   --secondary: #f1f5f9;
   --secondary-foreground: #1e293b;
   --muted: #f1f5f9;
-  --muted-foreground: #64748b;
+  --muted-foreground: #5b6779;
   --accent: #f1f5f9;
   --accent-foreground: #1e293b;
-  --destructive: #dc2626;
+  --destructive: #b91c1c;
   --border: #e2e8f0;
   --input: #e2e8f0;
   --ring: #4338ca;
@@ -120,18 +122,20 @@
   --card-foreground: #f8fafc;
   --popover: #1e293b;
   --popover-foreground: #f8fafc;
-  --primary: #6366f1;
-  --primary-foreground: #ffffff;
+  /* Tonos claros + texto oscuro: >= 4.5:1 como boton y como texto sobre card */
+  --primary: var(--palette-primary-dark, #818cf8);
+  --primary-foreground: var(--palette-primary-foreground-dark, #0f172a);
   --secondary: #334155;
   --secondary-foreground: #f8fafc;
   --muted: #334155;
-  --muted-foreground: #94a3b8;
+  /* #a3b1c6: >= 4.7:1 tambien sobre muted (#334155); antes 4.04 */
+  --muted-foreground: #a3b1c6;
   --accent: #334155;
   --accent-foreground: #f8fafc;
-  --destructive: #ef4444;
+  --destructive: #fca5a5;
   --border: rgba(255, 255, 255, 0.1);
   --input: rgba(255, 255, 255, 0.15);
-  --ring: #6366f1;
+  --ring: var(--palette-primary-dark, #818cf8);
   --chart-1: #6366f1;
   --chart-2: #22c55e;
   --chart-3: #f4835c;
@@ -145,10 +149,10 @@
   --sidebar-accent-foreground: #f8fafc;
   --sidebar-border: rgba(255, 255, 255, 0.1);
   --sidebar-ring: #6366f1;
-  --success: #22c55e;
-  --success-foreground: #ffffff;
-  --warning: #f97316;
-  --warning-foreground: #ffffff;
+  --success: #4ade80;
+  --success-foreground: #0f172a;
+  --warning: #fb923c;
+  --warning-foreground: #0f172a;
 }
 
 @layer base {

@@ -321,7 +321,7 @@ export function MerchDashboard({ products, salesByMonth, projectId }: MerchDashb
                 return [NUM.format(Number(v ?? 0)), name === "unidades" ? "Unidades" : "Pedidos"];
               }}
             />
-            <Bar dataKey="ventas" name="ventas" radius={[4, 4, 0, 0]} fill="hsl(var(--primary))" />
+            <Bar dataKey="ventas" name="ventas" radius={[4, 4, 0, 0]} fill="var(--primary)" />
           </BarChart>
         </ResponsiveContainer>
 

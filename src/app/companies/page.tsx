@@ -118,7 +118,7 @@ function SortableHead({
               ? <ArrowUp className="h-3.5 w-3.5 shrink-0" />
               : <ArrowDown className="h-3.5 w-3.5 shrink-0" />
           ) : (
-            <ArrowUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40" />
+            <ArrowUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           )
         )}
       </div>
@@ -315,7 +315,7 @@ export default function CompaniesPage() {
                         <span className="truncate">{company.phone}</span>
                       </span>
                     ) : (
-                      <span className="text-sm text-muted-foreground/40">—</span>
+                      <span className="text-sm text-muted-foreground">—</span>
                     )}
                   </TableCell>
 
@@ -337,7 +337,7 @@ export default function CompaniesPage() {
                         <span className="truncate">{company.website}</span>
                       </span>
                     ) : (
-                      <span className="text-sm text-muted-foreground/40">—</span>
+                      <span className="text-sm text-muted-foreground">—</span>
                     )}
                   </TableCell>
 
