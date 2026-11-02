@@ -224,7 +224,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       {/* Navigation */}
       <nav
         className={cn(
-          "flex-1 py-4 space-y-1 overflow-y-auto overflow-x-hidden",
+          "scroll-auto-hide flex-1 py-4 space-y-1 overflow-y-auto overflow-x-hidden",
           collapsed ? "px-2" : "px-3"
         )}
       >

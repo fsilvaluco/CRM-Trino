@@ -151,6 +151,12 @@
   --warning-foreground: #ffffff;
 }
 
+/* Sin esto Chrome dibuja controles nativos claros (scrollbar, select,
+   date picker) sobre el fondo oscuro. */
+.dark {
+  color-scheme: dark;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -165,6 +171,48 @@
     font-family: var(--font-display), var(--font-sans), system-ui, sans-serif;
     letter-spacing: -0.01em;
   }
+
+  /* ------------------------------------------------------------
+     Scrollbars: finos, sin carril y con el color del tema.
+     Chrome 121+ y Firefox usan scrollbar-width/scrollbar-color
+     (si estan definidos, Chrome ignora ::-webkit-scrollbar); Safari
+     usa los pseudo-elementos -webkit-. El color sale de una variable
+     para que .scroll-auto-hide pueda ocultarlo hasta el hover.
+     ------------------------------------------------------------ */
+  :root {
+    --scrollbar-thumb: color-mix(in oklab, var(--foreground) 18%, transparent);
+    --scrollbar-thumb-hover: color-mix(in oklab, var(--foreground) 35%, transparent);
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--scrollbar-thumb-hover);
+  }
+}
+
+/* Scrollbar invisible hasta que el mouse entra al contenedor
+   (usado en el sidebar). */
+.scroll-auto-hide {
+  --scrollbar-thumb: transparent;
+}
+.scroll-auto-hide:hover {
+  --scrollbar-thumb: color-mix(in oklab, var(--foreground) 25%, transparent);
 }
 
 /* ============================================================
