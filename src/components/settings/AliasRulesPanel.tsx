@@ -145,7 +145,7 @@ export function AliasRulesPanel() {
                 <span className="text-muted-foreground">→</span>
                 <span className="font-medium">{r.targetProjectName ?? "?"}</span>
               </div>
-              <Button
+              <Button aria-label={`Eliminar regla ${r.pattern}`}
                 size="sm"
                 variant="ghost"
                 className="cursor-pointer text-destructive hover:text-destructive"
@@ -153,9 +153,9 @@ export function AliasRulesPanel() {
                 onClick={() => handleRemove(r.id)}
               >
                 {removingId === r.id ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
                 ) : (
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 aria-hidden="true" className="h-4 w-4" />
                 )}
               </Button>
             </div>

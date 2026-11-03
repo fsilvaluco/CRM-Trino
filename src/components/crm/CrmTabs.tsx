@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -142,7 +143,11 @@ export function CrmTabs({ columns, allDeals, onDealMoved, onAddDeal, onDealClick
                     className="cursor-pointer hover:bg-muted/50"
                     onClick={() => router.push(`/deals/${deal.id}`)}
                   >
-                    <TableCell className="font-medium">{deal.title}</TableCell>
+                    <TableCell className="font-medium">
+                      <Link href={`/deals/${deal.id}`} onClick={(e) => e.stopPropagation()} className="rounded-sm hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                        {deal.title}
+                      </Link>
+                    </TableCell>
                     <TableCell>{deal.contactName || "-"}</TableCell>
                     <TableCell className="font-semibold text-primary">
                       {deal.valueType === "percentage"

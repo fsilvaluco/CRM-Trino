@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { SocialLinkField } from "@/components/analytics/SocialLinkField";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 interface MetaIntegration {
   connected: boolean;
@@ -22,6 +23,7 @@ interface MetaIntegrationCardProps {
 }
 
 export function MetaIntegrationCard({ integration, onRefresh, projectId }: MetaIntegrationCardProps) {
+  const confirm = useConfirm();
   const [syncing, setSyncing] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
 
@@ -51,9 +53,13 @@ export function MetaIntegrationCard({ integration, onRefresh, projectId }: MetaI
 
   const handleDisconnect = async () => {
     if (
-      !confirm(
-        "¿Desconectar Instagram? Se detiene el sync automático. Las métricas ya registradas NO se borran — quedan guardadas y vuelven a aparecer si reconectas."
-      )
+      !(await confirm({
+        title: "¿Desconectar Instagram?",
+        description:
+          "Se detiene el sync automático. Las métricas ya registradas NO se borran — quedan guardadas y vuelven a aparecer si reconectas.",
+        confirmLabel: "Desconectar",
+        destructive: true,
+      }))
     ) {
       return;
     }

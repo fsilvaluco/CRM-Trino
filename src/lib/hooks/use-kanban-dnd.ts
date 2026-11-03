@@ -1,14 +1,38 @@
-import { useCallback } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef } from "react";
 import {
   closestCorners,
   pointerWithin,
   rectIntersection,
+  KeyboardCode,
+  KeyboardSensor,
   MouseSensor,
   TouchSensor,
   useSensor,
   useSensors,
+  type Announcements,
   type CollisionDetection,
+  type KeyboardCoordinateGetter,
+  type ScreenReaderInstructions,
+  type UniqueIdentifier,
 } from "@dnd-kit/core";
+
+export interface KanbanDndOptions {
+  /** Ids de los droppables que son columnas, en orden de izquierda a derecha. */
+  columnIds: string[];
+  /** Nombre legible de una tarjeta (para los anuncios del lector de pantalla). */
+  getItemLabel: (id: UniqueIdentifier) => string;
+  /**
+   * Nombre de la columna para un id de droppable. Puede recibir el id de una
+   * columna o el de una tarjeta (en tableros sortable el "over" puede ser
+   * otra tarjeta); debe devolver la columna que la contiene.
+   */
+  getColumnLabel: (overId: UniqueIdentifier) => string | null;
+}
+
+const SCREEN_READER_INSTRUCTIONS: ScreenReaderInstructions = {
+  draggable:
+    "Para mover esta tarjeta presiona Espacio o Enter. Usa las flechas izquierda y derecha para elegir la columna, y Espacio o Enter para soltarla. Escape cancela.",
+};
 
 // ─── Motor de drag-and-drop compartido por los Kanban de Tareas y Tratos ─────
 // Esta pieza es idéntica en ambos: sensores + estrategia de colisión. El resto
@@ -25,11 +49,74 @@ import {
 // tarjeta -- así el resto de la tarjeta queda 100% libre para hacer scroll
 // nativo, sin ninguna ambigüedad de por medio (recomendación oficial de
 // dnd-kit para listas/tableros con scroll).
-export function useKanbanDnd() {
+export function useKanbanDnd({ columnIds, getItemLabel, getColumnLabel }: KanbanDndOptions) {
+  // Refs para que el coordinateGetter y los anuncios (que dnd-kit captura
+  // al montar el sensor) siempre lean los datos actuales.
+  const columnIdsRef = useRef(columnIds);
+  const labelsRef = useRef({ getItemLabel, getColumnLabel });
+  useLayoutEffect(() => {
+    columnIdsRef.current = columnIds;
+    labelsRef.current = { getItemLabel, getColumnLabel };
+  });
+
+  // Teclado: izquierda/derecha saltan a la columna vecina (arriba/abajo no
+  // hacen nada: el orden dentro de la columna no se persiste). El
+  // sortableKeyboardCoordinates de dnd-kit no sirve aca porque en el tablero
+  // de tareas las tarjetas son useDraggable, no sortable.
+  const keyboardCoordinates: KeyboardCoordinateGetter = useCallback(
+    (event, { context: { collisionRect, droppableRects, over } }) => {
+      if (event.code !== KeyboardCode.Left && event.code !== KeyboardCode.Right) {
+        if (event.code === KeyboardCode.Up || event.code === KeyboardCode.Down) {
+          event.preventDefault();
+        }
+        return undefined;
+      }
+      event.preventDefault();
+      if (!collisionRect) return undefined;
+
+      const ids = columnIdsRef.current;
+      // Columna actual: la que contiene el centro de la tarjeta arrastrada.
+      const centerX = collisionRect.left + collisionRect.width / 2;
+      let currentIndex = ids.findIndex((id) => {
+        const rect = droppableRects.get(id);
+        return rect && centerX >= rect.left && centerX <= rect.left + rect.width;
+      });
+      if (currentIndex === -1 && over) currentIndex = ids.indexOf(String(over.id));
+      if (currentIndex === -1) return undefined;
+
+      const nextIndex = currentIndex + (event.code === KeyboardCode.Right ? 1 : -1);
+      const nextRect = ids[nextIndex] ? droppableRects.get(ids[nextIndex]) : undefined;
+      if (!nextRect) return undefined;
+      return { x: nextRect.left + 8, y: nextRect.top + 8 };
+    },
+    []
+  );
+
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: keyboardCoordinates })
   );
+
+  const accessibility = useMemo(() => {
+    const item = (id: UniqueIdentifier) => `"${labelsRef.current.getItemLabel(id)}"`;
+    const column = (id: UniqueIdentifier | undefined) =>
+      id === undefined ? null : labelsRef.current.getColumnLabel(id);
+    const announcements: Announcements = {
+      onDragStart: ({ active }) =>
+        `Tomaste ${item(active.id)}. Usa las flechas izquierda y derecha para cambiar de columna.`,
+      onDragOver: ({ active, over }) => {
+        const col = column(over?.id);
+        return col ? `${item(active.id)} está sobre la columna ${col}.` : `${item(active.id)} no está sobre ninguna columna.`;
+      },
+      onDragEnd: ({ active, over }) => {
+        const col = column(over?.id);
+        return col ? `${item(active.id)} se movió a ${col}.` : `${item(active.id)} se soltó fuera de las columnas; no se movió.`;
+      },
+      onDragCancel: ({ active }) => `Se canceló el movimiento de ${item(active.id)}.`,
+    };
+    return { announcements, screenReaderInstructions: SCREEN_READER_INSTRUCTIONS };
+  }, []);
 
   // closestCorners solo (el default de dnd-kit) calcula mal cuando una
   // columna esta vacia -- sin tarjetas adentro, su "esquina de referencia"
@@ -49,5 +136,5 @@ export function useKanbanDnd() {
     return closestCorners(args);
   }, []);
 
-  return { sensors, collisionDetectionStrategy };
+  return { sensors, collisionDetectionStrategy, accessibility };
 }

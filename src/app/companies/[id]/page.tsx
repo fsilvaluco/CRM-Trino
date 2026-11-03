@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +27,7 @@ import { formatDate } from "@/lib/constants";
 import { useLocale } from "@/lib/locale-context";
 import { toast } from "sonner";
 import type { Company, Contact, Deal, Project, Task } from "@/types";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 interface CompanyDetail extends Company {
   contacts: Contact[];
@@ -35,6 +37,7 @@ interface CompanyDetail extends Company {
 }
 
 export default function CompanyDetailPage() {
+  const confirm = useConfirm();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { formatCurrency } = useLocale();
@@ -58,7 +61,7 @@ export default function CompanyDetailPage() {
   }, [loadCompany]);
 
   const handleDelete = async () => {
-    if (!confirm("¿Eliminar esta empresa?")) return;
+    if (!(await confirm({ title: "¿Eliminar esta empresa?", confirmLabel: "Eliminar empresa", destructive: true }))) return;
     try {
       const res = await fetch(`/api/companies/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
@@ -116,13 +119,13 @@ export default function CompanyDetailPage() {
             <Pencil className="h-4 w-4 mr-1" />
             Editar
           </Button>
-          <Button
+          <Button aria-label="Eliminar empresa"
             variant="outline"
             size="sm"
             onClick={handleDelete}
             className="cursor-pointer text-destructive hover:text-destructive"
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 aria-hidden="true" className="h-4 w-4" />
           </Button>
         </div>
       </div>
@@ -211,13 +214,14 @@ export default function CompanyDetailPage() {
             ) : (
               <ul className="space-y-2">
                 {company.contacts.map((c) => (
-                  <li
-                    key={c.id}
-                    className="flex items-center justify-between text-sm cursor-pointer hover:text-primary"
-                    onClick={() => router.push(`/contacts/${c.id}`)}
-                  >
-                    <span>{c.name}</span>
-                    {c.email && <span className="text-muted-foreground text-xs">{c.email}</span>}
+                  <li key={c.id}>
+                    <Link
+                      href={`/contacts/${c.id}`}
+                      className="flex items-center justify-between text-sm rounded-sm hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    >
+                      <span>{c.name}</span>
+                      {c.email && <span className="text-muted-foreground text-xs">{c.email}</span>}
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -239,13 +243,14 @@ export default function CompanyDetailPage() {
             ) : (
               <ul className="space-y-2">
                 {company.deals.map((d) => (
-                  <li
-                    key={d.id}
-                    className="flex items-center justify-between text-sm cursor-pointer hover:text-primary"
-                    onClick={() => router.push(`/deals/${d.id}`)}
-                  >
-                    <span>{d.title}</span>
-                    <span className="font-medium text-primary">{formatCurrency(d.value)}</span>
+                  <li key={d.id}>
+                    <Link
+                      href={`/deals/${d.id}`}
+                      className="flex items-center justify-between text-sm rounded-sm hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    >
+                      <span>{d.title}</span>
+                      <span className="font-medium text-primary">{formatCurrency(d.value)}</span>
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -267,13 +272,14 @@ export default function CompanyDetailPage() {
             ) : (
               <ul className="space-y-2">
                 {company.projects.map((p) => (
-                  <li
-                    key={p.id}
-                    className="flex items-center justify-between text-sm cursor-pointer hover:text-primary"
-                    onClick={() => router.push(`/projects/${p.id}`)}
-                  >
-                    <span>{p.name}</span>
-                    <Badge variant="secondary" className="text-xs">{p.status}</Badge>
+                  <li key={p.id}>
+                    <Link
+                      href={`/projects/${p.id}`}
+                      className="flex items-center justify-between text-sm rounded-sm hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    >
+                      <span>{p.name}</span>
+                      <Badge variant="secondary" className="text-xs">{p.status}</Badge>
+                    </Link>
                   </li>
                 ))}
               </ul>

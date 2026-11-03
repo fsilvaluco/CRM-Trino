@@ -67,14 +67,16 @@ export function VenueCombobox({
   return (
     <>
       <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger>
-          <Button
-            type="button"
-            variant="outline"
-            role="combobox"
-            aria-expanded={open}
-            className="w-full justify-between font-normal cursor-pointer"
-          >
+        <PopoverTrigger
+          render={
+            <Button
+              type="button"
+              variant="outline"
+              role="combobox"
+              className="w-full justify-between font-normal cursor-pointer"
+            />
+          }
+        >
             {selectedVenue ? (
               <span className="flex items-center gap-1.5 truncate">
                 <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -83,12 +85,11 @@ export function VenueCombobox({
             ) : (
               <span className="text-muted-foreground">Buscar o crear venue...</span>
             )}
-            <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
-          </Button>
+            <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" aria-hidden="true" />
         </PopoverTrigger>
         <PopoverContent className="w-(--anchor-width) p-0" align="start">
           <Command shouldFilter={false}>
-            <CommandInput placeholder="Buscar venue..." value={query} onValueChange={setQuery} />
+            <CommandInput aria-label="Buscar venue" placeholder="Buscar venue..." value={query} onValueChange={setQuery} />
             <CommandList>
               {!loading && results.length === 0 && (
                 <CommandEmpty>Sin resultados.</CommandEmpty>

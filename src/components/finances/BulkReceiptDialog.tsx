@@ -306,13 +306,13 @@ export function BulkReceiptDialog({
                         <img src={row.previewUrl} alt="" className="h-8 w-8 rounded object-cover border" />
                       </button>
                     ) : (
-                      <button
+                      <button aria-label="Ver comprobante"
                         type="button"
                         onClick={() => window.open(row.previewUrl, "_blank", "noopener,noreferrer")}
                         className="shrink-0 cursor-pointer text-muted-foreground hover:text-foreground"
                         title="Ver comprobante"
                       >
-                        <Eye className="h-4 w-4" />
+                        <Eye aria-hidden="true" className="h-4 w-4" />
                       </button>
                     )}
                     {row.status === "reading" && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />}
@@ -332,8 +332,8 @@ export function BulkReceiptDialog({
                       </button>
                     )}
                     {row.status !== "saving" && row.status !== "saved" && (
-                      <button type="button" onClick={() => removeRow(row.localId)} className="cursor-pointer text-muted-foreground hover:text-destructive">
-                        <X className="h-3.5 w-3.5" />
+                      <button aria-label="Quitar comprobante" type="button" onClick={() => removeRow(row.localId)} className="cursor-pointer text-muted-foreground hover:text-destructive">
+                        <X aria-hidden="true" className="h-3.5 w-3.5" />
                       </button>
                     )}
                   </div>

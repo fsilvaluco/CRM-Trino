@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 interface ShopifyIntegration {
   connected: boolean;
@@ -23,6 +24,7 @@ interface ShopifyIntegrationCardProps {
 }
 
 export function ShopifyIntegrationCard({ integration, onRefresh, projectId }: ShopifyIntegrationCardProps) {
+  const confirm = useConfirm();
   const [shopDomain, setShopDomain] = useState("");
   const [collectionHandle, setCollectionHandle] = useState("");
   const [syncing, setSyncing] = useState(false);
@@ -66,7 +68,15 @@ export function ShopifyIntegrationCard({ integration, onRefresh, projectId }: Sh
 
   const handleDisconnect = async () => {
     if (!projectId) return;
-    if (!confirm("¿Desconectar Shopify? Se detiene el sync y se limpia el catálogo (es solo el estado actual del inventario). El histórico de ventas por mes NO se borra.")) {
+    if (
+      !(await confirm({
+        title: "¿Desconectar Shopify?",
+        description:
+          "Se detiene el sync y se limpia el catálogo (es solo el estado actual del inventario). El histórico de ventas por mes NO se borra.",
+        confirmLabel: "Desconectar",
+        destructive: true,
+      }))
+    ) {
       return;
     }
     setDisconnecting(true);

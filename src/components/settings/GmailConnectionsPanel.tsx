@@ -8,6 +8,7 @@ import { Mail, Plus, Trash2, Loader2, Play, ChevronDown, ChevronUp, AlertTriangl
 import { useProject } from "@/lib/project-context";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 interface SyncRun {
   id: string;
@@ -32,6 +33,7 @@ interface GmailConnection {
 }
 
 export function GmailConnectionsPanel() {
+  const confirm = useConfirm();
   const { activeProject } = useProject();
   const [connections, setConnections] = useState<GmailConnection[]>([]);
   const [loading, setLoading] = useState(true);
@@ -121,7 +123,15 @@ export function GmailConnectionsPanel() {
   };
 
   const handleDisconnect = async (id: string, email: string) => {
-    if (!confirm(`¿Desconectar ${email}? El detector dejara de leer esta cuenta.`)) return;
+    if (
+      !(await confirm({
+        title: `¿Desconectar ${email}?`,
+        description: "El detector dejará de leer esta cuenta.",
+        confirmLabel: "Desconectar",
+        destructive: true,
+      }))
+    )
+      return;
     setRemovingId(id);
     try {
       const res = await fetch(`/api/integrations/gmail/connections/${id}`, { method: "DELETE" });
@@ -185,8 +195,8 @@ export function GmailConnectionsPanel() {
                   variant="outline"
                   className={
                     c.status === "active"
-                      ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/40"
-                      : "bg-amber-500/15 text-amber-300 border-amber-500/40"
+                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"
+                      : "bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/40"
                   }
                 >
                   {c.status === "active" ? "Activa" : c.status === "revoked" ? "Revocada" : "Error"}
@@ -219,7 +229,7 @@ export function GmailConnectionsPanel() {
                     </>
                   )}
                 </Button>
-                <Button
+                <Button aria-label={`Desconectar ${c.emailAddress}`}
                   size="sm"
                   variant="ghost"
                   className="cursor-pointer text-destructive hover:text-destructive"
@@ -227,9 +237,9 @@ export function GmailConnectionsPanel() {
                   onClick={() => handleDisconnect(c.id, c.emailAddress)}
                 >
                   {removingId === c.id ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
                   ) : (
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 aria-hidden="true" className="h-4 w-4" />
                   )}
                 </Button>
               </div>

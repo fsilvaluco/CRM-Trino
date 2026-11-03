@@ -24,6 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 interface Member {
   user_id: string;
@@ -42,11 +43,11 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const ROLE_BADGE_CLASSNAMES: Record<string, string> = {
-  owner: "bg-violet-500/15 text-violet-300 border-violet-500/40",
-  admin: "bg-blue-500/15 text-blue-300 border-blue-500/40",
-  member: "bg-slate-500/15 text-slate-300 border-slate-500/40",
-  artist: "bg-emerald-500/15 text-emerald-300 border-emerald-500/40",
-  staff: "bg-amber-500/15 text-amber-300 border-amber-500/40",
+  owner: "bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/40",
+  admin: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/40",
+  member: "bg-slate-500/15 text-slate-700 dark:text-slate-300 border-slate-500/40",
+  artist: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40",
+  staff: "bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/40",
 };
 
 const STATUS_LABELS: Record<Member["status"], string> = {
@@ -55,6 +56,7 @@ const STATUS_LABELS: Record<Member["status"], string> = {
 };
 
 export function OrgMembersPanel() {
+  const confirm = useConfirm();
   const router = useRouter();
   const { activeProject } = useProject();
   const [members, setMembers] = useState<Member[]>([]);
@@ -154,7 +156,14 @@ export function OrgMembersPanel() {
   };
 
   const handleRemove = async (userId: string, name: string) => {
-    if (!confirm(`¿Eliminar a ${name} de la organización?`)) return;
+    if (
+      !(await confirm({
+        title: `¿Eliminar a ${name} de la organización?`,
+        confirmLabel: "Eliminar miembro",
+        destructive: true,
+      }))
+    )
+      return;
     setDeletingUserId(userId);
     try {
       const res = await fetch("/api/org-members", {
@@ -242,8 +251,8 @@ export function OrgMembersPanel() {
                         variant={m.status === "pending" ? "secondary" : "outline"}
                         className={
                           m.status === "pending"
-                            ? "bg-amber-500/15 text-amber-300 border-amber-500/40"
-                            : "bg-emerald-500/15 text-emerald-300 border-emerald-500/40"
+                            ? "bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/40"
+                            : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"
                         }
                       >
                         {STATUS_LABELS[m.status]}
@@ -261,7 +270,7 @@ export function OrgMembersPanel() {
                           <Pencil className="h-3.5 w-3.5" />
                           Gestionar Acceso
                         </Button>
-                        <Button
+                        <Button aria-label={`Eliminar a ${name} de la organización`}
                           type="button"
                           variant="ghost"
                           size="icon"
@@ -270,9 +279,9 @@ export function OrgMembersPanel() {
                           onClick={() => handleRemove(m.user_id, name)}
                         >
                           {isRowDeleting ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
                           ) : (
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 aria-hidden="true" className="h-4 w-4" />
                           )}
                         </Button>
                       </div>

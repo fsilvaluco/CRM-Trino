@@ -195,7 +195,7 @@ function FilterPanel({
       <FilterSection label="Estado">
         <Select value={filters.status} onValueChange={(v) => set("status", (v ?? "all") as TaskStatus | "all")}>
           <SelectTrigger className="h-8 text-sm cursor-pointer">
-            <SelectValue />
+            <SelectValue>{filters.status === "all" ? "Todos" : STATUS_LABELS[filters.status as TaskStatus]}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
@@ -209,7 +209,7 @@ function FilterPanel({
       <FilterSection label="Prioridad">
         <Select value={filters.priority} onValueChange={(v) => set("priority", (v ?? "all") as TaskPriority | "all")}>
           <SelectTrigger className="h-8 text-sm cursor-pointer">
-            <SelectValue />
+            <SelectValue>{({ all: "Todas", high: "Alta", medium: "Media", low: "Baja" } as Record<string, string>)[filters.priority]}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas</SelectItem>
@@ -224,7 +224,7 @@ function FilterPanel({
         <FilterSection label="Proyecto">
           <Select value={filters.projectId} onValueChange={(v) => set("projectId", v ?? "all")}>
             <SelectTrigger className="h-8 text-sm cursor-pointer">
-              <SelectValue />
+              <SelectValue>{filters.projectId === "all" ? "Todos" : options.projects.find((o) => o.id === filters.projectId)?.name}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos</SelectItem>
@@ -240,7 +240,7 @@ function FilterPanel({
         <FilterSection label="Subproyecto">
           <Select value={filters.subprojectId} onValueChange={(v) => set("subprojectId", v ?? "all")}>
             <SelectTrigger className="h-8 text-sm cursor-pointer">
-              <SelectValue />
+              <SelectValue>{filters.subprojectId === "all" ? "Todos" : options.subprojects.find((o) => o.id === filters.subprojectId)?.name}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos</SelectItem>
@@ -256,7 +256,7 @@ function FilterPanel({
         <FilterSection label="Empresa">
           <Select value={filters.companyId} onValueChange={(v) => set("companyId", v ?? "all")}>
             <SelectTrigger className="h-8 text-sm cursor-pointer">
-              <SelectValue />
+              <SelectValue>{filters.companyId === "all" ? "Todas" : options.companies.find((o) => o.id === filters.companyId)?.name}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas</SelectItem>
@@ -272,7 +272,7 @@ function FilterPanel({
         <FilterSection label="Contacto">
           <Select value={filters.contactId} onValueChange={(v) => set("contactId", v ?? "all")}>
             <SelectTrigger className="h-8 text-sm cursor-pointer">
-              <SelectValue />
+              <SelectValue>{filters.contactId === "all" ? "Todos" : options.contacts.find((o) => o.id === filters.contactId)?.name}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos</SelectItem>
@@ -288,7 +288,7 @@ function FilterPanel({
         <FilterSection label="Deal">
           <Select value={filters.dealId} onValueChange={(v) => set("dealId", v ?? "all")}>
             <SelectTrigger className="h-8 text-sm cursor-pointer">
-              <SelectValue />
+              <SelectValue>{filters.dealId === "all" ? "Todos" : options.deals.find((o) => o.id === filters.dealId)?.name}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos</SelectItem>
@@ -325,7 +325,7 @@ function FilterPanel({
       <FilterSection label="Completadas">
         <Select value={filters.completed} onValueChange={(v) => set("completed", (v ?? "all") as "all" | "yes" | "no")}>
           <SelectTrigger className="h-8 text-sm cursor-pointer">
-            <SelectValue />
+            <SelectValue>{({ all: "Todas", no: "No completadas", yes: "Completadas" } as Record<string, string>)[filters.completed]}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas</SelectItem>
@@ -401,7 +401,7 @@ export function TaskFilterBar({
         <Select value={sortBy} onValueChange={(v) => onSortChange(v as SortKey)}>
           <SelectTrigger className="h-8 w-[190px] text-sm cursor-pointer gap-1.5">
             <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <SelectValue />
+            <SelectValue>{SORT_LABELS[sortBy]}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {(Object.entries(SORT_LABELS) as [SortKey, string][]).map(([key, label]) => (

@@ -21,6 +21,7 @@ import {
 import { toast } from "sonner";
 import { Loader2, ChevronDown, ChevronRight, Settings2, Trash2, UserPlus, ShieldAlert } from "lucide-react";
 import { ModulePermissionsEditor, type ModuleKey, type ModulePermission } from "@/components/settings/ModulePermissionsEditor";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 type ProjectRole = "admin" | "member" | "artist" | "staff";
 
@@ -57,6 +58,7 @@ interface Overview {
 }
 
 export default function PermissionsAdminPage() {
+  const confirm = useConfirm();
   const [data, setData] = useState<Overview | null>(null);
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
@@ -108,7 +110,7 @@ export default function PermissionsAdminPage() {
   };
 
   const handleRemove = async (membershipId: string, name: string) => {
-    if (!confirm(`¿Sacar a ${name} de este proyecto?`)) return;
+    if (!(await confirm({ title: `¿Sacar a ${name} de este proyecto?`, confirmLabel: "Sacar del proyecto", destructive: true }))) return;
     const res = await fetch("/api/admin/project-members", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
@@ -200,19 +202,19 @@ export default function PermissionsAdminPage() {
                     <Checkbox checked={m.puedeGestionarEquipo} onCheckedChange={(v) => handleManagerToggle(m.id, v === true)} />
                     Gestiona equipo
                   </label>
-                  <Button
+                  <Button aria-label={`Editar permisos finos por módulo de ${m.name}`}
                     variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer"
                     title="Editar permisos finos por módulo"
                     onClick={() => setExpandedMatrixId(expandedMatrixId === m.id ? null : m.id)}
                   >
-                    <Settings2 className="h-3.5 w-3.5" />
+                    <Settings2 aria-hidden="true" className="h-3.5 w-3.5" />
                   </Button>
-                  <Button
+                  <Button aria-label={`Sacar a ${m.name} del proyecto`}
                     variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer text-muted-foreground hover:text-destructive"
                     title="Sacar del proyecto"
                     onClick={() => handleRemove(m.id, m.name)}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
                   </Button>
                 </div>
                 {expandedMatrixId === m.id && m.modules && (
@@ -230,7 +232,11 @@ export default function PermissionsAdminPage() {
               <div className="rounded-md border border-dashed p-2.5 space-y-2">
                 <Select value={newMemberUserId} onValueChange={(v) => setNewMemberUserId(v ?? "")}>
                   <SelectTrigger className="h-8 text-xs cursor-pointer w-full">
-                    <SelectValue placeholder="Elegir persona de la organización" />
+                    <SelectValue placeholder="Elegir persona de la organización">
+                      {newMemberUserId
+                        ? nonMembersOf(project.id).find((m) => m.userId === newMemberUserId)?.name
+                        : undefined}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {nonMembersOf(project.id).map((m) => (

@@ -31,7 +31,7 @@ function SortableRow({ id, children }: { id: string; children: React.ReactNode }
         {...attributes}
         {...listeners}
         type="button"
-        className="mt-2 text-muted-foreground/50 hover:text-muted-foreground cursor-grab touch-none shrink-0"
+        className="mt-2 text-muted-foreground hover:text-foreground cursor-grab touch-none shrink-0"
         aria-label="Arrastrar para reordenar"
       >
         <GripVertical className="h-4 w-4" />

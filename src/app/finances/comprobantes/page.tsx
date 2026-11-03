@@ -23,6 +23,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { parseFlexibleDate } from "@/lib/constants";
 import { formatSettlementAmount, type SettlementCurrency } from "@/lib/settlement-money";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 interface Signer {
   userId: string;
@@ -124,11 +125,11 @@ function SettlementCard({
           {settlement.paid && (
             <Badge className="bg-green-600 text-white text-[10px]"><Check className="h-2.5 w-2.5 mr-1" />Pagado</Badge>
           )}
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" title="Editar" onClick={() => onEdit(settlement)}>
-            <Pencil className="h-3.5 w-3.5" />
+          <Button aria-label="Editar rendición" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" title="Editar" onClick={() => onEdit(settlement)}>
+            <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" title="Eliminar" onClick={() => onDelete(settlement.id)}>
-            <Trash2 className="h-3.5 w-3.5" />
+          <Button aria-label="Eliminar rendición" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" title="Eliminar" onClick={() => onDelete(settlement.id)}>
+            <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>
@@ -265,6 +266,7 @@ function EventReceiptFolder({ receipt }: { receipt: EventReceipt }) {
 }
 
 export default function ComprobantesPage() {
+  const confirm = useConfirm();
   const { user } = useAuth();
   const { activeProject, isAllProjects } = useProject();
   const activeProjectId = activeProject?.id ?? null;
@@ -310,7 +312,7 @@ export default function ComprobantesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("¿Eliminar esta liquidación?")) return;
+    if (!(await confirm({ title: "¿Eliminar esta liquidación?", confirmLabel: "Eliminar liquidación", destructive: true }))) return;
     const res = await fetch(`/api/settlements/${id}`, { method: "DELETE" });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));

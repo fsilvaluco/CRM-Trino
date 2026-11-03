@@ -21,6 +21,7 @@ import {
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, DollarSign, Briefcase, CheckSquare, Users2, Target, Music2, Newspaper, Ticket, ArrowLeft, Sparkles, TrendingUp, TrendingDown, Minus, History } from "lucide-react";
 import { useLocale } from "@/lib/locale-context";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 type GoalMetricType =
   | "ventas_deals"
@@ -109,6 +110,13 @@ const GOAL_TEMPLATE_CATEGORIES: Array<{ label: string; templates: GoalTemplate[]
     ],
   },
 ];
+
+// Textos de las opciones del selector de período (más largos que PERIOD_LABELS).
+const PERIOD_SELECT_LABELS: Record<GoalPeriodType, string> = {
+  monthly: "Mensual (se resetea cada mes)",
+  annual: "Anual (se resetea cada año)",
+  custom: "Rango de fechas personalizado",
+};
 
 const PERIOD_LABELS: Record<GoalPeriodType, string> = {
   monthly: "Este mes",
@@ -284,7 +292,7 @@ function GoalFormDialog({
               <Label>Tipo</Label>
               <Select value={metricType} onValueChange={(v) => setMetricType(v as GoalMetricType)}>
                 <SelectTrigger className="cursor-pointer">
-                  <SelectValue />
+                  <SelectValue>{METRIC_CONFIG[metricType]?.label}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {Object.entries(METRIC_CONFIG).filter(([, cfg]) => !cfg.internal).map(([key, cfg]) => (
@@ -316,12 +324,12 @@ function GoalFormDialog({
             <Label>Período</Label>
             <Select value={periodType} onValueChange={(v) => setPeriodType(v as GoalPeriodType)}>
               <SelectTrigger className="cursor-pointer">
-                <SelectValue />
+                <SelectValue>{PERIOD_SELECT_LABELS[periodType]}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="monthly">Mensual (se resetea cada mes)</SelectItem>
-                <SelectItem value="annual">Anual (se resetea cada año)</SelectItem>
-                <SelectItem value="custom">Rango de fechas personalizado</SelectItem>
+                {(Object.keys(PERIOD_SELECT_LABELS) as GoalPeriodType[]).map((key) => (
+                  <SelectItem key={key} value={key}>{PERIOD_SELECT_LABELS[key]}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -448,6 +456,7 @@ function GoalHistoryDialog({
 }
 
 export function GoalsPanel({ projectId }: { projectId: string }) {
+  const confirm = useConfirm();
   const { formatCurrency } = useLocale();
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -469,7 +478,15 @@ export function GoalsPanel({ projectId }: { projectId: string }) {
   }, [loadGoals]);
 
   async function handleDelete(goal: Goal) {
-    if (!confirm(`¿Borrar la meta "${goal.title}"? No la vas a usar más en este proyecto.`)) return;
+    if (
+      !(await confirm({
+        title: `¿Borrar la meta "${goal.title}"?`,
+        description: "No la vas a usar más en este proyecto.",
+        confirmLabel: "Borrar meta",
+        destructive: true,
+      }))
+    )
+      return;
     try {
       const res = await fetch(`/api/goals/${goal.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
@@ -556,14 +573,14 @@ export function GoalsPanel({ projectId }: { projectId: string }) {
                     <p className="text-sm font-medium leading-snug">{goal.title}</p>
                   </div>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
+                    <button aria-label={`Ver historial de ${goal.title}`}
                       onClick={() => setHistoryGoal(goal)}
                       className="text-muted-foreground hover:text-foreground cursor-pointer p-1"
                       title="Ver historial"
                     >
-                      <History className="h-3.5 w-3.5" />
+                      <History aria-hidden="true" className="h-3.5 w-3.5" />
                     </button>
-                    <button
+                    <button aria-label={`Editar meta ${goal.title}`}
                       onClick={() => {
                         setEditingGoal(goal);
                         setFormOpen(true);
@@ -571,14 +588,14 @@ export function GoalsPanel({ projectId }: { projectId: string }) {
                       className="text-muted-foreground hover:text-foreground cursor-pointer p-1"
                       title="Editar"
                     >
-                      <Pencil className="h-3.5 w-3.5" />
+                      <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
                     </button>
-                    <button
+                    <button aria-label={`Borrar meta ${goal.title}`}
                       onClick={() => handleDelete(goal)}
                       className="text-muted-foreground hover:text-destructive cursor-pointer p-1"
                       title="Borrar"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 </CardHeader>

@@ -50,7 +50,15 @@ export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealCl
     columnsSnapshot.current = initialColumns;
   }, [initialColumns]);
 
-  const { sensors, collisionDetectionStrategy } = useKanbanDnd();
+  const findColumnOf = (cols: PipelineColumn[], id: string) =>
+    cols.find((col) => col.id === id) || cols.find((col) => col.deals.some((d) => d.id === id));
+
+  const { sensors, collisionDetectionStrategy, accessibility } = useKanbanDnd({
+    columnIds: columns.map((c) => c.id),
+    getItemLabel: (id) =>
+      columns.flatMap((c) => c.deals).find((d) => d.id === id)?.title ?? "deal",
+    getColumnLabel: (id) => findColumnOf(columns, String(id))?.name ?? null,
+  });
 
   const activeDeal = activeId
     ? columns
@@ -103,39 +111,25 @@ export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealCl
     });
   }, [columns]);
 
-  const handleDragEnd = useCallback(
-    async (event: DragEndEvent) => {
-      const { active, over } = event;
-      setActiveId(null);
-
-      if (!over) return;
-
-      const activeId = active.id as string;
-      const overColumn =
-        columns.find((col) => col.id === over.id) ||
-        columns.find((col) => col.deals.some((d) => d.id === over.id));
-
-      if (!overColumn) return;
-
+  // Guarda el cambio de etapa en el servidor. `snapshot` es el estado previo
+  // al movimiento (para revertir si falla y para leer los datos del deal).
+  const persistMove = useCallback(
+    async (dealId: string, targetColumn: PipelineColumn, snapshot: PipelineColumn[]) => {
       // Regla del rediseño de roles (ROLES.md 0.5): en "Todos los
       // proyectos" no se edita nada -- el servidor ya lo rechazaría, pero
       // evitamos el viaje de red y damos un mensaje específico en vez del
       // genérico "Error al mover el deal".
       if (isAllProjects) {
-        setColumns(columnsSnapshot.current);
+        setColumns(snapshot);
         toast.warning("Selecciona un proyecto para mover deals de etapa");
         return;
       }
 
-      // Update the deal's stage via API
       try {
         const res = await fetch("/api/pipeline", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            dealId: activeId,
-            stageId: overColumn.id,
-          }),
+          body: JSON.stringify({ dealId, stageId: targetColumn.id }),
         });
         if (!res.ok) {
           throw new Error("API error");
@@ -143,36 +137,88 @@ export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealCl
         onMoveSuccess?.();
 
         // Si la etapa destino es Ganado o Perdido, pedir el motivo/valor
-        // real de cierre -- se usa el snapshot pre-drag para encontrar el
+        // real de cierre -- se usa el snapshot previo para encontrar el
         // deal, porque el estado ya se actualizo de forma optimista.
-        if (overColumn.isWon || overColumn.isLost) {
-          const movedDeal = columnsSnapshot.current
-            .flatMap((col) => col.deals)
-            .find((d) => d.id === activeId);
+        if (targetColumn.isWon || targetColumn.isLost) {
+          const movedDeal = snapshot.flatMap((col) => col.deals).find((d) => d.id === dealId);
           if (movedDeal) {
-            if (overColumn.isWon && movedDeal.isShow) {
+            if (targetColumn.isWon && movedDeal.isShow) {
               pendingShowRef.current = {
-                dealId: activeId,
+                dealId,
                 dealTitle: movedDeal.title,
                 projectId: movedDeal.artistProjectId || movedDeal.projectId || "",
               };
             }
             setCloseDialog({
-              dealId: activeId,
+              dealId,
               dealTitle: movedDeal.title,
               currentValue: movedDeal.value,
-              outcome: overColumn.isWon ? "won" : "lost",
+              outcome: targetColumn.isWon ? "won" : "lost",
             });
           }
         }
       } catch {
-        // Rollback to pre-drag state
-        setColumns(columnsSnapshot.current);
-        toast.error("Error al mover el deal. Se revirtio el cambio.");
+        setColumns(snapshot);
+        toast.error("Error al mover el deal. Se revirtió el cambio.");
       }
     },
-    [columns, onMoveSuccess, isAllProjects]
+    [onMoveSuccess, isAllProjects]
   );
+
+  const handleDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      const { active, over } = event;
+      setActiveId(null);
+      const snapshot = columnsSnapshot.current;
+
+      // Soltado fuera de las columnas: deshacer el movimiento visual que
+      // haya hecho handleDragOver.
+      if (!over) {
+        setColumns(snapshot);
+        return;
+      }
+
+      const dealId = active.id as string;
+      const targetColumn = findColumnOf(columns, String(over.id));
+      if (!targetColumn) {
+        setColumns(snapshot);
+        return;
+      }
+
+      // Misma etapa que antes de arrastrar (p. ej. reordenar dentro de
+      // "Ganado"): no hay nada que guardar ni motivo de cierre que pedir.
+      const originalColumn = snapshot.find((col) => col.deals.some((d) => d.id === dealId));
+      if (originalColumn?.id === targetColumn.id) return;
+
+      await persistMove(dealId, targetColumn, snapshot);
+    },
+    [columns, persistMove]
+  );
+
+  const handleDragCancel = useCallback(() => {
+    setActiveId(null);
+    setColumns(columnsSnapshot.current);
+  }, []);
+
+  // Alternativa sin arrastre (menu "Mover a" de cada tarjeta).
+  const handleMoveDeal = useCallback(
+    (dealId: string, targetStageId: string) => {
+      const snapshot = columns;
+      const targetColumn = columns.find((c) => c.id === targetStageId);
+      const deal = columns.flatMap((c) => c.deals).find((d) => d.id === dealId);
+      if (!targetColumn || !deal || deal.stageId === targetStageId) return;
+      setColumns((prev) =>
+        prev.map((col) => {
+          if (col.id === targetStageId) return { ...col, deals: [...col.deals, { ...deal, stageId: targetStageId }] };
+          return { ...col, deals: col.deals.filter((d) => d.id !== dealId) };
+        })
+      );
+      void persistMove(dealId, targetColumn, snapshot);
+    },
+    [columns, persistMove]
+  );
+
+  const stageTargets = columns.map((c) => ({ id: c.id, label: c.name, color: c.color }));
 
   return (
     <>
@@ -182,6 +228,8 @@ export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealCl
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
+      accessibility={accessibility}
     >
       <div className="flex gap-4 overflow-x-auto pb-4">
         {columns.map((column) => (
@@ -192,6 +240,8 @@ export function KanbanBoard({ initialColumns, onMoveSuccess, onAddDeal, onDealCl
             color={column.color}
             onAddDeal={onAddDeal ? () => onAddDeal(column.id) : undefined}
             onDealClick={onDealClick}
+            stages={stageTargets}
+            onMoveDeal={handleMoveDeal}
             deals={column.deals.map((d) => ({
               id: d.id,
               title: d.title,

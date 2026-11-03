@@ -92,7 +92,7 @@ function QrScanDetailContent({ itemId }: { itemId: string }) {
                 itemStyle={{ color: "#0f172a" }}
                 formatter={(v) => [v, "Escaneos"]}
               />
-              <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="count" fill="var(--primary)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
