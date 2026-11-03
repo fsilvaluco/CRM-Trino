@@ -266,7 +266,7 @@ export function SmartlinkFormDialog({
             <Label>Para qué es este smartlink</Label>
             <Select value={purpose} onValueChange={(v) => handlePurposeChange(v === "rrss" ? "rrss" : "ventas")}>
               <SelectTrigger className="cursor-pointer">
-                <SelectValue />
+                <SelectValue>{PURPOSE_OPTIONS.find((p) => p.value === purpose)?.label}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {PURPOSE_OPTIONS.map((p) => (

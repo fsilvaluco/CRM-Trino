@@ -61,6 +61,12 @@ function splitFinancials(ventas: number) {
   return { comision, iva, utilidad };
 }
 
+const STATUS_FILTER_LABELS = {
+  all: "Todos los estados",
+  available: "Solo disponibles",
+  unavailable: "Solo sin stock",
+} as const;
+
 const MONTH_LABELS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
 interface MerchDashboardProps {
@@ -468,12 +474,12 @@ export function MerchDashboard({ products, salesByMonth, projectId }: MerchDashb
           <p className="text-xs font-medium text-muted-foreground">Catálogo de la colección conectada</p>
           <Select value={statusFilter} onValueChange={(v) => v && setStatusFilter(v as typeof statusFilter)}>
             <SelectTrigger className="h-8 w-44 text-xs cursor-pointer">
-              <SelectValue />
+              <SelectValue>{STATUS_FILTER_LABELS[statusFilter]}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos los estados</SelectItem>
-              <SelectItem value="available">Solo disponibles</SelectItem>
-              <SelectItem value="unavailable">Solo sin stock</SelectItem>
+              {(Object.keys(STATUS_FILTER_LABELS) as (keyof typeof STATUS_FILTER_LABELS)[]).map((key) => (
+                <SelectItem key={key} value={key}>{STATUS_FILTER_LABELS[key]}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

@@ -975,7 +975,13 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
                     onValueChange={(value) => setNewContactCompanyId(value ?? NO_COMPANY_VALUE)}
                   >
                     <SelectTrigger id="new-contact-company" className="cursor-pointer">
-                      <SelectValue placeholder="Seleccionar empresa" />
+                      <SelectValue placeholder="Seleccionar empresa">
+                        {newContactCompanyId === NO_COMPANY_VALUE
+                          ? "Sin empresa (persona natural)"
+                          : newContactCompanyId === CREATE_COMPANY_VALUE
+                            ? "+ Crear nueva empresa"
+                            : companiesList.find((company) => company.id === newContactCompanyId)?.name}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value={NO_COMPANY_VALUE}>Sin empresa (persona natural)</SelectItem>

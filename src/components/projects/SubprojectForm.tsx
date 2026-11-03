@@ -33,6 +33,12 @@ const subprojectSchema = z.object({
 
 type SubprojectFormData = z.infer<typeof subprojectSchema>;
 
+const STATUS_LABELS: Record<SubprojectFormData["status"], string> = {
+  active: "Activo",
+  paused: "Pausado",
+  completed: "Completado",
+};
+
 interface SubprojectFormProps {
   open: boolean;
   onClose: () => void;
@@ -111,7 +117,7 @@ export function SubprojectForm({ open, onClose, projectId, initialData }: Subpro
               onValueChange={(v) => v && setValue("status", v as SubprojectFormData["status"])}
             >
               <SelectTrigger className="cursor-pointer">
-                <SelectValue />
+                <SelectValue>{STATUS_LABELS[watch("status")]}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="active">Activo</SelectItem>

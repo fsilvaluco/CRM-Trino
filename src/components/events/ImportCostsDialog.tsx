@@ -183,7 +183,9 @@ export function ImportCostsDialog({ eventId, open, onOpenChange, onImport }: Pro
                 <>
                   <Select value={selectedEventId} onValueChange={(v) => setSelectedEventId(v ?? "")}>
                     <SelectTrigger className="w-full cursor-pointer">
-                      <SelectValue placeholder="Elegir evento..." />
+                      <SelectValue placeholder="Elegir evento...">
+                        {sourceEvents.find((ev) => ev.id === selectedEventId)?.name}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {sourceEvents.map((ev) => (

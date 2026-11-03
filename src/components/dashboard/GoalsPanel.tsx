@@ -111,6 +111,13 @@ const GOAL_TEMPLATE_CATEGORIES: Array<{ label: string; templates: GoalTemplate[]
   },
 ];
 
+// Textos de las opciones del selector de período (más largos que PERIOD_LABELS).
+const PERIOD_SELECT_LABELS: Record<GoalPeriodType, string> = {
+  monthly: "Mensual (se resetea cada mes)",
+  annual: "Anual (se resetea cada año)",
+  custom: "Rango de fechas personalizado",
+};
+
 const PERIOD_LABELS: Record<GoalPeriodType, string> = {
   monthly: "Este mes",
   annual: "Este año",
@@ -285,7 +292,7 @@ function GoalFormDialog({
               <Label>Tipo</Label>
               <Select value={metricType} onValueChange={(v) => setMetricType(v as GoalMetricType)}>
                 <SelectTrigger className="cursor-pointer">
-                  <SelectValue />
+                  <SelectValue>{METRIC_CONFIG[metricType]?.label}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {Object.entries(METRIC_CONFIG).filter(([, cfg]) => !cfg.internal).map(([key, cfg]) => (
@@ -317,12 +324,12 @@ function GoalFormDialog({
             <Label>Período</Label>
             <Select value={periodType} onValueChange={(v) => setPeriodType(v as GoalPeriodType)}>
               <SelectTrigger className="cursor-pointer">
-                <SelectValue />
+                <SelectValue>{PERIOD_SELECT_LABELS[periodType]}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="monthly">Mensual (se resetea cada mes)</SelectItem>
-                <SelectItem value="annual">Anual (se resetea cada año)</SelectItem>
-                <SelectItem value="custom">Rango de fechas personalizado</SelectItem>
+                {(Object.keys(PERIOD_SELECT_LABELS) as GoalPeriodType[]).map((key) => (
+                  <SelectItem key={key} value={key}>{PERIOD_SELECT_LABELS[key]}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

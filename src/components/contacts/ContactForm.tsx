@@ -28,6 +28,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useLocale } from "@/lib/locale-context";
 import { useProject } from "@/lib/project-context";
+import { SOURCE_LABELS } from "@/lib/constants";
 
 const NEW_COMPANY_VALUE = "__new__";
 const NO_COMPANY_VALUE = "__no_company__";
@@ -275,7 +276,16 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
               }}
             >
               <SelectTrigger id="contact-company" className="cursor-pointer">
-                <SelectValue placeholder="Selecciona una empresa" />
+                <SelectValue placeholder="Selecciona una empresa">
+                  {!watchedCompanyId
+                    ? undefined
+                    : watchedCompanyId === NO_COMPANY_VALUE
+                      ? "Sin empresa (persona natural)"
+                      : watchedCompanyId === NEW_COMPANY_VALUE
+                        ? "+ Nueva empresa..."
+                        : (companiesList.find((c) => c.id === watchedCompanyId)?.name ??
+                          (initialData?.company || "Empresa seleccionada"))}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={NO_COMPANY_VALUE}>Sin empresa (persona natural)</SelectItem>
@@ -324,7 +334,13 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
                 }
               >
                 <SelectTrigger id="contact-artist-project" className="cursor-pointer">
-                  <SelectValue placeholder="Ninguno" />
+                  <SelectValue placeholder="Ninguno">
+                    {(() => {
+                      const id = watch("artistProjectId");
+                      if (!id) return "Ninguno (contacto general)";
+                      return artistProjects.find((p) => p.id === id)?.name;
+                    })()}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NO_ARTIST_VALUE}>Ninguno (contacto general)</SelectItem>
@@ -343,7 +359,9 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
             <Label htmlFor="contact-source">Fuente</Label>
             <Select value={watch("source")} onValueChange={(v) => v && setValue("source", v)}>
               <SelectTrigger id="contact-source" className="cursor-pointer">
-                <SelectValue />
+                <SelectValue>
+                  {(SOURCE_LABELS as Record<string, string>)[watch("source")] ?? watch("source")}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="website">Sitio web</SelectItem>

@@ -232,7 +232,11 @@ export default function PermissionsAdminPage() {
               <div className="rounded-md border border-dashed p-2.5 space-y-2">
                 <Select value={newMemberUserId} onValueChange={(v) => setNewMemberUserId(v ?? "")}>
                   <SelectTrigger className="h-8 text-xs cursor-pointer w-full">
-                    <SelectValue placeholder="Elegir persona de la organización" />
+                    <SelectValue placeholder="Elegir persona de la organización">
+                      {newMemberUserId
+                        ? nonMembersOf(project.id).find((m) => m.userId === newMemberUserId)?.name
+                        : undefined}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {nonMembersOf(project.id).map((m) => (

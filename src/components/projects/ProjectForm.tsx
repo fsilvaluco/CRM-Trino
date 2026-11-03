@@ -27,6 +27,13 @@ import { toast } from "sonner";
 import type { Project } from "@/types";
 
 const PROJECT_TYPES = ["Teatro", "Música", "Personal", "Otro"] as const;
+
+const STATUS_LABELS: Record<string, string> = {
+  active: "Activo",
+  paused: "Pausado",
+  completed: "Completado",
+  archived: "Archivado",
+};
 const NO_SELLO_VALUE = "__no_sello__";
 
 const projectSchema = z.object({
@@ -167,7 +174,7 @@ export function ProjectForm({ open, onClose, initialData }: ProjectFormProps) {
                 onValueChange={(v) => v && setValue("status", v as ProjectFormData["status"])}
               >
                 <SelectTrigger className="cursor-pointer">
-                  <SelectValue />
+                  <SelectValue>{STATUS_LABELS[watch("status")]}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="active">Activo</SelectItem>

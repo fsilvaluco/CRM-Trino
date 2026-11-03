@@ -75,6 +75,13 @@ const PLATFORM_OPTIONS: { value: SocialPlatform; label: string }[] = [
   { value: "facebook", label: "Facebook" },
 ];
 
+const DATE_FORMAT_LABELS: Record<"auto" | "DMY" | "MDY" | "YMD", string> = {
+  auto: "Automático",
+  DMY: "DD-MM-AAAA",
+  MDY: "MM-DD-AAAA",
+  YMD: "AAAA-MM-DD",
+};
+
 export default function ImportPage() {
   const { activeProject, isAdmin } = useProject();
   const [step, setStep] = useState<Step>("select");
@@ -187,7 +194,9 @@ export default function ImportPage() {
             <Label>¿Qué tipo de dato vas a importar?</Label>
             <Select value={targetType} onValueChange={(v) => setTargetType(v as ImportTargetType)}>
               <SelectTrigger>
-                <SelectValue placeholder="Selecciona un tipo" />
+                <SelectValue placeholder="Selecciona un tipo">
+                  {targetType ? IMPORT_TARGETS[targetType].label : undefined}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {(Object.keys(IMPORT_TARGETS) as ImportTargetType[]).map((key) => (
@@ -205,7 +214,9 @@ export default function ImportPage() {
               <Label>Plataforma</Label>
               <Select value={platform} onValueChange={(v) => setPlatform(v as SocialPlatform)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecciona una plataforma" />
+                  <SelectValue placeholder="Selecciona una plataforma">
+                    {PLATFORM_OPTIONS.find((p) => p.value === platform)?.label}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {PLATFORM_OPTIONS.map((p) => (
@@ -299,7 +310,7 @@ export default function ImportPage() {
                       onValueChange={(v) => setMapping((m) => ({ ...m, [field.key]: v === "__none__" ? null : v }))}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="No aplica" />
+                        <SelectValue placeholder="No aplica">{mapping[field.key] ?? "No aplica"}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__none__">No aplica</SelectItem>
@@ -338,13 +349,12 @@ export default function ImportPage() {
                         onValueChange={(v) => setDateFormats((m) => ({ ...m, [field.key]: v as "auto" | "DMY" | "MDY" | "YMD" }))}
                       >
                         <SelectTrigger className="h-8 text-xs">
-                          <SelectValue />
+                          <SelectValue>{DATE_FORMAT_LABELS[dateFormats[field.key] ?? "auto"]}</SelectValue>
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="auto">Automático</SelectItem>
-                          <SelectItem value="DMY">DD-MM-AAAA</SelectItem>
-                          <SelectItem value="MDY">MM-DD-AAAA</SelectItem>
-                          <SelectItem value="YMD">AAAA-MM-DD</SelectItem>
+                          {(Object.keys(DATE_FORMAT_LABELS) as (keyof typeof DATE_FORMAT_LABELS)[]).map((key) => (
+                            <SelectItem key={key} value={key}>{DATE_FORMAT_LABELS[key]}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>

@@ -102,6 +102,12 @@ function toAllowedStatus(value: string): SubprojectEditFormData["status"] {
 
 // ─── FieldRow (matches TaskDetailSheet layout) ────────────────────────────────
 
+const STATUS_LABELS: Record<string, string> = {
+  active: "Activa",
+  paused: "Pausada",
+  completed: "Completada",
+};
+
 function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="grid grid-cols-[120px_1fr] items-start gap-2 py-2 border-b last:border-0">
@@ -297,7 +303,9 @@ export function SubprojectEditSheet({
                   }}
                 >
                   <SelectTrigger className="h-8 text-sm cursor-pointer">
-                    <SelectValue placeholder="Selecciona un estado" />
+                    <SelectValue placeholder="Selecciona un estado">
+                      {currentStatus ? STATUS_LABELS[currentStatus] : undefined}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="active">Activa</SelectItem>
@@ -318,7 +326,13 @@ export function SubprojectEditSheet({
                   }
                 >
                   <SelectTrigger className="h-8 text-sm cursor-pointer">
-                    <SelectValue placeholder={relationsLoaded ? "Sin empresa" : "Cargando..."} />
+                    <SelectValue placeholder={relationsLoaded ? "Sin empresa" : "Cargando..."}>
+                      {!relationsLoaded
+                        ? undefined
+                        : currentCompanyId
+                          ? companies.find((c) => c.id === currentCompanyId)?.name
+                          : "Sin empresa"}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Sin empresa</SelectItem>
@@ -342,7 +356,13 @@ export function SubprojectEditSheet({
                   }
                 >
                   <SelectTrigger className="h-8 text-sm cursor-pointer">
-                    <SelectValue placeholder={relationsLoaded ? "Sin contacto" : "Cargando..."} />
+                    <SelectValue placeholder={relationsLoaded ? "Sin contacto" : "Cargando..."}>
+                      {!relationsLoaded
+                        ? undefined
+                        : currentContactId
+                          ? contacts.find((c) => c.id === currentContactId)?.name
+                          : "Sin contacto"}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Sin contacto</SelectItem>

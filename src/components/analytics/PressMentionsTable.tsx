@@ -78,7 +78,7 @@ export function PressMentionsTable({ mentions, onEdit, onDeleted }: PressMention
       <div className="flex items-center gap-2 flex-wrap">
         <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as PressMentionType | "all")}>
           <SelectTrigger className="w-[160px]">
-            <SelectValue />
+            <SelectValue>{typeFilter === "all" ? "Todos los tipos" : PRESS_TYPE_LABELS[typeFilter]}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos los tipos</SelectItem>
@@ -91,7 +91,9 @@ export function PressMentionsTable({ mentions, onEdit, onDeleted }: PressMention
         </Select>
         <Select value={sourceFilter} onValueChange={(v) => setSourceFilter(v as PressMentionSource | "all")}>
           <SelectTrigger className="w-[160px]">
-            <SelectValue />
+            <SelectValue>
+              {sourceFilter === "all" ? "Todas las fuentes" : PRESS_SOURCE_LABELS[sourceFilter]}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas las fuentes</SelectItem>

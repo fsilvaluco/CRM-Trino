@@ -88,7 +88,7 @@ export function SpotifyStatsCharts({ snapshots, followerMetrics }: SpotifyStatsC
       <div className="flex items-center gap-3 flex-wrap">
         <Select value={metric} onValueChange={(v) => setMetric(v as MetricKey)}>
           <SelectTrigger className="w-[220px]">
-            <SelectValue />
+            <SelectValue>{activeMetric.label}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {METRICS.map((m) => (
@@ -101,7 +101,7 @@ export function SpotifyStatsCharts({ snapshots, followerMetrics }: SpotifyStatsC
 
         <Select value={range.key} onValueChange={(v) => setRange(RANGES.find((r) => r.key === v) ?? RANGES[1])}>
           <SelectTrigger className="w-[180px]">
-            <SelectValue />
+            <SelectValue>{range.label}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {RANGES.map((r) => (
