@@ -125,7 +125,9 @@ export function SubprojectEditSheet({
   onClose,
   onSaved,
 }: SubprojectEditSheetProps) {
-  const { activeProject } = useProject();
+  const { activeProject, canEditModuleInActiveProject } = useProject();
+  // Misma regla que PUT /api/subprojects/[id] (matriz `campanas`).
+  const canEditCampaign = canEditModuleInActiveProject("campanas");
   const [companies, setCompanies] = useState<Relation[]>([]);
   const [contacts, setContacts] = useState<Relation[]>([]);
   const [relationsLoaded, setRelationsLoaded] = useState(false);
@@ -428,7 +430,8 @@ export function SubprojectEditSheet({
           <Button
             type="submit"
             form="campaign-edit-form"
-            disabled={isSubmitting || !campaign}
+            disabled={isSubmitting || !campaign || !canEditCampaign}
+            title={canEditCampaign ? undefined : "Tu rol no puede editar campañas en este proyecto"}
             className="cursor-pointer"
           >
             {isSubmitting ? "Guardando…" : "Guardar cambios"}

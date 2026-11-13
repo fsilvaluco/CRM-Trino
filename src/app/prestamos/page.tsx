@@ -19,6 +19,7 @@ import { SignedFileLink } from "@/components/finances/SignedFileLink";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useConfirm } from "@/components/shared/ConfirmProvider";
+import { LoadErrorState, readLoadError } from "@/components/shared/LoadErrorState";
 
 const CLP = new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
 function formatCents(cents: number): string {
@@ -365,8 +366,10 @@ function NewContributionDialog({ open, onClose, projectId, onCreated }: { open: 
 
 function LoanCard({ loan, onChanged, onEdit }: { loan: Loan; onChanged: () => void; onEdit: (loan: Loan) => void }) {
   const confirm = useConfirm();
-  // Misma regla que DELETE /api/loans/[id] y de abonos (matriz `finanzas`).
-  const canDelete = useProject().canDeleteModuleInActiveProject("finanzas");
+  // Misma regla que PUT/DELETE /api/loans/[id] y de abonos (matriz `finanzas`).
+  const { canEditModuleInActiveProject, canDeleteModuleInActiveProject } = useProject();
+  const canEdit = canEditModuleInActiveProject("finanzas");
+  const canDelete = canDeleteModuleInActiveProject("finanzas");
   const [expanded, setExpanded] = useState(false);
   const [showRepayment, setShowRepayment] = useState(false);
   const pct = loan.principalAmount > 0 ? Math.min(100, Math.round((loan.repaidAmount / loan.principalAmount) * 100)) : 0;
@@ -408,13 +411,17 @@ function LoanCard({ loan, onChanged, onEdit }: { loan: Loan; onChanged: () => vo
           {!loan.received && <Badge variant="outline" className="text-xs shrink-0">Pendiente de recibir</Badge>}
         </button>
         <div className="flex items-center gap-1 shrink-0">
-          <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => setShowRepayment(true)}>
-            <HandCoins className="h-3.5 w-3.5 sm:mr-1" />
-            <span className="hidden sm:inline">Registrar abono</span>
-          </Button>
-          <button aria-label={`Editar préstamo de ${loan.lenderName}`} onClick={() => onEdit(loan)} className="text-muted-foreground hover:text-foreground p-1 cursor-pointer" title="Editar préstamo">
-            <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
-          </button>
+          {canEdit && (
+            <>
+              <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => setShowRepayment(true)}>
+                <HandCoins className="h-3.5 w-3.5 sm:mr-1" />
+                <span className="hidden sm:inline">Registrar abono</span>
+              </Button>
+              <button aria-label={`Editar préstamo de ${loan.lenderName}`} onClick={() => onEdit(loan)} className="text-muted-foreground hover:text-foreground p-1 cursor-pointer" title="Editar préstamo">
+                <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
           {canDelete && (
             <button aria-label={`Eliminar préstamo de ${loan.lenderName}`} onClick={deleteLoan} className="text-muted-foreground hover:text-destructive p-1 cursor-pointer" title="Eliminar préstamo">
               <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
@@ -434,8 +441,8 @@ function LoanCard({ loan, onChanged, onEdit }: { loan: Loan; onChanged: () => vo
         </div>
       </div>
 
-      <label className="flex items-center gap-2 text-xs text-muted-foreground pl-5 cursor-pointer">
-        <Checkbox checked={loan.received} onCheckedChange={toggleReceived} />
+      <label className={`flex items-center gap-2 text-xs text-muted-foreground pl-5 ${canEdit ? "cursor-pointer" : "cursor-not-allowed"}`}>
+        <Checkbox checked={loan.received} onCheckedChange={toggleReceived} disabled={!canEdit} />
         Ya se recibió esta plata
       </label>
 
@@ -481,28 +488,42 @@ function LoanCard({ loan, onChanged, onEdit }: { loan: Loan; onChanged: () => vo
 
 export default function LoansPage() {
   const confirm = useConfirm();
-  const { activeProject, canDeleteModuleInActiveProject } = useProject();
+  const { activeProject, canEditModuleInActiveProject, canDeleteModuleInActiveProject } = useProject();
+  // Misma regla que POST/PUT de /api/loans y /api/loan-contributions.
+  const canEditLoans = canEditModuleInActiveProject("finanzas");
   const canDeleteContributions = canDeleteModuleInActiveProject("finanzas");
   const projectId = activeProject?.id ?? null;
   const [loans, setLoans] = useState<Loan[]>([]);
   const [contributions, setContributions] = useState<Contribution[]>([]);
   const [loading, setLoading] = useState(true);
+  // Error de carga (incluye 403 si el rol no tiene `finanzas.puede_ver`):
+  // se muestra en vez del listado vacío para no confundirlo con "sin datos".
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showLoanForm, setShowLoanForm] = useState(false);
   const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
   const [showNewContribution, setShowNewContribution] = useState(false);
 
   const load = useCallback(async () => {
-    if (!projectId) { setLoans([]); setContributions([]); setLoading(false); return; }
+    if (!projectId) { setLoans([]); setContributions([]); setLoadError(null); setLoading(false); return; }
     setLoading(true);
     try {
       const [loansRes, contribRes] = await Promise.all([
         fetch(`/api/loans?projectId=${projectId}`),
         fetch(`/api/loan-contributions?projectId=${projectId}`),
       ]);
-      setLoans(loansRes.ok ? await loansRes.json() : []);
-      setContributions(contribRes.ok ? await contribRes.json() : []);
+      const failed = !loansRes.ok ? loansRes : !contribRes.ok ? contribRes : null;
+      if (failed) {
+        setLoans([]);
+        setContributions([]);
+        setLoadError(await readLoadError(failed, "No se pudieron cargar los préstamos."));
+        return;
+      }
+      setLoans(await loansRes.json());
+      setContributions(await contribRes.json());
+      setLoadError(null);
     } catch {
-      // se preservan datos previos si falla transitoriamente
+      // Fallo de red: se muestra el error con opción de reintentar.
+      setLoadError("No se pudieron cargar los préstamos. Revisa tu conexión.");
     } finally {
       setLoading(false);
     }
@@ -529,6 +550,19 @@ export default function LoansPage() {
     return (
       <div className="max-w-md mx-auto mt-16 text-center text-sm text-muted-foreground">
         Selecciona un proyecto arriba para ver sus préstamos.
+      </div>
+    );
+  }
+
+  if (loadError && !loading) {
+    return (
+      <div className="space-y-6 max-w-3xl">
+        <h1 className="text-2xl font-bold tracking-tight">Préstamos</h1>
+        <LoadErrorState
+          title="No se pudo mostrar Préstamos"
+          message={loadError}
+          onRetry={() => void load()}
+        />
       </div>
     );
   }
@@ -571,9 +605,11 @@ export default function LoansPage() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-medium">Prestamistas</h2>
-              <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => { setEditingLoan(null); setShowLoanForm(true); }}>
-                <Plus className="h-3.5 w-3.5 sm:mr-1" /><span className="hidden sm:inline">Nuevo préstamo</span>
-              </Button>
+              {canEditLoans && (
+                <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => { setEditingLoan(null); setShowLoanForm(true); }}>
+                  <Plus className="h-3.5 w-3.5 sm:mr-1" /><span className="hidden sm:inline">Nuevo préstamo</span>
+                </Button>
+              )}
             </div>
             {loans.length === 0 ? (
               <p className="text-sm text-muted-foreground">Sin préstamos registrados todavía.</p>
@@ -594,9 +630,11 @@ export default function LoansPage() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-medium">Aportes mensuales (para pagarle a los prestamistas)</h2>
-              <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => setShowNewContribution(true)}>
-                <Plus className="h-3.5 w-3.5 sm:mr-1" /><span className="hidden sm:inline">Nuevo aporte</span>
-              </Button>
+              {canEditLoans && (
+                <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => setShowNewContribution(true)}>
+                  <Plus className="h-3.5 w-3.5 sm:mr-1" /><span className="hidden sm:inline">Nuevo aporte</span>
+                </Button>
+              )}
             </div>
             {contributions.length === 0 ? (
               <p className="text-sm text-muted-foreground">Sin aportes registrados todavía.</p>

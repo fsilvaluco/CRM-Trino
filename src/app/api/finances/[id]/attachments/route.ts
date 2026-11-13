@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { checkTransactionAccess } from "@/lib/finance-access";
 
 // POST /api/finances/[id]/attachments -- agrega un comprobante a una
 // transacción SIN reemplazar los que ya tenía (una línea de presupuesto
 // se puede pagar en 2+ cuotas, cada una con su propio comprobante).
+// Agregar un adjunto cuenta como EDITAR el comprobante: exige
+// finanzas.puede_editar en el proyecto de la transacción.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { supabase, user, orgId, error } = await requireAuth();
+  const { supabase, user, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { id } = await params;
@@ -16,6 +19,9 @@ export async function POST(
   const { filePath, fileName } = body as { filePath?: string; fileName?: string | null };
 
   if (!filePath) return NextResponse.json({ error: "Falta filePath" }, { status: 400 });
+
+  const accessError = await checkTransactionAccess(supabase, user!.id, orgId!, allowedProjectIds, id, "editar");
+  if (accessError) return accessError;
 
   // Confirma que la transacción existe y pertenece a la organización.
   const { data: tx } = await supabase

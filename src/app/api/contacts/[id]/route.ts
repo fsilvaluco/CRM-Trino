@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { logActivity } from "@/lib/activity-logs";
-import { getProjectPermissions, canDeleteModule } from "@/lib/project-roles";
+import { getProjectPermissions, canEditModule, canDeleteModule } from "@/lib/project-roles";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapContact(row: any) {
@@ -98,7 +98,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, user, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   let body;
@@ -110,7 +110,7 @@ export async function PUT(
 
   const { data: existing, error: findErr } = await supabase
     .from("contacts")
-    .select("id")
+    .select("id, project_id, artist_project_id")
     .eq("id", id)
     .is("deleted_at", null)
     .single();
@@ -120,6 +120,35 @@ export async function PUT(
       { error: "Contacto no encontrado" },
       { status: 404 }
     );
+  }
+
+  // Antes solo exigía estar autenticado. Ahora usa la matriz del proyecto
+  // del contacto (`contactos.puede_editar`), mismo criterio que el DELETE:
+  // si el contacto no tiene proyecto asignado, se deja pasar como antes.
+  const contactProjectId = existing.project_id ?? existing.artist_project_id ?? null;
+  if (contactProjectId) {
+    if (!allowedProjectIds.includes(contactProjectId)) {
+      return NextResponse.json({ error: "No tienes acceso a este proyecto" }, { status: 403 });
+    }
+    const perm = await getProjectPermissions(supabase, user!.id, contactProjectId);
+    if (!canEditModule(perm, "contactos")) {
+      return NextResponse.json({ error: "Tu rol no puede editar contactos en este proyecto" }, { status: 403 });
+    }
+  }
+
+  // Si se reasigna el contacto a otro proyecto, también se exige poder
+  // editar contactos en el proyecto de destino (evita "mover" un contacto
+  // hacia un proyecto donde la persona solo tiene lectura o no tiene acceso).
+  const targetProjectId: string | null =
+    body.artistProjectId !== undefined ? body.artistProjectId || null : null;
+  if (targetProjectId && targetProjectId !== contactProjectId) {
+    if (!allowedProjectIds.includes(targetProjectId)) {
+      return NextResponse.json({ error: "No tienes acceso al proyecto de destino" }, { status: 403 });
+    }
+    const targetPerm = await getProjectPermissions(supabase, user!.id, targetProjectId);
+    if (!canEditModule(targetPerm, "contactos")) {
+      return NextResponse.json({ error: "Tu rol no puede editar contactos en el proyecto de destino" }, { status: 403 });
+    }
   }
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };

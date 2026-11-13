@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { getProjectPermissions, canEditModule } from "@/lib/project-roles";
 
 // POST /api/loans/[id]/repayments -- registra un abono a este prestamista
 // puntual (ej. los $85.000 mensuales). El saldo pendiente del préstamo se
@@ -16,6 +17,12 @@ export async function POST(
   if (!loan) return NextResponse.json({ error: "Préstamo no encontrado" }, { status: 404 });
   if (!allowedProjectIds.includes(loan.project_id)) {
     return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
+  }
+  // Préstamos/aportes pertenecen al módulo Finanzas (ROLES.md 0.2.5): se
+  // exige `finanzas.puede_editar`, igual que /api/finances/[id].
+  const perm = await getProjectPermissions(supabase, user!.id, loan.project_id);
+  if (!canEditModule(perm, "finanzas")) {
+    return NextResponse.json({ error: "Tu rol no puede registrar abonos en este proyecto" }, { status: 403 });
   }
 
   const body = await request.json().catch(() => ({}));
