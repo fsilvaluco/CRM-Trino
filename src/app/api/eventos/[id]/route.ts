@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { logActivity } from "@/lib/activity-logs";
 import type { ShowStatus } from "@/types/shows";
-import { getProjectPermissions, canViewEventCosts, canEditEventCosts } from "@/lib/project-roles";
+import { getProjectPermissions, canViewEventCosts, canEditEventCosts, canDeleteModule } from "@/lib/project-roles";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapLiveShow(row: any) {
@@ -346,10 +346,26 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, user, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { data: existing } = await supabase.from("shows").select("name, venue, project_id").eq("id", id).single();
+  if (!existing) {
+    return NextResponse.json({ error: "Evento no encontrado" }, { status: 404 });
+  }
+
+  // Antes solo exigía estar autenticado. Ahora usa la matriz del proyecto
+  // del evento (`eventos.puede_eliminar`), igual que tareas. Si el evento no
+  // tiene proyecto asignado, se deja pasar como antes.
+  if (existing.project_id) {
+    if (!allowedProjectIds.includes(existing.project_id)) {
+      return NextResponse.json({ error: "No tienes acceso a este proyecto" }, { status: 403 });
+    }
+    const perm = await getProjectPermissions(supabase, user!.id, existing.project_id);
+    if (!canDeleteModule(perm, "eventos")) {
+      return NextResponse.json({ error: "Tu rol no puede eliminar eventos en este proyecto" }, { status: 403 });
+    }
+  }
 
   const { error: dbError } = await supabase.from("shows").delete().eq("id", id);
   if (dbError) {

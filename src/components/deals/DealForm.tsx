@@ -147,7 +147,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
   const confirm = useConfirm();
   const router = useRouter();
   const { settings } = useLocale();
-  const { activeProject, projects, isAdmin } = useProject();
+  const { activeProject, projects, canDeleteModuleInActiveProject } = useProject();
   const [contactsList, setContacts] = useState<Array<{ id: string; name: string }>>([]);
   const [companiesList, setCompanies] = useState<Array<{ id: string; name: string }>>([]);
   const [stagesList, setStages] = useState<Array<{ id: string; name: string; isWon?: boolean; isLost?: boolean }>>([]);
@@ -1165,7 +1165,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
           )}
 
           <div className="flex justify-between items-center gap-2 pt-2">
-            {isEditing && isAdmin ? (
+            {isEditing && canDeleteModuleInActiveProject("deals") ? (
               <Button
                 type="button"
                 variant="ghost"

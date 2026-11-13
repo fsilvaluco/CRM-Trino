@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { logActivity } from "@/lib/activity-logs";
+import { getProjectPermissions, canDeleteModule } from "@/lib/project-roles";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapContact(row: any) {
@@ -164,12 +165,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, user, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { data: existing, error: findErr } = await supabase
     .from("contacts")
-    .select("id, name")
+    .select("id, name, project_id, artist_project_id")
     .eq("id", id)
     .is("deleted_at", null)
     .single();
@@ -179,6 +180,20 @@ export async function DELETE(
       { error: "Contacto no encontrado" },
       { status: 404 }
     );
+  }
+
+  // Antes solo exigía estar autenticado. Ahora usa la matriz del proyecto
+  // del contacto (`contactos.puede_eliminar`), igual que tareas/empresas. Si
+  // el contacto no tiene proyecto asignado, se deja pasar como antes.
+  const contactProjectId = existing.project_id ?? existing.artist_project_id ?? null;
+  if (contactProjectId) {
+    if (!allowedProjectIds.includes(contactProjectId)) {
+      return NextResponse.json({ error: "No tienes acceso a este proyecto" }, { status: 403 });
+    }
+    const perm = await getProjectPermissions(supabase, user!.id, contactProjectId);
+    if (!canDeleteModule(perm, "contactos")) {
+      return NextResponse.json({ error: "Tu rol no puede eliminar contactos en este proyecto" }, { status: 403 });
+    }
   }
 
   // Soft delete para preservar FK con actividades y deals

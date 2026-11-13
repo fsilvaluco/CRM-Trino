@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { getProjectPermissions, canDeleteModule } from "@/lib/project-roles";
 
 // DELETE /api/loans/[id]/repayments/[repaymentId] -- por si se cargó un
 // abono por error.
@@ -8,13 +9,19 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; repaymentId: string }> }
 ) {
   const { id, repaymentId } = await params;
-  const { supabase, allowedProjectIds, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { data: loan } = await supabase.from("loans").select("id, project_id").eq("id", id).single();
   if (!loan) return NextResponse.json({ error: "Préstamo no encontrado" }, { status: 404 });
   if (!allowedProjectIds.includes(loan.project_id)) {
     return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
+  }
+  // Préstamos/aportes pertenecen al módulo Finanzas (ROLES.md 0.2.5): se
+  // exige `finanzas.puede_eliminar`, igual que /api/finances/[id].
+  const perm = await getProjectPermissions(supabase, user!.id, loan.project_id);
+  if (!canDeleteModule(perm, "finanzas")) {
+    return NextResponse.json({ error: "Tu rol no puede eliminar abonos en este proyecto" }, { status: 403 });
   }
 
   const { error: dbError } = await supabase.from("loan_repayments").delete().eq("id", repaymentId).eq("loan_id", id);

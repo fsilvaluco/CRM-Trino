@@ -3,7 +3,7 @@ import { requireAuth } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { markEntityViewed } from "@/lib/entity-views";
 import { logActivity } from "@/lib/activity-logs";
-import { getProjectPermissions, canViewDeals, canEditDeals, canViewModule } from "@/lib/project-roles";
+import { getProjectPermissions, canViewDeals, canEditDeals, canDeleteDeals, canViewModule } from "@/lib/project-roles";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapDeal(row: any, veIngresos: boolean) {
@@ -302,9 +302,10 @@ export async function DELETE(
   // Antes bastaba con ser admin de la ORGANIZACIÓN para borrar cualquier
   // deal, sin importar el proyecto -- mismo hueco que en eventos (23 ago
   // 2026). Ahora se exige el mismo rol de proyecto que ya se usa para
-  // editar (admin/member de ESE proyecto puntual).
+  // editar (admin/member de ESE proyecto puntual). Desde la matriz (ROLES.md
+  // 0.2.2) Eliminar es independiente de Editar: se exige `deals.puede_eliminar`.
   const dealRole = await getProjectPermissions(supabase, user!.id, existing.artist_project_id || existing.project_id || null);
-  if (!canEditDeals(dealRole)) {
+  if (!canDeleteDeals(dealRole)) {
     return NextResponse.json({ error: "Tu rol no puede eliminar este deal" }, { status: 403 });
   }
 

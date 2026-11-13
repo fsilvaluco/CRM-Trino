@@ -157,7 +157,10 @@ function applyFilters(tasks: TaskItem[], f: TaskFilters, currentUserId?: string)
 // ─── Page component ───────────────────────────────────────────────────────────
 
 export default function TasksPage() {
-  const { activeProject, isAdmin } = useProject();
+  const { activeProject, canDeleteModuleInActiveProject } = useProject();
+  // Misma regla que DELETE /api/tasks/[id]: `tareas.puede_eliminar` de la
+  // matriz del proyecto (falso en "Todos los proyectos", ROLES.md 0.5).
+  const canDeleteTasks = canDeleteModuleInActiveProject("tareas");
   const { markSeen } = useNotifications();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -616,7 +619,7 @@ export default function TasksPage() {
                         </div>
                       </div>
 
-                      {isAdmin && (
+                      {canDeleteTasks && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();

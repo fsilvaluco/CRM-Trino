@@ -9,10 +9,12 @@ import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 export function DealDetailActions({ dealId, dealTitle }: { dealId: string; dealTitle: string }) {
   const confirm = useConfirm();
-  const { isAdmin } = useProject();
+  const { canDeleteModuleInActiveProject } = useProject();
   const router = useRouter();
 
-  if (!isAdmin) return null;
+  // Misma regla que DELETE /api/deals/[id]: `deals.puede_eliminar` de la
+  // matriz del proyecto (falso en "Todos los proyectos", ROLES.md 0.5).
+  if (!canDeleteModuleInActiveProject("deals")) return null;
 
   async function handleDelete() {
     if (
