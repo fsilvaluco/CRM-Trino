@@ -1,4 +1,5 @@
 import type { Temperature, LeadSource } from "@/types";
+import { formatMoney } from "@/lib/locale";
 
 // Version mostrada en el pie de la barra lateral (Sidebar.tsx). Convención
 // (pedida por Francisco, 18 ago 2026): subir el número después del punto
@@ -31,11 +32,14 @@ export const SOURCE_LABELS: Record<LeadSource, string> = {
   otro: "Otro",
 };
 
+/**
+ * @deprecated Usar `useLocale().formatCurrency` en componentes cliente, o
+ * `formatMoney` / `formatCurrencyWith` de `@/lib/locale` en server. Se
+ * mantiene por compatibilidad: formatea en la moneda por defecto (CLP/es-CL).
+ * Antes usaba MXN/es-MX fijo, lo que mostraba "$12,345.00" en vez de "$12.345".
+ */
 export function formatCurrency(cents: number): string {
-  return new Intl.NumberFormat("es-MX", {
-    style: "currency",
-    currency: "MXN",
-  }).format(cents / 100);
+  return formatMoney(cents);
 }
 
 export function cleanPhoneForWhatsApp(phone: string): string {
