@@ -30,6 +30,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     p_preescucha_id: preescucha.id,
     p_track_id: track.id,
     p_event_type: "play",
+    p_link_id: preescucha.linkId,
   });
   if (error) console.error("[preescuchas] no se pudo registrar la reproducción:", error.message);
 

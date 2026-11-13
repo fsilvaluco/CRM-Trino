@@ -79,6 +79,7 @@ export default async function PreescuchaPublicPage({ params }: { params: Promise
         p_preescucha_id: preescucha.id,
         p_track_id: null,
         p_event_type: "view",
+        p_link_id: preescucha.linkId,
       });
       if (error) console.error("[preescuchas] no se pudo registrar la visita:", error.message);
     });
@@ -122,7 +123,14 @@ export default async function PreescuchaPublicPage({ params }: { params: Promise
 
         <div className="text-center text-xs text-white/40 space-y-1 pt-2">
           <p>Disponible hasta el {expiresLabel}.</p>
-          <p>Material inédito previo al lanzamiento. Por favor, no lo compartas.</p>
+          {preescucha.recipientName ? (
+            <p>
+              Este enlace es personal para <span className="text-white/70">{preescucha.recipientName}</span>. Material inédito
+              previo al lanzamiento: por favor, no lo compartas.
+            </p>
+          ) : (
+            <p>Material inédito previo al lanzamiento. Por favor, no lo compartas.</p>
+          )}
           <p className="pt-3">Artist Pro</p>
         </div>
       </div>

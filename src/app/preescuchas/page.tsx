@@ -8,12 +8,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { PreescuchaFormDialog } from "@/components/preescuchas/PreescuchaFormDialog";
+import { PreescuchaLinksSheet } from "@/components/preescuchas/PreescuchaLinksSheet";
 import { useConfirm } from "@/components/shared/ConfirmProvider";
 import { useProject } from "@/lib/project-context";
 import type { PreescuchaItem } from "@/lib/preescuchas";
 import { daysUntil, formatDuration } from "@/lib/preescucha-format";
 import { toast } from "sonner";
-import { Copy, Download, Eye, Headphones, Music2, Pencil, Play, Plus, Trash2 } from "lucide-react";
+import { Copy, Download, Eye, Headphones, Music2, Pencil, Play, Plus, Trash2, Users } from "lucide-react";
 
 function expiryLabel(item: PreescuchaItem): string {
   if (item.expired) return "Vencida · archivos eliminados";
@@ -30,6 +31,8 @@ export default function PreescuchasPage() {
   // undefined = formulario cerrado · null = crear · item = editar
   const [formTarget, setFormTarget] = useState<PreescuchaItem | null | undefined>(undefined);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Preescucha cuyo panel de enlaces por persona esta abierto.
+  const [linksTargetId, setLinksTargetId] = useState<string | null>(null);
 
   const load = useCallback(() => {
     if (!activeProject?.id) {
@@ -93,6 +96,8 @@ export default function PreescuchasPage() {
     }
   }
 
+  const linksTarget = items.find((i) => i.id === linksTargetId) ?? null;
+
   if (!activeProject) {
     return (
       <EmptyState
@@ -111,7 +116,7 @@ export default function PreescuchasPage() {
           <p className="text-muted-foreground">
             Un enlace privado para que prensa o invitados escuchen un lanzamiento antes de que salga en plataformas.
             Cada preescucha dura como máximo 30 días: al vencer, el enlace deja de funcionar y los archivos se
-            eliminan solos.
+            eliminan solos. Con «Por persona» creas un enlace distinto para cada invitado y ves quién escuchó.
           </p>
         </div>
         <Button onClick={() => setFormTarget(null)} className="cursor-pointer">
@@ -204,10 +209,20 @@ export default function PreescuchasPage() {
                         <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => window.open(publicUrl(item.slug), "_blank")}>
                           Ver página
                         </Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => setLinksTargetId(item.id)} title="Un enlace por persona, para saber quién escuchó">
+                          <Users className="h-3.5 w-3.5 mr-1.5" />
+                          {item.linkCount > 0 ? `Personas (${item.linkCount})` : "Por persona"}
+                        </Button>
                         <Button size="sm" variant="ghost" className="h-7 w-7 p-0 cursor-pointer" onClick={() => setFormTarget(item)} title="Editar">
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
                       </>
+                    )}
+                    {item.expired && item.linkCount > 0 && (
+                      <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => setLinksTargetId(item.id)}>
+                        <Users className="h-3.5 w-3.5 mr-1.5" />
+                        Quién escuchó ({item.linkCount})
+                      </Button>
                     )}
                     <Button
                       size="sm"
@@ -225,6 +240,10 @@ export default function PreescuchasPage() {
             );
           })}
         </div>
+      )}
+
+      {linksTarget && (
+        <PreescuchaLinksSheet key={linksTarget.id} item={linksTarget} onClose={() => setLinksTargetId(null)} onChanged={load} />
       )}
 
       {formTarget !== undefined && (

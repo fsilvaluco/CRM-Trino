@@ -2877,3 +2877,22 @@ Problema secundario: al hacer clic en el archivo, quedaba en "Cargando archivo..
 - Etapa 2: enlaces individuales por periodista (saber quién escuchó y poder revocar uno), contraseña opcional.
 - Permisos: hoy cualquier miembro con acceso al proyecto puede crear/editar (igual que Smartlinks); no hay módulo propio en la matriz de roles.
 - Una subida abandonada a medias (se cierra la pestaña antes de guardar) deja archivos sin fila en el bucket; falta un barrido de carpetas huérfanas.
+
+---
+
+## 13 nov 2026 — Preescuchas, etapa 2: enlaces por persona
+
+**Qué es:** además del enlace general, cada preescucha puede tener un enlace distinto por invitado (botón «Por persona» en la tarjeta). Sirve para que Marcelo sepa qué periodista abrió el enlace y qué canciones escuchó, y para cortar un enlace puntual si se filtra.
+
+- Se crean pegando nombres (uno por línea) o eligiendo desde Contactos del proyecto. «Copiar todos» deja la lista `Nombre: enlace` lista para pegar en los correos.
+- Cada enlace muestra visitas, cuántas canciones escuchó, descargas y última actividad; al desplegarlo, el detalle por canción. La fila «Enlace general» muestra lo que entró sin persona asociada.
+- Revocar un enlace lo deja sin funcionar de inmediato sin afectar a los demás (se puede reactivar). Eliminarlo pasa su actividad al enlace general.
+- La página pública de un enlace individual dice «Este enlace es personal para {nombre}».
+- La vigencia sigue siendo la de la preescucha: al vencer mueren todos los enlaces.
+
+**Base de datos (migración aplicada vía MCP: `preescucha_links`; copia en `scripts/migrations/112_preescucha_links.sql`):** tabla `preescucha_links`, columna `preescucha_events.link_id`, `preescucha_register_event` ahora recibe `p_link_id` (opcional) y función `preescucha_link_track_stats` (solo usuarios con sesión; aplica RLS).
+
+**Código:** `/escucha/{slug}` resuelve tanto el slug general como el de un enlace individual (`getActivePreescuchaBySlug`). API en `src/app/api/preescuchas/[id]/links/**`. UI en `src/components/preescuchas/PreescuchaLinksSheet.tsx`.
+
+**Pendiente:** contraseña opcional; envío del correo a cada periodista desde la app (hoy se copia el enlace a mano).
+

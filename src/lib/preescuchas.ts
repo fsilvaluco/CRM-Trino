@@ -53,11 +53,13 @@ export interface PreescuchaItem {
   /** true cuando ya paso la fecha de vencimiento (con o sin archivos borrados todavia). */
   expired: boolean;
   viewCount: number;
+  /** Cantidad de enlaces individuales creados (sin contar el general). */
+  linkCount: number;
   tracks: PreescuchaTrackItem[];
 }
 
 export const PREESCUCHA_SELECT =
-  "*, preescucha_tracks ( id, title, duration_seconds, size_bytes, position, play_count, download_count )";
+  "*, preescucha_tracks ( id, title, duration_seconds, size_bytes, position, play_count, download_count ), preescucha_links ( id )";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function mapPreescucha(row: any): PreescuchaItem {
@@ -77,6 +79,7 @@ export function mapPreescucha(row: any): PreescuchaItem {
     updatedAt: row.updated_at,
     expired: Boolean(row.purged_at) || new Date(row.expires_at).getTime() <= Date.now(),
     viewCount: row.view_count ?? 0,
+    linkCount: Array.isArray(row.preescucha_links) ? row.preescucha_links.length : 0,
     tracks: tracks.map((t) => ({
       id: t.id,
       title: t.title,
@@ -91,11 +94,18 @@ export function mapPreescucha(row: any): PreescuchaItem {
 // El slug es el unico secreto del link (no hay contrasena), por eso es mas
 // largo que el de QR/Smartlinks: 12 caracteres de un alfabeto de 54 son
 // ~69 bits, imposible de adivinar probando.
+//
+// El enlace general (preescuchas.slug) y los individuales
+// (preescucha_links.slug) se abren en la misma ruta /escucha/{slug}, asi
+// que un slug no puede repetirse entre las dos tablas.
 export async function generatePreescuchaSlug(supabase: SupabaseClient): Promise<string> {
   let slug = generateRandomSlug(12);
   for (let attempt = 0; attempt < 5; attempt++) {
-    const { data } = await supabase.from("preescuchas").select("id").eq("slug", slug).maybeSingle();
-    if (!data) return slug;
+    const [general, individual] = await Promise.all([
+      supabase.from("preescuchas").select("id").eq("slug", slug).maybeSingle(),
+      supabase.from("preescucha_links").select("id").eq("slug", slug).maybeSingle(),
+    ]);
+    if (!general.data && !individual.data) return slug;
     slug = generateRandomSlug(12);
   }
   return slug;
@@ -182,20 +192,39 @@ export async function purgeExpiredPreescuchas(
   return result;
 }
 
+const PUBLIC_PREESCUCHA_COLUMNS =
+  "id, project_id, slug, title, artist_name, message, cover_path, allow_download, expires_at, purged_at, updated_at";
+
 /**
- * Busca una preescucha VIGENTE por slug para las rutas publicas. Devuelve
- * null si no existe, ya vencio o ya se borraron sus archivos -- las tres
- * cosas se ven igual desde afuera.
+ * Busca una preescucha VIGENTE por el slug de la URL publica. El slug puede
+ * ser el del enlace general o el de un enlace individual; en ese caso
+ * devuelve ademas `linkId` y `recipientName` para atribuir la actividad a
+ * esa persona.
+ *
+ * Devuelve null si no existe, ya vencio, ya se borraron sus archivos o el
+ * enlace individual fue revocado -- todo se ve igual desde afuera.
  */
 export async function getActivePreescuchaBySlug(admin: SupabaseClient, slug: string) {
-  const { data } = await admin
-    .from("preescuchas")
-    .select("id, project_id, slug, title, artist_name, message, cover_path, allow_download, expires_at, purged_at, updated_at")
-    .eq("slug", slug)
-    .maybeSingle();
+  let linkId: string | null = null;
+  let recipientName: string | null = null;
+
+  let { data } = await admin.from("preescuchas").select(PUBLIC_PREESCUCHA_COLUMNS).eq("slug", slug).maybeSingle();
+
+  if (!data) {
+    const { data: link } = await admin
+      .from("preescucha_links")
+      .select("id, preescucha_id, recipient_name, revoked_at")
+      .eq("slug", slug)
+      .maybeSingle();
+    if (!link || link.revoked_at) return null;
+    linkId = link.id as string;
+    recipientName = link.recipient_name as string;
+    ({ data } = await admin.from("preescuchas").select(PUBLIC_PREESCUCHA_COLUMNS).eq("id", link.preescucha_id).maybeSingle());
+  }
+
   if (!data || data.purged_at) return null;
   if (new Date(data.expires_at).getTime() <= Date.now()) return null;
-  return data;
+  return { ...data, linkId, recipientName };
 }
 
 /**
