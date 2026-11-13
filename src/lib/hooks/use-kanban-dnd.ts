@@ -34,6 +34,48 @@ const SCREEN_READER_INSTRUCTIONS: ScreenReaderInstructions = {
     "Para mover esta tarjeta presiona Espacio o Enter. Usa las flechas izquierda y derecha para elegir la columna, y Espacio o Enter para soltarla. Escape cancela.",
 };
 
+interface RectLike {
+  left: number;
+  top: number;
+  width: number;
+}
+
+/**
+ * Logica pura del coordinateGetter de teclado: devuelve el punto (dentro de la
+ * columna vecina) al que debe saltar la tarjeta, o undefined si no hay salto.
+ * La columna actual es la que contiene el centro X de la tarjeta; si ninguna
+ * lo contiene se usa la columna sobre la que esta (`overId`).
+ */
+export function adjacentColumnPoint({
+  direction,
+  collisionRect,
+  droppableRects,
+  columnIds,
+  overId,
+}: {
+  direction: 1 | -1;
+  collisionRect: RectLike | null | undefined;
+  droppableRects: ReadonlyMap<UniqueIdentifier, RectLike>;
+  columnIds: readonly string[];
+  overId?: UniqueIdentifier | null;
+}): { x: number; y: number } | undefined {
+  if (!collisionRect) return undefined;
+
+  // Columna actual: la que contiene el centro de la tarjeta arrastrada.
+  const centerX = collisionRect.left + collisionRect.width / 2;
+  let currentIndex = columnIds.findIndex((id) => {
+    const rect = droppableRects.get(id);
+    return rect && centerX >= rect.left && centerX <= rect.left + rect.width;
+  });
+  if (currentIndex === -1 && overId != null) currentIndex = columnIds.indexOf(String(overId));
+  if (currentIndex === -1) return undefined;
+
+  const nextIndex = currentIndex + direction;
+  const nextRect = columnIds[nextIndex] ? droppableRects.get(columnIds[nextIndex]) : undefined;
+  if (!nextRect) return undefined;
+  return { x: nextRect.left + 8, y: nextRect.top + 8 };
+}
+
 // ─── Motor de drag-and-drop compartido por los Kanban de Tareas y Tratos ─────
 // Esta pieza es idéntica en ambos: sensores + estrategia de colisión. El resto
 // de cada board (cómo se agrupan las tarjetas, qué pasa al soltar, cómo se ve
@@ -72,22 +114,13 @@ export function useKanbanDnd({ columnIds, getItemLabel, getColumnLabel }: Kanban
         return undefined;
       }
       event.preventDefault();
-      if (!collisionRect) return undefined;
-
-      const ids = columnIdsRef.current;
-      // Columna actual: la que contiene el centro de la tarjeta arrastrada.
-      const centerX = collisionRect.left + collisionRect.width / 2;
-      let currentIndex = ids.findIndex((id) => {
-        const rect = droppableRects.get(id);
-        return rect && centerX >= rect.left && centerX <= rect.left + rect.width;
+      return adjacentColumnPoint({
+        direction: event.code === KeyboardCode.Right ? 1 : -1,
+        collisionRect,
+        droppableRects,
+        columnIds: columnIdsRef.current,
+        overId: over?.id,
       });
-      if (currentIndex === -1 && over) currentIndex = ids.indexOf(String(over.id));
-      if (currentIndex === -1) return undefined;
-
-      const nextIndex = currentIndex + (event.code === KeyboardCode.Right ? 1 : -1);
-      const nextRect = ids[nextIndex] ? droppableRects.get(ids[nextIndex]) : undefined;
-      if (!nextRect) return undefined;
-      return { x: nextRect.left + 8, y: nextRect.top + 8 };
     },
     []
   );
