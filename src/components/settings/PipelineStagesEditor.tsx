@@ -198,6 +198,7 @@ export function PipelineStagesEditor() {
             <button
               type="button"
               title="Cambiar color"
+              aria-label={`Cambiar color de la etapa ${stage.name}`}
               className="w-7 h-7 rounded-full border-2 border-border shrink-0 cursor-pointer hover:scale-110 transition-transform"
               style={{ backgroundColor: stage.color }}
               onClick={() => colorRefs.current[stage.id]?.click()}
@@ -205,6 +206,8 @@ export function PipelineStagesEditor() {
             <input
               type="color"
               className="sr-only"
+              tabIndex={-1}
+              aria-hidden="true"
               value={stage.color}
               ref={(el) => { colorRefs.current[stage.id] = el; }}
               onChange={(e) => update(stage.id, { color: e.target.value })}
@@ -216,6 +219,7 @@ export function PipelineStagesEditor() {
               value={stage.name}
               onChange={(e) => update(stage.id, { name: e.target.value })}
               placeholder="Nombre de etapa"
+              aria-label="Nombre de etapa"
             />
 
             {/* Badges Won / Lost */}
@@ -245,33 +249,33 @@ export function PipelineStagesEditor() {
             </button>
 
             {/* Reordenar */}
-            <div className="flex flex-col gap-0.5 shrink-0">
-              <button
+            <div className="flex items-center shrink-0">
+              <button aria-label={`Subir etapa ${stage.name}`}
                 type="button"
                 onClick={() => moveUp(idx)}
                 disabled={idx === 0}
-                className="p-0.5 rounded hover:bg-muted disabled:opacity-30 cursor-pointer"
+                className="inline-flex size-6 items-center justify-center rounded hover:bg-muted disabled:opacity-30 cursor-pointer"
               >
-                <ChevronUp className="h-3 w-3" />
+                <ChevronUp aria-hidden="true" className="h-4 w-4" />
               </button>
-              <button
+              <button aria-label={`Bajar etapa ${stage.name}`}
                 type="button"
                 onClick={() => moveDown(idx)}
                 disabled={idx === stages.length - 1}
-                className="p-0.5 rounded hover:bg-muted disabled:opacity-30 cursor-pointer"
+                className="inline-flex size-6 items-center justify-center rounded hover:bg-muted disabled:opacity-30 cursor-pointer"
               >
-                <ChevronDown className="h-3 w-3" />
+                <ChevronDown aria-hidden="true" className="h-4 w-4" />
               </button>
             </div>
 
             {/* Eliminar */}
-            <button
+            <button aria-label={`Eliminar etapa ${stage.name}`}
               type="button"
               title="Eliminar etapa"
               onClick={() => removeStage(stage.id, stage._isNew ?? false)}
               className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors cursor-pointer shrink-0"
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
             </button>
           </div>
         ))}

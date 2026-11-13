@@ -47,6 +47,8 @@ import { supabase } from "@/lib/supabase";
 import { SignedFileLink } from "@/components/finances/SignedFileLink";
 import { fileToBase64 } from "@/components/finances/TransactionForm";
 import { extractAddressCandidate, mapsSearchUrl } from "@/lib/address-detect";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
+import { useUnsavedChangesWarning } from "@/lib/hooks/use-unsaved-changes-warning";
 
 // Vía por la que se actualizaron por última vez los tramos de venta
 // (migración 094). Se muestra junto a la fecha para saber si los números
@@ -234,6 +236,11 @@ export default function EventDetailPage() {
   const [ticketSalesUrl, setTicketSalesUrl] = useState("");
   const [syncingTickets, setSyncingTickets] = useState(false);
   const [detailsDirty, setDetailsDirty] = useState(false);
+  const confirm = useConfirm();
+  useUnsavedChangesWarning(
+    setlistDirty || contactsDirty || timingDirty || ticketsDirty || costsDirty || detailsDirty,
+    "Tienes cambios sin guardar en este evento (setlist, contactos, timing, entradas, costos o detalles). Si sales ahora, se pierden."
+  );
   const [savingDetails, setSavingDetails] = useState(false);
 
   // Bug real reportado por Francisco el 27 ago 2026 -- "se me ha borrado
@@ -848,7 +855,14 @@ export default function EventDetailPage() {
       toast.error("Pega primero el link de estadísticas de la ticketera");
       return;
     }
-    if (ticketsDirty && !confirm("Tienes cambios sin guardar en los tramos -- sincronizar los va a reemplazar. ¿Seguir?")) {
+    if (
+      ticketsDirty &&
+      !(await confirm({
+        title: "¿Sincronizar y reemplazar los tramos?",
+        description: "Tienes cambios sin guardar en los tramos. Sincronizar con la ticketera los va a reemplazar.",
+        confirmLabel: "Sincronizar igual",
+      }))
+    ) {
       return;
     }
     setSyncingTickets(true);
@@ -1165,7 +1179,15 @@ export default function EventDetailPage() {
       toast.error("Guarda los costos primero antes de cerrar la caja");
       return;
     }
-    if (!confirm("¿Cerrar la caja de este evento? Los costos quedarán de solo lectura hasta que la reabras.")) return;
+    if (
+      !(await confirm({
+        title: "¿Cerrar la caja de este evento?",
+        description: "Los costos quedarán de solo lectura hasta que la reabras.",
+        confirmLabel: "Cerrar caja",
+        destructive: false,
+      }))
+    )
+      return;
     setClosingCosts(true);
     try {
       const res = await fetch(`/api/eventos/${id}/costs/close`, { method: "POST" });
@@ -1200,11 +1222,22 @@ export default function EventDetailPage() {
   async function informClosing() {
     const already = Boolean(event?.costSheetInformedAt);
     if (
-      !confirm(
+      !(await confirm(
         already
-          ? "¿Reenviar el acta del cierre a todos los que firmaron?"
-          : "¿Mandar el acta del cierre? Va por correo a todos los que firmaron, con el resumen y el PDF de todas las firmas. Normalmente sale sola cuando termina de firmar todo el mundo -- esto sirve para adelantarla o reenviarla."
-      )
+          ? {
+              title: "¿Reenviar el acta del cierre?",
+              description: "Se envía de nuevo por correo a todos los que firmaron.",
+              confirmLabel: "Reenviar acta",
+              destructive: false,
+            }
+          : {
+              title: "¿Mandar el acta del cierre?",
+              description:
+                "Va por correo a todos los que firmaron, con el resumen y el PDF de todas las firmas. Normalmente sale sola cuando termina de firmar todo el mundo; esto sirve para adelantarla.",
+              confirmLabel: "Mandar acta",
+              destructive: false,
+            }
+      ))
     )
       return;
     setInformingClosing(true);
@@ -1222,7 +1255,13 @@ export default function EventDetailPage() {
   }
 
   async function handleRemoveClosingAttachment() {
-    if (!confirm("¿Quitar el documento adjunto del cierre?")) return;
+    if (
+      !(await confirm({
+        title: "¿Quitar el documento adjunto del cierre?",
+        confirmLabel: "Quitar documento",
+      }))
+    )
+      return;
     try {
       const res = await fetch(`/api/eventos/${id}/costs/attachment`, { method: "DELETE" });
       if (!res.ok) throw new Error();
@@ -1473,7 +1512,7 @@ export default function EventDetailPage() {
       {/* Resumen financiero -- oculto para roles restringidos (artist/staff),
           ver canViewCosts en GET /api/eventos/[id]. */}
       {event.canViewCosts !== false && (
-        <div className="grid grid-cols-4 gap-3" data-section="summary">
+        <div className="grid grid-cols-2 sm:grid-cols-4 print:grid-cols-4 gap-3" data-section="summary">
           <Card><CardContent className="p-3 print:p-1.5"><p className="text-xs print:text-[9px] text-muted-foreground">Fee</p><p className="font-semibold print:text-xs print:whitespace-nowrap">{formatCents(event.fee)}</p></CardContent></Card>
           <Card><CardContent className="p-3 print:p-1.5"><p className="text-xs print:text-[9px] text-muted-foreground">Entradas</p><p className="font-semibold print:text-xs print:whitespace-nowrap">{formatCents(event.ticketIncome)}</p></CardContent></Card>
           <Card><CardContent className="p-3 print:p-1.5"><p className="text-xs print:text-[9px] text-muted-foreground">Egresos</p><p className="font-semibold print:text-xs print:whitespace-nowrap">{formatCents(event.expenses)}</p></CardContent></Card>
@@ -1570,14 +1609,14 @@ export default function EventDetailPage() {
                         <Checkbox checked={c.visibleOnShare} onCheckedChange={(v) => updateContact({ visibleOnShare: Boolean(v) })} />
                         <Share2 className="h-3.5 w-3.5" />
                       </label>
-                      <button
+                      <button aria-label={c.name ? `Eliminar contacto ${c.name}` : "Eliminar contacto"}
                         onClick={() => {
                           setEventContacts((prev) => prev.filter((x) => x.id !== c.id));
                           setContactsDirty(true);
                         }}
                         className="text-muted-foreground hover:text-destructive cursor-pointer p-1 shrink-0"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 aria-hidden="true" className="h-4 w-4" />
                       </button>
                     </div>
                   );
@@ -1606,7 +1645,7 @@ export default function EventDetailPage() {
                 onChange={(e) => setNewContactPhone(e.target.value)}
                 className="h-7 text-xs w-24 sm:w-36 shrink-0"
               />
-              <Button
+              <Button aria-label="Agregar contacto"
                 size="sm"
                 variant="outline"
                 className="h-8 shrink-0 cursor-pointer"
@@ -1631,7 +1670,7 @@ export default function EventDetailPage() {
                   setContactsDirty(true);
                 }}
               >
-                <Plus className="h-4 w-4" />
+                <Plus aria-hidden="true" className="h-4 w-4" />
               </Button>
             </div>
             <p className="text-xs text-muted-foreground flex items-center gap-1">
@@ -1708,14 +1747,14 @@ export default function EventDetailPage() {
                       }}
                       className="h-8 text-sm"
                     />
-                    <button
+                    <button aria-label={song.title ? `Eliminar canción ${song.title}` : "Eliminar canción"}
                       onClick={() => {
                         setSetlist((prev) => prev.filter((s) => s.id !== song.id));
                         setSetlistDirty(true);
                       }}
                       className="text-muted-foreground hover:text-destructive cursor-pointer p-1 shrink-0"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 aria-hidden="true" className="h-4 w-4" />
                     </button>
                   </div>
                 )}
@@ -1734,7 +1773,7 @@ export default function EventDetailPage() {
                 }}
                 className="h-8 text-sm"
               />
-              <Button
+              <Button aria-label="Agregar canción"
                 size="sm"
                 variant="outline"
                 className="h-8 shrink-0 cursor-pointer"
@@ -1745,7 +1784,7 @@ export default function EventDetailPage() {
                   setSetlistDirty(true);
                 }}
               >
-                <Plus className="h-4 w-4" />
+                <Plus aria-hidden="true" className="h-4 w-4" />
               </Button>
             </div>
 
@@ -1876,14 +1915,14 @@ export default function EventDetailPage() {
                         onChange={(e) => updateTimingItem({ activity: e.target.value })}
                         className="h-7 text-xs flex-1"
                       />
-                      <button
+                      <button aria-label={item.activity ? `Eliminar actividad ${item.activity}` : "Eliminar actividad"}
                         onClick={() => {
                           setTiming((prev) => prev.filter((t) => t.id !== item.id));
                           setTimingDirty(true);
                         }}
                         className="text-muted-foreground hover:text-destructive cursor-pointer p-1 shrink-0"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 aria-hidden="true" className="h-4 w-4" />
                       </button>
                     </div>
                     <div className="flex items-center gap-2 pl-0.5 flex-wrap">
@@ -1910,14 +1949,14 @@ export default function EventDetailPage() {
                         const candidate = extractAddressCandidate(item.notes);
                         if (!candidate) return null;
                         return (
-                          <a
+                          <a aria-label={`Ver "${candidate}" en Maps (se abre en una pestaña nueva)`}
                             href={mapsSearchUrl(candidate)}
                             target="_blank"
                             rel="noopener noreferrer"
                             title={`Ver "${candidate}" en Maps`}
                             className="text-muted-foreground hover:text-primary shrink-0 p-1"
                           >
-                            <MapPin className="h-3.5 w-3.5" />
+                            <MapPin aria-hidden="true" className="h-4 w-4" />
                           </a>
                         );
                       })()}
@@ -1962,18 +2001,18 @@ export default function EventDetailPage() {
                 const candidate = extractAddressCandidate(newTimingNotes);
                 if (!candidate) return null;
                 return (
-                  <a
+                  <a aria-label={`Ver "${candidate}" en Maps (se abre en una pestaña nueva)`}
                     href={mapsSearchUrl(candidate)}
                     target="_blank"
                     rel="noopener noreferrer"
                     title={`Ver "${candidate}" en Maps`}
                     className="text-muted-foreground hover:text-primary shrink-0 p-1"
                   >
-                    <MapPin className="h-3.5 w-3.5" />
+                    <MapPin aria-hidden="true" className="h-4 w-4" />
                   </a>
                 );
               })()}
-              <Button
+              <Button aria-label="Agregar actividad"
                 size="sm"
                 variant="outline"
                 className="h-7 shrink-0 cursor-pointer"
@@ -1999,7 +2038,7 @@ export default function EventDetailPage() {
                   setTimingDirty(true);
                 }}
               >
-                <Plus className="h-4 w-4" />
+                <Plus aria-hidden="true" className="h-4 w-4" />
               </Button>
             </div>
 
@@ -2192,14 +2231,14 @@ export default function EventDetailPage() {
                       onChange={(e) => updateTier({ statusLabel: e.target.value || null })}
                       className="h-7 text-xs w-16 sm:w-28 shrink-0"
                     />
-                    <button
+                    <button aria-label={tier.label ? `Eliminar entrada ${tier.label}` : "Eliminar entrada"}
                       onClick={() => {
                         setTicketTiers((prev) => prev.filter((t) => t.id !== tier.id));
                         markTicketsEdited();
                       }}
                       className="text-muted-foreground hover:text-destructive cursor-pointer p-1 shrink-0"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 aria-hidden="true" className="h-4 w-4" />
                     </button>
                   </div>
                 );
@@ -2233,7 +2272,7 @@ export default function EventDetailPage() {
               onChange={(e) => setNewTierCapacity(e.target.value)}
               className="h-7 text-xs w-14 sm:w-20 shrink-0"
             />
-            <Button
+            <Button aria-label="Agregar entrada"
               size="sm"
               variant="outline"
               className="h-8 shrink-0 cursor-pointer"
@@ -2258,7 +2297,7 @@ export default function EventDetailPage() {
                 markTicketsEdited();
               }}
             >
-              <Plus className="h-4 w-4" />
+              <Plus aria-hidden="true" className="h-4 w-4" />
             </Button>
           </div>
           </div>
@@ -2546,12 +2585,12 @@ export default function EventDetailPage() {
               >
                 {event.costSheetClosingFileName ?? "Documento adjunto"}
               </SignedFileLink>
-              <button
+              <button aria-label="Quitar documento adjunto"
                 onClick={handleRemoveClosingAttachment}
                 className="text-muted-foreground hover:text-destructive cursor-pointer ml-auto shrink-0"
                 title="Quitar"
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
               </button>
             </div>
           )}
@@ -2698,7 +2737,7 @@ export default function EventDetailPage() {
                           className="h-7 text-xs"
                         />
                       </div>
-                      <button
+                      <button aria-label={item.label ? `Eliminar costo ${item.label}` : "Eliminar costo"}
                         onClick={() => {
                           setCostItems((prev) => prev.filter((c) => c.id !== item.id));
                           setCostsDirty(true);
@@ -2706,7 +2745,7 @@ export default function EventDetailPage() {
                         disabled={costSheetClosed || !canEditCosts}
                         className="text-muted-foreground hover:text-destructive cursor-pointer p-1 shrink-0 disabled:opacity-30 no-print"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 aria-hidden="true" className="h-4 w-4" />
                       </button>
                     </div>
 
@@ -2776,8 +2815,8 @@ export default function EventDetailPage() {
                           <Paperclip className="h-3.5 w-3.5" />
                         </label>
                         {item.comprobanteUrl && (
-                          <SignedFileLink path={item.comprobanteUrl} className="text-muted-foreground hover:text-foreground">
-                            <Receipt className="h-3.5 w-3.5" />
+                          <SignedFileLink aria-label="Ver comprobante" path={item.comprobanteUrl} className="text-muted-foreground hover:text-foreground">
+                            <Receipt aria-hidden="true" className="h-3.5 w-3.5" />
                           </SignedFileLink>
                         )}
                       </div>
@@ -2857,8 +2896,8 @@ export default function EventDetailPage() {
                         {item.comprobantePagoUrl ? "Cambiar comprobante de pago" : "Adjuntar comprobante de pago"}
                       </label>
                       {item.comprobantePagoUrl && (
-                        <SignedFileLink path={item.comprobantePagoUrl} className="text-muted-foreground hover:text-foreground" title="Ver comprobante de pago">
-                          <Banknote className="h-3.5 w-3.5" />
+                        <SignedFileLink aria-label="Ver comprobante de pago" path={item.comprobantePagoUrl} className="text-muted-foreground hover:text-foreground" title="Ver comprobante de pago">
+                          <Banknote aria-hidden="true" className="h-3.5 w-3.5" />
                         </SignedFileLink>
                       )}
                     </div>
@@ -2929,7 +2968,7 @@ export default function EventDetailPage() {
                   <Checkbox checked={newCostEsBhe} onCheckedChange={(v) => setNewCostEsBhe(Boolean(v))} />
                   BHE
                 </label>
-                <Button
+                <Button aria-label="Agregar costo"
                   size="sm"
                   variant="outline"
                   className="h-7 shrink-0 cursor-pointer"
@@ -2969,7 +3008,7 @@ export default function EventDetailPage() {
                     setCostsDirty(true);
                   }}
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus aria-hidden="true" className="h-4 w-4" />
                 </Button>
               </div>
             </div>
@@ -3196,8 +3235,8 @@ export default function EventDetailPage() {
                   onChange={(e) => { setEventLink(e.target.value); setDetailsDirty(true); }}
                 />
                 {eventLink && (
-                  <a href={eventLink} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground shrink-0">
-                    <ExternalLink className="h-4 w-4" />
+                  <a aria-label="Abrir link del evento (se abre en una pestaña nueva)" href={eventLink} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground shrink-0">
+                    <ExternalLink aria-hidden="true" className="h-4 w-4" />
                   </a>
                 )}
               </div>

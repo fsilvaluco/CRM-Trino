@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, Loader2, MousePointerClick, Type } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -235,8 +235,12 @@ export default function DossierEditorPage() {
 
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <Link href="/dossier">
-            <Button size="sm" variant="ghost" className="cursor-pointer"><ArrowLeft className="h-4 w-4" /></Button>
+          <Link
+            href="/dossier"
+            aria-label="Volver a dossiers"
+            className={buttonVariants({ size: "sm", variant: "ghost", className: "cursor-pointer" })}
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           </Link>
           <Input
             value={name}
@@ -249,10 +253,13 @@ export default function DossierEditorPage() {
           <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => setUploadFontOpen(true)}>
             <Type className="h-3.5 w-3.5 mr-1.5" /> Subir tipografía
           </Button>
-          <a href={`/d/${dossierId}`} target="_blank" rel="noopener noreferrer">
-            <Button size="sm" variant="outline" className="cursor-pointer">
-              <ExternalLink className="h-3.5 w-3.5 mr-1.5" /> Ver público
-            </Button>
+          <a
+            href={`/d/${dossierId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={buttonVariants({ size: "sm", variant: "outline", className: "cursor-pointer" })}
+          >
+            <ExternalLink className="h-3.5 w-3.5 mr-1.5" aria-hidden="true" /> Ver público
           </a>
           <Button size="sm" disabled={!dirty || saving} onClick={savePositions} className="cursor-pointer">
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
@@ -268,12 +275,12 @@ export default function DossierEditorPage() {
       <div className="flex gap-4 items-start flex-wrap">
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" className="h-7 w-7 p-0 cursor-pointer" disabled={currentPage <= 1} onClick={() => setCurrentPage((p) => p - 1)}>
-              <ChevronLeft className="h-4 w-4" />
+            <Button aria-label="Página anterior" size="sm" variant="outline" className="h-7 w-7 p-0 cursor-pointer" disabled={currentPage <= 1} onClick={() => setCurrentPage((p) => p - 1)}>
+              <ChevronLeft aria-hidden="true" className="h-4 w-4" />
             </Button>
             <span className="text-xs text-muted-foreground">Página {currentPage} de {numPages || dossier.pdfPageCount}</span>
-            <Button size="sm" variant="outline" className="h-7 w-7 p-0 cursor-pointer" disabled={currentPage >= (numPages || dossier.pdfPageCount)} onClick={() => setCurrentPage((p) => p + 1)}>
-              <ChevronRight className="h-4 w-4" />
+            <Button aria-label="Página siguiente" size="sm" variant="outline" className="h-7 w-7 p-0 cursor-pointer" disabled={currentPage >= (numPages || dossier.pdfPageCount)} onClick={() => setCurrentPage((p) => p + 1)}>
+              <ChevronRight aria-hidden="true" className="h-4 w-4" />
             </Button>
           </div>
 

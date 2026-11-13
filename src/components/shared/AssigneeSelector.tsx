@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -36,6 +36,7 @@ export function AssigneeSelector({
   selectedAssignees: string[];
   onChange: (ids: string[]) => void;
 }) {
+  const labelId = useId();
   const [search, setSearch] = useState("");
 
   if (orgMembers.length === 0) return null;
@@ -46,8 +47,8 @@ export function AssigneeSelector({
   });
 
   return (
-    <div className="space-y-2">
-      <Label>Asignar a:</Label>
+    <div role="group" aria-labelledby={labelId} className="space-y-2">
+      <Label id={labelId}>Asignar a:</Label>
 
       {selectedAssignees.length > 0 && (
         <div className="flex flex-wrap gap-1.5 p-2 bg-muted/30 rounded-md">
@@ -64,10 +65,11 @@ export function AssigneeSelector({
                 <span>{displayName}</span>
                 <button
                   type="button"
+                  aria-label={`Quitar a ${displayName}`}
                   onClick={() => onChange(selectedAssignees.filter((id) => id !== userId))}
                   className="ml-1 hover:opacity-70"
                 >
-                  ×
+                  <span aria-hidden="true">×</span>
                 </button>
               </div>
             );
@@ -76,7 +78,8 @@ export function AssigneeSelector({
       )}
 
       <Input
-        type="text"
+        type="search"
+        aria-label="Buscar personas"
         placeholder="Buscar personas..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
@@ -96,6 +99,7 @@ export function AssigneeSelector({
               className="flex items-center gap-2 p-2 hover:bg-muted/50 border-b last:border-b-0"
             >
               <Checkbox
+                aria-label={`Asignar a ${displayName}`}
                 checked={isChecked}
                 onCheckedChange={(checked) => {
                   if (checked) {

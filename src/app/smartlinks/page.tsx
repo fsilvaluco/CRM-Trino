@@ -11,8 +11,10 @@ import { PlatformIcon } from "@/components/smartlinks/PlatformIcon";
 import { useProject } from "@/lib/project-context";
 import { toast } from "sonner";
 import { Link2, Plus, Pencil, Trash2, Copy, BarChart2, Music2 } from "lucide-react";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 export default function SmartlinksPage() {
+  const confirm = useConfirm();
   const { activeProject } = useProject();
   const [items, setItems] = useState<SmartlinkItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,7 +56,7 @@ export default function SmartlinksPage() {
   }
 
   async function handleDelete(item: SmartlinkItem) {
-    if (!confirm(`¿Eliminar el smartlink "${item.title}"? Si ya lo compartiste en algún lado, dejará de funcionar. Esta acción no se puede deshacer.`)) return;
+    if (!(await confirm({ title: `¿Eliminar el smartlink "${item.title}"?`, description: "Si ya lo compartiste en algún lado, dejará de funcionar. Esta acción no se puede deshacer.", confirmLabel: "Eliminar smartlink", destructive: true }))) return;
     setDeletingId(item.id);
     try {
       const res = await fetch(`/api/smartlinks/${item.id}`, { method: "DELETE" });
@@ -165,10 +167,10 @@ export default function SmartlinksPage() {
                   <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer flex-1" onClick={() => window.open(shortUrl(item.slug), "_blank")}>
                     Ver página
                   </Button>
-                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 cursor-pointer" onClick={() => { setEditing(item); setFormOpen(true); }} title="Editar">
-                    <Pencil className="h-3.5 w-3.5" />
+                  <Button aria-label={`Editar smartlink ${item.title}`} size="sm" variant="ghost" className="h-7 w-7 p-0 cursor-pointer" onClick={() => { setEditing(item); setFormOpen(true); }} title="Editar">
+                    <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
                   </Button>
-                  <Button
+                  <Button aria-label={`Eliminar smartlink ${item.title}`}
                     size="sm"
                     variant="ghost"
                     className="h-7 w-7 p-0 cursor-pointer text-muted-foreground hover:text-destructive"
@@ -176,7 +178,7 @@ export default function SmartlinksPage() {
                     onClick={() => handleDelete(item)}
                     title="Eliminar"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </CardContent>

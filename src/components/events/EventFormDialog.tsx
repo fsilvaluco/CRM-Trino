@@ -321,8 +321,8 @@ export function EventFormDialog({
                 onChange={(e) => setEventLink(e.target.value)}
               />
               {eventLink && (
-                <a href={eventLink} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground shrink-0">
-                  <ExternalLink className="h-4 w-4" />
+                <a aria-label="Abrir link del evento (se abre en una pestaña nueva)" href={eventLink} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground shrink-0">
+                  <ExternalLink aria-hidden="true" className="h-4 w-4" />
                 </a>
               )}
             </div>

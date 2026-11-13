@@ -12,6 +12,7 @@ import {
 } from "@/components/testimonials/TestimonialCard";
 import { useProject } from "@/lib/project-context";
 import { getTestimonialSiteForProject } from "@/lib/testimonials/sites-public";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 // Seccion Testimonios (menu Herramientas): lista los testimonios que llegan
 // desde el sitio publico del proyecto activo y permite aprobarlos o
@@ -35,6 +36,7 @@ const EMPTY_TEXT: Record<TabKey, string> = {
 };
 
 export default function TestimoniosPage() {
+  const confirm = useConfirm();
   const { activeProject } = useProject();
   const projectId = activeProject?.id ?? null;
   const site = getTestimonialSiteForProject(projectId);
@@ -83,7 +85,7 @@ export default function TestimoniosPage() {
   async function handleModerate(item: TestimonialItem, action: "approve" | "reject") {
     if (!projectId) return;
     if (item.status === "approved" && action === "reject") {
-      if (!confirm(`¿Rechazar el testimonio de ${item.name}? Dejará de mostrarse en el sitio.`)) return;
+      if (!(await confirm({ title: `¿Rechazar el testimonio de ${item.name}?`, description: "Dejará de mostrarse en el sitio.", confirmLabel: "Rechazar", destructive: true }))) return;
     }
     setBusyId(item.id);
     try {

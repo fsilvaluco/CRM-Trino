@@ -117,7 +117,13 @@ export function ActivityLogPanel() {
           <Label className="text-xs">Usuario</Label>
           <Select value={userId} onValueChange={(v) => setUserId(v ?? "all")}>
             <SelectTrigger className="w-[220px]">
-              <SelectValue />
+              <SelectValue>
+                {(() => {
+                  if (userId === "all") return "Todos los usuarios";
+                  const member = members.find((m) => m.user_id === userId);
+                  return member ? memberLabel(member) : undefined;
+                })()}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos los usuarios</SelectItem>

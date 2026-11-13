@@ -14,6 +14,8 @@ interface SignedFileLinkProps {
   path: string | null | undefined;
   className?: string;
   title?: string;
+  /** Nombre accesible del link; necesario cuando el contenido es solo un ícono */
+  "aria-label"?: string;
   children: React.ReactNode;
 }
 
@@ -23,7 +25,13 @@ interface ResolvedState {
   error: boolean;
 }
 
-export function SignedFileLink({ path, className, title, children }: SignedFileLinkProps) {
+export function SignedFileLink({
+  path,
+  className,
+  title,
+  "aria-label": ariaLabel,
+  children,
+}: SignedFileLinkProps) {
   // Guarda junto al resultado el "path" al que corresponde -- así el
   // loading/error se derivan comparando contra el path actual, en vez de
   // necesitar un setState síncrono al inicio del efecto (evita disparar un
@@ -54,14 +62,24 @@ export function SignedFileLink({ path, className, title, children }: SignedFileL
 
   if (error || !url) {
     return (
-      <span className={`text-destructive ${className ?? ""}`} title="No se pudo cargar el archivo">
+      <span
+        className={`text-destructive ${className ?? ""}`}
+        title="No se pudo cargar el archivo"
+      >
         {children}
       </span>
     );
   }
 
   return (
-    <a href={url} target="_blank" rel="noopener noreferrer" className={className} title={title}>
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={className}
+      title={title}
+      aria-label={ariaLabel}
+    >
       {children}
     </a>
   );

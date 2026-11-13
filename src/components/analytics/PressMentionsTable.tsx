@@ -23,6 +23,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
 import { PRESS_TYPE_LABELS, PRESS_SOURCE_LABELS, type PressMention, type PressMentionType, type PressMentionSource } from "@/types/press";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 interface PressMentionsTableProps {
   mentions: PressMention[];
@@ -37,6 +38,7 @@ const SOURCE_BADGE_VARIANT: Record<PressMentionSource, "default" | "secondary" |
 };
 
 export function PressMentionsTable({ mentions, onEdit, onDeleted }: PressMentionsTableProps) {
+  const confirm = useConfirm();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<PressMentionType | "all">("all");
   const [sourceFilter, setSourceFilter] = useState<PressMentionSource | "all">("all");
@@ -48,7 +50,14 @@ export function PressMentionsTable({ mentions, onEdit, onDeleted }: PressMention
   );
 
   const handleDelete = async (mention: PressMention) => {
-    if (!confirm(`¿Eliminar la mención de "${mention.outlet}"?`)) return;
+    if (
+      !(await confirm({
+        title: `¿Eliminar la mención de "${mention.outlet}"?`,
+        confirmLabel: "Eliminar mención",
+        destructive: true,
+      }))
+    )
+      return;
     setDeletingId(mention.id);
     try {
       const res = await fetch(`/api/analytics/press/${mention.id}`, { method: "DELETE" });
@@ -69,7 +78,7 @@ export function PressMentionsTable({ mentions, onEdit, onDeleted }: PressMention
       <div className="flex items-center gap-2 flex-wrap">
         <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as PressMentionType | "all")}>
           <SelectTrigger className="w-[160px]">
-            <SelectValue />
+            <SelectValue>{typeFilter === "all" ? "Todos los tipos" : PRESS_TYPE_LABELS[typeFilter]}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos los tipos</SelectItem>
@@ -82,7 +91,9 @@ export function PressMentionsTable({ mentions, onEdit, onDeleted }: PressMention
         </Select>
         <Select value={sourceFilter} onValueChange={(v) => setSourceFilter(v as PressMentionSource | "all")}>
           <SelectTrigger className="w-[160px]">
-            <SelectValue />
+            <SelectValue>
+              {sourceFilter === "all" ? "Todas las fuentes" : PRESS_SOURCE_LABELS[sourceFilter]}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas las fuentes</SelectItem>
@@ -134,25 +145,25 @@ export function PressMentionsTable({ mentions, onEdit, onDeleted }: PressMention
                     <div className="flex items-center gap-1.5">
                       <span className="line-clamp-2">{m.title}</span>
                       {m.referenceUrl && (
-                        <a href={m.referenceUrl} target="_blank" rel="noopener noreferrer" className="shrink-0">
-                          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                        <a aria-label={`Abrir nota de ${m.outlet} (se abre en una pestaña nueva)`} href={m.referenceUrl} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                          <ExternalLink aria-hidden="true" className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
                         </a>
                       )}
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1 justify-end">
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEdit(m)}>
-                        <Pencil className="h-3.5 w-3.5" />
+                      <Button aria-label={`Editar mención de ${m.outlet}`} size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEdit(m)}>
+                        <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
                       </Button>
-                      <Button
+                      <Button aria-label={`Eliminar mención de ${m.outlet}`}
                         size="icon"
                         variant="ghost"
                         className="h-7 w-7 text-destructive hover:text-destructive"
                         onClick={() => handleDelete(m)}
                         disabled={deletingId === m.id}
                       >
-                        {deletingId === m.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                        {deletingId === m.id ? <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" /> : <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />}
                       </Button>
                     </div>
                   </TableCell>

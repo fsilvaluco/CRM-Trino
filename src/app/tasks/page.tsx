@@ -26,6 +26,9 @@ import {
 } from "lucide-react";
 import { formatDate } from "@/lib/constants";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
+import { deleteWithUndo } from "@/lib/undo-toast";
+import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import type { TaskStatus, TaskPriority } from "@/types";
 import { useProject } from "@/lib/project-context";
 import { useNotifications } from "@/lib/notifications-context";
@@ -165,11 +168,17 @@ export default function TasksPage() {
   }, []);
   const { user } = useAuth();
   const [taskList, setTasks] = useState<TaskItem[]>([]);
+  // Tareas borradas con "Deshacer" pendiente: se ocultan aunque una recarga
+  // las traiga del servidor (todavia no se borraron alla).
+  const pendingDeleteIds = useRef<Set<string>>(new Set());
+  const confirm = useConfirm();
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [activeTab, setActiveTab] = useState<"kanban" | "lista" | "gantt">("kanban");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  // Bajo md no hay espacio para lista + panel: el detalle se abre a pantalla completa.
+  const isMobile = useMediaQuery("(max-width: 767px)");
 
   useEffect(() => {
     const fromUrl = searchParams.get("taskId");
@@ -272,7 +281,11 @@ export default function TasksPage() {
     const url = activeProject ? `/api/tasks?projectId=${activeProject.id}` : "/api/tasks";
     fetch(url)
       .then((r) => r.json())
-      .then((data) => { setTasks(Array.isArray(data) ? data : []); setLoading(false); })
+      .then((data) => {
+        const list: TaskItem[] = Array.isArray(data) ? data : [];
+        setTasks(list.filter((t) => !pendingDeleteIds.current.has(t.id)));
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
   }, [activeProject]);
 
@@ -316,15 +329,21 @@ export default function TasksPage() {
 
   // ── Actions ──────────────────────────────────────────────────────────────
 
+  // Lanza si falla, para que quien llama pueda revertir su UI optimista
+  // (el Kanban devuelve la tarjeta a su columna y muestra su propio toast).
+  const persistStatus = async (id: string, status: TaskStatus) => {
+    const res = await fetch(`/api/tasks/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    if (!res.ok) throw new Error("No se pudo actualizar la tarea");
+    loadTasks();
+  };
+
   const updateStatus = async (id: string, status: TaskStatus) => {
     try {
-      const res = await fetch(`/api/tasks/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
-      if (!res.ok) throw new Error();
-      loadTasks();
+      await persistStatus(id, status);
     } catch {
       toast.error("Error al actualizar tarea");
     }
@@ -337,19 +356,37 @@ export default function TasksPage() {
     loadTasks();
   }, [loadTasks]);
 
-  const deleteTask = async (id: string) => {
-    try {
-      const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        toast.error(data.error ?? "Error al eliminar tarea");
-        return;
-      }
-      toast.success("Tarea eliminada");
-      loadTasks();
-    } catch {
-      toast.error("Error al eliminar tarea");
-    }
+  // Borrado diferido: la tarea desaparece al tiro y se borra en el servidor
+  // cuando vence el toast, salvo que el usuario presione "Deshacer".
+  const deleteTask = (task: { id: string; title: string }) => {
+    const id = task.id;
+    deleteWithUndo({
+      message: `Tarea "${task.title}" eliminada`,
+      hide: () => {
+        pendingDeleteIds.current.add(id);
+        setTasks((prev) => prev.filter((t) => t.id !== id));
+        setSelectedTaskId((current) => (current === id ? null : current));
+      },
+      restore: () => {
+        pendingDeleteIds.current.delete(id);
+        loadTasks();
+      },
+      commit: async () => {
+        const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+        pendingDeleteIds.current.delete(id);
+        if (!res.ok) throw new Error();
+      },
+      errorMessage: "No se pudo eliminar la tarea",
+    });
+  };
+
+  const requestDeleteTask = async (task: { id: string; title: string }) => {
+    const ok = await confirm({
+      title: `¿Eliminar la tarea "${task.title}"?`,
+      description: "Podrás deshacerlo durante unos segundos.",
+      confirmLabel: "Eliminar tarea",
+    });
+    if (ok) deleteTask(task);
   };
 
   // ── Derived values ───────────────────────────────────────────────────────
@@ -466,7 +503,7 @@ export default function TasksPage() {
         ) : (
           <TaskKanbanBoard
             tasks={kanbanCards}
-            onTaskMoved={async (taskId, newStatus) => { await updateStatus(taskId, newStatus); }}
+            onTaskMoved={persistStatus}
             onTaskClick={(id) => setSelectedTaskId(id)}
           />
         )}
@@ -513,6 +550,7 @@ export default function TasksPage() {
                         }}
                         className="mt-0.5 shrink-0 cursor-pointer text-muted-foreground hover:text-primary transition-colors"
                         title="Cambiar estado"
+                        aria-label={`Cambiar estado de "${task.title}" (ahora: ${STATUS_LABELS[task.status]})`}
                       >
                         {done ? (
                           <CheckCircle2 className="h-5 w-5 text-green-600" />
@@ -529,11 +567,19 @@ export default function TasksPage() {
                             <span
                               className="h-2 w-2 rounded-full bg-red-500 shrink-0"
                               title="Actividad nueva sin ver"
-                            />
+                            >
+                              <span className="sr-only">Actividad nueva sin ver</span>
+                            </span>
                           )}
-                          <span className={`text-sm font-medium ${done ? "line-through text-muted-foreground" : ""}`}>
+                          {/* El <li> responde al clic en toda la fila; este boton da el
+                              mismo acceso con teclado y lector de pantalla. */}
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setSelectedTaskId(task.id); }}
+                            className={`text-left text-sm font-medium rounded-sm cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${done ? "line-through text-muted-foreground" : ""}`}
+                          >
                             {task.title}
-                          </span>
+                          </button>
                           <Badge className={`text-xs ${priority.className}`} variant="secondary">
                             {priority.label}
                           </Badge>
@@ -574,12 +620,11 @@ export default function TasksPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (confirm(`¿Eliminar la tarea "${task.title}"? Esta accion no se puede deshacer.`)) {
-                              deleteTask(task.id);
-                            }
+                            void requestDeleteTask(task);
                           }}
                           className="text-muted-foreground hover:text-destructive transition-colors cursor-pointer shrink-0"
                           title="Eliminar tarea"
+                          aria-label={`Eliminar tarea "${task.title}"`}
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -630,7 +675,7 @@ export default function TasksPage() {
 
   // ── Vista Lista con tarea seleccionada: split layout ─────────────────────
 
-  if (selectedTaskId && activeTab === "lista") {
+  if (selectedTaskId && activeTab === "lista" && !isMobile) {
     return (
       <>
         {taskFormDialog}
@@ -664,7 +709,7 @@ export default function TasksPage() {
               open={true}
               onClose={() => setSelectedTaskId(null)}
               onUpdated={handleTaskUpdated}
-              onDeleted={loadTasks}
+              onDeleteRequest={deleteTask}
               panelMode={true}
               panelWidth={panelWidth}
             />
@@ -683,8 +728,28 @@ export default function TasksPage() {
       {filterBar}
       {tabsContent}
 
+      {/* Movil (cualquier vista): detalle a pantalla completa, sobre la
+          barra de navegacion inferior. */}
+      {selectedTaskId && isMobile && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Detalle de la tarea"
+          className="fixed inset-0 z-50 flex flex-col bg-background"
+        >
+          <TaskDetailSheet
+            taskId={selectedTaskId}
+            open={true}
+            onClose={() => setSelectedTaskId(null)}
+            onUpdated={handleTaskUpdated}
+            onDeleteRequest={deleteTask}
+            panelMode={true}
+          />
+        </div>
+      )}
+
       {/* Kanban o Gantt con tarea: overlay superpuesto + redimensionable */}
-      {selectedTaskId && (activeTab === "kanban" || activeTab === "gantt") && (
+      {selectedTaskId && !isMobile && (activeTab === "kanban" || activeTab === "gantt") && (
         <>
           {/* Capa 2: overlay sin blur */}
           <div
@@ -745,7 +810,7 @@ export default function TasksPage() {
               open={true}
               onClose={() => setSelectedTaskId(null)}
               onUpdated={handleTaskUpdated}
-              onDeleted={loadTasks}
+              onDeleteRequest={deleteTask}
               panelMode={true}
               panelWidth={panelWidth}
             />

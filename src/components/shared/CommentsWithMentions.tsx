@@ -152,6 +152,7 @@ export function CommentsWithMentions({
         <Textarea
           value={newComment}
           onChange={(e) => handleCommentChange(e.target.value)}
+          aria-label="Nuevo comentario"
           placeholder="Escribe un comentario... (usa @ para etiquetar a alguien)"
           className="text-sm min-h-[60px] resize-none"
           onKeyDown={(e) => {
@@ -162,13 +163,13 @@ export function CommentsWithMentions({
             if (e.key === "Escape") setMentionQuery(null);
           }}
         />
-        <Button
+        <Button aria-label="Enviar comentario"
           size="sm"
           className="shrink-0 self-end cursor-pointer"
           disabled={!newComment.trim() || submitting}
           onClick={() => void handleAdd()}
         >
-          <Send className="h-4 w-4" />
+          <Send aria-hidden="true" className="h-4 w-4" />
         </Button>
       </div>
       <p className="text-xs text-muted-foreground mt-1">Cmd+Enter para enviar</p>

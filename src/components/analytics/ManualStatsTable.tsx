@@ -16,6 +16,7 @@ import { es } from "date-fns/locale";
 import { toast } from "sonner";
 import type { ManualPlatformStats, ManualStatsPlatform } from "@/types/analytics";
 import { MANUAL_PLATFORM_METRIC_KEYS } from "@/lib/dossier-data-sources";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 const NUM = new Intl.NumberFormat("es-CL");
 
@@ -36,11 +37,19 @@ function fmt(v: number | undefined, kind: "number" | "percent" | "decimal"): str
 // fijas), así que las columnas se arman desde MANUAL_PLATFORM_METRIC_KEYS.
 // Mismo patrón de borrado que SpotifyStatsTable.
 export function ManualStatsTable({ platform, snapshots, onDeleted }: ManualStatsTableProps) {
+  const confirm = useConfirm();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const fields = MANUAL_PLATFORM_METRIC_KEYS[platform];
 
   const handleDelete = async (snapshot: ManualPlatformStats) => {
-    if (!confirm("¿Eliminar este registro? También se quita del gráfico de seguidores si aportaba un punto ahí.")) {
+    if (
+      !(await confirm({
+        title: "¿Eliminar este registro?",
+        description: "También se quita del gráfico de seguidores si aportaba un punto ahí.",
+        confirmLabel: "Eliminar registro",
+        destructive: true,
+      }))
+    ) {
       return;
     }
     setDeletingId(snapshot.id);
@@ -92,14 +101,14 @@ export function ManualStatsTable({ platform, snapshots, onDeleted }: ManualStats
                 </TableCell>
               ))}
               <TableCell>
-                <Button
+                <Button aria-label="Eliminar registro"
                   size="icon"
                   variant="ghost"
                   className="h-7 w-7 text-destructive hover:text-destructive"
                   onClick={() => handleDelete(s)}
                   disabled={deletingId === s.id}
                 >
-                  {deletingId === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  {deletingId === s.id ? <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" /> : <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />}
                 </Button>
               </TableCell>
             </TableRow>

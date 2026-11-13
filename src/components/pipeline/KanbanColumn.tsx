@@ -11,6 +11,7 @@ import { Plus } from "lucide-react";
 import { useLocale } from "@/lib/locale-context";
 import type { AssigneeRef } from "@/components/shared/AssigneeAvatarStack";
 import type { DealLeadInfo } from "@/types";
+import type { MoveTarget } from "@/components/shared/MoveToMenu";
 
 interface Deal {
   id: string;
@@ -36,9 +37,11 @@ interface KanbanColumnProps {
   deals: Deal[];
   onAddDeal?: () => void;
   onDealClick?: (dealId: string) => void;
+  stages?: MoveTarget[];
+  onMoveDeal?: (dealId: string, stageId: string) => void;
 }
 
-export function KanbanColumn({ id, name, color, deals, onAddDeal, onDealClick }: KanbanColumnProps) {
+export function KanbanColumn({ id, name, color, deals, onAddDeal, onDealClick, stages, onMoveDeal }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id });
   const { formatCurrency } = useLocale();
 
@@ -78,6 +81,9 @@ export function KanbanColumn({ id, name, color, deals, onAddDeal, onDealClick }:
               key={deal.id}
               {...deal}
               onClick={onDealClick ? () => onDealClick(deal.id) : undefined}
+              stageId={id}
+              stages={stages}
+              onMove={onMoveDeal ? (stageId) => onMoveDeal(deal.id, stageId) : undefined}
             />
           ))}
         </div>

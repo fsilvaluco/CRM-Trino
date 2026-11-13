@@ -255,14 +255,14 @@ export function SpotifyStatsSheet({ open, onOpenChange, onRegistered, editingSna
                     <img key={i} src={url} alt={`Pantallazo ${i + 1}`} className="w-full h-20 object-cover object-top rounded" />
                   ))}
                 </div>
-                <button
+                <button aria-label="Quitar imágenes"
                   onClick={() => {
                     setPreviewUrls([]);
                     if (fileInputRef.current) fileInputRef.current.value = "";
                   }}
                   className="absolute top-2 right-2 rounded-full bg-background/90 p-1 shadow"
                 >
-                  <X className="h-4 w-4" />
+                  <X aria-hidden="true" className="h-4 w-4" />
                 </button>
                 {extracting && (
                   <div className="absolute inset-0 bg-background/70 flex items-center justify-center gap-2 text-sm font-medium">

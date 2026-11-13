@@ -29,6 +29,8 @@ import { STATUS_LABELS } from "@/components/tasks/TaskKanbanBoard";
 import { useProject } from "@/lib/project-context";
 import { parseFlexibleDate } from "@/lib/constants";
 import { CommentsWithMentions } from "@/components/shared/CommentsWithMentions";
+import { LoadErrorState, readLoadError } from "@/components/shared/LoadErrorState";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -93,6 +95,11 @@ interface TaskDetailSheetProps {
   onClose: () => void;
   onUpdated: (patch: TaskPatch) => void;
   onDeleted?: () => void;
+  /**
+   * Si se pasa, el sheet solo confirma y delega el borrado al padre (que lo
+   * hace con "Deshacer"). Si no, borra directo como antes.
+   */
+  onDeleteRequest?: (task: { id: string; title: string }) => void;
   /** When true, renders as an inline resizable panel instead of a Sheet overlay */
   panelMode?: boolean;
   panelWidth?: number;
@@ -130,10 +137,12 @@ function FieldRow({ label, children }: { label: string; children: React.ReactNod
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, panelMode = false, panelWidth = DEFAULT_PANEL_WIDTH }: TaskDetailSheetProps) {
+export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, onDeleteRequest, panelMode = false, panelWidth = DEFAULT_PANEL_WIDTH }: TaskDetailSheetProps) {
   const { isAdmin } = useProject();
+  const confirm = useConfirm();
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Relation options
   const [contacts, setContacts] = useState<Relation[]>([]);
@@ -153,15 +162,32 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, p
   const loadTask = useCallback(() => {
     if (!taskId) return;
     setLoading(true);
+    setLoadError(null);
     fetch(`/api/tasks/${taskId}`)
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) {
+          throw new Error(
+            r.status === 404
+              ? "Esta tarea ya no existe o no tienes acceso a ella."
+              : await readLoadError(r, "No se pudo cargar la tarea. Revisa tu conexión e inténtalo de nuevo.")
+          );
+        }
+        return r.json();
+      })
       .then((data) => {
         setTask(data);
         setSelectedAssignees(Array.isArray(data.assignees) ? data.assignees.map((assignee: { userId: string }) => assignee.userId) : []);
         setAssigneeSearch("");
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err: unknown) => {
+        setLoadError(
+          err instanceof Error && err.message
+            ? err.message
+            : "No se pudo cargar la tarea. Revisa tu conexión e inténtalo de nuevo."
+        );
+        setLoading(false);
+      });
   }, [taskId]);
 
   useEffect(() => {
@@ -452,7 +478,19 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, p
 
   const handleDeleteTask = async () => {
     if (!taskId || !task) return;
-    if (!confirm(`¿Eliminar la tarea "${task.title}"? Esta accion no se puede deshacer.`)) return;
+    const ok = await confirm({
+      title: `¿Eliminar la tarea "${task.title}"?`,
+      description: onDeleteRequest
+        ? "Podrás deshacerlo durante unos segundos."
+        : "Esta acción no se puede deshacer.",
+      confirmLabel: "Eliminar tarea",
+    });
+    if (!ok) return;
+    if (onDeleteRequest) {
+      onClose();
+      onDeleteRequest({ id: taskId, title: task.title });
+      return;
+    }
     try {
       const res = await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
       if (!res.ok) {
@@ -502,7 +540,15 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, p
 
   const panelContent = (
     <>
-      {loading || !task ? (
+      {loadError && !loading ? (
+        <LoadErrorState
+          title="No pudimos abrir la tarea"
+          message={loadError}
+          onRetry={loadTask}
+          secondaryLabel="Cerrar"
+          onSecondary={onClose}
+        />
+      ) : loading || !task ? (
         <div className="p-6 space-y-4">
           <div className="h-6 bg-muted rounded animate-pulse w-3/4" />
           <div className="h-4 bg-muted rounded animate-pulse w-1/2" />
@@ -522,20 +568,20 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, p
               }}
             />
             {isAdmin && (
-              <button
+              <button aria-label="Eliminar tarea"
                 onClick={handleDeleteTask}
                 className="mt-1 shrink-0 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
                 title="Eliminar tarea"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 aria-hidden="true" className="h-4 w-4" />
               </button>
             )}
-            <button
+            <button aria-label="Cerrar detalle de tarea"
               onClick={onClose}
               className="mt-1 shrink-0 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
               title="Cerrar"
             >
-              <X className="h-4 w-4" />
+              <X aria-hidden="true" className="h-4 w-4" />
             </button>
           </div>
 
@@ -548,7 +594,8 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, p
                     onValueChange={(v) => patch({ status: v })}
                   >
                     <SelectTrigger className="h-8 text-sm">
-                      <SelectValue />
+                      {/* Base UI muestra el value crudo ("en_curso") si no se le da la etiqueta. */}
+                      <SelectValue>{STATUS_LABELS[task.status as TaskStatus] ?? task.status}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {ALL_STATUSES.map((s) => (
@@ -566,7 +613,7 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, p
                     onValueChange={(v) => patch({ priority: v })}
                   >
                     <SelectTrigger className="h-8 text-sm">
-                      <SelectValue />
+                      <SelectValue>{PRIORITY_CONFIG[task.priority as TaskPriority]?.label ?? task.priority}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {(["low", "medium", "high"] as TaskPriority[]).map((p) => (
@@ -635,6 +682,8 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, p
                       <Input
                         value={assigneeSearch}
                         onChange={(event) => setAssigneeSearch(event.target.value)}
+                        type="search"
+                        aria-label="Buscar responsable por nombre o email"
                         placeholder="Buscar por nombre o email..."
                         className="h-8 text-sm mb-2"
                         autoFocus

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { ArrowLeft, Calendar, DollarSign, Percent, CheckSquare, Clock } from "lucide-react";
 import { getLocaleSettings } from "@/lib/locale-server";
 import { formatCurrencyWith, formatDateWith, formatRelativeDateWith } from "@/lib/locale";
@@ -52,10 +52,12 @@ export default async function DealDetailPage({
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Link href="/deals">
-          <Button variant="ghost" size="icon" className="cursor-pointer">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
+        <Link
+          href="/deals"
+          aria-label="Volver a deals"
+          className={buttonVariants({ variant: "ghost", size: "icon", className: "cursor-pointer" })}
+        >
+          <ArrowLeft className="h-5 w-5" aria-hidden="true" />
         </Link>
         <div className="flex-1">
           <div className="flex items-center gap-3">

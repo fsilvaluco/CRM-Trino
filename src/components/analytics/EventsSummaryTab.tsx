@@ -132,7 +132,7 @@ export function EventsSummaryTab({ shows }: EventsSummaryTabProps) {
                 itemStyle={{ color: "#0f172a" }}
                 formatter={(v) => [CLP.format(Number(v ?? 0)), "Utilidad"]}
               />
-              <Bar dataKey="utilidad" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="utilidad" fill="var(--primary)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

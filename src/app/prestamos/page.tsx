@@ -18,6 +18,7 @@ import { supabase } from "@/lib/supabase";
 import { SignedFileLink } from "@/components/finances/SignedFileLink";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 const CLP = new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
 function formatCents(cents: number): string {
@@ -363,6 +364,7 @@ function NewContributionDialog({ open, onClose, projectId, onCreated }: { open: 
 }
 
 function LoanCard({ loan, onChanged, onEdit }: { loan: Loan; onChanged: () => void; onEdit: (loan: Loan) => void }) {
+  const confirm = useConfirm();
   const [expanded, setExpanded] = useState(false);
   const [showRepayment, setShowRepayment] = useState(false);
   const pct = loan.principalAmount > 0 ? Math.min(100, Math.round((loan.repaidAmount / loan.principalAmount) * 100)) : 0;
@@ -379,7 +381,7 @@ function LoanCard({ loan, onChanged, onEdit }: { loan: Loan; onChanged: () => vo
   }
 
   async function deleteLoan() {
-    if (!confirm(`¿Eliminar el préstamo de ${loan.lenderName}? Se borran también sus abonos.`)) return;
+    if (!(await confirm({ title: `¿Eliminar el préstamo de ${loan.lenderName}?`, description: "Se borran también sus abonos.", confirmLabel: "Eliminar préstamo", destructive: true }))) return;
     const res = await fetch(`/api/loans/${loan.id}`, { method: "DELETE" });
     if (!res.ok) { toast.error("No se pudo eliminar"); return; }
     toast.success("Préstamo eliminado");
@@ -387,7 +389,7 @@ function LoanCard({ loan, onChanged, onEdit }: { loan: Loan; onChanged: () => vo
   }
 
   async function deleteRepayment(repaymentId: string) {
-    if (!confirm("¿Eliminar este abono?")) return;
+    if (!(await confirm({ title: "¿Eliminar este abono?", confirmLabel: "Eliminar abono", destructive: true }))) return;
     const res = await fetch(`/api/loans/${loan.id}/repayments/${repaymentId}`, { method: "DELETE" });
     if (!res.ok) { toast.error("No se pudo eliminar"); return; }
     onChanged();
@@ -408,11 +410,11 @@ function LoanCard({ loan, onChanged, onEdit }: { loan: Loan; onChanged: () => vo
             <HandCoins className="h-3.5 w-3.5 sm:mr-1" />
             <span className="hidden sm:inline">Registrar abono</span>
           </Button>
-          <button onClick={() => onEdit(loan)} className="text-muted-foreground hover:text-foreground p-1 cursor-pointer" title="Editar préstamo">
-            <Pencil className="h-3.5 w-3.5" />
+          <button aria-label={`Editar préstamo de ${loan.lenderName}`} onClick={() => onEdit(loan)} className="text-muted-foreground hover:text-foreground p-1 cursor-pointer" title="Editar préstamo">
+            <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
           </button>
-          <button onClick={deleteLoan} className="text-muted-foreground hover:text-destructive p-1 cursor-pointer" title="Eliminar préstamo">
-            <Trash2 className="h-3.5 w-3.5" />
+          <button aria-label={`Eliminar préstamo de ${loan.lenderName}`} onClick={deleteLoan} className="text-muted-foreground hover:text-destructive p-1 cursor-pointer" title="Eliminar préstamo">
+            <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
@@ -452,12 +454,12 @@ function LoanCard({ loan, onChanged, onEdit }: { loan: Loan; onChanged: () => vo
                 <span>{formatCents(r.amount)} {r.repaymentDate && `· ${format(new Date(`${r.repaymentDate}T00:00:00`), "d MMM yyyy", { locale: es })}`}</span>
                 <div className="flex items-center gap-1.5 shrink-0">
                   {r.comprobanteUrl && (
-                    <SignedFileLink path={r.comprobanteUrl} className="text-muted-foreground hover:text-foreground">
-                      <ExternalLink className="h-3 w-3" />
+                    <SignedFileLink aria-label="Ver comprobante del abono" path={r.comprobanteUrl} className="text-muted-foreground hover:text-foreground">
+                      <ExternalLink aria-hidden="true" className="h-3 w-3" />
                     </SignedFileLink>
                   )}
-                  <button onClick={() => deleteRepayment(r.id)} className="text-muted-foreground hover:text-destructive cursor-pointer">
-                    <Trash2 className="h-3 w-3" />
+                  <button aria-label="Eliminar abono" onClick={() => deleteRepayment(r.id)} className="text-muted-foreground hover:text-destructive cursor-pointer">
+                    <Trash2 aria-hidden="true" className="h-3 w-3" />
                   </button>
                 </div>
               </div>
@@ -472,6 +474,7 @@ function LoanCard({ loan, onChanged, onEdit }: { loan: Loan; onChanged: () => vo
 }
 
 export default function LoansPage() {
+  const confirm = useConfirm();
   const { activeProject } = useProject();
   const projectId = activeProject?.id ?? null;
   const [loans, setLoans] = useState<Loan[]>([]);
@@ -501,7 +504,7 @@ export default function LoansPage() {
   useEffect(() => { void load(); }, [load]);
 
   async function deleteContribution(id: string) {
-    if (!confirm("¿Eliminar este aporte?")) return;
+    if (!(await confirm({ title: "¿Eliminar este aporte?", confirmLabel: "Eliminar aporte", destructive: true }))) return;
     const res = await fetch(`/api/loan-contributions/${id}`, { method: "DELETE" });
     if (!res.ok) { toast.error("No se pudo eliminar"); return; }
     toast.success("Aporte eliminado");
@@ -602,12 +605,12 @@ export default function LoansPage() {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {c.comprobanteUrl && (
-                        <SignedFileLink path={c.comprobanteUrl} className="text-muted-foreground hover:text-foreground">
-                          <ExternalLink className="h-3.5 w-3.5" />
+                        <SignedFileLink aria-label="Ver comprobante del aporte" path={c.comprobanteUrl} className="text-muted-foreground hover:text-foreground">
+                          <ExternalLink aria-hidden="true" className="h-3.5 w-3.5" />
                         </SignedFileLink>
                       )}
-                      <button onClick={() => deleteContribution(c.id)} className="text-muted-foreground hover:text-destructive cursor-pointer">
-                        <Trash2 className="h-3.5 w-3.5" />
+                      <button aria-label="Eliminar aporte" onClick={() => deleteContribution(c.id)} className="text-muted-foreground hover:text-destructive cursor-pointer">
+                        <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   </div>

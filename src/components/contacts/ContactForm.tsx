@@ -28,6 +28,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useLocale } from "@/lib/locale-context";
 import { useProject } from "@/lib/project-context";
+import { SOURCE_LABELS } from "@/lib/constants";
 
 const NEW_COMPANY_VALUE = "__new__";
 const NO_COMPANY_VALUE = "__no_company__";
@@ -263,7 +264,7 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label>Empresa (opcional)</Label>
+            <Label htmlFor="contact-company">Empresa (opcional)</Label>
             <Select
               value={watch("companyId")}
               onValueChange={(v) => {
@@ -274,8 +275,17 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
                 setValue("companyId", v, { shouldValidate: true, shouldDirty: true });
               }}
             >
-              <SelectTrigger className="cursor-pointer">
-                <SelectValue placeholder="Selecciona una empresa" />
+              <SelectTrigger id="contact-company" className="cursor-pointer">
+                <SelectValue placeholder="Selecciona una empresa">
+                  {!watchedCompanyId
+                    ? undefined
+                    : watchedCompanyId === NO_COMPANY_VALUE
+                      ? "Sin empresa (persona natural)"
+                      : watchedCompanyId === NEW_COMPANY_VALUE
+                        ? "+ Nueva empresa..."
+                        : (companiesList.find((c) => c.id === watchedCompanyId)?.name ??
+                          (initialData?.company || "Empresa seleccionada"))}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={NO_COMPANY_VALUE}>Sin empresa (persona natural)</SelectItem>
@@ -316,15 +326,21 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
 
           {artistProjects.length > 0 && (
             <div className="space-y-2">
-              <Label>Artista beneficiado (opcional)</Label>
+              <Label htmlFor="contact-artist-project">Artista beneficiado (opcional)</Label>
               <Select
                 value={watch("artistProjectId") || NO_ARTIST_VALUE}
                 onValueChange={(v) =>
                   setValue("artistProjectId", !v || v === NO_ARTIST_VALUE ? "" : v)
                 }
               >
-                <SelectTrigger className="cursor-pointer">
-                  <SelectValue placeholder="Ninguno" />
+                <SelectTrigger id="contact-artist-project" className="cursor-pointer">
+                  <SelectValue placeholder="Ninguno">
+                    {(() => {
+                      const id = watch("artistProjectId");
+                      if (!id) return "Ninguno (contacto general)";
+                      return artistProjects.find((p) => p.id === id)?.name;
+                    })()}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NO_ARTIST_VALUE}>Ninguno (contacto general)</SelectItem>
@@ -340,17 +356,19 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
           )}
 
           <div className="space-y-2">
-            <Label>Fuente</Label>
+            <Label htmlFor="contact-source">Fuente</Label>
             <Select value={watch("source")} onValueChange={(v) => v && setValue("source", v)}>
-              <SelectTrigger className="cursor-pointer">
-                <SelectValue />
+              <SelectTrigger id="contact-source" className="cursor-pointer">
+                <SelectValue>
+                  {(SOURCE_LABELS as Record<string, string>)[watch("source")] ?? watch("source")}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="website">Sitio web</SelectItem>
                 <SelectItem value="whatsapp">WhatsApp</SelectItem>
                 <SelectItem value="referido">Referido</SelectItem>
                 <SelectItem value="redes_sociales">Redes sociales</SelectItem>
-                <SelectItem value="llamada_fria">Llamada fria</SelectItem>
+                <SelectItem value="llamada_fria">Llamada fría</SelectItem>
                 <SelectItem value="email">Email</SelectItem>
                 <SelectItem value="formulario">Formulario</SelectItem>
                 <SelectItem value="evento">Evento</SelectItem>
