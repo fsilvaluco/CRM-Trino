@@ -112,8 +112,10 @@ El archivo en `public/crm-config.json` es la copia por defecto (template).
 2. **API Mode** (opcional): Si el usuario pone `ANTHROPIC_API_KEY` en `.env.local`,
    la web tiene clasificacion automatica de leads inline.
 
-3. **MCP Mode**: El usuario puede conectar Claude Desktop/Web al CRM via el servidor MCP.
-   Config: `npm run mcp` o agregar a `claude_desktop_config.json`.
+3. **MCP Mode**: El equipo conecta Claude a Artist Pro con el servidor MCP remoto (`/api/mcp`),
+   cada persona con su propia cuenta via OAuth. Ver "MCP remoto para el equipo" mas abajo.
+   (`npm run mcp` / `mcp/crm-server.ts` es el servidor del template original: solo SQLite local,
+   no toca Supabase.)
 
 **Sin API key, el CRM funciona 100%.** La IA es un extra, no un requisito.
 
@@ -134,7 +136,26 @@ npm run local  # build + init + start en puerto 3000
 docker compose up -d  # Corre en puerto 3000, datos persisten en ./data/
 ```
 
-### MCP (Claude Desktop/Web)
+### MCP remoto para el equipo (Claude web, escritorio y celular)
+
+Servidor MCP dentro de la misma app: `https://<dominio>/api/mcp`. Cada persona lo agrega en Claude
+como conector personalizado y entra con SU cuenta de Artist Pro (OAuth 2.1 de Supabase Auth). Las
+consultas corren con el token de esa persona, asi que aplican RLS y la matriz de permisos igual que
+en la web.
+
+- **Herramientas** (lista corta a proposito, `src/lib/mcp/tools.ts`): `mis_tareas`, `ver_tarea`,
+  `actualizar_estado` (solo tareas donde la persona es responsable), `comentar_tarea`. No hay
+  herramientas para borrar, reasignar, finanzas ni configuracion.
+- **Codigo**: `src/app/api/mcp/route.ts` (endpoint), `src/lib/mcp/` (auth, protocolo, herramientas),
+  `src/app/.well-known/` (descubrimiento OAuth), `src/app/oauth/consent/` (pantalla de autorizacion).
+- **Config en Supabase** (Authentication > OAuth Server): activar el servidor OAuth 2.1, Authorization
+  Path = `/oauth/consent`, permitir registro dinamico de clientes. El Site URL (Authentication > URL
+  Configuration) debe ser el dominio de produccion, porque Supabase arma la pantalla de autorizacion
+  como Site URL + Authorization Path.
+- **Clientes permitidos**: la pantalla de autorizacion solo aprueba aplicaciones cuyo retorno sea
+  `claude.ai`, `claude.com` o `localhost`. Para sumar otros: `MCP_OAUTH_ALLOWED_REDIRECT_HOSTS`.
+
+### MCP local del template (SQLite, no usa Supabase)
 Agregar a `~/.claude/claude_desktop_config.json`:
 ```json
 {
@@ -153,3 +174,4 @@ Agregar a `~/.claude/claude_desktop_config.json`:
 - `RESEND_API_KEY` — Opcional. Para enviar digest diario por email (resend.com, gratis)
 - `DIGEST_EMAIL` — Opcional. Email donde recibir el digest
 - `DIGEST_FROM` — Opcional. Email remitente del digest (default: onboarding@resend.dev)
+- `MCP_OAUTH_ALLOWED_REDIRECT_HOSTS` — Opcional. Dominios extra (separados por coma) que pueden pedir acceso OAuth al MCP remoto, ademas de claude.ai/claude.com/localhost
