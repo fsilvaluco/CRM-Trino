@@ -245,15 +245,17 @@ export function TaskForm({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Prioridad</Label>
+              <Label htmlFor="task-priority">Prioridad</Label>
               <Select
                 value={watch("priority")}
                 onValueChange={(v) =>
                   v && setValue("priority", v as TaskFormData["priority"])
                 }
               >
-                <SelectTrigger className="cursor-pointer">
-                  <SelectValue />
+                <SelectTrigger id="task-priority" className="cursor-pointer">
+                  <SelectValue>
+                    {({ low: "Baja", medium: "Media", high: "Alta" } as Record<string, string>)[watch("priority")]}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="low">Baja</SelectItem>
@@ -264,14 +266,14 @@ export function TaskForm({
             </div>
 
             <div className="space-y-2">
-              <Label>Fecha limite</Label>
-              <Input type="date" {...register("dueDate")} />
+              <Label htmlFor="task-due-date">Fecha limite</Label>
+              <Input id="task-due-date" type="date" {...register("dueDate")} />
             </div>
           </div>
 
           {/* Relaciones opcionales */}
           <div className="space-y-2">
-            <Label>Proyecto</Label>
+            <Label htmlFor="task-project">Proyecto</Label>
             <Select
               value={selectedProjectId || ""}
               onValueChange={(v) => {
@@ -281,7 +283,7 @@ export function TaskForm({
               }}
               disabled={hasActiveProject}
             >
-              <SelectTrigger className="cursor-pointer disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground">
+              <SelectTrigger id="task-project" className="cursor-pointer disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground">
                 <span className={selectedProjectId ? "" : "text-muted-foreground"}>
                   {projects.find((p) => p.id === selectedProjectId)?.name ?? "Sin proyecto"}
                 </span>
@@ -303,12 +305,12 @@ export function TaskForm({
 
           {artistProjects.length > 0 && (
             <div className="space-y-2">
-              <Label>Artista beneficiado</Label>
+              <Label htmlFor="task-artist-project">Artista beneficiado</Label>
               <Select
                 value={watch("artistProjectId") || ""}
                 onValueChange={(v) => setValue("artistProjectId", !v || v === "__none__" ? "" : v)}
               >
-                <SelectTrigger className="cursor-pointer">
+                <SelectTrigger id="task-artist-project" className="cursor-pointer">
                   <span className={watch("artistProjectId") ? "" : "text-muted-foreground"}>
                     {artistProjects.find((p) => p.id === watch("artistProjectId"))?.name ??
                       "Ninguna (tarea general del sello)"}
@@ -326,12 +328,12 @@ export function TaskForm({
 
           {!preselectedSubprojectId && subprojectsList.length > 0 && (
             <div className="space-y-2">
-              <Label>Subproyecto / Campaña</Label>
+              <Label htmlFor="task-subproject">Subproyecto / Campaña</Label>
               <Select
                 value={watch("subprojectId") || ""}
                 onValueChange={(v) => v && setValue("subprojectId", v)}
               >
-                <SelectTrigger className="cursor-pointer">
+                <SelectTrigger id="task-subproject" className="cursor-pointer">
                   <span className={watch("subprojectId") ? "" : "text-muted-foreground"}>
                     {subprojectsList.find((s) => s.id === watch("subprojectId"))?.name ?? "Sin subproyecto"}
                   </span>
@@ -347,12 +349,12 @@ export function TaskForm({
 
           {!preselectedContactId && (
             <div className="space-y-2">
-              <Label>Contacto (opcional)</Label>
+              <Label htmlFor="task-contact">Contacto (opcional)</Label>
               <Select
                 value={watch("contactId") || ""}
                 onValueChange={(v) => v && setValue("contactId", v)}
               >
-                <SelectTrigger className="cursor-pointer">
+                <SelectTrigger id="task-contact" className="cursor-pointer">
                   <span className={watch("contactId") ? "" : "text-muted-foreground"}>
                     {contactsList.find((c) => c.id === watch("contactId"))?.name ?? "Sin contacto"}
                   </span>
@@ -372,12 +374,12 @@ export function TaskForm({
 
           {!preselectedCompanyId && companiesList.length > 0 && (
             <div className="space-y-2">
-              <Label>Empresa (opcional)</Label>
+              <Label htmlFor="task-company">Empresa (opcional)</Label>
               <Select
                 value={watch("companyId") || ""}
                 onValueChange={(v) => v && setValue("companyId", v)}
               >
-                <SelectTrigger className="cursor-pointer">
+                <SelectTrigger id="task-company" className="cursor-pointer">
                   <span className={watch("companyId") ? "" : "text-muted-foreground"}>
                     {companiesList.find((c) => c.id === watch("companyId"))?.name ?? "Sin empresa"}
                   </span>
@@ -393,12 +395,12 @@ export function TaskForm({
 
           {!preselectedDealId && dealsList.length > 0 && (
             <div className="space-y-2">
-              <Label>Deal (opcional)</Label>
+              <Label htmlFor="task-deal">Deal (opcional)</Label>
               <Select
                 value={watch("dealId") || ""}
                 onValueChange={(v) => v && setValue("dealId", v)}
               >
-                <SelectTrigger className="cursor-pointer">
+                <SelectTrigger id="task-deal" className="cursor-pointer">
                   <span className={watch("dealId") ? "" : "text-muted-foreground"}>
                     {dealsList.find((d) => d.id === watch("dealId"))?.title ?? "Sin deal"}
                   </span>

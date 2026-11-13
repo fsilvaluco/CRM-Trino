@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Loader2, Upload, FileText, ExternalLink, Trash2, Pencil, Music2, SquarePlay, Type } from "lucide-react";
 import { useProject } from "@/lib/project-context";
 import { supabase } from "@/lib/supabase";
@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import type { Dossier, ProjectFont } from "@/types/analytics";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 // pdf.js solo se usa para contar páginas al subir -- carga dinámica, mismo
 // motivo que en usePdfDocument (no existe en SSR). El worker se sirve
@@ -31,6 +32,7 @@ async function countPdfPages(file: File): Promise<number> {
 }
 
 export default function DossierListPage() {
+  const confirm = useConfirm();
   const { activeProject } = useProject();
   const [dossiers, setDossiers] = useState<Dossier[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,7 +60,7 @@ export default function DossierListPage() {
   }, [loadFonts]);
 
   const handleDeleteFont = async (id: string) => {
-    if (!confirm("¿Eliminar esta tipografía? Los campos del Dossier que la usan van a dejar de verse con ella.")) return;
+    if (!(await confirm({ title: "¿Eliminar esta tipografía?", description: "Los campos del Dossier que la usan van a dejar de verse con ella.", confirmLabel: "Eliminar tipografía", destructive: true }))) return;
     try {
       const res = await fetch(`/api/project-fonts/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
@@ -132,7 +134,7 @@ export default function DossierListPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("¿Eliminar este dossier? Se pierde el PDF y las posiciones guardadas.")) return;
+    if (!(await confirm({ title: "¿Eliminar este dossier?", description: "Se pierde el PDF y las posiciones guardadas.", confirmLabel: "Eliminar dossier", destructive: true }))) return;
     try {
       const res = await fetch(`/api/dossiers/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
@@ -192,12 +194,12 @@ export default function DossierListPage() {
           {fonts.map((f) => (
             <Badge key={f.id} variant="outline" className="gap-1 pr-1">
               <span style={{ fontFamily: `"${f.name}"` }}>{f.name}</span>
-              <button
+              <button aria-label={`Eliminar tipografía ${f.name}`}
                 onClick={() => handleDeleteFont(f.id)}
                 className="text-muted-foreground hover:text-destructive cursor-pointer"
                 title="Eliminar tipografía"
               >
-                <Trash2 className="h-3 w-3" />
+                <Trash2 aria-hidden="true" className="h-3 w-3" />
               </button>
             </Badge>
           ))}
@@ -228,23 +230,27 @@ export default function DossierListPage() {
                   {format(new Date(d.updatedAt), "d MMM yyyy", { locale: es })}
                 </p>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <Link href={`/dossier/${d.id}`}>
-                    <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer">
-                      <Pencil className="h-3.5 w-3.5 mr-1" /> Editar
-                    </Button>
+                  <Link
+                    href={`/dossier/${d.id}`}
+                    className={buttonVariants({ size: "sm", variant: "outline", className: "h-7 text-xs cursor-pointer" })}
+                  >
+                    <Pencil className="h-3.5 w-3.5 mr-1" aria-hidden="true" /> Editar
                   </Link>
-                  <a href={`/d/${d.id}`} target="_blank" rel="noopener noreferrer">
-                    <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer">
-                      <ExternalLink className="h-3.5 w-3.5 mr-1" /> Link público
-                    </Button>
+                  <a
+                    href={`/d/${d.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={buttonVariants({ size: "sm", variant: "outline", className: "h-7 text-xs cursor-pointer" })}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5 mr-1" aria-hidden="true" /> Link público
                   </a>
-                  <Button
+                  <Button aria-label={`Eliminar dossier ${d.name}`}
                     size="sm"
                     variant="ghost"
                     className="h-7 text-xs cursor-pointer text-muted-foreground hover:text-destructive ml-auto"
                     onClick={() => handleDelete(d.id)}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </CardContent>

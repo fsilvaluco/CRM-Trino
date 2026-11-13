@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -52,9 +53,11 @@ function SortableHead({
 
 interface ContactsTableProps {
   contacts: Contact[];
+  /** Abre el formulario de nuevo contacto. Si no se pasa, el estado vacio no ofrece accion. */
+  onAddContact?: () => void;
 }
 
-export function ContactsTable({ contacts }: ContactsTableProps) {
+export function ContactsTable({ contacts, onAddContact }: ContactsTableProps) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("name");
@@ -114,9 +117,13 @@ export function ContactsTable({ contacts }: ContactsTableProps) {
       <EmptyState
         icon={Users}
         title="No hay contactos"
-        description="Agrega tu primer contacto para comenzar a gestionar tu pipeline de ventas."
-        actionLabel="Agregar contacto"
-        onAction={() => router.push("/contacts?new=true")}
+        description={
+          onAddContact
+            ? "Agrega tu primer contacto para comenzar a gestionar tu pipeline de ventas."
+            : "Selecciona un proyecto para agregar contactos."
+        }
+        actionLabel={onAddContact ? "Agregar contacto" : undefined}
+        onAction={onAddContact}
       />
     );
   }
@@ -125,8 +132,10 @@ export function ContactsTable({ contacts }: ContactsTableProps) {
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
           <Input
+            type="search"
+            aria-label="Buscar contactos por nombre, email o empresa"
             placeholder="Buscar por nombre, email o empresa..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -195,7 +204,9 @@ export function ContactsTable({ contacts }: ContactsTableProps) {
               >
                 <TableCell>
                   <div>
-                    <p className="font-medium">{contact.name}</p>
+                    <Link href={`/contacts/${contact.id}`} onClick={(e) => e.stopPropagation()} className="font-medium rounded-sm hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                      {contact.name}
+                    </Link>
                     <p className="text-xs text-muted-foreground">
                       {contact.email || "Sin email"}
                     </p>

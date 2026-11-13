@@ -148,7 +148,7 @@ export default function ProjectSettingsPage() {
                 <code className="flex-1 text-sm bg-muted p-2 rounded font-mono truncate">
                   POST {typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"}/api/webhook
                 </code>
-                <button
+                <button aria-label="Copiar URL del webhook"
                   onClick={() => {
                     navigator.clipboard.writeText(`${window.location.origin}/api/webhook`);
                     toast.success("URL copiada");
@@ -156,7 +156,7 @@ export default function ProjectSettingsPage() {
                   className="p-2 rounded hover:bg-muted cursor-pointer"
                   title="Copiar URL"
                 >
-                  <Copy className="h-4 w-4 text-muted-foreground" />
+                  <Copy aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
                 </button>
               </div>
               <div className="p-3 rounded-lg bg-muted/50 text-xs font-mono">

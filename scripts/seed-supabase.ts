@@ -357,8 +357,8 @@ async function seedSettings() {
   const settings = [
     { organization_id: ORG_ID!, key: "business_name",   value: "Mi Negocio" },
     { organization_id: ORG_ID!, key: "business_tagline", value: "Tu CRM personalizado" },
-    { organization_id: ORG_ID!, key: "currency",         value: "MXN" },
-    { organization_id: ORG_ID!, key: "locale",           value: "es-MX" },
+    { organization_id: ORG_ID!, key: "currency",         value: "CLP" },
+    { organization_id: ORG_ID!, key: "locale",           value: "es-CL" },
     { organization_id: ORG_ID!, key: "theme",            value: "light" },
     { organization_id: ORG_ID!, key: "language",         value: "es" },
   ];

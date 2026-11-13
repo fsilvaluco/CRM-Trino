@@ -9,6 +9,8 @@ import { AssigneeAvatarStack, type AssigneeRef } from "@/components/shared/Assig
 import { Clock, GripVertical, CalendarHeart, MapPin, Users, MessageCircleWarning } from "lucide-react";
 import type { DealLeadInfo } from "@/types";
 import { format } from "date-fns";
+import { MoveToMenu, type MoveTarget } from "@/components/shared/MoveToMenu";
+import { clickableProps } from "@/lib/a11y";
 import { es } from "date-fns/locale";
 
 interface DealCardProps {
@@ -27,6 +29,10 @@ interface DealCardProps {
   tagProjectAvatarUrl?: string | null;
   assignees?: AssigneeRef[];
   onClick?: () => void;
+  /** Etapa actual y etapas disponibles para el menu "Mover a". */
+  stageId?: string;
+  stages?: MoveTarget[];
+  onMove?: (stageId: string) => void;
 }
 
 export function DealCard({
@@ -45,6 +51,9 @@ export function DealCard({
   tagProjectAvatarUrl,
   assignees,
   onClick,
+  stageId,
+  stages,
+  onMove,
 }: DealCardProps) {
   const { formatCurrency } = useLocale();
   const {
@@ -68,25 +77,35 @@ export function DealCard({
         <span
           className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-card"
           title="Actividad nueva sin ver"
-        />
+        >
+          <span className="sr-only">Actividad nueva sin ver</span>
+        </span>
       )}
 
       {/* Handle de arrastre dedicado -- el resto de la tarjeta queda libre
           para hacer scroll horizontal del tablero sin ninguna ambigüedad
           (recomendación oficial de dnd-kit para tarjetas dentro de un
           contenedor con scroll). */}
-      <button
-        {...attributes}
-        {...listeners}
-        style={{ touchAction: "none" }}
-        className="absolute top-2 right-2 p-1 text-muted-foreground/50 hover:text-muted-foreground cursor-grab active:cursor-grabbing touch-none"
-        aria-label="Arrastrar para mover"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <GripVertical className="h-4 w-4" />
-      </button>
+      <div className="absolute top-2 right-2 flex items-center gap-0.5">
+        {onMove && stageId && stages && (
+          <MoveToMenu itemLabel={title} currentId={stageId} targets={stages} onMove={onMove} heading="Mover a etapa" />
+        )}
+        <button
+          {...attributes}
+          {...listeners}
+          style={{ touchAction: "none" }}
+          className="p-1 text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing touch-none"
+          aria-label={`Arrastrar "${title}"`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className="h-4 w-4" aria-hidden="true" />
+        </button>
+      </div>
 
-      <div onClick={onClick} className="space-y-2 cursor-pointer pr-5">
+      <div
+        {...(onClick ? clickableProps(onClick) : {})}
+        className={`space-y-2 rounded-sm pr-14 ${onClick ? "cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" : ""}`}
+      >
         <p className="text-sm font-medium leading-tight">{title}</p>
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold text-primary">

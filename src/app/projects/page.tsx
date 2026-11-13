@@ -1,5 +1,6 @@
 "use client";
 
+import { clickableProps } from "@/lib/a11y";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
@@ -116,8 +117,8 @@ export default function ProjectsPage() {
             return (
               <Card
                 key={project.id}
-                className="cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => router.push(`/projects/${project.id}`)}
+                className="cursor-pointer hover:shadow-md transition-shadow focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                {...clickableProps(() => router.push(`/projects/${project.id}`), { role: "link" })}
               >
                 <CardContent className="p-5">
                   <div className="flex items-start gap-3">

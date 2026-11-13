@@ -224,7 +224,11 @@ export function PressMentionSheet({ open, onOpenChange, onSaved, editingMention 
               <Label>Campaña</Label>
               <Select value={fields.campaignId} onValueChange={(v) => setFields((f) => ({ ...f, campaignId: v ?? "__none__" }))}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue>
+                    {fields.campaignId === "__none__"
+                      ? "Sin campaña"
+                      : campaigns.find((c) => c.id === fields.campaignId)?.name}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">Sin campaña</SelectItem>
@@ -253,7 +257,7 @@ export function PressMentionSheet({ open, onOpenChange, onSaved, editingMention 
               <Label>Tipo</Label>
               <Select value={fields.type} onValueChange={(v) => setFields((f) => ({ ...f, type: v as PressMentionType }))}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue>{PRESS_TYPE_LABELS[fields.type]}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {(Object.keys(PRESS_TYPE_LABELS) as PressMentionType[]).map((t) => (
@@ -268,7 +272,7 @@ export function PressMentionSheet({ open, onOpenChange, onSaved, editingMention 
               <Label>Fuente</Label>
               <Select value={fields.source} onValueChange={(v) => setFields((f) => ({ ...f, source: v as PressMentionSource }))}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue>{PRESS_SOURCE_LABELS[fields.source]}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {(Object.keys(PRESS_SOURCE_LABELS) as PressMentionSource[]).map((s) => (

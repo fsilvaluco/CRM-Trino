@@ -64,11 +64,11 @@ export function SponsorshipsTab({ data, onChanged }: { data: TourDetail; onChang
         <FilterSelect value={city} onChange={setCity} allLabel="Todas las ciudades" options={cities.map((c) => [c, c])} />
         <FilterSelect value={owner} onChange={setOwner} allLabel="Todos los responsables" options={owners.map((o) => [o, o])} />
         <div className="ml-auto flex items-center gap-1">
-          <Button size="icon" variant={view === "board" ? "secondary" : "ghost"} onClick={() => setView("board")} className="cursor-pointer" title="Tablero">
-            <LayoutGrid className="h-4 w-4" />
+          <Button aria-label="Vista de tablero" aria-pressed={view === "board"} size="icon" variant={view === "board" ? "secondary" : "ghost"} onClick={() => setView("board")} className="cursor-pointer" title="Tablero">
+            <LayoutGrid aria-hidden="true" className="h-4 w-4" />
           </Button>
-          <Button size="icon" variant={view === "table" ? "secondary" : "ghost"} onClick={() => setView("table")} className="cursor-pointer" title="Tabla">
-            <List className="h-4 w-4" />
+          <Button aria-label="Vista de tabla" aria-pressed={view === "table"} size="icon" variant={view === "table" ? "secondary" : "ghost"} onClick={() => setView("table")} className="cursor-pointer" title="Tabla">
+            <List aria-hidden="true" className="h-4 w-4" />
           </Button>
           {canEdit && (
             <Button size="sm" onClick={() => setCreating(true)} className="cursor-pointer">
@@ -110,7 +110,15 @@ export function SponsorshipsTab({ data, onChanged }: { data: TourDetail; onChang
                 const value = s.confirmedValue ?? s.estimatedValue;
                 return (
                   <tr key={s.id} onClick={() => setSelectedId(s.id)} className="cursor-pointer border-t hover:bg-muted/40">
-                    <td className="px-3 py-2 font-medium">{s.brand}</td>
+                    <td className="px-3 py-2 font-medium">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setSelectedId(s.id); }}
+                        className="text-left rounded-sm hover:underline cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                      >
+                        {s.brand}
+                      </button>
+                    </td>
                     <td className="px-3 py-2">{SPONSORSHIP_CATEGORY_LABEL[s.category]}</td>
                     <td className="px-3 py-2">{s.city ?? "Toda la gira"}</td>
                     <td className="px-3 py-2">

@@ -22,8 +22,8 @@ export function SponsorshipCard({ sp, onOpen }: { sp: Sponsorship; onOpen: () =>
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm font-medium leading-tight">{sp.brand}</p>
         {sp.dossierUrl && (
-          <a href={sp.dossierUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} title="Abrir dossier" className="text-muted-foreground hover:text-primary">
-            <ExternalLink className="h-3.5 w-3.5" />
+          <a aria-label={`Abrir dossier de ${sp.brand} (se abre en una pestaña nueva)`} href={sp.dossierUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} title="Abrir dossier" className="text-muted-foreground hover:text-primary">
+            <ExternalLink aria-hidden="true" className="h-3.5 w-3.5" />
           </a>
         )}
       </div>

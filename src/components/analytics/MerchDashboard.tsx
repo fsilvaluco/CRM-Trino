@@ -61,6 +61,12 @@ function splitFinancials(ventas: number) {
   return { comision, iva, utilidad };
 }
 
+const STATUS_FILTER_LABELS = {
+  all: "Todos los estados",
+  available: "Solo disponibles",
+  unavailable: "Solo sin stock",
+} as const;
+
 const MONTH_LABELS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
 interface MerchDashboardProps {
@@ -321,7 +327,7 @@ export function MerchDashboard({ products, salesByMonth, projectId }: MerchDashb
                 return [NUM.format(Number(v ?? 0)), name === "unidades" ? "Unidades" : "Pedidos"];
               }}
             />
-            <Bar dataKey="ventas" name="ventas" radius={[4, 4, 0, 0]} fill="hsl(var(--primary))" />
+            <Bar dataKey="ventas" name="ventas" radius={[4, 4, 0, 0]} fill="var(--primary)" />
           </BarChart>
         </ResponsiveContainer>
 
@@ -355,12 +361,21 @@ export function MerchDashboard({ products, salesByMonth, projectId }: MerchDashb
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-1.5">
                           {canExpand ? (
-                            <ChevronRight
-                              className={cn(
-                                "h-3.5 w-3.5 text-muted-foreground transition-transform shrink-0",
-                                expanded && "rotate-90"
-                              )}
-                            />
+                            <button
+                              type="button"
+                              aria-expanded={expanded}
+                              aria-label={`${expanded ? "Ocultar" : "Ver"} pedidos de ${m.label} ${selectedYear}`}
+                              onClick={(e) => { e.stopPropagation(); toggleMonthExpanded(m.month); }}
+                              className="rounded-sm cursor-pointer focus-visible:outline-2 focus-visible:outline-ring"
+                            >
+                              <ChevronRight
+                                aria-hidden="true"
+                                className={cn(
+                                  "h-3.5 w-3.5 text-muted-foreground transition-transform shrink-0",
+                                  expanded && "rotate-90"
+                                )}
+                              />
+                            </button>
                           ) : (
                             <span className="w-3.5 shrink-0" />
                           )}
@@ -393,12 +408,21 @@ export function MerchDashboard({ products, salesByMonth, projectId }: MerchDashb
                               <TableRow className="bg-muted/30 cursor-pointer" onClick={() => toggleOrderExpanded(order.id)}>
                                 <TableCell className="pl-9 text-sm">
                                   <div className="flex items-center gap-1.5">
-                                    <ChevronRight
-                                      className={cn(
-                                        "h-3 w-3 text-muted-foreground transition-transform shrink-0",
-                                        orderExpanded && "rotate-90"
-                                      )}
-                                    />
+                                    <button
+                                      type="button"
+                                      aria-expanded={orderExpanded}
+                                      aria-label={`${orderExpanded ? "Ocultar" : "Ver"} detalle del pedido ${order.orderNumber}`}
+                                      onClick={(e) => { e.stopPropagation(); toggleOrderExpanded(order.id); }}
+                                      className="rounded-sm cursor-pointer focus-visible:outline-2 focus-visible:outline-ring"
+                                    >
+                                      <ChevronRight
+                                        aria-hidden="true"
+                                        className={cn(
+                                          "h-3 w-3 text-muted-foreground transition-transform shrink-0",
+                                          orderExpanded && "rotate-90"
+                                        )}
+                                      />
+                                    </button>
                                     <span className="font-medium">{order.orderNumber}</span>
                                   </div>
                                 </TableCell>
@@ -450,12 +474,12 @@ export function MerchDashboard({ products, salesByMonth, projectId }: MerchDashb
           <p className="text-xs font-medium text-muted-foreground">Catálogo de la colección conectada</p>
           <Select value={statusFilter} onValueChange={(v) => v && setStatusFilter(v as typeof statusFilter)}>
             <SelectTrigger className="h-8 w-44 text-xs cursor-pointer">
-              <SelectValue />
+              <SelectValue>{STATUS_FILTER_LABELS[statusFilter]}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos los estados</SelectItem>
-              <SelectItem value="available">Solo disponibles</SelectItem>
-              <SelectItem value="unavailable">Solo sin stock</SelectItem>
+              {(Object.keys(STATUS_FILTER_LABELS) as (keyof typeof STATUS_FILTER_LABELS)[]).map((key) => (
+                <SelectItem key={key} value={key}>{STATUS_FILTER_LABELS[key]}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -508,12 +532,21 @@ export function MerchDashboard({ products, salesByMonth, projectId }: MerchDashb
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-1.5">
                           {hasVariants ? (
-                            <ChevronRight
-                              className={cn(
-                                "h-3.5 w-3.5 text-muted-foreground transition-transform shrink-0",
-                                expanded && "rotate-90"
-                              )}
-                            />
+                            <button
+                              type="button"
+                              aria-expanded={expanded}
+                              aria-label={`${expanded ? "Ocultar" : "Ver"} variantes de ${p.title}`}
+                              onClick={(e) => { e.stopPropagation(); toggleExpanded(p.id); }}
+                              className="rounded-sm cursor-pointer focus-visible:outline-2 focus-visible:outline-ring"
+                            >
+                              <ChevronRight
+                                aria-hidden="true"
+                                className={cn(
+                                  "h-3.5 w-3.5 text-muted-foreground transition-transform shrink-0",
+                                  expanded && "rotate-90"
+                                )}
+                              />
+                            </button>
                           ) : (
                             <span className="w-3.5 shrink-0" />
                           )}

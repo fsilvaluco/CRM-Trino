@@ -351,8 +351,8 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
                     variant="outline"
                     className={
                       member.status === "active"
-                        ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/40"
-                        : "bg-amber-500/15 text-amber-300 border-amber-500/40"
+                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"
+                        : "bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/40"
                     }
                   >
                     {member.status === "active" ? "Activo" : "Pendiente"}
@@ -386,6 +386,8 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
                       <Input
                         value={projectSearch}
                         onChange={(event) => setProjectSearch(event.target.value)}
+                        type="search"
+                        aria-label="Buscar proyecto"
                         placeholder="Buscar proyecto..."
                         className="h-8"
                       />
@@ -435,7 +437,7 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
                                     </Select>
                                   )}
                                   {checked && hasSavedRow && (
-                                    <Button
+                                    <Button aria-label={`Editar permisos finos por módulo en ${project.name}`}
                                       type="button"
                                       variant="ghost"
                                       size="icon"
@@ -444,9 +446,9 @@ export function MemberAccessSheet({ open, member, onClose, onSaved }: MemberAcce
                                       onClick={() => setExpandedPermissionsProjectId(isExpanded ? null : project.id)}
                                     >
                                       {isExpanded ? (
-                                        <ChevronDownIcon className="h-3.5 w-3.5" />
+                                        <ChevronDownIcon aria-hidden="true" className="h-3.5 w-3.5" />
                                       ) : (
-                                        <Settings2 className="h-3.5 w-3.5" />
+                                        <Settings2 aria-hidden="true" className="h-3.5 w-3.5" />
                                       )}
                                     </Button>
                                   )}

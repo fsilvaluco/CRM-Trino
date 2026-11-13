@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,6 +21,7 @@ import { useAuth } from "@/lib/auth-context";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { parseFlexibleDate } from "@/lib/constants";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 interface Transaction {
   id: string;
@@ -75,11 +76,15 @@ function TransactionList({
   onEdit,
   onReimburse,
   onDelete,
+  canEdit,
+  canDelete,
 }: {
   transactions: Transaction[];
   onEdit: (transaction: Transaction) => void;
   onReimburse: (id: string, reimbursed: boolean) => void;
   onDelete: (id: string) => void;
+  canEdit: boolean;
+  canDelete: boolean;
 }) {
   if (transactions.length === 0) {
     return (
@@ -123,7 +128,7 @@ function TransactionList({
                 <span className="text-xs text-muted-foreground">
                   {format(displayDate, "d MMM yyyy", { locale: es })}
                   {t.transactionDate && (
-                    <span className="ml-1 text-muted-foreground/60">(fecha del gasto)</span>
+                    <span className="ml-1 text-muted-foreground">(fecha del gasto)</span>
                   )}
                 </span>
                 {t.responsibleName && (
@@ -146,10 +151,15 @@ function TransactionList({
             {/* Acciones */}
             <div className="flex items-center gap-1 shrink-0">
               {t.filePath && t.fileUrl && (
-                <a href={t.fileUrl} target="_blank" rel="noopener noreferrer" title="Ver comprobante">
-                  <Button variant="ghost" size="icon" className="h-7 w-7">
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </Button>
+                <a
+                  href={t.fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Ver comprobante"
+                  aria-label="Ver comprobante (se abre en una pestaña nueva)"
+                  className={buttonVariants({ variant: "ghost", size: "icon", className: "h-7 w-7" })}
+                >
+                  <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
                 </a>
               )}
               {t.attachments && t.attachments.length > 0 && (
@@ -162,44 +172,48 @@ function TransactionList({
                         target="_blank"
                         rel="noopener noreferrer"
                         title={a.fileName ? `Comprobante ${i + 1}: ${a.fileName}` : `Comprobante ${i + 1}`}
+                        aria-label={`${a.fileName ? `Ver comprobante ${i + 1}: ${a.fileName}` : `Ver comprobante ${i + 1}`} (se abre en una pestaña nueva)`}
+                        className={buttonVariants({ variant: "ghost", size: "icon", className: "h-7 w-7 text-blue-600 hover:text-blue-700" })}
                       >
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600 hover:text-blue-700">
-                          <ExternalLink className="h-3.5 w-3.5" />
-                        </Button>
+                        <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
                       </a>
                     )
                   ))}
                 </div>
               )}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-blue-600 hover:text-blue-700"
-                title="Editar"
-                onClick={() => onEdit(t)}
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
-              {t.type === "expense" && t.responsibleName && !t.reimbursed && (
-                <Button
+              {canEdit && (
+                <Button aria-label="Editar movimiento"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-blue-600 hover:text-blue-700"
+                  title="Editar"
+                  onClick={() => onEdit(t)}
+                >
+                  <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              {canEdit && t.type === "expense" && t.responsibleName && !t.reimbursed && (
+                <Button aria-label="Marcar como listo"
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7 text-green-600 hover:text-green-700"
                   title="Marcar como listo"
                   onClick={() => onReimburse(t.id, true)}
                 >
-                  <Check className="h-3.5 w-3.5" />
+                  <Check aria-hidden="true" className="h-3.5 w-3.5" />
                 </Button>
               )}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                title="Eliminar"
-                onClick={() => onDelete(t.id)}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
+              {canDelete && (
+                <Button aria-label="Eliminar movimiento"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                  title="Eliminar"
+                  onClick={() => onDelete(t.id)}
+                >
+                  <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+                </Button>
+              )}
             </div>
           </div>
         );
@@ -209,8 +223,12 @@ function TransactionList({
 }
 
 export default function FinancesPage() {
+  const confirm = useConfirm();
   const { user } = useAuth();
-  const { activeProject, isAllProjects } = useProject();
+  const { activeProject, isAllProjects, canEditModuleInActiveProject, canDeleteModuleInActiveProject } = useProject();
+  // Mismas reglas que PUT/DELETE /api/finances/[id] (matriz `finanzas`).
+  const canEditFinances = canEditModuleInActiveProject("finanzas");
+  const canDeleteFinances = canDeleteModuleInActiveProject("finanzas");
   const activeProjectId = activeProject?.id ?? null;
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -275,7 +293,7 @@ export default function FinancesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("¿Eliminar este comprobante?")) return;
+    if (!(await confirm({ title: "¿Eliminar este comprobante?", confirmLabel: "Eliminar comprobante", destructive: true }))) return;
     const res = await fetch(`/api/finances/${id}`, { method: "DELETE" });
     if (!res.ok) { toast.error("Error al eliminar"); return; }
     toast.success("Comprobante eliminado");
@@ -328,14 +346,14 @@ export default function FinancesPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Finanzas</h1>
           <p className="text-muted-foreground text-sm">
             {isAllProjects || !activeProject ? "Todos los proyectos" : `Proyecto: ${activeProject.name}`}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex-wrap flex items-center gap-2">
           <Button
             variant={hasActiveFilters ? "default" : "outline"}
             onClick={() => setShowFilters((v) => !v)}
@@ -449,8 +467,8 @@ export default function FinancesPage() {
               <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="h-9" />
             </div>
             {hasActiveFilters && (
-              <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 cursor-pointer text-muted-foreground hover:text-destructive" title="Limpiar filtros" onClick={clearFilters}>
-                <X className="h-4 w-4" />
+              <Button aria-label="Limpiar filtros" variant="ghost" size="icon" className="h-9 w-9 shrink-0 cursor-pointer text-muted-foreground hover:text-destructive" title="Limpiar filtros" onClick={clearFilters}>
+                <X aria-hidden="true" className="h-4 w-4" />
               </Button>
             )}
           </div>
@@ -504,16 +522,16 @@ export default function FinancesPage() {
             )}
           </TabsList>
           <TabsContent value="all" className="mt-4">
-            <TransactionList transactions={filteredTransactions} onEdit={handleEdit} onReimburse={handleReimburse} onDelete={handleDelete} />
+            <TransactionList transactions={filteredTransactions} onEdit={handleEdit} onReimburse={handleReimburse} onDelete={handleDelete} canEdit={canEditFinances} canDelete={canDeleteFinances} />
           </TabsContent>
           <TabsContent value="expense" className="mt-4">
-            <TransactionList transactions={expenses} onEdit={handleEdit} onReimburse={handleReimburse} onDelete={handleDelete} />
+            <TransactionList transactions={expenses} onEdit={handleEdit} onReimburse={handleReimburse} onDelete={handleDelete} canEdit={canEditFinances} canDelete={canDeleteFinances} />
           </TabsContent>
           <TabsContent value="income" className="mt-4">
-            <TransactionList transactions={incomes} onEdit={handleEdit} onReimburse={handleReimburse} onDelete={handleDelete} />
+            <TransactionList transactions={incomes} onEdit={handleEdit} onReimburse={handleReimburse} onDelete={handleDelete} canEdit={canEditFinances} canDelete={canDeleteFinances} />
           </TabsContent>
           <TabsContent value="pending" className="mt-4">
-            <TransactionList transactions={pendingReimbursements} onEdit={handleEdit} onReimburse={handleReimburse} onDelete={handleDelete} />
+            <TransactionList transactions={pendingReimbursements} onEdit={handleEdit} onReimburse={handleReimburse} onDelete={handleDelete} canEdit={canEditFinances} canDelete={canDeleteFinances} />
           </TabsContent>
         </Tabs>
       )}

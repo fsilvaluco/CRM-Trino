@@ -60,6 +60,11 @@ const THEMES = [
   { value: "auto", label: "Automático (sistema)" },
 ];
 
+// Base UI muestra el valor crudo en el trigger si <SelectValue> no recibe hijos.
+function labelOf(options: { value: string; label: string }[], value: string) {
+  return options.find((o) => o.value === value)?.label;
+}
+
 interface BusinessSettings {
   business: { type: string; industry: string; teamSize: string };
   preferences: { language: "es" | "en"; theme: "light" | "dark" | "auto" };
@@ -117,7 +122,7 @@ export function BusinessSettingsPanel() {
         <Label>Tipo de negocio</Label>
         <Select value={settings.business.type} onValueChange={(v) => setBusiness("type", v ?? "")}>
           <SelectTrigger>
-            <SelectValue />
+            <SelectValue>{labelOf(BUSINESS_TYPES, settings.business.type)}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {BUSINESS_TYPES.map((t) => (
@@ -131,7 +136,7 @@ export function BusinessSettingsPanel() {
         <Label>Industria</Label>
         <Select value={settings.business.industry} onValueChange={(v) => setBusiness("industry", v ?? "")}>
           <SelectTrigger>
-            <SelectValue />
+            <SelectValue>{labelOf(INDUSTRIES, settings.business.industry)}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {INDUSTRIES.map((i) => (
@@ -145,7 +150,7 @@ export function BusinessSettingsPanel() {
         <Label>Tamaño del equipo</Label>
         <Select value={settings.business.teamSize} onValueChange={(v) => setBusiness("teamSize", v ?? "")}>
           <SelectTrigger>
-            <SelectValue />
+            <SelectValue>{labelOf(TEAM_SIZES, settings.business.teamSize)}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {TEAM_SIZES.map((s) => (
@@ -161,7 +166,7 @@ export function BusinessSettingsPanel() {
         <Label>Idioma</Label>
         <Select value={settings.preferences.language} onValueChange={(v) => setPref("language", v ?? "")}>
           <SelectTrigger>
-            <SelectValue />
+            <SelectValue>{labelOf(LANGUAGES, settings.preferences.language)}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {LANGUAGES.map((l) => (
@@ -175,7 +180,7 @@ export function BusinessSettingsPanel() {
         <Label>Tema</Label>
         <Select value={settings.preferences.theme} onValueChange={(v) => setPref("theme", v ?? "")}>
           <SelectTrigger>
-            <SelectValue />
+            <SelectValue>{labelOf(THEMES, settings.preferences.theme)}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {THEMES.map((t) => (

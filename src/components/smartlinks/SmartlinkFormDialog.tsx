@@ -266,7 +266,7 @@ export function SmartlinkFormDialog({
             <Label>Para qué es este smartlink</Label>
             <Select value={purpose} onValueChange={(v) => handlePurposeChange(v === "rrss" ? "rrss" : "ventas")}>
               <SelectTrigger className="cursor-pointer">
-                <SelectValue />
+                <SelectValue>{PURPOSE_OPTIONS.find((p) => p.value === purpose)?.label}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {PURPOSE_OPTIONS.map((p) => (
@@ -351,21 +351,21 @@ export function SmartlinkFormDialog({
                     onChange={(e) => updateLink(i, { url: e.target.value })}
                     className="flex-1"
                   />
-                  <button
+                  <button aria-label={link.label ? `Destacar botón ${link.label}` : "Destacar botón"}
                     type="button"
                     onClick={() => toggleFeatured(i)}
                     className={`cursor-pointer p-1 shrink-0 ${link.featured ? "text-amber-500" : "text-muted-foreground hover:text-amber-500"}`}
                     title={link.featured ? "Destacado: sale con anillo y etiqueta Recomendado en la página" : "Destacar este botón"}
                     aria-pressed={link.featured}
                   >
-                    <Star className="h-3.5 w-3.5" fill={link.featured ? "currentColor" : "none"} />
+                    <Star aria-hidden="true" className="h-3.5 w-3.5" fill={link.featured ? "currentColor" : "none"} />
                   </button>
-                  <button
+                  <button aria-label={link.label ? `Quitar botón ${link.label}` : "Quitar botón"}
                     onClick={() => removeLink(i)}
                     className="text-muted-foreground hover:text-destructive cursor-pointer p-1 shrink-0"
                     title="Quitar"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
                   </button>
                 </div>
               ))}

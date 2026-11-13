@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Search, Menu } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { MobileNav } from "./MobileNav";
 import { UserMenu } from "./UserMenu";
@@ -20,7 +20,7 @@ function DriveIcon({ className }: { className?: string }) {
   // Forma triangular del logo de Drive (sin usar el asset de marca real,
   // solo la silueta generica que cualquier usuario reconoce como "Drive").
   return (
-    <svg viewBox="0 0 87.3 78" className={className} xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 87.3 78" className={className} aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
       <path
         d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z"
         fill="#0066da"
@@ -57,9 +57,16 @@ export function Header() {
     <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-4 border-b bg-card px-4 md:px-6 min-w-0 overflow-hidden">
       <Sheet>
         <SheetTrigger
-          render={<Button variant="ghost" size="icon" className="md:hidden cursor-pointer" />}
+          render={
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden cursor-pointer"
+              aria-label="Abrir menú de navegación"
+            />
+          }
         >
-          <Menu className="h-5 w-5" />
+          <Menu className="h-5 w-5" aria-hidden="true" />
         </SheetTrigger>
         <SheetContent side="left" className="w-64 p-0">
           <MobileNav />
@@ -69,27 +76,40 @@ export function Header() {
       <ProjectSelector />
 
       <div className="flex-1 min-w-0 flex items-center gap-4">
-        <div className="relative w-full max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <search className="relative w-full max-w-md">
+          <Search
+            className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
+            aria-hidden="true"
+          />
           <Input
+            type="search"
+            aria-label="Buscar contactos y deals"
             placeholder="Buscar contactos, deals..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9 bg-muted/50"
           />
-        </div>
+        </search>
       </div>
 
       {activeProject?.driveUrl && (
         <Tooltip>
           <TooltipTrigger
             render={
-              <Button variant="ghost" size="icon" className="cursor-pointer shrink-0" />
+              <a
+                href={activeProject.driveUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Abrir Drive de ${activeProject.name} (se abre en una pestaña nueva)`}
+                className={buttonVariants({
+                  variant: "ghost",
+                  size: "icon",
+                  className: "cursor-pointer shrink-0",
+                })}
+              />
             }
           >
-            <a href={activeProject.driveUrl} target="_blank" rel="noopener noreferrer">
-              <DriveIcon className="h-5 w-5" />
-            </a>
+            <DriveIcon className="h-5 w-5" />
           </TooltipTrigger>
           <TooltipContent>Abrir Drive de {activeProject.name}</TooltipContent>
         </Tooltip>

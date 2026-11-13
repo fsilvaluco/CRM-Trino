@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import Link from "next/link";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 interface FacebookIntegration {
   connected: boolean;
@@ -26,6 +27,7 @@ interface FacebookIntegrationCardProps {
  * explica eso en vez de mostrar un botón de "Conectar" separado.
  */
 export function FacebookIntegrationCard({ integration, onRefresh, projectId }: FacebookIntegrationCardProps) {
+  const confirm = useConfirm();
   const [syncing, setSyncing] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
 
@@ -54,7 +56,14 @@ export function FacebookIntegrationCard({ integration, onRefresh, projectId }: F
   };
 
   const handleDisconnect = async () => {
-    if (!confirm("¿Desconectar Facebook? Se detiene el sync automático. Las métricas ya registradas NO se borran.")) {
+    if (
+      !(await confirm({
+        title: "¿Desconectar Facebook?",
+        description: "Se detiene el sync automático. Las métricas ya registradas NO se borran.",
+        confirmLabel: "Desconectar",
+        destructive: true,
+      }))
+    ) {
       return;
     }
     setDisconnecting(true);

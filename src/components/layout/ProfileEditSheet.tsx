@@ -118,15 +118,15 @@ export function ProfileEditSheet({ open, onClose }: ProfileEditSheetProps) {
                 <AvatarImage src={avatarUrl ?? undefined} />
                 <AvatarFallback className="text-lg">{initials}</AvatarFallback>
               </Avatar>
-              <button
+              <button aria-label="Cambiar foto de perfil"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
                 className="absolute bottom-0 right-0 rounded-full bg-primary text-primary-foreground p-1.5 shadow hover:bg-primary/90 transition-colors cursor-pointer"
               >
                 {uploading ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />
                 ) : (
-                  <Camera className="h-3.5 w-3.5" />
+                  <Camera aria-hidden="true" className="h-3.5 w-3.5" />
                 )}
               </button>
               <input

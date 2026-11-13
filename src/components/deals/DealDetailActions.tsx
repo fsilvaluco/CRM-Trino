@@ -5,15 +5,27 @@ import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useProject } from "@/lib/project-context";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 export function DealDetailActions({ dealId, dealTitle }: { dealId: string; dealTitle: string }) {
-  const { isAdmin } = useProject();
+  const confirm = useConfirm();
+  const { canDeleteModuleInActiveProject } = useProject();
   const router = useRouter();
 
-  if (!isAdmin) return null;
+  // Misma regla que DELETE /api/deals/[id]: `deals.puede_eliminar` de la
+  // matriz del proyecto (falso en "Todos los proyectos", ROLES.md 0.5).
+  if (!canDeleteModuleInActiveProject("deals")) return null;
 
   async function handleDelete() {
-    if (!confirm(`¿Eliminar "${dealTitle}"? Esta accion no se puede deshacer.`)) return;
+    if (
+      !(await confirm({
+        title: `¿Eliminar "${dealTitle}"?`,
+        description: "Esta acción no se puede deshacer.",
+        confirmLabel: "Eliminar deal",
+        destructive: true,
+      }))
+    )
+      return;
     try {
       const res = await fetch(`/api/deals/${dealId}`, { method: "DELETE" });
       if (!res.ok) {

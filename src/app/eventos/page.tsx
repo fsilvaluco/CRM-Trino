@@ -15,6 +15,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import type { LiveShow, ShowStatus } from "@/types/shows";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 const STATUS_CONFIG: Record<ShowStatus, { label: string; className: string }> = {
   cotizando: { label: "Cotizando", className: "bg-yellow-100 text-yellow-700" },
@@ -59,7 +60,10 @@ function needsConfirmation(show: LiveShow): boolean {
 }
 
 export default function EventosPage() {
-  const { activeProject, isAllProjects, projects } = useProject();
+  const confirm = useConfirm();
+  const { activeProject, isAllProjects, projects, canDeleteModuleInActiveProject } = useProject();
+  // Misma regla que DELETE /api/eventos/[id] (matriz `eventos`).
+  const canDeleteEvents = canDeleteModuleInActiveProject("eventos");
   const [shows, setShows] = useState<LiveShow[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
@@ -133,7 +137,7 @@ export default function EventosPage() {
   }
 
   async function handleDelete(show: LiveShow) {
-    if (!confirm(`¿Eliminar el evento "${show.name}"? Esta acción no se puede deshacer.`)) return;
+    if (!(await confirm({ title: `¿Eliminar el evento "${show.name}"?`, description: "Esta acción no se puede deshacer.", confirmLabel: "Eliminar evento", destructive: true }))) return;
     try {
       const res = await fetch(`/api/eventos/${show.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
@@ -173,14 +177,14 @@ export default function EventosPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Eventos</h1>
           <p className="text-muted-foreground">
             {isAllProjects || !activeProject ? "Todos los proyectos" : `Proyecto: ${activeProject.name}`}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex-wrap flex items-center gap-2">
           <Link href="/analytics/eventos" className={buttonVariants({ variant: "outline" })}>
             <BarChart2 className="h-4 w-4 mr-1.5" />
             Ver en Métricas
@@ -381,7 +385,7 @@ export default function EventosPage() {
                       </div>
                     ) : null}
                     <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                      <button
+                      <button aria-label={`Editar evento ${show.name}`}
                         onClick={() => {
                           if (isAllProjects) {
                             toast.warning("Selecciona el proyecto de este evento para editarlo");
@@ -393,23 +397,25 @@ export default function EventosPage() {
                         className="text-muted-foreground hover:text-foreground cursor-pointer p-1.5"
                         title={isAllProjects ? "Selecciona el proyecto de este evento para editarlo" : "Editar"}
                       >
-                        <Pencil className="h-4 w-4" />
+                        <Pencil aria-hidden="true" className="h-4 w-4" />
                       </button>
-                      <button
+                      <button aria-label={`Duplicar evento ${show.name}`}
                         onClick={() => handleDuplicate(show)}
                         disabled={duplicatingId === show.id}
                         className="text-muted-foreground hover:text-foreground cursor-pointer p-1.5 disabled:opacity-50"
                         title="Duplicar"
                       >
-                        <Copy className="h-4 w-4" />
+                        <Copy aria-hidden="true" className="h-4 w-4" />
                       </button>
-                      <button
-                        onClick={() => handleDelete(show)}
-                        className="text-muted-foreground hover:text-destructive cursor-pointer p-1.5"
-                        title="Eliminar"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      {canDeleteEvents && (
+                        <button aria-label={`Eliminar evento ${show.name}`}
+                          onClick={() => handleDelete(show)}
+                          className="text-muted-foreground hover:text-destructive cursor-pointer p-1.5"
+                          title="Eliminar"
+                        >
+                          <Trash2 aria-hidden="true" className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </CardContent>

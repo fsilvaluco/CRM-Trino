@@ -23,6 +23,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { parseFlexibleDate } from "@/lib/constants";
 import { formatSettlementAmount, type SettlementCurrency } from "@/lib/settlement-money";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 interface Signer {
   userId: string;
@@ -83,12 +84,14 @@ function typeLabel(type: Settlement["type"]) {
 }
 
 function SettlementCard({
-  settlement, userId, onEdit, onDelete,
+  settlement, userId, onEdit, onDelete, canEdit, canDelete,
 }: {
   settlement: Settlement;
   userId: string | undefined;
   onEdit: (settlement: Settlement) => void;
   onDelete: (id: string) => void;
+  canEdit: boolean;
+  canDelete: boolean;
 }) {
   const alreadySigned = settlement.signatures.some((s) => s.userId === userId);
   // Si se eligieron firmantes a mano, solo ellos pueden firmar -- mismo
@@ -124,12 +127,16 @@ function SettlementCard({
           {settlement.paid && (
             <Badge className="bg-green-600 text-white text-[10px]"><Check className="h-2.5 w-2.5 mr-1" />Pagado</Badge>
           )}
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" title="Editar" onClick={() => onEdit(settlement)}>
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" title="Eliminar" onClick={() => onDelete(settlement.id)}>
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
+          {canEdit && (
+            <Button aria-label="Editar rendición" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" title="Editar" onClick={() => onEdit(settlement)}>
+              <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          {canDelete && (
+            <Button aria-label="Eliminar rendición" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" title="Eliminar" onClick={() => onDelete(settlement.id)}>
+              <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+            </Button>
+          )}
         </div>
       </div>
 
@@ -265,8 +272,12 @@ function EventReceiptFolder({ receipt }: { receipt: EventReceipt }) {
 }
 
 export default function ComprobantesPage() {
+  const confirm = useConfirm();
   const { user } = useAuth();
-  const { activeProject, isAllProjects } = useProject();
+  const { activeProject, isAllProjects, canEditModuleInActiveProject, canDeleteModuleInActiveProject } = useProject();
+  // Mismas reglas que PUT/DELETE /api/settlements/[id] (matriz `finanzas`).
+  const canEditSettlements = canEditModuleInActiveProject("finanzas");
+  const canDeleteSettlements = canDeleteModuleInActiveProject("finanzas");
   const activeProjectId = activeProject?.id ?? null;
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [eventReceipts, setEventReceipts] = useState<EventReceipt[]>([]);
@@ -310,7 +321,7 @@ export default function ComprobantesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("¿Eliminar esta liquidación?")) return;
+    if (!(await confirm({ title: "¿Eliminar esta liquidación?", confirmLabel: "Eliminar liquidación", destructive: true }))) return;
     const res = await fetch(`/api/settlements/${id}`, { method: "DELETE" });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
@@ -371,7 +382,7 @@ export default function ComprobantesPage() {
                   <div className="space-y-2">
                     <h2 className="text-sm font-semibold text-muted-foreground">Regalías</h2>
                     <div className="grid sm:grid-cols-2 gap-3">
-                      {regalias.map((s) => <SettlementCard key={s.id} settlement={s} userId={user?.id} onEdit={handleEdit} onDelete={handleDelete} />)}
+                      {regalias.map((s) => <SettlementCard key={s.id} settlement={s} userId={user?.id} onEdit={handleEdit} onDelete={handleDelete} canEdit={canEditSettlements} canDelete={canDeleteSettlements} />)}
                     </div>
                   </div>
                 )}
@@ -379,7 +390,7 @@ export default function ComprobantesPage() {
                   <div className="space-y-2">
                     <h2 className="text-sm font-semibold text-muted-foreground">Merchandising</h2>
                     <div className="grid sm:grid-cols-2 gap-3">
-                      {merch.map((s) => <SettlementCard key={s.id} settlement={s} userId={user?.id} onEdit={handleEdit} onDelete={handleDelete} />)}
+                      {merch.map((s) => <SettlementCard key={s.id} settlement={s} userId={user?.id} onEdit={handleEdit} onDelete={handleDelete} canEdit={canEditSettlements} canDelete={canDeleteSettlements} />)}
                     </div>
                   </div>
                 )}
@@ -387,7 +398,7 @@ export default function ComprobantesPage() {
                   <div className="space-y-2">
                     <h2 className="text-sm font-semibold text-muted-foreground">Otros</h2>
                     <div className="grid sm:grid-cols-2 gap-3">
-                      {otros.map((s) => <SettlementCard key={s.id} settlement={s} userId={user?.id} onEdit={handleEdit} onDelete={handleDelete} />)}
+                      {otros.map((s) => <SettlementCard key={s.id} settlement={s} userId={user?.id} onEdit={handleEdit} onDelete={handleDelete} canEdit={canEditSettlements} canDelete={canDeleteSettlements} />)}
                     </div>
                   </div>
                 )}

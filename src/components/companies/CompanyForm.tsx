@@ -175,7 +175,13 @@ export function CompanyForm({ open, onClose, initialData }: CompanyFormProps) {
                 }
               >
                 <SelectTrigger className="cursor-pointer">
-                  <SelectValue placeholder="Ninguno" />
+                  <SelectValue placeholder="Ninguno">
+                    {(() => {
+                      const id = watch("artistProjectId");
+                      if (!id) return "Ninguno (empresa general)";
+                      return artistProjects.find((p) => p.id === id)?.name;
+                    })()}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NO_ARTIST_VALUE}>Ninguno (empresa general)</SelectItem>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useLocale } from "@/lib/locale-context";
 import { AlertsList } from "@/components/tours/AlertsList";
 import { PACE_CLASS, PACE_LABEL, shortDate } from "@/components/tours/labels";
@@ -20,6 +21,8 @@ function Kpi({ label, value, hint, tone }: { label: string; value: string; hint?
 
 export function TourSummaryTab({ data, onNavigate }: { data: TourDetail; onNavigate: (t: Tab) => void }) {
   const { formatCurrency } = useLocale();
+  // "Ahora" fijo al montar: Date.now() directo en el render es impuro.
+  const [now] = useState(() => Date.now());
   const { tour, dates, sponsorships, budget } = data;
   const active = dates.filter((d) => d.showStatus !== "cancelado");
 
@@ -34,7 +37,7 @@ export function TourSummaryTab({ data, onNavigate }: { data: TourDetail; onNavig
   const open = sponsorships.filter((s) => !["confirmada", "contraprestacion_entregada", "rechazada", "sin_respuesta"].includes(s.status));
   const canjeValue = confirmed.reduce((a, s) => a + (s.confirmedValue ?? s.estimatedValue ?? 0), 0);
   const daysToDeadline = tour.sponsorshipDeadline
-    ? Math.ceil((new Date(`${tour.sponsorshipDeadline}T23:59:59`).getTime() - Date.now()) / 86_400_000)
+    ? Math.ceil((new Date(`${tour.sponsorshipDeadline}T23:59:59`).getTime() - now) / 86_400_000)
     : null;
 
   const totalBudget = budget?.categories.reduce((a, c) => a + c.budgeted, 0) ?? 0;

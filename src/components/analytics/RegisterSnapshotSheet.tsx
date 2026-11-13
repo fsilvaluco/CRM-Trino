@@ -44,6 +44,14 @@ interface RegisterSnapshotSheetProps {
   lockedPlatform?: "instagram" | "tiktok" | "youtube" | "spotify" | "facebook";
 }
 
+const PLATFORM_LABELS: Record<string, string> = {
+  instagram: "Instagram",
+  tiktok: "TikTok",
+  youtube: "YouTube",
+  spotify: "Spotify",
+  facebook: "Facebook",
+};
+
 export function RegisterSnapshotSheet({
   open,
   onOpenChange,
@@ -124,7 +132,9 @@ export function RegisterSnapshotSheet({
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecciona plataforma" />
+                  <SelectValue placeholder="Selecciona plataforma">
+                    {platform ? PLATFORM_LABELS[platform] : undefined}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="instagram">Instagram</SelectItem>

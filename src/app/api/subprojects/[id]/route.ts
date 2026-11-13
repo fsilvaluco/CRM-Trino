@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
+import { getProjectPermissions, canDeleteModule } from "@/lib/project-roles";
 import { z } from "zod";
 
 const dateFieldSchema = z
@@ -169,7 +170,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, orgId, error } = await requireAuth();
+  const { supabase, user, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   if (!orgId) {
@@ -177,7 +178,7 @@ export async function DELETE(
   }
 
   const { data: existing, error: findErr } = await supabase
-    .from("subprojects").select("id, organization_id").eq("id", id).single();
+    .from("subprojects").select("id, organization_id, project_id").eq("id", id).single();
 
   if (findErr || !existing) {
     return NextResponse.json({ error: "Subproyecto no encontrado" }, { status: 404 });
@@ -185,6 +186,18 @@ export async function DELETE(
 
   if (existing.organization_id !== orgId) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  }
+
+  // Antes bastaba con ser de la misma organización. Ahora usa la matriz del
+  // proyecto de la campaña (`campanas.puede_eliminar`), igual que tareas.
+  if (existing.project_id) {
+    if (!allowedProjectIds.includes(existing.project_id)) {
+      return NextResponse.json({ error: "No tienes acceso a este proyecto" }, { status: 403 });
+    }
+    const perm = await getProjectPermissions(supabase, user!.id, existing.project_id);
+    if (!canDeleteModule(perm, "campanas")) {
+      return NextResponse.json({ error: "Tu rol no puede eliminar campañas en este proyecto" }, { status: 403 });
+    }
   }
 
   // Evita violar la FK tasks_subproject_id_fkey: primero desvincula tareas asociadas.

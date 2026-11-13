@@ -25,6 +25,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useLocale } from "@/lib/locale-context";
+import { formatCurrencyWith } from "@/lib/locale";
 import { useProject } from "@/lib/project-context";
 import { AssigneeSelector, type OrgMember } from "@/components/shared/AssigneeSelector";
 import { MoneyInput } from "@/components/shared/MoneyInput";
@@ -33,6 +34,7 @@ import { DealCloseReasonDialog } from "@/components/deals/DealCloseReasonDialog"
 import { EventSetupDialog } from "@/components/events/EventSetupDialog";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 const CREATE_CONTACT_VALUE = "__create_new_contact__";
 const CREATE_COMPANY_VALUE = "__create_new_company__";
@@ -143,9 +145,10 @@ function toDateInputValue(value: string | null): string {
 }
 
 export function DealForm({ open, onClose, initialStageId, initialDealId, prefill }: DealFormProps) {
+  const confirm = useConfirm();
   const router = useRouter();
   const { settings } = useLocale();
-  const { activeProject, projects, isAdmin } = useProject();
+  const { activeProject, projects, canDeleteModuleInActiveProject } = useProject();
   const [contactsList, setContacts] = useState<Array<{ id: string; name: string }>>([]);
   const [companiesList, setCompanies] = useState<Array<{ id: string; name: string }>>([]);
   const [stagesList, setStages] = useState<Array<{ id: string; name: string; isWon?: boolean; isLost?: boolean }>>([]);
@@ -535,7 +538,15 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
   const handleDeleteDeal = async () => {
     if (!initialDealId) return;
     const title = watch("title") || "este deal";
-    if (!confirm(`¿Eliminar "${title}"? Esta accion no se puede deshacer.`)) return;
+    if (
+      !(await confirm({
+        title: `¿Eliminar "${title}"?`,
+        description: "Esta acción no se puede deshacer.",
+        confirmLabel: "Eliminar deal",
+        destructive: true,
+      }))
+    )
+      return;
     try {
       const res = await fetch(`/api/deals/${initialDealId}`, { method: "DELETE" });
       if (!res.ok) {
@@ -677,7 +688,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
         ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label>Proyecto</Label>
+            <Label htmlFor="deal-project">Proyecto</Label>
             <Select
               value={selectedProjectId || ""}
               onValueChange={(v) => {
@@ -686,7 +697,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
               }}
               disabled={hasActiveProject}
             >
-              <SelectTrigger className="cursor-pointer disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground">
+              <SelectTrigger id="deal-project" className="cursor-pointer disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground">
                 <span className={selectedProjectId ? "" : "text-muted-foreground"}>
                   {projects.find((p) => p.id === selectedProjectId)?.name ?? "Sin proyecto"}
                 </span>
@@ -708,14 +719,14 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
 
           {artistProjects.length > 0 && (
             <div className="space-y-2">
-              <Label>Artista beneficiado</Label>
+              <Label htmlFor="deal-artist-project">Artista beneficiado</Label>
               <Select
                 value={watch("artistProjectId") || ""}
                 onValueChange={(v) =>
                   setValue("artistProjectId", !v || v === NO_ARTIST_VALUE ? "" : v)
                 }
               >
-                <SelectTrigger className="cursor-pointer">
+                <SelectTrigger id="deal-artist-project" className="cursor-pointer">
                   <span className={watch("artistProjectId") ? "" : "text-muted-foreground"}>
                     {artistProjects.find((p) => p.id === watch("artistProjectId"))?.name ??
                       "Ninguno (trato general del sello)"}
@@ -746,10 +757,11 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
           </div>
 
           <div className="space-y-2">
-            <Label>Tipo de cierre *</Label>
-            <div className="grid grid-cols-2 gap-2">
+            <Label id="deal-value-type-label">Tipo de cierre *</Label>
+            <div role="group" aria-labelledby="deal-value-type-label" className="grid grid-cols-2 gap-2">
               <Button
                 type="button"
+                aria-pressed={selectedValueType === "fixed"}
                 variant={selectedValueType === "fixed" ? "default" : "outline"}
                 className="cursor-pointer"
                 onClick={() => {
@@ -761,6 +773,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
               </Button>
               <Button
                 type="button"
+                aria-pressed={selectedValueType === "percentage"}
                 variant={selectedValueType === "percentage" ? "default" : "outline"}
                 className="cursor-pointer"
                 onClick={() => {
@@ -807,8 +820,9 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
               )}
             </div>
             <div className="space-y-2">
-              <Label>Probabilidad (%)</Label>
+              <Label htmlFor="deal-probability">Probabilidad (%)</Label>
               <Input
+                id="deal-probability"
                 type="number"
                 min="0"
                 max="100"
@@ -818,10 +832,11 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
           </div>
 
           <div className="space-y-2">
-            <Label>IVA</Label>
-            <div className="grid grid-cols-2 gap-2">
+            <Label id="deal-tax-type-label">IVA</Label>
+            <div role="group" aria-labelledby="deal-tax-type-label" className="grid grid-cols-2 gap-2">
               <Button
                 type="button"
+                aria-pressed={selectedTaxType === "afecto"}
                 variant={selectedTaxType === "afecto" ? "default" : "outline"}
                 className="cursor-pointer"
                 onClick={() => setValue("taxType", "afecto", { shouldValidate: true })}
@@ -830,6 +845,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
               </Button>
               <Button
                 type="button"
+                aria-pressed={selectedTaxType === "exento"}
                 variant={selectedTaxType === "exento" ? "default" : "outline"}
                 className="cursor-pointer"
                 onClick={() => setValue("taxType", "exento", { shouldValidate: true })}
@@ -840,10 +856,11 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
           </div>
 
           <div className="space-y-2">
-            <Label>Tipo de asociacion *</Label>
-            <div className="grid grid-cols-2 gap-2">
+            <Label id="deal-association-type-label">Tipo de asociacion *</Label>
+            <div role="group" aria-labelledby="deal-association-type-label" className="grid grid-cols-2 gap-2">
               <Button
                 type="button"
+                aria-pressed={associationType === "contacto"}
                 variant={associationType === "contacto" ? "default" : "outline"}
                 className="cursor-pointer"
                 onClick={() => handleAssociationTypeChange("contacto")}
@@ -852,6 +869,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
               </Button>
               <Button
                 type="button"
+                aria-pressed={associationType === "empresa"}
                 variant={associationType === "empresa" ? "default" : "outline"}
                 className="cursor-pointer"
                 onClick={() => handleAssociationTypeChange("empresa")}
@@ -862,8 +880,13 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
           </div>
 
           <div className="space-y-2">
-            <Label>{associationType === "contacto" ? "Contacto" : "Empresa"} *</Label>
+            <Label id="deal-association-label" htmlFor="deal-association-search">
+              {associationType === "contacto" ? "Contacto" : "Empresa"} *
+            </Label>
             <Input
+              id="deal-association-search"
+              type="search"
+              aria-label={associationType === "contacto" ? "Buscar contacto" : "Buscar empresa"}
               value={associationQuery}
               onChange={(event) => setAssociationQuery(event.target.value)}
               placeholder={associationType === "contacto" ? "Buscar contacto..." : "Buscar empresa..."}
@@ -875,7 +898,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
                 setValue("associationId", v, { shouldValidate: true });
               }}
             >
-              <SelectTrigger className="cursor-pointer">
+              <SelectTrigger aria-labelledby="deal-association-label" className="cursor-pointer">
                 <span className={selectedAssociationId ? "" : "text-muted-foreground"}>
                   {selectedAssociationId === CREATE_CONTACT_VALUE
                     ? "Crear nuevo contacto"
@@ -947,13 +970,19 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label>Empresa (opcional)</Label>
+                  <Label htmlFor="new-contact-company">Empresa (opcional)</Label>
                   <Select
                     value={newContactCompanyId}
                     onValueChange={(value) => setNewContactCompanyId(value ?? NO_COMPANY_VALUE)}
                   >
-                    <SelectTrigger className="cursor-pointer">
-                      <SelectValue placeholder="Seleccionar empresa" />
+                    <SelectTrigger id="new-contact-company" className="cursor-pointer">
+                      <SelectValue placeholder="Seleccionar empresa">
+                        {newContactCompanyId === NO_COMPANY_VALUE
+                          ? "Sin empresa (persona natural)"
+                          : newContactCompanyId === CREATE_COMPANY_VALUE
+                            ? "+ Crear nueva empresa"
+                            : companiesList.find((company) => company.id === newContactCompanyId)?.name}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value={NO_COMPANY_VALUE}>Sin empresa (persona natural)</SelectItem>
@@ -998,12 +1027,12 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>Etapa</Label>
+              <Label htmlFor="deal-stage">Etapa</Label>
               <Select
                 value={watch("stageId") || ""}
                 onValueChange={(v) => v && setValue("stageId", v)}
               >
-                <SelectTrigger className="cursor-pointer">
+                <SelectTrigger id="deal-stage" className="cursor-pointer">
                   <span className={watch("stageId") ? "" : "text-muted-foreground"}>
                     {stagesList.find((s) => s.id === watch("stageId"))?.name ?? "Primera etapa"}
                   </span>
@@ -1018,8 +1047,8 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Cierre estimado</Label>
-              <Input type="date" {...register("expectedClose")} />
+              <Label htmlFor="deal-expected-close">Cierre estimado</Label>
+              <Input id="deal-expected-close" type="date" {...register("expectedClose")} />
             </div>
           </div>
 
@@ -1106,14 +1135,14 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
               );
             }
 
-            const clp = (cents: number) =>
-              new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(cents / 100);
+            // Moneda configurada (pais/moneda en Configuracion), igual que el resto de deals
+            const money = (cents: number) => formatCurrencyWith(cents, settings);
             const trinoCents = Math.round(baseCents * (rate / 100));
             const artistCents = baseCents - trinoCents;
             return (
               <p className="text-xs text-muted-foreground">
-                Sobre {baseLabel}: Sello ({rate}%) <span className="font-medium text-foreground">{clp(trinoCents)}</span>
-                {" · "}Artista ({artistRate}%) <span className="font-medium text-foreground">{clp(artistCents)}</span>
+                Sobre {baseLabel}: Sello ({rate}%) <span className="font-medium text-foreground">{money(trinoCents)}</span>
+                {" · "}Artista ({artistRate}%) <span className="font-medium text-foreground">{money(artistCents)}</span>
               </p>
             );
           })()}
@@ -1137,7 +1166,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
           )}
 
           <div className="flex justify-between items-center gap-2 pt-2">
-            {isEditing && isAdmin ? (
+            {isEditing && canDeleteModuleInActiveProject("deals") ? (
               <Button
                 type="button"
                 variant="ghost"

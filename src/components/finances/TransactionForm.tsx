@@ -248,7 +248,7 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
 
       // Responsable del gasto: siempre el usuario que lo ingresa
       // Si especifica otro nombre, ese va como responsibleName
-      let responsibleUserId: string | null = user?.id || null;
+      const responsibleUserId: string | null = user?.id || null;
       let responsibleName: string | null = null;
 
       if (data.responsibleExternal && data.responsibleExternal.trim() !== "") {
@@ -467,8 +467,8 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
                   {analyzing ? <Loader2 className="h-4 w-4 text-muted-foreground shrink-0 animate-spin" /> : <File className="h-4 w-4 text-muted-foreground shrink-0" />}
                   <span className="text-sm flex-1 truncate">{file.name}</span>
                   {!analyzing && (
-                    <button type="button" onClick={() => setFile(null)} className="cursor-pointer text-muted-foreground hover:text-destructive">
-                      <X className="h-4 w-4" />
+                    <button aria-label="Quitar archivo" type="button" onClick={() => setFile(null)} className="cursor-pointer text-muted-foreground hover:text-destructive">
+                      <X aria-hidden="true" className="h-4 w-4" />
                     </button>
                   )}
                 </div>

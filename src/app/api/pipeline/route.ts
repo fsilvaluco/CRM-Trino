@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { mapAssigneeRows } from "@/lib/assignee-rows";
 import { requireAuth } from "@/lib/supabase-server";
 import { markEntityViewed, getViewedAtMap, getLatestCommentAtMap, isUnseen, latestActivityAt } from "@/lib/entity-views";
 import { getProjectPermissions, canViewDeals, canEditDeals } from "@/lib/project-roles";
@@ -41,15 +42,7 @@ function mapStage(stage: any, deals: any[], unseenMap: Map<string, boolean>) {
         tagProjectName: d.artist_project?.name ?? d.project?.name ?? null,
         tagProjectColor: d.artist_project?.theme_color ?? d.project?.theme_color ?? null,
         tagProjectAvatarUrl: d.artist_project?.avatar_url ?? d.project?.avatar_url ?? null,
-        assignees: d.deal_assignees?.map((da: any) => ({
-          userId: da.user_id,
-          assignedAt: da.assigned_at,
-          profile: da.profiles ? {
-            fullName: da.profiles.full_name,
-            avatarUrl: da.profiles.avatar_url,
-            email: da.profiles.email,
-          } : null,
-        })) ?? [],
+        assignees: mapAssigneeRows(d.deal_assignees),
       })),
   };
 }

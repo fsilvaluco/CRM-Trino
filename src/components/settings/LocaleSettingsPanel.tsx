@@ -22,6 +22,41 @@ import {
 } from "@/lib/locale";
 import { useLocale } from "@/lib/locale-context";
 
+const CURRENCIES = [
+  { code: "ARS", label: "ARS — Peso argentino" },
+  { code: "AUD", label: "AUD — Dólar australiano" },
+  { code: "BOB", label: "BOB — Boliviano" },
+  { code: "BRL", label: "BRL — Real brasileño" },
+  { code: "CAD", label: "CAD — Dólar canadiense" },
+  { code: "CHF", label: "CHF — Franco suizo" },
+  { code: "CLP", label: "CLP — Peso chileno" },
+  { code: "CNY", label: "CNY — Yuan chino" },
+  { code: "COP", label: "COP — Peso colombiano" },
+  { code: "CRC", label: "CRC — Colón costarricense" },
+  { code: "CUP", label: "CUP — Peso cubano" },
+  { code: "DOP", label: "DOP — Peso dominicano" },
+  { code: "EUR", label: "EUR — Euro" },
+  { code: "GBP", label: "GBP — Libra esterlina" },
+  { code: "GTQ", label: "GTQ — Quetzal guatemalteco" },
+  { code: "HNL", label: "HNL — Lempira hondureño" },
+  { code: "INR", label: "INR — Rupia india" },
+  { code: "JPY", label: "JPY — Yen japonés" },
+  { code: "KRW", label: "KRW — Won coreano" },
+  { code: "MAD", label: "MAD — Dírham marroquí" },
+  { code: "MXN", label: "MXN — Peso mexicano" },
+  { code: "NGN", label: "NGN — Naira nigeriana" },
+  { code: "NIO", label: "NIO — Córdoba nicaragüense" },
+  { code: "PEN", label: "PEN — Sol peruano" },
+  { code: "PLN", label: "PLN — Esloti polaco" },
+  { code: "PYG", label: "PYG — Guaraní paraguayo" },
+  { code: "RUB", label: "RUB — Rublo ruso" },
+  { code: "SGD", label: "SGD — Dólar de Singapur" },
+  { code: "USD", label: "USD — Dólar estadounidense" },
+  { code: "UYU", label: "UYU — Peso uruguayo" },
+  { code: "VES", label: "VES — Bolívar venezolano" },
+  { code: "ZAR", label: "ZAR — Rand sudafricano" },
+];
+
 export function LocaleSettingsPanel() {
   const { reload } = useLocale();
   const [form, setForm] = useState<LocaleSettings>(DEFAULT_LOCALE);
@@ -84,6 +119,13 @@ export function LocaleSettingsPanel() {
 
   const previewAmount = formatCurrencyWith(125000, form); // $1,250
   const previewDate = formatDateWith(new Date(), form);
+  // El mismo prefijo lo comparten varios países (+1): se prefiere el país elegido.
+  const prefixCountry =
+    SORTED_COUNTRIES.find((c) => c.phonePrefix === form.phonePrefix && c.country === form.country) ??
+    SORTED_COUNTRIES.find((c) => c.phonePrefix === form.phonePrefix);
+  const phonePrefixLabel = prefixCountry
+    ? `${prefixCountry.phonePrefix} — ${prefixCountry.label}`
+    : form.phonePrefix || undefined;
 
   return (
     <div className="space-y-5">
@@ -92,7 +134,9 @@ export function LocaleSettingsPanel() {
         <Label>País</Label>
         <Select value={form.country} onValueChange={(v) => handleCountryChange(v ?? "")}>
           <SelectTrigger>
-            <SelectValue placeholder="Selecciona tu país" />
+            <SelectValue placeholder="Selecciona tu país">
+              {SORTED_COUNTRIES.find((c) => c.country === form.country)?.label}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent className="max-h-72">
             {SORTED_COUNTRIES.map((c) => (
@@ -115,44 +159,13 @@ export function LocaleSettingsPanel() {
           onValueChange={(v) => setForm((f) => ({ ...f, currency: v ?? f.currency }))}
         >
           <SelectTrigger>
-            <SelectValue />
+            <SelectValue>
+              {CURRENCIES.find((c) => c.code === form.currency)?.label ?? form.currency}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent className="max-h-64">
             {/* Monedas comunes ordenadas */}
-            {[
-              { code: "ARS", label: "ARS — Peso argentino" },
-              { code: "AUD", label: "AUD — Dólar australiano" },
-              { code: "BOB", label: "BOB — Boliviano" },
-              { code: "BRL", label: "BRL — Real brasileño" },
-              { code: "CAD", label: "CAD — Dólar canadiense" },
-              { code: "CHF", label: "CHF — Franco suizo" },
-              { code: "CLP", label: "CLP — Peso chileno" },
-              { code: "CNY", label: "CNY — Yuan chino" },
-              { code: "COP", label: "COP — Peso colombiano" },
-              { code: "CRC", label: "CRC — Colón costarricense" },
-              { code: "CUP", label: "CUP — Peso cubano" },
-              { code: "DOP", label: "DOP — Peso dominicano" },
-              { code: "EUR", label: "EUR — Euro" },
-              { code: "GBP", label: "GBP — Libra esterlina" },
-              { code: "GTQ", label: "GTQ — Quetzal guatemalteco" },
-              { code: "HNL", label: "HNL — Lempira hondureño" },
-              { code: "INR", label: "INR — Rupia india" },
-              { code: "JPY", label: "JPY — Yen japonés" },
-              { code: "KRW", label: "KRW — Won coreano" },
-              { code: "MAD", label: "MAD — Dírham marroquí" },
-              { code: "MXN", label: "MXN — Peso mexicano" },
-              { code: "NGN", label: "NGN — Naira nigeriana" },
-              { code: "NIO", label: "NIO — Córdoba nicaragüense" },
-              { code: "PEN", label: "PEN — Sol peruano" },
-              { code: "PLN", label: "PLN — Esloti polaco" },
-              { code: "PYG", label: "PYG — Guaraní paraguayo" },
-              { code: "RUB", label: "RUB — Rublo ruso" },
-              { code: "SGD", label: "SGD — Dólar de Singapur" },
-              { code: "USD", label: "USD — Dólar estadounidense" },
-              { code: "UYU", label: "UYU — Peso uruguayo" },
-              { code: "VES", label: "VES — Bolívar venezolano" },
-              { code: "ZAR", label: "ZAR — Rand sudafricano" },
-            ].map((c) => (
+            {CURRENCIES.map((c) => (
               <SelectItem key={c.code} value={c.code}>
                 {c.label}
               </SelectItem>
@@ -169,7 +182,7 @@ export function LocaleSettingsPanel() {
           onValueChange={(v) => setForm((f) => ({ ...f, timezone: v ?? f.timezone }))}
         >
           <SelectTrigger>
-            <SelectValue />
+            <SelectValue>{form.timezone ? form.timezone.replace(/_/g, " ") : undefined}</SelectValue>
           </SelectTrigger>
           <SelectContent className="max-h-72">
             {allTimezones.length > 0
@@ -211,7 +224,7 @@ export function LocaleSettingsPanel() {
           onValueChange={(v) => setForm((f) => ({ ...f, phonePrefix: v ?? f.phonePrefix }))}
         >
           <SelectTrigger>
-            <SelectValue />
+            <SelectValue>{phonePrefixLabel}</SelectValue>
           </SelectTrigger>
           <SelectContent className="max-h-64">
             {SORTED_COUNTRIES.map((c) => (

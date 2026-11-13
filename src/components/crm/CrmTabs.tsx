@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -82,10 +83,15 @@ export function CrmTabs({ columns, allDeals, onDealMoved, onAddDeal, onDealClick
     }
   });
 
-  function SortableHead({ label, field, className }: { label: string; field: SortKey; className?: string }) {
+  // Funcion que devuelve JSX (no un componente): definir un componente dentro
+  // de otro lo recrea en cada render y React pierde su estado.
+  function renderSortableHead(label: string, field: SortKey, className?: string) {
     const active = sortKey === field;
     return (
-      <TableHead className={className}>
+      <TableHead
+        className={className}
+        aria-sort={active ? (sortDir === "asc" ? "ascending" : "descending") : undefined}
+      >
         <button
           onClick={() => toggleSort(field)}
           className={cn(
@@ -127,12 +133,12 @@ export function CrmTabs({ columns, allDeals, onDealMoved, onAddDeal, onDealClick
             <Table>
               <TableHeader>
                 <TableRow>
-                  <SortableHead label="Titulo" field="title" />
-                  <SortableHead label="Contacto" field="contactName" />
-                  <SortableHead label="Valor" field="value" />
-                  <SortableHead label="Etapa" field="stageName" />
-                  <SortableHead label="Probabilidad" field="probability" className="hidden md:table-cell" />
-                  <SortableHead label="Cierre est." field="expectedClose" className="hidden lg:table-cell" />
+                  {renderSortableHead("Titulo", "title")}
+                  {renderSortableHead("Contacto", "contactName")}
+                  {renderSortableHead("Valor", "value")}
+                  {renderSortableHead("Etapa", "stageName")}
+                  {renderSortableHead("Probabilidad", "probability", "hidden md:table-cell")}
+                  {renderSortableHead("Cierre est.", "expectedClose", "hidden lg:table-cell")}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -142,7 +148,11 @@ export function CrmTabs({ columns, allDeals, onDealMoved, onAddDeal, onDealClick
                     className="cursor-pointer hover:bg-muted/50"
                     onClick={() => router.push(`/deals/${deal.id}`)}
                   >
-                    <TableCell className="font-medium">{deal.title}</TableCell>
+                    <TableCell className="font-medium">
+                      <Link href={`/deals/${deal.id}`} onClick={(e) => e.stopPropagation()} className="rounded-sm hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                        {deal.title}
+                      </Link>
+                    </TableCell>
                     <TableCell>{deal.contactName || "-"}</TableCell>
                     <TableCell className="font-semibold text-primary">
                       {deal.valueType === "percentage"

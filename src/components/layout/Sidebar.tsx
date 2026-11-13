@@ -45,13 +45,17 @@ function LeafLink({
           render={
             <Link
               href={item.href}
+              aria-label={hasUnseen ? `${item.label} (actividad nueva)` : item.label}
+              aria-current={active ? "page" : undefined}
               className={cn(baseClass, "justify-center px-2 py-2.5 relative")}
             />
           }
         >
-          <item.icon className="h-5 w-5 shrink-0" />
+          <item.icon className="h-5 w-5 shrink-0" aria-hidden="true" />
           {hasUnseen && (
-            <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500" />
+            <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500">
+              <span className="sr-only">Actividad nueva</span>
+            </span>
           )}
         </TooltipTrigger>
         <TooltipContent side="right">{item.label}</TooltipContent>
@@ -62,11 +66,16 @@ function LeafLink({
   return (
     <Link
       href={item.href}
+      aria-current={active ? "page" : undefined}
       className={cn(baseClass, "gap-3 px-3 py-2.5", indent && "pl-8")}
     >
-      <item.icon className="h-5 w-5 shrink-0" />
+      <item.icon className="h-5 w-5 shrink-0" aria-hidden="true" />
       {item.label}
-      {hasUnseen && <span className="h-2 w-2 rounded-full bg-red-500 shrink-0" />}
+      {hasUnseen && (
+        <span className="h-2 w-2 rounded-full bg-red-500 shrink-0">
+          <span className="sr-only">Actividad nueva</span>
+        </span>
+      )}
     </Link>
   );
 }
@@ -104,6 +113,7 @@ function GroupNav({
           render={
             <Link
               href={firstChildHref}
+              aria-label={item.label}
               className={cn(
                 "flex items-center justify-center rounded-lg px-2 py-2.5 text-sm font-medium transition-colors cursor-pointer",
                 activeClass
@@ -111,7 +121,7 @@ function GroupNav({
             />
           }
         >
-          <item.icon className="h-5 w-5 shrink-0" />
+          <item.icon className="h-5 w-5 shrink-0" aria-hidden="true" />
         </TooltipTrigger>
         <TooltipContent side="right">{item.label}</TooltipContent>
       </Tooltip>
@@ -122,18 +132,20 @@ function GroupNav({
     <div>
       <button
         onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
         className={cn(
           "w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer",
           activeClass
         )}
       >
-        <item.icon className="h-5 w-5 shrink-0" />
+        <item.icon className="h-5 w-5 shrink-0" aria-hidden="true" />
         <span className="flex-1 text-left">{item.label}</span>
         <ChevronDown
           className={cn(
             "h-4 w-4 shrink-0 transition-transform",
             open && "rotate-180"
           )}
+          aria-hidden="true"
         />
       </button>
       {open && (
@@ -223,6 +235,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
       {/* Navigation */}
       <nav
+        aria-label="Navegación principal"
         className={cn(
           "scroll-auto-hide flex-1 py-4 space-y-1 overflow-y-auto overflow-x-hidden",
           collapsed ? "px-2" : "px-3"
@@ -294,9 +307,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             }
           >
             {collapsed ? (
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
             ) : (
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
             )}
           </TooltipTrigger>
           <TooltipContent side="right">

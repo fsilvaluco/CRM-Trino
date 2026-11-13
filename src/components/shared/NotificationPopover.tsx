@@ -130,15 +130,21 @@ export function NotificationPopover() {
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger>
-        <Button variant="ghost" size="icon" className="relative cursor-pointer">
-          <Bell className="h-5 w-5" />
-          {totalCount > 0 && (
-            <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white text-xs font-medium flex items-center justify-center">
-              {totalCount > 9 ? "9+" : totalCount}
-            </span>
-          )}
-        </Button>
+      {/* render: el trigger ES el Button (antes era un <button> dentro de
+          otro, HTML invalido que causaba errores de hidratacion). */}
+      <PopoverTrigger
+        render={<Button variant="ghost" size="icon" className="relative cursor-pointer" />}
+        aria-label={totalCount > 0 ? `Notificaciones: ${totalCount} sin leer` : "Notificaciones"}
+      >
+        <Bell className="h-5 w-5" aria-hidden="true" />
+        {totalCount > 0 && (
+          <span
+            aria-hidden="true"
+            className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white text-xs font-medium flex items-center justify-center"
+          >
+            {totalCount > 9 ? "9+" : totalCount}
+          </span>
+        )}
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align="end">
         <div className="border-b px-4 py-3">
@@ -183,7 +189,7 @@ export function NotificationPopover() {
                         En: {mention.taskTitle}
                       </p>
                     )}
-                    <p className="text-xs text-muted-foreground/80">
+                    <p className="text-xs text-muted-foreground">
                       {formatDateTime(mention.createdAt)}
                     </p>
                   </div>
@@ -230,7 +236,7 @@ export function NotificationPopover() {
                         {task.subprojectName}
                       </p>
                     )}
-                    <p className="text-xs text-muted-foreground/80">
+                    <p className="text-xs text-muted-foreground">
                       Vencía: {formatDateTime(task.dueDate)}
                     </p>
                   </div>
@@ -279,7 +285,7 @@ export function NotificationPopover() {
                         {task.subprojectName}
                       </p>
                     )}
-                    <p className="text-xs text-muted-foreground/80">
+                    <p className="text-xs text-muted-foreground">
                       Vence: {formatDateTime(task.dueDate)}
                     </p>
                   </div>

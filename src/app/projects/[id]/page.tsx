@@ -20,6 +20,7 @@ import {
 import { formatDate } from "@/lib/constants";
 import { toast } from "sonner";
 import type { Project, Subproject, Task } from "@/types";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 
 interface ProjectDetail extends Project {
   subprojects: Subproject[];
@@ -41,6 +42,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export default function ProjectDetailPage() {
+  const confirm = useConfirm();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [project, setProject] = useState<ProjectDetail | null>(null);
@@ -63,7 +65,7 @@ export default function ProjectDetailPage() {
   }, [loadProject]);
 
   const handleDelete = async () => {
-    if (!confirm("¿Eliminar este proyecto?")) return;
+    if (!(await confirm({ title: "¿Eliminar este proyecto?", confirmLabel: "Eliminar proyecto", destructive: true }))) return;
     try {
       const res = await fetch(`/api/projects/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
@@ -75,9 +77,14 @@ export default function ProjectDetailPage() {
   };
 
   const deleteSubproject = async (subId: string) => {
-    if (!confirm("¿Eliminar este subproyecto?")) return;
+    if (!(await confirm({ title: "¿Eliminar este subproyecto?", confirmLabel: "Eliminar subproyecto", destructive: true }))) return;
     try {
-      await fetch(`/api/subprojects/${subId}`, { method: "DELETE" });
+      const res = await fetch(`/api/subprojects/${subId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "No se pudo eliminar el subproyecto");
+        return;
+      }
       toast.success("Subproyecto eliminado");
       loadProject();
     } catch {
@@ -142,13 +149,13 @@ export default function ProjectDetailPage() {
             <Pencil className="h-4 w-4 mr-1" />
             Editar
           </Button>
-          <Button
+          <Button aria-label="Eliminar proyecto"
             variant="outline"
             size="sm"
             onClick={handleDelete}
             className="cursor-pointer text-destructive hover:text-destructive"
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 aria-hidden="true" className="h-4 w-4" />
           </Button>
         </div>
       </div>
@@ -253,11 +260,11 @@ export default function ProjectDetailPage() {
                     >
                       {STATUS_LABELS[sub.status] || sub.status}
                     </Badge>
-                    <button
+                    <button aria-label={`Eliminar subproyecto ${sub.name}`}
                       onClick={() => deleteSubproject(sub.id)}
                       className="text-muted-foreground hover:text-destructive cursor-pointer"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 </li>

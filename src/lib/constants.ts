@@ -1,4 +1,5 @@
 import type { Temperature, LeadSource } from "@/types";
+import { formatMoney } from "@/lib/locale";
 
 // Version mostrada en el pie de la barra lateral (Sidebar.tsx). Convención
 // (pedida por Francisco, 18 ago 2026): subir el número después del punto
@@ -11,9 +12,10 @@ export const TEMPERATURE_CONFIG: Record<
   Temperature,
   { label: string; color: string; bgColor: string }
 > = {
-  cold: { label: "Frio", color: "#64748b", bgColor: "#f1f5f9" },
-  warm: { label: "Tibio", color: "#ea580c", bgColor: "#fff7ed" },
-  hot: { label: "Caliente", color: "#dc2626", bgColor: "#fef2f2" },
+  // Tonos -600/-700: texto >= 4.5:1 sobre su propio fondo (WCAG AA)
+  cold: { label: "Frío", color: "#475569", bgColor: "#f1f5f9" },
+  warm: { label: "Tibio", color: "#c2410c", bgColor: "#fff7ed" },
+  hot: { label: "Caliente", color: "#b91c1c", bgColor: "#fef2f2" },
 };
 
 export const SOURCE_LABELS: Record<LeadSource, string> = {
@@ -21,7 +23,7 @@ export const SOURCE_LABELS: Record<LeadSource, string> = {
   whatsapp: "WhatsApp",
   referido: "Referido",
   redes_sociales: "Redes sociales",
-  llamada_fria: "Llamada fria",
+  llamada_fria: "Llamada fría",
   email: "Email",
   formulario: "Formulario",
   evento: "Evento",
@@ -30,11 +32,14 @@ export const SOURCE_LABELS: Record<LeadSource, string> = {
   otro: "Otro",
 };
 
+/**
+ * @deprecated Usar `useLocale().formatCurrency` en componentes cliente, o
+ * `formatMoney` / `formatCurrencyWith` de `@/lib/locale` en server. Se
+ * mantiene por compatibilidad: formatea en la moneda por defecto (CLP/es-CL).
+ * Antes usaba MXN/es-MX fijo, lo que mostraba "$12,345.00" en vez de "$12.345".
+ */
 export function formatCurrency(cents: number): string {
-  return new Intl.NumberFormat("es-MX", {
-    style: "currency",
-    currency: "MXN",
-  }).format(cents / 100);
+  return formatMoney(cents);
 }
 
 export function cleanPhoneForWhatsApp(phone: string): string {

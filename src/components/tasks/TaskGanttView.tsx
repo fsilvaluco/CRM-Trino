@@ -1,5 +1,6 @@
 "use client";
 
+import { clickableProps } from "@/lib/a11y";
 import { useMemo, useState } from "react";
 import { AlertCircle } from "lucide-react";
 import { THEME_PALETTES, type ThemeColorKey } from "@/lib/theme-palettes";
@@ -189,10 +190,10 @@ export function TaskGanttView({
                 return (
                   <div key={task.id} className="flex border-b hover:bg-muted/30 transition-colors" style={{ height: ROW_HEIGHT }}>
                     <div
-                      className="sticky left-0 z-10 bg-background border-r shrink-0 flex items-center gap-1.5 px-3 text-xs truncate cursor-pointer"
+                      className="sticky left-0 z-10 bg-background border-r shrink-0 flex items-center gap-1.5 px-3 text-xs truncate cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
                       style={{ width: LABEL_WIDTH }}
                       title={task.title}
-                      onClick={() => onTaskClick?.(task.id)}
+                      {...clickableProps(() => onTaskClick?.(task.id))}
                     >
                       {isOverdue && <AlertCircle className="h-3 w-3 text-destructive shrink-0" />}
                       <span className="truncate">{task.title}</span>
