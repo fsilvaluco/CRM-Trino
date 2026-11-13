@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { PreescuchaFormDialog } from "@/components/preescuchas/PreescuchaFormDialog";
+import { useConfirm } from "@/components/shared/ConfirmProvider";
 import { useProject } from "@/lib/project-context";
 import type { PreescuchaItem } from "@/lib/preescuchas";
 import { daysUntil, formatDuration } from "@/lib/preescucha-format";
@@ -23,6 +24,7 @@ function expiryLabel(item: PreescuchaItem): string {
 
 export default function PreescuchasPage() {
   const { activeProject } = useProject();
+  const confirm = useConfirm();
   const [items, setItems] = useState<PreescuchaItem[]>([]);
   const [loading, setLoading] = useState(true);
   // undefined = formulario cerrado · null = crear · item = editar
@@ -62,10 +64,22 @@ export default function PreescuchasPage() {
   }
 
   async function handleDelete(item: PreescuchaItem) {
-    const warning = item.expired
-      ? `¿Eliminar "${item.title}" del historial? Se pierden también sus estadísticas.`
-      : `¿Eliminar "${item.title}" ahora? Se borran los audios y el enlace deja de funcionar de inmediato para quienes ya lo tienen. Esta acción no se puede deshacer.`;
-    if (!confirm(warning)) return;
+    const accepted = await confirm(
+      item.expired
+        ? {
+            title: `¿Quitar "${item.title}" del historial?`,
+            description: "Se pierden también sus estadísticas.",
+            confirmLabel: "Quitar del historial",
+            destructive: true,
+          }
+        : {
+            title: `¿Eliminar "${item.title}" ahora?`,
+            description: "Se borran los audios y el enlace deja de funcionar de inmediato para quienes ya lo tienen. Esta acción no se puede deshacer.",
+            confirmLabel: "Eliminar preescucha",
+            destructive: true,
+          }
+    );
+    if (!accepted) return;
     setDeletingId(item.id);
     try {
       const res = await fetch(`/api/preescuchas/${item.id}`, { method: "DELETE" });
