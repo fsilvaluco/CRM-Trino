@@ -1,6 +1,6 @@
 import { getEmbedCatalog } from "@/lib/shopify-embed";
 import { THEME_PALETTES, isThemeColorKey } from "@/lib/theme-palettes";
-import { formatCurrency } from "@/lib/constants";
+import { formatMoney } from "@/lib/locale";
 
 // Página 100% pública, sin requireAuth() a propósito — se carga desde un
 // <iframe> en un sitio externo (gamuza.cl) sin ninguna sesión. Ver
@@ -67,7 +67,8 @@ export default async function ShopifyEmbedPage({
                   <p style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#111827" }}>{product.title}</p>
                   {product.price != null && (
                     <p style={{ fontSize: 14, fontWeight: 700, margin: 0, color: palette.ui.light.primary }}>
-                      {formatCurrency(product.price)}
+                      {/* Precios de Shopify en centavos de la moneda de la tienda (CLP) */}
+                      {formatMoney(product.price, { currency: "CLP", locale: "es-CL" })}
                     </p>
                   )}
 

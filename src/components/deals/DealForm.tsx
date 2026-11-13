@@ -25,6 +25,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useLocale } from "@/lib/locale-context";
+import { formatCurrencyWith } from "@/lib/locale";
 import { useProject } from "@/lib/project-context";
 import { AssigneeSelector, type OrgMember } from "@/components/shared/AssigneeSelector";
 import { MoneyInput } from "@/components/shared/MoneyInput";
@@ -147,7 +148,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
   const confirm = useConfirm();
   const router = useRouter();
   const { settings } = useLocale();
-  const { activeProject, projects, isAdmin } = useProject();
+  const { activeProject, projects, canDeleteModuleInActiveProject } = useProject();
   const [contactsList, setContacts] = useState<Array<{ id: string; name: string }>>([]);
   const [companiesList, setCompanies] = useState<Array<{ id: string; name: string }>>([]);
   const [stagesList, setStages] = useState<Array<{ id: string; name: string; isWon?: boolean; isLost?: boolean }>>([]);
@@ -1134,14 +1135,14 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
               );
             }
 
-            const clp = (cents: number) =>
-              new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(cents / 100);
+            // Moneda configurada (pais/moneda en Configuracion), igual que el resto de deals
+            const money = (cents: number) => formatCurrencyWith(cents, settings);
             const trinoCents = Math.round(baseCents * (rate / 100));
             const artistCents = baseCents - trinoCents;
             return (
               <p className="text-xs text-muted-foreground">
-                Sobre {baseLabel}: Sello ({rate}%) <span className="font-medium text-foreground">{clp(trinoCents)}</span>
-                {" · "}Artista ({artistRate}%) <span className="font-medium text-foreground">{clp(artistCents)}</span>
+                Sobre {baseLabel}: Sello ({rate}%) <span className="font-medium text-foreground">{money(trinoCents)}</span>
+                {" · "}Artista ({artistRate}%) <span className="font-medium text-foreground">{money(artistCents)}</span>
               </p>
             );
           })()}
@@ -1165,7 +1166,7 @@ export function DealForm({ open, onClose, initialStageId, initialDealId, prefill
           )}
 
           <div className="flex justify-between items-center gap-2 pt-2">
-            {isEditing && isAdmin ? (
+            {isEditing && canDeleteModuleInActiveProject("deals") ? (
               <Button
                 type="button"
                 variant="ghost"

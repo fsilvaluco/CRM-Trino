@@ -2877,3 +2877,26 @@ Problema secundario: al hacer clic en el archivo, quedaba en "Cargando archivo..
 **Código:** `/giras` (lista), `/giras/[id]` (pestañas Resumen, Fechas, Venta, Auspicios, Presupuesto, Tareas). API en `src/app/api/giras/**`. Permisos: por ahora se rige por el módulo `eventos` del proyecto (ver = ver eventos; presupuesto = ver costos de eventos). Falta un módulo `giras` propio en la matriz para dar a Rayén acceso solo a Auspicios.
 
 **Pendiente:** importador desde el sheet "Auspicios" con revisión previa (los 10 actuales se cargaron directo), fechas reales de inicio de venta, módulo de permiso `giras`, resumen diario de alertas por push/Telegram.
+
+---
+
+## 13 nov 2026 — Módulo de Preescuchas (etapa 1)
+
+**Qué es:** un enlace privado (`/escucha/{slug}`) para que prensa o invitados escuchen un lanzamiento antes de que salga en plataformas. Primer caso: preescucha del disco de Los Últimos Románticos que Marcelo envía a periodistas. Vive en Herramientas → Preescuchas (`/preescuchas`), por proyecto.
+
+**Reglas acordadas con Francisco:**
+- Un enlace general por preescucha, sin contraseña (el slug de 12 caracteres es el secreto). La página lleva `noindex`.
+- Vigencia máxima de 30 días (se puede elegir menos). Lo refuerza un CHECK en la base, no solo la API. Al vencer, el enlace deja de responder de inmediato y los archivos se borran; la fila queda como historial con sus contadores.
+- Solo se guarda MP3. Si se sube WAV (o AIFF/FLAC), el navegador lo convierte a MP3 320 kbps antes de subirlo (`src/lib/audio/`, lamejs en un Web Worker): el original nunca llega al bucket.
+- Descarga opcional (`allow_download`), apagada por defecto.
+- Contadores internos (visitas, reproducciones y descargas por canción): solo se ven dentro de la app.
+
+**Base de datos (migración aplicada vía MCP: `preescuchas_modulo`; copia en `scripts/migrations/111_preescuchas.sql`):** tablas `preescuchas`, `preescucha_tracks`, `preescucha_events` (RLS por organización), función `preescucha_register_event` (solo service role) y bucket privado `preescuchas` (50 MB por archivo, solo `audio/mpeg` e imágenes). El bucket no tiene policies a propósito: se sube con URL firmada (`/api/preescuchas/upload-url`) y se escucha/descarga con URL firmada de corta duración (`/api/public/preescuchas/**`).
+
+**Borrado automático:** `POST /api/cron/purge-preescuchas` (borra lo vencido y avisa por push a quien la creó cuando faltan 3 días). Como respaldo, el listado de la app también purga lo vencido del proyecto que se abre.
+
+**Pendiente:**
+- Crear el servicio de Railway Cron diario para `/api/cron/purge-preescuchas` (mismo patrón que `daily-reminders`, header `Authorization: Bearer <CRON_SECRET>` con el valor literal).
+- Etapa 2: enlaces individuales por periodista (saber quién escuchó y poder revocar uno), contraseña opcional.
+- Permisos: hoy cualquier miembro con acceso al proyecto puede crear/editar (igual que Smartlinks); no hay módulo propio en la matriz de roles.
+- Una subida abandonada a medias (se cierra la pestaña antes de guardar) deja archivos sin fila en el bucket; falta un barrido de carpetas huérfanas.

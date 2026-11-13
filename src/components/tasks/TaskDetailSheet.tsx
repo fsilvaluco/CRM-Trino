@@ -138,7 +138,9 @@ function FieldRow({ label, children }: { label: string; children: React.ReactNod
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, onDeleteRequest, panelMode = false, panelWidth = DEFAULT_PANEL_WIDTH }: TaskDetailSheetProps) {
-  const { isAdmin } = useProject();
+  const { canDeleteModuleInActiveProject } = useProject();
+  // Misma regla que DELETE /api/tasks/[id] (matriz del proyecto, no rol de organización).
+  const canDeleteTask = canDeleteModuleInActiveProject("tareas");
   const confirm = useConfirm();
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -567,7 +569,7 @@ export function TaskDetailSheet({ taskId, open, onClose, onUpdated, onDeleted, o
                 if (val && val !== task.title) patch({ title: val });
               }}
             />
-            {isAdmin && (
+            {canDeleteTask && (
               <button aria-label="Eliminar tarea"
                 onClick={handleDeleteTask}
                 className="mt-1 shrink-0 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
