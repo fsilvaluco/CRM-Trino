@@ -84,6 +84,9 @@ npm run mcp          # Iniciar servidor MCP (para Claude Desktop/Web)
 | `/api/webhook` | POST | Recibir leads de formularios externos (Typeform, Tally, etc.) |
 | `/api/export` | GET | Exportar contactos o deals como CSV (?type=contacts o deals) |
 | `/api/digest` | POST | Enviar resumen diario por email (requiere RESEND_API_KEY) |
+| `/api/preescuchas` | GET, POST | Preescuchas del proyecto: enlace privado para oir un lanzamiento antes de que salga (max. 30 dias, solo MP3) |
+| `/api/preescuchas/[id]` | PUT, DELETE | Editar o eliminar una preescucha (borra sus archivos) |
+| `/api/cron/purge-preescuchas` | POST | Cron diario: borra los archivos de las preescuchas vencidas |
 
 ## Configuracion del negocio
 
