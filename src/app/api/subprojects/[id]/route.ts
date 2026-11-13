@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
-import { getProjectPermissions, canDeleteModule } from "@/lib/project-roles";
+import { getProjectPermissions, canEditModule, canDeleteModule } from "@/lib/project-roles";
 import { z } from "zod";
 
 const dateFieldSchema = z
@@ -96,8 +96,12 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { supabase, error } = await requireAuth();
+  const { supabase, user, orgId, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
+
+  if (!orgId) {
+    return NextResponse.json({ error: "Organizacion no identificada" }, { status: 403 });
+  }
 
   let body: Record<string, unknown>;
   try {
@@ -111,6 +115,23 @@ export async function PUT(
 
   if (findErr || !existing) {
     return NextResponse.json({ error: "Subproyecto no encontrado" }, { status: 404 });
+  }
+
+  if (existing.organization_id !== orgId) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  }
+
+  // Antes solo exigía estar autenticado. Ahora usa la matriz del proyecto
+  // de la campaña (`campanas.puede_editar`), mismo criterio que el DELETE:
+  // si la campaña no tiene proyecto asignado, se deja pasar como antes.
+  if (existing.project_id) {
+    if (!allowedProjectIds.includes(existing.project_id)) {
+      return NextResponse.json({ error: "No tienes acceso a este proyecto" }, { status: 403 });
+    }
+    const perm = await getProjectPermissions(supabase, user!.id, existing.project_id);
+    if (!canEditModule(perm, "campanas")) {
+      return NextResponse.json({ error: "Tu rol no puede editar campañas en este proyecto" }, { status: 403 });
+    }
   }
 
   const parsedBody = updateSubprojectSchema.safeParse(body);

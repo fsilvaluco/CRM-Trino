@@ -369,11 +369,23 @@ export default function FinancesPage() {
                 toast.warning("Selecciona un proyecto para adjuntar un comprobante");
                 return;
               }
+              if (!canEditFinances) {
+                toast.warning("Tu rol no puede editar movimientos de Finanzas en este proyecto");
+                return;
+              }
               setShowAttachReceipt(true);
             }}
             className="cursor-pointer"
-            disabled={isAllProjects}
-            title={isAllProjects ? "Selecciona un proyecto para adjuntar un comprobante" : undefined}
+            // Adjuntar un comprobante cuenta como EDITAR el movimiento
+            // (mismo criterio que /api/finances/[id]/attachments).
+            disabled={isAllProjects || !canEditFinances}
+            title={
+              isAllProjects
+                ? "Selecciona un proyecto para adjuntar un comprobante"
+                : !canEditFinances
+                  ? "Tu rol no puede editar movimientos de Finanzas en este proyecto"
+                  : undefined
+            }
           >
             <Sparkles className="h-4 w-4 mr-2" />
             Adjuntar comprobante (IA)

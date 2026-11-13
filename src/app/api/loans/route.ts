@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
 import { logActivity } from "@/lib/activity-logs";
+import { getProjectPermissions, canViewModule, canEditModule } from "@/lib/project-roles";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapLoan(row: any) {
@@ -44,7 +45,7 @@ function mapLoan(row: any) {
 // GET /api/loans?projectId=... -- lista de préstamos de un proyecto, con
 // sus abonos ya sumados (saldo pendiente calculado, nunca guardado).
 export async function GET(request: NextRequest) {
-  const { supabase, allowedProjectIds, error } = await requireAuth();
+  const { supabase, user, allowedProjectIds, error } = await requireAuth();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
@@ -52,6 +53,12 @@ export async function GET(request: NextRequest) {
   if (!projectId) return NextResponse.json({ error: "projectId requerido" }, { status: 400 });
   if (!allowedProjectIds.includes(projectId)) {
     return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
+  }
+  // Préstamos/aportes pertenecen al módulo Finanzas (ROLES.md 0.2.5): ver
+  // el listado exige `finanzas.puede_ver` en el proyecto, no solo membresía.
+  const perm = await getProjectPermissions(supabase, user!.id, projectId);
+  if (!canViewModule(perm, "finanzas")) {
+    return NextResponse.json({ error: "Tu rol no puede ver préstamos en este proyecto" }, { status: 403 });
   }
 
   const { data, error: dbError } = await supabase
@@ -92,6 +99,12 @@ export async function POST(request: NextRequest) {
   if (!projectId) return NextResponse.json({ error: "projectId requerido" }, { status: 400 });
   if (!allowedProjectIds.includes(projectId)) {
     return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
+  }
+  // Préstamos/aportes pertenecen al módulo Finanzas (ROLES.md 0.2.5): se
+  // exige `finanzas.puede_editar`, igual que /api/finances/[id].
+  const perm = await getProjectPermissions(supabase, user!.id, projectId);
+  if (!canEditModule(perm, "finanzas")) {
+    return NextResponse.json({ error: "Tu rol no puede registrar préstamos en este proyecto" }, { status: 403 });
   }
   if (!lenderName?.trim()) return NextResponse.json({ error: "Falta el nombre del prestamista" }, { status: 400 });
   if (!principalAmount || principalAmount <= 0) {

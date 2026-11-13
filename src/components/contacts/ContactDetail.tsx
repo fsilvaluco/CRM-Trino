@@ -59,8 +59,9 @@ export function ContactDetailClient({
   const confirm = useConfirm();
   const router = useRouter();
   const { formatCurrency, formatDate } = useLocale();
-  // Misma regla que DELETE /api/contacts/[id] (matriz `contactos`).
-  const { canDeleteModuleInActiveProject } = useProject();
+  // Misma regla que PUT/DELETE /api/contacts/[id] (matriz `contactos`).
+  const { canEditModuleInActiveProject, canDeleteModuleInActiveProject } = useProject();
+  const canEditContact = canEditModuleInActiveProject("contactos");
   const canDeleteContact = canDeleteModuleInActiveProject("contactos");
   const [showEditForm, setShowEditForm] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -120,15 +121,17 @@ export function ContactDetailClient({
           </p>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowEditForm(true)}
-            className="cursor-pointer"
-          >
-            <Pencil className="h-4 w-4 mr-1" />
-            Editar
-          </Button>
+          {canEditContact && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowEditForm(true)}
+              className="cursor-pointer"
+            >
+              <Pencil className="h-4 w-4 mr-1" />
+              Editar
+            </Button>
+          )}
           {canDeleteContact && (
             <Button
               variant="outline"

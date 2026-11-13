@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase-server";
-import { getProjectPermissions, canDeleteModule } from "@/lib/project-roles";
+import { getProjectPermissions, canEditModule, canDeleteModule } from "@/lib/project-roles";
 import { logActivity } from "@/lib/activity-logs";
 
 async function loadLoanProjectId(
@@ -27,6 +27,12 @@ export async function PUT(
   if (!projectId) return NextResponse.json({ error: "Préstamo no encontrado" }, { status: 404 });
   if (!allowedProjectIds.includes(projectId)) {
     return NextResponse.json({ error: "Sin acceso a este proyecto" }, { status: 403 });
+  }
+  // Préstamos/aportes pertenecen al módulo Finanzas (ROLES.md 0.2.5): se
+  // exige `finanzas.puede_editar`, igual que /api/finances/[id].
+  const perm = await getProjectPermissions(supabase, user!.id, projectId);
+  if (!canEditModule(perm, "finanzas")) {
+    return NextResponse.json({ error: "Tu rol no puede editar préstamos en este proyecto" }, { status: 403 });
   }
 
   const body = await request.json().catch(() => ({}));
