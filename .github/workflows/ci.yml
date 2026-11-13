@@ -1,7 +1,7 @@
 name: CI
 
 # Verifica cada PR (y cada push a main) antes de que llegue a Railway:
-# tipos, lint y build de produccion. Si algo falla, el PR queda en rojo.
+# tipos, lint, pruebas unitarias y build de produccion. Si algo falla, el PR queda en rojo.
 on:
   pull_request:
   push:
@@ -40,6 +40,9 @@ jobs:
       - name: Lint (eslint)
         run: npm run lint
 
+      - name: Pruebas unitarias (node:test)
+        run: npm test
+
       - name: Build de produccion
         # El build no se conecta a Supabase: estos valores solo existen para
         # que el codigo que lee las variables al importar no falle. No son
@@ -51,3 +54,90 @@ jobs:
           NEXT_PUBLIC_SITE_URL: http://localhost:3000
           NEXT_TELEMETRY_DISABLED: "1"
         run: npm run build
+
+  # Pruebas de punta a punta (Playwright) de SOLO LECTURA contra la base real,
+  # con el usuario de prueba. Necesita secretos del repo; sin ellos (o en PRs
+  # desde forks, donde GitHub no los entrega) el job termina en verde con un
+  # aviso. Ver e2e/README.md.
+  #
+  # Por que no hay un `if:` a nivel de job: ahi GitHub no permite usar el
+  # contexto `secrets`. Si se permite en el `env` del job, asi que el primer
+  # paso revisa esas variables y publica un output (`ok`) que condiciona al
+  # resto de los pasos.
+  e2e:
+    needs: verificar
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      # Lo que lee la app (el build incrusta las NEXT_PUBLIC_*).
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SUPABASE_SERVICE_ROLE_KEY }}
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      NEXT_TELEMETRY_DISABLED: "1"
+      # Lo que leen las pruebas.
+      E2E_BASE_URL: http://localhost:3000
+      E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+    steps:
+      - name: Revisar secretos de E2E
+        id: secretos
+        run: |
+          faltan=""
+          [ -n "$NEXT_PUBLIC_SUPABASE_URL" ] || faltan="$faltan E2E_SUPABASE_URL"
+          [ -n "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ] || faltan="$faltan E2E_SUPABASE_ANON_KEY"
+          [ -n "$SUPABASE_SERVICE_ROLE_KEY" ] || faltan="$faltan E2E_SUPABASE_SERVICE_ROLE_KEY"
+          [ -n "$E2E_EMAIL" ] || faltan="$faltan E2E_EMAIL"
+          [ -n "$E2E_PASSWORD" ] || faltan="$faltan E2E_PASSWORD"
+          if [ -n "$faltan" ]; then
+            echo "::notice title=E2E omitido::E2E omitido: faltan secretos:$faltan"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.secretos.outputs.ok == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        if: steps.secretos.outputs.ok == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        if: steps.secretos.outputs.ok == 'true'
+        run: npm ci --no-audit --no-fund
+
+      - name: Instalar Chromium (Playwright)
+        if: steps.secretos.outputs.ok == 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Build de produccion
+        if: steps.secretos.outputs.ok == 'true'
+        run: npm run build
+
+      - name: Levantar la app y esperar a que responda
+        if: steps.secretos.outputs.ok == 'true'
+        run: |
+          nohup npm start > server.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -sf -o /dev/null "$E2E_BASE_URL/login"; then
+              echo "La app responde en $E2E_BASE_URL"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "La app no respondio a tiempo"
+          cat server.log
+          exit 1
+
+      - name: Pruebas e2e (solo lectura)
+        if: steps.secretos.outputs.ok == 'true'
+        run: npm run test:e2e
+
+      - name: Log del servidor (si fallo)
+        if: failure() && steps.secretos.outputs.ok == 'true'
+        run: tail -n 200 server.log || true
