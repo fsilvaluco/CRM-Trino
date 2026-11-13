@@ -79,7 +79,12 @@ export default function ProjectDetailPage() {
   const deleteSubproject = async (subId: string) => {
     if (!(await confirm({ title: "¿Eliminar este subproyecto?", confirmLabel: "Eliminar subproyecto", destructive: true }))) return;
     try {
-      await fetch(`/api/subprojects/${subId}`, { method: "DELETE" });
+      const res = await fetch(`/api/subprojects/${subId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "No se pudo eliminar el subproyecto");
+        return;
+      }
       toast.success("Subproyecto eliminado");
       loadProject();
     } catch {

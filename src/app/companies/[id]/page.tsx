@@ -28,6 +28,7 @@ import { useLocale } from "@/lib/locale-context";
 import { toast } from "sonner";
 import type { Company, Contact, Deal, Project, Task } from "@/types";
 import { useConfirm } from "@/components/shared/ConfirmProvider";
+import { useProject } from "@/lib/project-context";
 
 interface CompanyDetail extends Company {
   contacts: Contact[];
@@ -41,6 +42,10 @@ export default function CompanyDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { formatCurrency } = useLocale();
+  // Mismas reglas que PUT/DELETE /api/companies/[id] (matriz `empresas`).
+  const { canEditModuleInActiveProject, canDeleteModuleInActiveProject } = useProject();
+  const canEditCompany = canEditModuleInActiveProject("empresas");
+  const canDeleteCompany = canDeleteModuleInActiveProject("empresas");
   const [company, setCompany] = useState<CompanyDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [showEdit, setShowEdit] = useState(false);
@@ -110,23 +115,27 @@ export default function CompanyDetailPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowEdit(true)}
-            className="cursor-pointer"
-          >
-            <Pencil className="h-4 w-4 mr-1" />
-            Editar
-          </Button>
-          <Button aria-label="Eliminar empresa"
-            variant="outline"
-            size="sm"
-            onClick={handleDelete}
-            className="cursor-pointer text-destructive hover:text-destructive"
-          >
-            <Trash2 aria-hidden="true" className="h-4 w-4" />
-          </Button>
+          {canEditCompany && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowEdit(true)}
+              className="cursor-pointer"
+            >
+              <Pencil className="h-4 w-4 mr-1" />
+              Editar
+            </Button>
+          )}
+          {canDeleteCompany && (
+            <Button aria-label="Eliminar empresa"
+              variant="outline"
+              size="sm"
+              onClick={handleDelete}
+              className="cursor-pointer text-destructive hover:text-destructive"
+            >
+              <Trash2 aria-hidden="true" className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
 

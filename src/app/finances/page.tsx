@@ -76,11 +76,15 @@ function TransactionList({
   onEdit,
   onReimburse,
   onDelete,
+  canEdit,
+  canDelete,
 }: {
   transactions: Transaction[];
   onEdit: (transaction: Transaction) => void;
   onReimburse: (id: string, reimbursed: boolean) => void;
   onDelete: (id: string) => void;
+  canEdit: boolean;
+  canDelete: boolean;
 }) {
   if (transactions.length === 0) {
     return (
@@ -177,16 +181,18 @@ function TransactionList({
                   ))}
                 </div>
               )}
-              <Button aria-label="Editar movimiento"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-blue-600 hover:text-blue-700"
-                title="Editar"
-                onClick={() => onEdit(t)}
-              >
-                <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
-              </Button>
-              {t.type === "expense" && t.responsibleName && !t.reimbursed && (
+              {canEdit && (
+                <Button aria-label="Editar movimiento"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-blue-600 hover:text-blue-700"
+                  title="Editar"
+                  onClick={() => onEdit(t)}
+                >
+                  <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              {canEdit && t.type === "expense" && t.responsibleName && !t.reimbursed && (
                 <Button aria-label="Marcar como listo"
                   variant="ghost"
                   size="icon"
@@ -197,15 +203,17 @@ function TransactionList({
                   <Check aria-hidden="true" className="h-3.5 w-3.5" />
                 </Button>
               )}
-              <Button aria-label="Eliminar movimiento"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                title="Eliminar"
-                onClick={() => onDelete(t.id)}
-              >
-                <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
-              </Button>
+              {canDelete && (
+                <Button aria-label="Eliminar movimiento"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                  title="Eliminar"
+                  onClick={() => onDelete(t.id)}
+                >
+                  <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+                </Button>
+              )}
             </div>
           </div>
         );
@@ -217,7 +225,10 @@ function TransactionList({
 export default function FinancesPage() {
   const confirm = useConfirm();
   const { user } = useAuth();
-  const { activeProject, isAllProjects } = useProject();
+  const { activeProject, isAllProjects, canEditModuleInActiveProject, canDeleteModuleInActiveProject } = useProject();
+  // Mismas reglas que PUT/DELETE /api/finances/[id] (matriz `finanzas`).
+  const canEditFinances = canEditModuleInActiveProject("finanzas");
+  const canDeleteFinances = canDeleteModuleInActiveProject("finanzas");
   const activeProjectId = activeProject?.id ?? null;
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -511,16 +522,16 @@ export default function FinancesPage() {
             )}
           </TabsList>
           <TabsContent value="all" className="mt-4">
-            <TransactionList transactions={filteredTransactions} onEdit={handleEdit} onReimburse={handleReimburse} onDelete={handleDelete} />
+            <TransactionList transactions={filteredTransactions} onEdit={handleEdit} onReimburse={handleReimburse} onDelete={handleDelete} canEdit={canEditFinances} canDelete={canDeleteFinances} />
           </TabsContent>
           <TabsContent value="expense" className="mt-4">
-            <TransactionList transactions={expenses} onEdit={handleEdit} onReimburse={handleReimburse} onDelete={handleDelete} />
+            <TransactionList transactions={expenses} onEdit={handleEdit} onReimburse={handleReimburse} onDelete={handleDelete} canEdit={canEditFinances} canDelete={canDeleteFinances} />
           </TabsContent>
           <TabsContent value="income" className="mt-4">
-            <TransactionList transactions={incomes} onEdit={handleEdit} onReimburse={handleReimburse} onDelete={handleDelete} />
+            <TransactionList transactions={incomes} onEdit={handleEdit} onReimburse={handleReimburse} onDelete={handleDelete} canEdit={canEditFinances} canDelete={canDeleteFinances} />
           </TabsContent>
           <TabsContent value="pending" className="mt-4">
-            <TransactionList transactions={pendingReimbursements} onEdit={handleEdit} onReimburse={handleReimburse} onDelete={handleDelete} />
+            <TransactionList transactions={pendingReimbursements} onEdit={handleEdit} onReimburse={handleReimburse} onDelete={handleDelete} canEdit={canEditFinances} canDelete={canDeleteFinances} />
           </TabsContent>
         </Tabs>
       )}

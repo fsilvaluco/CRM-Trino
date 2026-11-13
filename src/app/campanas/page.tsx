@@ -47,7 +47,9 @@ function formatDate(d: string | null) {
 export default function CampanasPage() {
   const confirm = useConfirm();
   const router = useRouter();
-  const { activeProject, isAllProjects, projects } = useProject();
+  const { activeProject, isAllProjects, projects, canDeleteModuleInActiveProject } = useProject();
+  // Misma regla que DELETE /api/subprojects/[id] (matriz `campanas`).
+  const canDeleteCampaigns = canDeleteModuleInActiveProject("campanas");
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -254,20 +256,22 @@ export default function CampanasPage() {
                       <Badge className={`shrink-0 text-xs ${statusCfg.className}`}>
                         {statusCfg.label}
                       </Badge>
-                      <Button aria-label={`Eliminar campaña ${campaign.name}`}
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-destructive hover:text-destructive cursor-pointer"
-                        title="Eliminar campaña"
-                        disabled={deletingCampaignId === campaign.id}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void handleDeleteCampaign(campaign);
-                        }}
-                      >
-                        <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
-                      </Button>
+                      {canDeleteCampaigns && (
+                        <Button aria-label={`Eliminar campaña ${campaign.name}`}
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive cursor-pointer"
+                          title="Eliminar campaña"
+                          disabled={deletingCampaignId === campaign.id}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void handleDeleteCampaign(campaign);
+                          }}
+                        >
+                          <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                     </div>
                   </div>
 

@@ -61,7 +61,9 @@ function needsConfirmation(show: LiveShow): boolean {
 
 export default function EventosPage() {
   const confirm = useConfirm();
-  const { activeProject, isAllProjects, projects } = useProject();
+  const { activeProject, isAllProjects, projects, canDeleteModuleInActiveProject } = useProject();
+  // Misma regla que DELETE /api/eventos/[id] (matriz `eventos`).
+  const canDeleteEvents = canDeleteModuleInActiveProject("eventos");
   const [shows, setShows] = useState<LiveShow[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
@@ -405,13 +407,15 @@ export default function EventosPage() {
                       >
                         <Copy aria-hidden="true" className="h-4 w-4" />
                       </button>
-                      <button aria-label={`Eliminar evento ${show.name}`}
-                        onClick={() => handleDelete(show)}
-                        className="text-muted-foreground hover:text-destructive cursor-pointer p-1.5"
-                        title="Eliminar"
-                      >
-                        <Trash2 aria-hidden="true" className="h-4 w-4" />
-                      </button>
+                      {canDeleteEvents && (
+                        <button aria-label={`Eliminar evento ${show.name}`}
+                          onClick={() => handleDelete(show)}
+                          className="text-muted-foreground hover:text-destructive cursor-pointer p-1.5"
+                          title="Eliminar"
+                        >
+                          <Trash2 aria-hidden="true" className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </CardContent>

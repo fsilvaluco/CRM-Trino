@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useMemo, R
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 import { applyProjectThemeColor, resetProjectThemeColor } from "@/lib/theme-palettes";
-import type { ProjectRole } from "@/lib/project-roles";
+import type { ModuleKey, ProjectPermissions, ProjectRole } from "@/lib/project-roles";
 
 export interface ProjectOption {
   id: string;
@@ -50,6 +50,16 @@ interface ProjectContextValue {
   // (activeProject null) no hay un proyecto único al cual anclar el
   // permiso -- queda `false`, `isAdmin` sigue cubriendo ese modo.
   canManageTeamActiveProject: boolean;
+  // Matriz EFECTIVA del usuario en el proyecto activo (misma fuente que usa
+  // el server: getProjectPermissions vía /api/project-members/me). `null`
+  // mientras carga, en "Todos los proyectos" o sin acceso.
+  activeProjectPermissions: ProjectPermissions | null;
+  // Mismas reglas que validan los endpoints PUT/DELETE de cada módulo. En
+  // "Todos los proyectos" siempre `false` (solo lectura, ROLES.md 0.5). El
+  // admin de organización NO se salta la matriz: el server tampoco lo hace
+  // desde el 23 ago 2026.
+  canEditModuleInActiveProject: (module: ModuleKey) => boolean;
+  canDeleteModuleInActiveProject: (module: ModuleKey) => boolean;
 }
 
 const ProjectContext = createContext<ProjectContextValue | null>(null);
@@ -93,6 +103,12 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   });
   const [orgRole, setOrgRole] = useState<OrgRole | null>(null);
   const [loading, setLoading] = useState(true);
+  // Se guarda junto al projectId al que corresponde, para no aplicar la
+  // matriz de un proyecto anterior mientras carga la del nuevo.
+  const [permissionsState, setPermissionsState] = useState<{
+    projectId: string;
+    permissions: ProjectPermissions | null;
+  } | null>(null);
 
   const reloadProjects = useCallback(async () => {
     if (!userId) {
@@ -282,6 +298,38 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
   }, [activeProject]);
 
+  // Carga la matriz efectiva del proyecto activo. Se recarga al cambiar de
+  // proyecto o al recargar la lista (reloadProjects devuelve un objeto
+  // nuevo para el proyecto activo).
+  const activeProjectId = activeProject?.id ?? null;
+  useEffect(() => {
+    if (!activeProjectId || !userId) return;
+    let cancelled = false;
+    fetch(`/api/project-members/me?projectId=${encodeURIComponent(activeProjectId)}`)
+      .then((res) => (res.ok ? res.json() : { permissions: null }))
+      .then((data: { permissions?: ProjectPermissions | null }) => {
+        if (!cancelled) setPermissionsState({ projectId: activeProjectId, permissions: data.permissions ?? null });
+      })
+      .catch(() => {
+        if (!cancelled) setPermissionsState({ projectId: activeProjectId, permissions: null });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProject, activeProjectId, userId]);
+
+  const activeProjectPermissions =
+    activeProjectId && permissionsState?.projectId === activeProjectId ? permissionsState.permissions : null;
+
+  const canEditModuleInActiveProject = useCallback(
+    (module: ModuleKey) => Boolean(activeProjectPermissions?.modules[module]?.puedeEditar),
+    [activeProjectPermissions]
+  );
+  const canDeleteModuleInActiveProject = useCallback(
+    (module: ModuleKey) => Boolean(activeProjectPermissions?.modules[module]?.puedeEliminar),
+    [activeProjectPermissions]
+  );
+
   const isAdmin = orgRole === "owner" || orgRole === "admin";
 
   // Rol granular del proyecto activo -- ya NO se fuerza a "admin" solo por
@@ -316,6 +364,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       canEditDeals,
       canViewEventCosts,
       canManageTeamActiveProject,
+      activeProjectPermissions,
+      canEditModuleInActiveProject,
+      canDeleteModuleInActiveProject,
     }),
     [
       activeProject,
@@ -330,6 +381,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       canEditDeals,
       canViewEventCosts,
       canManageTeamActiveProject,
+      activeProjectPermissions,
+      canEditModuleInActiveProject,
+      canDeleteModuleInActiveProject,
     ]
   );
 

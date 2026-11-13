@@ -25,6 +25,7 @@ import { SOURCE_LABELS } from "@/lib/constants";
 import { toast } from "sonner";
 import type { LeadSource } from "@/types";
 import { useConfirm } from "@/components/shared/ConfirmProvider";
+import { useProject } from "@/lib/project-context";
 
 
 interface ContactDetailClientProps {
@@ -58,6 +59,9 @@ export function ContactDetailClient({
   const confirm = useConfirm();
   const router = useRouter();
   const { formatCurrency, formatDate } = useLocale();
+  // Misma regla que DELETE /api/contacts/[id] (matriz `contactos`).
+  const { canDeleteModuleInActiveProject } = useProject();
+  const canDeleteContact = canDeleteModuleInActiveProject("contactos");
   const [showEditForm, setShowEditForm] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
@@ -125,15 +129,17 @@ export function ContactDetailClient({
             <Pencil className="h-4 w-4 mr-1" />
             Editar
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDelete}
-            className="cursor-pointer text-destructive hover:text-destructive"
-          >
-            <Trash2 className="h-4 w-4 mr-1" />
-            Eliminar
-          </Button>
+          {canDeleteContact && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDelete}
+              className="cursor-pointer text-destructive hover:text-destructive"
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              Eliminar
+            </Button>
+          )}
         </div>
       </div>
 

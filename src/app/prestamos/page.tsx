@@ -365,6 +365,8 @@ function NewContributionDialog({ open, onClose, projectId, onCreated }: { open: 
 
 function LoanCard({ loan, onChanged, onEdit }: { loan: Loan; onChanged: () => void; onEdit: (loan: Loan) => void }) {
   const confirm = useConfirm();
+  // Misma regla que DELETE /api/loans/[id] y de abonos (matriz `finanzas`).
+  const canDelete = useProject().canDeleteModuleInActiveProject("finanzas");
   const [expanded, setExpanded] = useState(false);
   const [showRepayment, setShowRepayment] = useState(false);
   const pct = loan.principalAmount > 0 ? Math.min(100, Math.round((loan.repaidAmount / loan.principalAmount) * 100)) : 0;
@@ -413,9 +415,11 @@ function LoanCard({ loan, onChanged, onEdit }: { loan: Loan; onChanged: () => vo
           <button aria-label={`Editar préstamo de ${loan.lenderName}`} onClick={() => onEdit(loan)} className="text-muted-foreground hover:text-foreground p-1 cursor-pointer" title="Editar préstamo">
             <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
           </button>
-          <button aria-label={`Eliminar préstamo de ${loan.lenderName}`} onClick={deleteLoan} className="text-muted-foreground hover:text-destructive p-1 cursor-pointer" title="Eliminar préstamo">
-            <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
-          </button>
+          {canDelete && (
+            <button aria-label={`Eliminar préstamo de ${loan.lenderName}`} onClick={deleteLoan} className="text-muted-foreground hover:text-destructive p-1 cursor-pointer" title="Eliminar préstamo">
+              <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -458,9 +462,11 @@ function LoanCard({ loan, onChanged, onEdit }: { loan: Loan; onChanged: () => vo
                       <ExternalLink aria-hidden="true" className="h-3 w-3" />
                     </SignedFileLink>
                   )}
-                  <button aria-label="Eliminar abono" onClick={() => deleteRepayment(r.id)} className="text-muted-foreground hover:text-destructive cursor-pointer">
-                    <Trash2 aria-hidden="true" className="h-3 w-3" />
-                  </button>
+                  {canDelete && (
+                    <button aria-label="Eliminar abono" onClick={() => deleteRepayment(r.id)} className="text-muted-foreground hover:text-destructive cursor-pointer">
+                      <Trash2 aria-hidden="true" className="h-3 w-3" />
+                    </button>
+                  )}
                 </div>
               </div>
             ))
@@ -475,7 +481,8 @@ function LoanCard({ loan, onChanged, onEdit }: { loan: Loan; onChanged: () => vo
 
 export default function LoansPage() {
   const confirm = useConfirm();
-  const { activeProject } = useProject();
+  const { activeProject, canDeleteModuleInActiveProject } = useProject();
+  const canDeleteContributions = canDeleteModuleInActiveProject("finanzas");
   const projectId = activeProject?.id ?? null;
   const [loans, setLoans] = useState<Loan[]>([]);
   const [contributions, setContributions] = useState<Contribution[]>([]);
@@ -609,9 +616,11 @@ export default function LoansPage() {
                           <ExternalLink aria-hidden="true" className="h-3.5 w-3.5" />
                         </SignedFileLink>
                       )}
-                      <button aria-label="Eliminar aporte" onClick={() => deleteContribution(c.id)} className="text-muted-foreground hover:text-destructive cursor-pointer">
-                        <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
-                      </button>
+                      {canDeleteContributions && (
+                        <button aria-label="Eliminar aporte" onClick={() => deleteContribution(c.id)} className="text-muted-foreground hover:text-destructive cursor-pointer">
+                          <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
