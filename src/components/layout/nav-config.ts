@@ -34,6 +34,7 @@ import {
   FileText,
   MessageSquareQuote,
   Route,
+  Headphones,
 } from "lucide-react";
 import { type LucideIcon } from "lucide-react";
 import { getTestimonialSiteForProject, TESTIMONIALS_APP_PATH } from "@/lib/testimonials/sites-public";
@@ -134,6 +135,7 @@ export const navConfig: NavItem[] = [
       { type: "leaf", href: "/smartlinks", label: "Smartlink", icon: Link2 },
       { type: "leaf", href: "/qr-codes", label: "Links", icon: QrCode },
       { type: "leaf", href: "/dossier", label: "Dossier", icon: FileText },
+      { type: "leaf", href: "/preescuchas", label: "Preescuchas", icon: Headphones },
       { type: "leaf", href: TESTIMONIALS_APP_PATH, label: "Testimonios", icon: MessageSquareQuote, requiresTestimonialSite: true },
     ],
   },

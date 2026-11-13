@@ -17,7 +17,9 @@ const PUBLIC_PATHS = ["/login", "/auth/activate", "/forgot-password", "/reset-pa
 // "/firmar/" es la firma externa del cierre de caja (migracion 099): el
 // cliente de un evento que no es proyecto de la cartera, y que por lo tanto
 // nunca va a tener cuenta, entra con el token del link.
-const PUBLIC_PREFIXES = ["/rate/", "/embed/", "/e/", "/d/", "/s/", "/firmar/"];
+// "/escucha/" son las Preescuchas (pagina publica /escucha/{slug}): la abre
+// prensa sin cuenta para oir un lanzamiento antes de que salga.
+const PUBLIC_PREFIXES = ["/rate/", "/embed/", "/e/", "/d/", "/s/", "/firmar/", "/escucha/"];
 const GUEST_ONLY_PATHS = ["/login", "/forgot-password"];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

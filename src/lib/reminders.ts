@@ -9,7 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 // reminder_type+entity_id+threshold_key) la insercion falla con 23505 y
 // devuelve false ("ya se mando, no reenviar"). Es atomico -- no hay race
 // condition entre "verificar" y "marcar como enviado".
-export type ReminderType = "task_due" | "deal_close" | "event_tomorrow";
+export type ReminderType = "task_due" | "deal_close" | "event_tomorrow" | "preescucha_expiring";
 
 export async function claimReminder(
   supabase: SupabaseClient,
