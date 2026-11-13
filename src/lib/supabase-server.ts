@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
@@ -56,7 +57,16 @@ export type UserRole = "owner" | "admin" | "member";
 export async function requireAuth() {
   const supabase = await createSupabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
+  return resolveAuthContext(supabase, user);
+}
 
+/**
+ * Arma el contexto de acceso (organizacion, rol, proyectos) de un usuario ya
+ * identificado. Lo comparten `requireAuth()` (sesion por cookies, la web) y
+ * el servidor MCP (token Bearer de OAuth, ver src/lib/mcp/auth.ts) para que
+ * ambos caminos apliquen exactamente las mismas reglas.
+ */
+export async function resolveAuthContext(supabase: SupabaseClient, user: User | null) {
   if (!user) {
     return {
       supabase,

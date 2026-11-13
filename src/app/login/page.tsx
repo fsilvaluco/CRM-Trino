@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
+import { getSafeNextPath } from "@/lib/safe-next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,10 +25,11 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Si ya hay sesión activa, ir al dashboard
+  // Si ya hay sesión activa, ir al dashboard (o a `?next=` si viene, ej.
+  // la pantalla de autorización OAuth que pidió iniciar sesión primero)
   useEffect(() => {
     if (!loading && user) {
-      router.replace("/");
+      router.replace(getSafeNextPath(window.location.search));
     }
   }, [user, loading, router]);
 
@@ -44,7 +46,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.replace("/");
+    router.replace(getSafeNextPath(window.location.search));
   };
 
   if (loading) return null;
