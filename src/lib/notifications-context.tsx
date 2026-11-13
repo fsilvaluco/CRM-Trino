@@ -32,6 +32,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- primer poll al montar; el patron es intencional
     refresh();
     const interval = setInterval(refresh, POLL_INTERVAL_MS);
     return () => clearInterval(interval);

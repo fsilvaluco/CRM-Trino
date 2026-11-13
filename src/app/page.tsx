@@ -162,7 +162,7 @@ export default function DashboardPage() {
             </p>
             <p className="text-xs text-blue-700 dark:text-blue-300 mt-0.5">
               Mostrando última versión exitosa ({lastSuccessfulLoad.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}). 
-              Haz clic en "Recargar" para actualizar.
+              Haz clic en &ldquo;Recargar&rdquo; para actualizar.
             </p>
           </div>
           <button
