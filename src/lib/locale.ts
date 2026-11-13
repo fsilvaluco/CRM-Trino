@@ -1,11 +1,11 @@
 // Shared locale types and pure functions — importable from server and client.
 
 export interface LocaleSettings {
-  country: string;        // ISO 3166-1 alpha-2 e.g. "MX"
-  currency: string;       // ISO 4217 e.g. "MXN"
-  currencyLocale: string; // BCP 47 for Intl.NumberFormat e.g. "es-MX"
-  timezone: string;       // IANA e.g. "America/Mexico_City"
-  phonePrefix: string;    // E.164 prefix e.g. "+52"
+  country: string;        // ISO 3166-1 alpha-2 e.g. "CL"
+  currency: string;       // ISO 4217 e.g. "CLP"
+  currencyLocale: string; // BCP 47 for Intl.NumberFormat e.g. "es-CL"
+  timezone: string;       // IANA e.g. "America/Santiago"
+  phonePrefix: string;    // E.164 prefix e.g. "+56"
 }
 
 export interface CountryPreset extends LocaleSettings {
@@ -83,16 +83,33 @@ function toDateObj(date: Date | number): Date {
   return new Date(date < 1e12 ? date * 1000 : date);
 }
 
-export function formatCurrencyWith(cents: number, settings: LocaleSettings): string {
+/**
+ * Formatea un monto guardado en centavos (unidad x 100) como moneda.
+ * Pura y sin React: sirve en server (API routes, emails, CSV, PDFs) y en
+ * cliente. Sin opciones usa la moneda por defecto del negocio (CLP/es-CL),
+ * nunca MXN. Los decimales los decide la moneda segun ISO 4217 (CLP: 0,
+ * USD/MXN: 2), asi CLP no muestra ",00".
+ *
+ * Ej.: formatMoney(1234500) -> "$12.345";
+ *      formatMoney(1234500, { currency: "USD", locale: "en-US" }) -> "$12,345.00".
+ */
+export function formatMoney(
+  cents: number,
+  opts: { currency?: string; locale?: string } = {}
+): string {
+  const currency = opts.currency ?? DEFAULT_LOCALE.currency;
+  const locale = opts.locale ?? DEFAULT_LOCALE.currencyLocale;
   try {
-    return new Intl.NumberFormat(settings.currencyLocale, {
-      style: "currency",
-      currency: settings.currency,
-    }).format(cents / 100);
+    return new Intl.NumberFormat(locale, { style: "currency", currency }).format(cents / 100);
   } catch {
-    // Fallback if locale/currency is invalid
-    return `${settings.currency} ${(cents / 100).toFixed(2)}`;
+    // Respaldo si la configuracion trae un locale/moneda invalido
+    return `${currency} ${(cents / 100).toFixed(2)}`;
   }
+}
+
+/** Formatea centavos con la configuracion de pais/moneda (LocaleSettings). */
+export function formatCurrencyWith(cents: number, settings: LocaleSettings): string {
+  return formatMoney(cents, { currency: settings.currency, locale: settings.currencyLocale });
 }
 
 export function formatDateWith(date: Date | number | null, settings: LocaleSettings): string {
