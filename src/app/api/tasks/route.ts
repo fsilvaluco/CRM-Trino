@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { mapAssigneeRows } from "@/lib/assignee-rows";
 import { requireAuth } from "@/lib/supabase-server";
 import { getViewedAtMap, getLatestCommentAtMap, isUnseen, latestActivityAt } from "@/lib/entity-views";
 import { sendPushToUsers } from "@/lib/push";
@@ -41,15 +42,7 @@ function mapTask(row: any, hasUnseenActivity = false) {
     tagProjectName: row.artist_project?.name ?? row.projects?.name ?? null,
     tagProjectColor: row.artist_project?.theme_color ?? row.projects?.theme_color ?? null,
     tagProjectAvatarUrl: row.artist_project?.avatar_url ?? row.projects?.avatar_url ?? null,
-    assignees: row.task_assignees?.map((ta: any) => ({
-      userId: ta.user_id,
-      assignedAt: ta.assigned_at,
-      profile: ta.profiles ? {
-        fullName: ta.profiles.full_name,
-        avatarUrl: ta.profiles.avatar_url,
-        email: ta.profiles.email,
-      } : null,
-    })) ?? [],
+    assignees: mapAssigneeRows(row.task_assignees),
     hasUnseenActivity,
   };
 }

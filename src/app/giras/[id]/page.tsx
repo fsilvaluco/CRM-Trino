@@ -24,8 +24,9 @@ export default function GiraPage({ params }: { params: Promise<{ id: string }> }
   const [loadError, setLoadError] = useState<string | null>(null);
   const [tab, setTab] = useState<TabKey>("resumen");
 
+  const projectId = activeProject?.id;
   const load = useCallback(() => {
-    const qs = activeProject?.id ? `?projectId=${encodeURIComponent(activeProject.id)}` : "";
+    const qs = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
     fetch(`/api/giras/${id}${qs}`)
       .then(async (r) => {
         const d = await r.json().catch(() => ({}));
@@ -34,7 +35,7 @@ export default function GiraPage({ params }: { params: Promise<{ id: string }> }
         setLoadError(null);
       })
       .catch((e: Error) => setLoadError(e.message));
-  }, [id, activeProject?.id]);
+  }, [id, projectId]);
 
   useEffect(load, [load]);
 
@@ -42,6 +43,7 @@ export default function GiraPage({ params }: { params: Promise<{ id: string }> }
   useEffect(() => {
     try {
       const saved = localStorage.getItem(`gira-tab-${id}`) as TabKey | null;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage solo existe en el navegador; leerlo en el render rompe la hidratacion
       if (saved) setTab(saved);
     } catch {}
   }, [id]);

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { mapAssigneeRows } from "@/lib/assignee-rows";
 import { requireAuth } from "@/lib/supabase-server";
 import { logActivity } from "@/lib/activity-logs";
 import {
@@ -45,15 +46,7 @@ function mapDeal(row: any, veIngresos: boolean, veContactos: boolean) {
     stageIsWon: row.pipeline_stages?.is_won ?? false,
     stageIsLost: row.pipeline_stages?.is_lost ?? false,
     companyName: row.companies?.name ?? null,
-    assignees: row.deal_assignees?.map((da: any) => ({
-      userId: da.user_id,
-      assignedAt: da.assigned_at,
-      profile: da.profiles ? {
-        fullName: da.profiles.full_name,
-        avatarUrl: da.profiles.avatar_url,
-        email: da.profiles.email,
-      } : null,
-    })) ?? [],
+    assignees: mapAssigneeRows(row.deal_assignees),
   };
 }
 

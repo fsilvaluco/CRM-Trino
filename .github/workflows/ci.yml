@@ -1,0 +1,53 @@
+name: CI
+
+# Verifica cada PR (y cada push a main) antes de que llegue a Railway:
+# tipos, lint y build de produccion. Si algo falla, el PR queda en rojo.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+# Un push nuevo al mismo PR cancela la corrida anterior.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # Misma version mayor que el Dockerfile (node:22-slim).
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci --no-audit --no-fund
+
+      - name: Tipos (tsc)
+        run: npx tsc --noEmit -p .
+
+      - name: Lint (eslint)
+        run: npm run lint
+
+      - name: Build de produccion
+        # El build no se conecta a Supabase: estos valores solo existen para
+        # que el codigo que lee las variables al importar no falle. No son
+        # secretos ni apuntan a la base real.
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-key
+          NEXT_PUBLIC_SITE_URL: http://localhost:3000
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: npm run build
