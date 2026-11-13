@@ -6,6 +6,17 @@ import type { ShopifyProduct, ShopifySalesMonth, ShopifySalesDay } from "@/types
 // datos únicamente entran vía sync con Shopify (lib/shopify-sync.ts), nunca
 // desde la UI.
 
+interface ShopifyVariantRow {
+  id: string;
+  shopify_variant_id: string | number;
+  title: string;
+  sku: string | null;
+  price: number | null;
+  cost: number | null;
+  inventory_quantity: number;
+  available: boolean;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapProduct(row: any): ShopifyProduct {
   return {
@@ -19,7 +30,7 @@ function mapProduct(row: any): ShopifyProduct {
     cost: row.cost ?? null,
     imageUrl: row.image_url,
     updatedAt: row.updated_at,
-    variants: (row.shopify_product_variants ?? []).map((v: any) => ({
+    variants: ((row.shopify_product_variants ?? []) as ShopifyVariantRow[]).map((v) => ({
       id: v.id,
       shopifyVariantId: Number(v.shopify_variant_id),
       title: v.title,

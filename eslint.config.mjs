@@ -21,6 +21,10 @@ const eslintConfig = defineConfig([
     // "corrigieran" a import/export.
     "test-*.js",
     "test-*.ts",
+    // Worker de pdf.js copiado tal cual desde node_modules (codigo de terceros).
+    "public/pdf.worker.min.mjs",
+    // Copias de trabajo locales de Claude Code (worktrees de agentes).
+    ".claude/**",
   ]),
 ]);
 

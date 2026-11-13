@@ -12,8 +12,6 @@ export function UpdateNotifier() {
   const initialBuildId = useRef<string | null>(null);
 
   useEffect(() => {
-    let timer: ReturnType<typeof setInterval>;
-
     async function checkVersion() {
       try {
         const res = await fetch("/api/version", { cache: "no-store" });
@@ -37,8 +35,10 @@ export function UpdateNotifier() {
       }
     }
 
+    // El intervalo se crea antes del primer chequeo para que checkVersion
+    // nunca lea `timer` antes de que exista.
+    const timer = setInterval(checkVersion, POLL_INTERVAL);
     checkVersion();
-    timer = setInterval(checkVersion, POLL_INTERVAL);
 
     return () => clearInterval(timer);
   }, []);

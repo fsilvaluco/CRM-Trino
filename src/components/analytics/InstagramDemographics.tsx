@@ -42,6 +42,7 @@ export function InstagramDemographics() {
 
   useEffect(() => {
     if (!activeProject) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- carga de datos al montar/cambiar de proyecto; el patron es intencional
       setLoading(false);
       return;
     }

@@ -248,7 +248,7 @@ export function TransactionForm({ open, onClose, onCreated, initialData }: Trans
 
       // Responsable del gasto: siempre el usuario que lo ingresa
       // Si especifica otro nombre, ese va como responsibleName
-      let responsibleUserId: string | null = user?.id || null;
+      const responsibleUserId: string | null = user?.id || null;
       let responsibleName: string | null = null;
 
       if (data.responsibleExternal && data.responsibleExternal.trim() !== "") {
