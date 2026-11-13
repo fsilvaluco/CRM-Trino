@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { mapAssigneeRows } from "@/lib/assignee-rows";
 import { requireAuth } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { markEntityViewed } from "@/lib/entity-views";
@@ -35,15 +36,7 @@ function mapTask(row: any) {
     dealTitle: row.deals?.title ?? null,
     projectName: row.projects?.name ?? null,
     subprojectName: row.subprojects?.name ?? null,
-    assignees: row.task_assignees?.map((ta: any) => ({
-      userId: ta.user_id,
-      assignedAt: ta.assigned_at,
-      profile: ta.profiles ? {
-        fullName: ta.profiles.full_name,
-        avatarUrl: ta.profiles.avatar_url,
-        email: ta.profiles.email,
-      } : null,
-    })) ?? [],
+    assignees: mapAssigneeRows(row.task_assignees),
   };
 }
 

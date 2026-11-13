@@ -74,6 +74,7 @@ export function CommentsWithMentions({
   useEffect(() => {
     if (orgMembersProp) return; // el padre ya los provee, no volver a pedirlos
     if (!projectId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- carga de datos al montar/cambiar de proyecto; el patron es intencional
       setFetchedOrgMembers([]);
       return;
     }
