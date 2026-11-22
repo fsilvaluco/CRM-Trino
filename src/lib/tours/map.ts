@@ -46,7 +46,12 @@ export function mapLeg(r: any): TourLeg {
   return { id: r.id, name: r.name, startDate: r.start_date ?? null, endDate: r.end_date ?? null, position: r.position ?? 0 };
 }
 
-export function mapDate(r: any, legName: string | null, withMoney: boolean): TourDate {
+export function mapDate(
+  r: any,
+  legName: string | null,
+  withMoney: boolean,
+  sync?: { ticket_visits: number | null; tickets_sync_error: string | null }
+): TourDate {
   return {
     showId: r.show_id,
     tourLegId: r.tour_leg_id ?? null,
@@ -71,6 +76,8 @@ export function mapDate(r: any, legName: string | null, withMoney: boolean): Tou
     pctCapacity: num(r.pct_capacity),
     projectedPct: num(r.projected_pct),
     ticketsUpdatedAt: r.tickets_updated_at ?? null,
+    ticketVisits: num(sync?.ticket_visits),
+    ticketsSyncError: sync?.tickets_sync_error ?? null,
     paceStatus: r.pace_status,
   };
 }

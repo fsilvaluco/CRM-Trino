@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useLocale } from "@/lib/locale-context";
 import { AlertsList } from "@/components/tours/AlertsList";
+import { LiveSalesPanel } from "@/components/tours/LiveSalesPanel";
 import { PACE_CLASS, PACE_LABEL, shortDate } from "@/components/tours/labels";
-import type { TourDetail } from "@/types/tours";
+import type { SalesPoint, TourDetail } from "@/types/tours";
 
 type Tab = "resumen" | "fechas" | "venta" | "auspicios" | "presupuesto" | "tareas";
 
@@ -19,7 +20,15 @@ function Kpi({ label, value, hint, tone }: { label: string; value: string; hint?
   );
 }
 
-export function TourSummaryTab({ data, onNavigate }: { data: TourDetail; onNavigate: (t: Tab) => void }) {
+export function TourSummaryTab({
+  data,
+  points,
+  onNavigate,
+}: {
+  data: TourDetail;
+  points: SalesPoint[];
+  onNavigate: (t: Tab) => void;
+}) {
   const { formatCurrency } = useLocale();
   // "Ahora" fijo al montar: Date.now() directo en el render es impuro.
   const [now] = useState(() => Date.now());
@@ -83,6 +92,8 @@ export function TourSummaryTab({ data, onNavigate }: { data: TourDetail; onNavig
           <Kpi label="Canjes confirmados" value={formatCurrency(canjeValue)} />
         )}
       </div>
+
+      <LiveSalesPanel dates={dates} points={points} />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <section className="space-y-2">

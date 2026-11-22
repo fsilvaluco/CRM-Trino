@@ -89,6 +89,10 @@ export interface TourDate {
   pctCapacity: number | null;
   projectedPct: number | null;
   ticketsUpdatedAt: string | null;
+  /** Visitas a la página de venta (shows.ticket_visits), según sync-tickets. */
+  ticketVisits: number | null;
+  /** Último error de la sincronización con la ticketera; null si fue bien. */
+  ticketsSyncError: string | null;
   paceStatus: PaceStatus;
 }
 
@@ -210,4 +214,8 @@ export interface SalesPoint {
   showId: string;
   capturedAt: string;
   sold: number;
+  capacity: number | null;
+  /** Recaudación acumulada en centavos; null si el usuario no ve montos. */
+  revenue: number | null;
+  visits: number | null;
 }

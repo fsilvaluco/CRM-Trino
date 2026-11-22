@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -31,21 +31,13 @@ const BAR_COLOR: Record<string, string> = {
   en_ritmo: "#059669",
 };
 
-export function TourSalesTab({ data }: { data: TourDetail }) {
+export function TourSalesTab({ data, points }: { data: TourDetail; points: SalesPoint[] }) {
   const { tour } = data;
   const dates = data.dates.filter((d) => d.showStatus !== "cancelado");
-  const [points, setPoints] = useState<SalesPoint[]>([]);
   const [showId, setShowId] = useState<string>(() => {
     const weakest = [...dates].sort((a, b) => (a.projectedPct ?? 999) - (b.projectedPct ?? 999))[0];
     return weakest?.showId ?? "";
   });
-
-  useEffect(() => {
-    fetch(`/api/giras/${tour.id}/ventas`)
-      .then((r) => r.json())
-      .then((d) => setPoints(Array.isArray(d) ? d : []))
-      .catch(() => setPoints([]));
-  }, [tour.id]);
 
   const ranking = dates.map((d) => ({
     city: d.city,
@@ -56,7 +48,7 @@ export function TourSalesTab({ data }: { data: TourDetail }) {
 
   const selected = dates.find((d) => d.showId === showId);
 
-  // Curva real (puntos de goal_history) vs esperada (día a día) para la fecha elegida.
+  // Curva real (snapshots de ticket_sales_snapshots) vs esperada (día a día) para la fecha elegida.
   const curve = useMemo(() => {
     if (!selected || !selected.target) return [];
     const total = daysBetween(selected.salesStart, selected.date);

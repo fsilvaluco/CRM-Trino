@@ -25,9 +25,11 @@ export async function GET(request: NextRequest, { params }: Ctx) {
   if (error) return error;
   const { supabase, tour, canEdit, canViewCosts } = access;
 
-  const [legsRes, datesRes, spRes, alertsRes, tasksRes] = await Promise.all([
+  const [legsRes, datesRes, syncRes, spRes, alertsRes, tasksRes] = await Promise.all([
     supabase.from("tour_legs").select("*").eq("tour_id", id).order("position"),
     supabase.from("v_tour_show_sales").select("*").eq("tour_id", id).order("date"),
+    // Estado de la sincronización con la ticketera (sync-tickets), que la vista no trae.
+    supabase.from("shows").select("id, ticket_visits, tickets_sync_error").eq("tour_id", id),
     supabase.from("tour_sponsorships").select("*").eq("tour_id", id).order("brand"),
     supabase.from("v_tour_alerts").select("*").eq("tour_id", id),
     tour.subproject_id
@@ -44,6 +46,7 @@ export async function GET(request: NextRequest, { params }: Ctx) {
   const rowsOf = (res: any): any[] => (res?.data ?? []) as any[];
   const legs: TourLeg[] = rowsOf(legsRes).map(mapLeg);
   const legName = new Map<string, string>(legs.map((l) => [l.id, l.name]));
+  const syncByShow = new Map(rowsOf(syncRes).map((r) => [r.id as string, r]));
 
   let budget: TourDetail["budget"] = null;
   if (canViewCosts) {
@@ -66,7 +69,7 @@ export async function GET(request: NextRequest, { params }: Ctx) {
   const payload: TourDetail = {
     tour: mapTour(tour),
     legs,
-    dates: rowsOf(datesRes).map((r) => mapDate(r, r.tour_leg_id ? legName.get(r.tour_leg_id) ?? null : null, canViewCosts)),
+    dates: rowsOf(datesRes).map((r) => mapDate(r, r.tour_leg_id ? legName.get(r.tour_leg_id) ?? null : null, canViewCosts, syncByShow.get(r.show_id))),
     sponsorships: rowsOf(spRes).map((r) => mapSponsorship(r, true)),
     budget,
     alerts,

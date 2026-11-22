@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ExternalLink, Route } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,31 +13,17 @@ import { SponsorshipsTab } from "@/components/tours/SponsorshipsTab";
 import { TourBudgetTab } from "@/components/tours/TourBudgetTab";
 import { TourTasksTab } from "@/components/tours/TourTasksTab";
 import { shortDate } from "@/components/tours/labels";
-import type { TourDetail } from "@/types/tours";
+import { useTourLive } from "@/components/tours/useTourLive";
+import { updatedAgo } from "@/lib/tours/live";
 
 type TabKey = "resumen" | "fechas" | "venta" | "auspicios" | "presupuesto" | "tareas";
 
 export default function GiraPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { activeProject } = useProject();
-  const [data, setData] = useState<TourDetail | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [tab, setTab] = useState<TabKey>("resumen");
-
-  const projectId = activeProject?.id;
-  const load = useCallback(() => {
-    const qs = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
-    fetch(`/api/giras/${id}${qs}`)
-      .then(async (r) => {
-        const d = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(d.error ?? "No se pudo cargar la gira");
-        setData(d as TourDetail);
-        setLoadError(null);
-      })
-      .catch((e: Error) => setLoadError(e.message));
-  }, [id, projectId]);
-
-  useEffect(load, [load]);
+  // Se refresca sola cada 60 s y al volver a la pestaña (ver useTourLive).
+  const { data, points, loadError, reload: load } = useTourLive(id, activeProject?.id);
 
   // Recordar la última pestaña por gira (comodidad local, no crítico).
   useEffect(() => {
@@ -59,6 +45,10 @@ export default function GiraPage({ params }: { params: Promise<{ id: string }> }
 
   const { tour } = data;
   const openAlerts = data.alerts.length;
+  const ticketsUpdatedAt = data.dates.reduce<string | null>(
+    (max, d) => (d.ticketsUpdatedAt && (!max || d.ticketsUpdatedAt > max) ? d.ticketsUpdatedAt : max),
+    null
+  );
 
   return (
     <div className="space-y-4">
@@ -70,6 +60,8 @@ export default function GiraPage({ params }: { params: Promise<{ id: string }> }
         <p className="text-sm text-muted-foreground">
           {shortDate(tour.startDate)} – {shortDate(tour.endDate)}
           {tour.folio && <> · Folio {tour.folio}</>}
+          {" · "}
+          <span title={ticketsUpdatedAt ? new Date(ticketsUpdatedAt).toLocaleString("es-CL") : undefined}>{updatedAgo(ticketsUpdatedAt)}</span>
           {tour.canvaFolderUrl && (
             <>
               {" · "}
@@ -94,13 +86,13 @@ export default function GiraPage({ params }: { params: Promise<{ id: string }> }
         </TabsList>
 
         <TabsContent value="resumen" className="pt-4">
-          <TourSummaryTab data={data} onNavigate={changeTab} />
+          <TourSummaryTab data={data} points={points} onNavigate={changeTab} />
         </TabsContent>
         <TabsContent value="fechas" className="pt-4">
           <TourDatesTab data={data} onChanged={load} />
         </TabsContent>
         <TabsContent value="venta" className="pt-4">
-          <TourSalesTab data={data} />
+          <TourSalesTab data={data} points={points} />
         </TabsContent>
         <TabsContent value="auspicios" className="pt-4">
           <SponsorshipsTab data={data} onChanged={load} />
