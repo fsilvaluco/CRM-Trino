@@ -4,12 +4,16 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
+import { getSafeNextPath } from "@/lib/safe-next";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { AutoRequestPushPermission } from "@/components/layout/AutoRequestPushPermission";
 
-const PUBLIC_PATHS = ["/login", "/auth/activate", "/forgot-password", "/reset-password"];
+// "/oauth/consent" es la pantalla de autorizacion OAuth (conectar Claude):
+// se muestra sin el chrome de la app y resuelve su propia sesion en el
+// servidor (redirige a /login?next=... si hace falta).
+const PUBLIC_PATHS = ["/login", "/auth/activate", "/forgot-password", "/reset-password", "/oauth/consent"];
 // "/s/" son los Smartlinks (pagina publica /s/{slug}) -- sin esto, cualquiera
 // sin sesion que abre el link (el caso de uso completo: mandarlo por correo a
 // alguien que no tiene cuenta en el CRM) cae en el login en vez de ver la
@@ -54,7 +58,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
 
     if (!loading && user && isGuestOnly) {
-      router.replace("/");
+      router.replace(getSafeNextPath(window.location.search));
       return;
     }
 

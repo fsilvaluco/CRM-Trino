@@ -10,6 +10,29 @@ _Checkpoint anterior: v1.12 — 15 de septiembre de 2026 (forzar apertura de app
 
 ---
 
+## 🔌 MCP remoto para el equipo: tareas desde Claude (13 nov 2026)
+
+**Para qué:** que el equipo (ej. Diego, Joaco) pueda preguntarle a Claude "¿qué tengo pendiente en
+Artist Pro?", mover sus tareas y dejar avances sin entrar a la app ni tener acceso a la base.
+
+**Qué se hizo:**
+- Servidor MCP en `/api/mcp` (Streamable HTTP sin estado, JSON-RPC a mano, sin dependencias nuevas).
+  Cuatro herramientas: `mis_tareas`, `ver_tarea`, `actualizar_estado` (solo si la persona es
+  responsable de la tarea), `comentar_tarea`. Código en `src/lib/mcp/`.
+- Login con OAuth 2.1 de Supabase Auth: cada persona entra con su cuenta y las consultas corren con
+  su token (RLS + matriz de permisos, mismas reglas que la web vía `resolveAuthContext()`, extraído
+  de `requireAuth()`).
+- Descubrimiento en `/.well-known/oauth-protected-resource` y pantalla de autorización en
+  `/oauth/consent` (solo aprueba clientes de claude.ai / claude.com / localhost).
+- `/login` ahora respeta `?next=` (solo rutas internas) para volver a la pantalla de autorización.
+
+**⚠️ Por verificar (no se pudo probar de punta a punta antes de desplegar):** el flujo completo con
+un token real. Requiere activar en Supabase el servidor OAuth (Authentication > OAuth Server:
+activar, Authorization Path `/oauth/consent`, registro dinámico) y que el Site URL sea el dominio de
+producción. Probado en local: descubrimiento, 401 con `WWW-Authenticate`, protocolo y validaciones.
+
+---
+
 ## 🐛 Dashboard caído por meta `entradas_show` (28 oct 2026)
 
 **Síntoma:** en producción el Dashboard se caía apenas cargaban los datos (PC y celular) con la
